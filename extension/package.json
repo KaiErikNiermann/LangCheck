@@ -16,6 +16,13 @@
         "command": "language-check.checkDocument",
         "title": "Language Check: Check Current Document"
       }
+    "keybindings": [
+      {
+        "command": "language-check.openSpeedFix",
+        "key": "alt+f",
+        "mac": "alt+f",
+        "when": "editorTextFocus"
+      }
     ]
   },
   "scripts": {

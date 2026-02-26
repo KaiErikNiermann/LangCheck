@@ -1,6 +1,6 @@
 services:
   languagetool:
-    image: erikvl82/languagetool
+    image: erikvl87/languagetool
     ports:
       - "8010:8010"
     restart: unless-stopped

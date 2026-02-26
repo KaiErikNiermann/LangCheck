@@ -2,6 +2,27 @@ syntax = "proto3";
 
 package languagecheck;
 
+message Request {
+  uint64 id = 1;
+  oneof payload {
+    CheckRequest check_prose = 2;
+    MetadataRequest get_metadata = 3;
+  }
+}
+
+message Response {
+  uint64 id = 1;
+  oneof payload {
+    CheckResponse check_prose = 2;
+    MetadataResponse get_metadata = 3;
+    ErrorResponse error = 4;
+  }
+}
+
+message ErrorResponse {
+  string message = 1;
+}
+
 service CheckerProvider {
   // Main check request
   rpc CheckProse(CheckRequest) returns (CheckResponse);
