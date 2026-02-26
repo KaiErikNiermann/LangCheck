@@ -1,0 +1,17 @@
+# Rust
+/rust-core/target/
+rust-core/Cargo.lock
+
+# Node
+/extension/node_modules/
+/extension/out/
+/extension/dist/
+extension/package-lock.json
+
+# Protobuf
+/proto/gen/
+
+# Misc
+.DS_Store
+*.log
+.vscode/
