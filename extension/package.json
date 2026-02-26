@@ -2,12 +2,42 @@
   "name": "extension",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "publisher": "gemini",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "activationEvents": [
+    "onLanguage:markdown"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "language-check.checkDocument",
+        "title": "Language Check: Check Current Document"
+      }
+    ]
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "proto:gen": "pbjs -t static-module -w commonjs -o src/proto/checker.js ../proto/checker.proto && pbts -o src/proto/checker.d.ts src/proto/checker.js",
+    "build": "tsc -p .",
+    "test": "vitest"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.14.0"
+  "packageManager": "pnpm@10.14.0",
+  "dependencies": {
+    "long": "^5.3.2",
+    "protobufjs": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/long": "^5.0.0",
+    "@types/node": "^25.3.2",
+    "@types/vscode": "^1.109.0",
+    "protobufjs-cli": "^2.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
 }
