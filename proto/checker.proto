@@ -7,7 +7,13 @@ message Request {
   oneof payload {
     CheckRequest check_prose = 2;
     MetadataRequest get_metadata = 3;
+    IgnoreRequest ignore = 4;
   }
+}
+
+message IgnoreRequest {
+  string message = 1;
+  string context = 2;
 }
 
 message Response {
@@ -16,8 +22,11 @@ message Response {
     CheckResponse check_prose = 2;
     MetadataResponse get_metadata = 3;
     ErrorResponse error = 4;
+    OkResponse ok = 5;
   }
 }
+
+message OkResponse {}
 
 message ErrorResponse {
   string message = 1;
@@ -47,6 +56,8 @@ message Diagnostic {
   repeated string suggestions = 4;
   string rule_id = 5;
   Severity severity = 6;
+  string unified_id = 7;
+  float confidence = 8;
 }
 
 enum Severity {

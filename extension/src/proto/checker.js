@@ -27,6 +27,7 @@ $root.languagecheck = (function() {
          * @property {number|Long|null} [id] Request id
          * @property {languagecheck.ICheckRequest|null} [checkProse] Request checkProse
          * @property {languagecheck.IMetadataRequest|null} [getMetadata] Request getMetadata
+         * @property {languagecheck.IIgnoreRequest|null} [ignore] Request ignore
          */
 
         /**
@@ -68,17 +69,25 @@ $root.languagecheck = (function() {
          */
         Request.prototype.getMetadata = null;
 
+        /**
+         * Request ignore.
+         * @member {languagecheck.IIgnoreRequest|null|undefined} ignore
+         * @memberof languagecheck.Request
+         * @instance
+         */
+        Request.prototype.ignore = null;
+
         // OneOf field names bound to virtual getters and setters
         var $oneOfFields;
 
         /**
          * Request payload.
-         * @member {"checkProse"|"getMetadata"|undefined} payload
+         * @member {"checkProse"|"getMetadata"|"ignore"|undefined} payload
          * @memberof languagecheck.Request
          * @instance
          */
         Object.defineProperty(Request.prototype, "payload", {
-            get: $util.oneOfGetter($oneOfFields = ["checkProse", "getMetadata"]),
+            get: $util.oneOfGetter($oneOfFields = ["checkProse", "getMetadata", "ignore"]),
             set: $util.oneOfSetter($oneOfFields)
         });
 
@@ -112,6 +121,8 @@ $root.languagecheck = (function() {
                 $root.languagecheck.CheckRequest.encode(message.checkProse, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
             if (message.getMetadata != null && Object.hasOwnProperty.call(message, "getMetadata"))
                 $root.languagecheck.MetadataRequest.encode(message.getMetadata, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+            if (message.ignore != null && Object.hasOwnProperty.call(message, "ignore"))
+                $root.languagecheck.IgnoreRequest.encode(message.ignore, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
             return writer;
         };
 
@@ -158,6 +169,10 @@ $root.languagecheck = (function() {
                     }
                 case 3: {
                         message.getMetadata = $root.languagecheck.MetadataRequest.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 4: {
+                        message.ignore = $root.languagecheck.IgnoreRequest.decode(reader, reader.uint32());
                         break;
                     }
                 default:
@@ -217,6 +232,16 @@ $root.languagecheck = (function() {
                         return "getMetadata." + error;
                 }
             }
+            if (message.ignore != null && message.hasOwnProperty("ignore")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    var error = $root.languagecheck.IgnoreRequest.verify(message.ignore);
+                    if (error)
+                        return "ignore." + error;
+                }
+            }
             return null;
         };
 
@@ -250,6 +275,11 @@ $root.languagecheck = (function() {
                 if (typeof object.getMetadata !== "object")
                     throw TypeError(".languagecheck.Request.getMetadata: object expected");
                 message.getMetadata = $root.languagecheck.MetadataRequest.fromObject(object.getMetadata);
+            }
+            if (object.ignore != null) {
+                if (typeof object.ignore !== "object")
+                    throw TypeError(".languagecheck.Request.ignore: object expected");
+                message.ignore = $root.languagecheck.IgnoreRequest.fromObject(object.ignore);
             }
             return message;
         };
@@ -288,6 +318,11 @@ $root.languagecheck = (function() {
                 if (options.oneofs)
                     object.payload = "getMetadata";
             }
+            if (message.ignore != null && message.hasOwnProperty("ignore")) {
+                object.ignore = $root.languagecheck.IgnoreRequest.toObject(message.ignore, options);
+                if (options.oneofs)
+                    object.payload = "ignore";
+            }
             return object;
         };
 
@@ -320,6 +355,235 @@ $root.languagecheck = (function() {
         return Request;
     })();
 
+    languagecheck.IgnoreRequest = (function() {
+
+        /**
+         * Properties of an IgnoreRequest.
+         * @memberof languagecheck
+         * @interface IIgnoreRequest
+         * @property {string|null} [message] IgnoreRequest message
+         * @property {string|null} [context] IgnoreRequest context
+         */
+
+        /**
+         * Constructs a new IgnoreRequest.
+         * @memberof languagecheck
+         * @classdesc Represents an IgnoreRequest.
+         * @implements IIgnoreRequest
+         * @constructor
+         * @param {languagecheck.IIgnoreRequest=} [properties] Properties to set
+         */
+        function IgnoreRequest(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * IgnoreRequest message.
+         * @member {string} message
+         * @memberof languagecheck.IgnoreRequest
+         * @instance
+         */
+        IgnoreRequest.prototype.message = "";
+
+        /**
+         * IgnoreRequest context.
+         * @member {string} context
+         * @memberof languagecheck.IgnoreRequest
+         * @instance
+         */
+        IgnoreRequest.prototype.context = "";
+
+        /**
+         * Creates a new IgnoreRequest instance using the specified properties.
+         * @function create
+         * @memberof languagecheck.IgnoreRequest
+         * @static
+         * @param {languagecheck.IIgnoreRequest=} [properties] Properties to set
+         * @returns {languagecheck.IgnoreRequest} IgnoreRequest instance
+         */
+        IgnoreRequest.create = function create(properties) {
+            return new IgnoreRequest(properties);
+        };
+
+        /**
+         * Encodes the specified IgnoreRequest message. Does not implicitly {@link languagecheck.IgnoreRequest.verify|verify} messages.
+         * @function encode
+         * @memberof languagecheck.IgnoreRequest
+         * @static
+         * @param {languagecheck.IIgnoreRequest} message IgnoreRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        IgnoreRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.message != null && Object.hasOwnProperty.call(message, "message"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.message);
+            if (message.context != null && Object.hasOwnProperty.call(message, "context"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.context);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified IgnoreRequest message, length delimited. Does not implicitly {@link languagecheck.IgnoreRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof languagecheck.IgnoreRequest
+         * @static
+         * @param {languagecheck.IIgnoreRequest} message IgnoreRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        IgnoreRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an IgnoreRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof languagecheck.IgnoreRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {languagecheck.IgnoreRequest} IgnoreRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        IgnoreRequest.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.IgnoreRequest();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.message = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.context = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an IgnoreRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof languagecheck.IgnoreRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {languagecheck.IgnoreRequest} IgnoreRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        IgnoreRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an IgnoreRequest message.
+         * @function verify
+         * @memberof languagecheck.IgnoreRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        IgnoreRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.message != null && message.hasOwnProperty("message"))
+                if (!$util.isString(message.message))
+                    return "message: string expected";
+            if (message.context != null && message.hasOwnProperty("context"))
+                if (!$util.isString(message.context))
+                    return "context: string expected";
+            return null;
+        };
+
+        /**
+         * Creates an IgnoreRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof languagecheck.IgnoreRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {languagecheck.IgnoreRequest} IgnoreRequest
+         */
+        IgnoreRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.languagecheck.IgnoreRequest)
+                return object;
+            var message = new $root.languagecheck.IgnoreRequest();
+            if (object.message != null)
+                message.message = String(object.message);
+            if (object.context != null)
+                message.context = String(object.context);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an IgnoreRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof languagecheck.IgnoreRequest
+         * @static
+         * @param {languagecheck.IgnoreRequest} message IgnoreRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        IgnoreRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.message = "";
+                object.context = "";
+            }
+            if (message.message != null && message.hasOwnProperty("message"))
+                object.message = message.message;
+            if (message.context != null && message.hasOwnProperty("context"))
+                object.context = message.context;
+            return object;
+        };
+
+        /**
+         * Converts this IgnoreRequest to JSON.
+         * @function toJSON
+         * @memberof languagecheck.IgnoreRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        IgnoreRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for IgnoreRequest
+         * @function getTypeUrl
+         * @memberof languagecheck.IgnoreRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        IgnoreRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/languagecheck.IgnoreRequest";
+        };
+
+        return IgnoreRequest;
+    })();
+
     languagecheck.Response = (function() {
 
         /**
@@ -330,6 +594,7 @@ $root.languagecheck = (function() {
          * @property {languagecheck.ICheckResponse|null} [checkProse] Response checkProse
          * @property {languagecheck.IMetadataResponse|null} [getMetadata] Response getMetadata
          * @property {languagecheck.IErrorResponse|null} [error] Response error
+         * @property {languagecheck.IOkResponse|null} [ok] Response ok
          */
 
         /**
@@ -379,17 +644,25 @@ $root.languagecheck = (function() {
          */
         Response.prototype.error = null;
 
+        /**
+         * Response ok.
+         * @member {languagecheck.IOkResponse|null|undefined} ok
+         * @memberof languagecheck.Response
+         * @instance
+         */
+        Response.prototype.ok = null;
+
         // OneOf field names bound to virtual getters and setters
         var $oneOfFields;
 
         /**
          * Response payload.
-         * @member {"checkProse"|"getMetadata"|"error"|undefined} payload
+         * @member {"checkProse"|"getMetadata"|"error"|"ok"|undefined} payload
          * @memberof languagecheck.Response
          * @instance
          */
         Object.defineProperty(Response.prototype, "payload", {
-            get: $util.oneOfGetter($oneOfFields = ["checkProse", "getMetadata", "error"]),
+            get: $util.oneOfGetter($oneOfFields = ["checkProse", "getMetadata", "error", "ok"]),
             set: $util.oneOfSetter($oneOfFields)
         });
 
@@ -425,6 +698,8 @@ $root.languagecheck = (function() {
                 $root.languagecheck.MetadataResponse.encode(message.getMetadata, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
             if (message.error != null && Object.hasOwnProperty.call(message, "error"))
                 $root.languagecheck.ErrorResponse.encode(message.error, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+            if (message.ok != null && Object.hasOwnProperty.call(message, "ok"))
+                $root.languagecheck.OkResponse.encode(message.ok, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
             return writer;
         };
 
@@ -475,6 +750,10 @@ $root.languagecheck = (function() {
                     }
                 case 4: {
                         message.error = $root.languagecheck.ErrorResponse.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 5: {
+                        message.ok = $root.languagecheck.OkResponse.decode(reader, reader.uint32());
                         break;
                     }
                 default:
@@ -544,6 +823,16 @@ $root.languagecheck = (function() {
                         return "error." + error;
                 }
             }
+            if (message.ok != null && message.hasOwnProperty("ok")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    var error = $root.languagecheck.OkResponse.verify(message.ok);
+                    if (error)
+                        return "ok." + error;
+                }
+            }
             return null;
         };
 
@@ -582,6 +871,11 @@ $root.languagecheck = (function() {
                 if (typeof object.error !== "object")
                     throw TypeError(".languagecheck.Response.error: object expected");
                 message.error = $root.languagecheck.ErrorResponse.fromObject(object.error);
+            }
+            if (object.ok != null) {
+                if (typeof object.ok !== "object")
+                    throw TypeError(".languagecheck.Response.ok: object expected");
+                message.ok = $root.languagecheck.OkResponse.fromObject(object.ok);
             }
             return message;
         };
@@ -625,6 +919,11 @@ $root.languagecheck = (function() {
                 if (options.oneofs)
                     object.payload = "error";
             }
+            if (message.ok != null && message.hasOwnProperty("ok")) {
+                object.ok = $root.languagecheck.OkResponse.toObject(message.ok, options);
+                if (options.oneofs)
+                    object.payload = "ok";
+            }
             return object;
         };
 
@@ -655,6 +954,183 @@ $root.languagecheck = (function() {
         };
 
         return Response;
+    })();
+
+    languagecheck.OkResponse = (function() {
+
+        /**
+         * Properties of an OkResponse.
+         * @memberof languagecheck
+         * @interface IOkResponse
+         */
+
+        /**
+         * Constructs a new OkResponse.
+         * @memberof languagecheck
+         * @classdesc Represents an OkResponse.
+         * @implements IOkResponse
+         * @constructor
+         * @param {languagecheck.IOkResponse=} [properties] Properties to set
+         */
+        function OkResponse(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * Creates a new OkResponse instance using the specified properties.
+         * @function create
+         * @memberof languagecheck.OkResponse
+         * @static
+         * @param {languagecheck.IOkResponse=} [properties] Properties to set
+         * @returns {languagecheck.OkResponse} OkResponse instance
+         */
+        OkResponse.create = function create(properties) {
+            return new OkResponse(properties);
+        };
+
+        /**
+         * Encodes the specified OkResponse message. Does not implicitly {@link languagecheck.OkResponse.verify|verify} messages.
+         * @function encode
+         * @memberof languagecheck.OkResponse
+         * @static
+         * @param {languagecheck.IOkResponse} message OkResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        OkResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified OkResponse message, length delimited. Does not implicitly {@link languagecheck.OkResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof languagecheck.OkResponse
+         * @static
+         * @param {languagecheck.IOkResponse} message OkResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        OkResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an OkResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof languagecheck.OkResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {languagecheck.OkResponse} OkResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        OkResponse.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.OkResponse();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an OkResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof languagecheck.OkResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {languagecheck.OkResponse} OkResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        OkResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an OkResponse message.
+         * @function verify
+         * @memberof languagecheck.OkResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        OkResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            return null;
+        };
+
+        /**
+         * Creates an OkResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof languagecheck.OkResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {languagecheck.OkResponse} OkResponse
+         */
+        OkResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.languagecheck.OkResponse)
+                return object;
+            return new $root.languagecheck.OkResponse();
+        };
+
+        /**
+         * Creates a plain object from an OkResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof languagecheck.OkResponse
+         * @static
+         * @param {languagecheck.OkResponse} message OkResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        OkResponse.toObject = function toObject() {
+            return {};
+        };
+
+        /**
+         * Converts this OkResponse to JSON.
+         * @function toJSON
+         * @memberof languagecheck.OkResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        OkResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for OkResponse
+         * @function getTypeUrl
+         * @memberof languagecheck.OkResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        OkResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/languagecheck.OkResponse";
+        };
+
+        return OkResponse;
     })();
 
     languagecheck.ErrorResponse = (function() {
@@ -1489,6 +1965,8 @@ $root.languagecheck = (function() {
          * @property {Array.<string>|null} [suggestions] Diagnostic suggestions
          * @property {string|null} [ruleId] Diagnostic ruleId
          * @property {languagecheck.Severity|null} [severity] Diagnostic severity
+         * @property {string|null} [unifiedId] Diagnostic unifiedId
+         * @property {number|null} [confidence] Diagnostic confidence
          */
 
         /**
@@ -1556,6 +2034,22 @@ $root.languagecheck = (function() {
         Diagnostic.prototype.severity = 0;
 
         /**
+         * Diagnostic unifiedId.
+         * @member {string} unifiedId
+         * @memberof languagecheck.Diagnostic
+         * @instance
+         */
+        Diagnostic.prototype.unifiedId = "";
+
+        /**
+         * Diagnostic confidence.
+         * @member {number} confidence
+         * @memberof languagecheck.Diagnostic
+         * @instance
+         */
+        Diagnostic.prototype.confidence = 0;
+
+        /**
          * Creates a new Diagnostic instance using the specified properties.
          * @function create
          * @memberof languagecheck.Diagnostic
@@ -1592,6 +2086,10 @@ $root.languagecheck = (function() {
                 writer.uint32(/* id 5, wireType 2 =*/42).string(message.ruleId);
             if (message.severity != null && Object.hasOwnProperty.call(message, "severity"))
                 writer.uint32(/* id 6, wireType 0 =*/48).int32(message.severity);
+            if (message.unifiedId != null && Object.hasOwnProperty.call(message, "unifiedId"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.unifiedId);
+            if (message.confidence != null && Object.hasOwnProperty.call(message, "confidence"))
+                writer.uint32(/* id 8, wireType 5 =*/69).float(message.confidence);
             return writer;
         };
 
@@ -1652,6 +2150,14 @@ $root.languagecheck = (function() {
                     }
                 case 6: {
                         message.severity = reader.int32();
+                        break;
+                    }
+                case 7: {
+                        message.unifiedId = reader.string();
+                        break;
+                    }
+                case 8: {
+                        message.confidence = reader.float();
                         break;
                     }
                 default:
@@ -1719,6 +2225,12 @@ $root.languagecheck = (function() {
                 case 4:
                     break;
                 }
+            if (message.unifiedId != null && message.hasOwnProperty("unifiedId"))
+                if (!$util.isString(message.unifiedId))
+                    return "unifiedId: string expected";
+            if (message.confidence != null && message.hasOwnProperty("confidence"))
+                if (typeof message.confidence !== "number")
+                    return "confidence: number expected";
             return null;
         };
 
@@ -1777,6 +2289,10 @@ $root.languagecheck = (function() {
                 message.severity = 4;
                 break;
             }
+            if (object.unifiedId != null)
+                message.unifiedId = String(object.unifiedId);
+            if (object.confidence != null)
+                message.confidence = Number(object.confidence);
             return message;
         };
 
@@ -1801,6 +2317,8 @@ $root.languagecheck = (function() {
                 object.message = "";
                 object.ruleId = "";
                 object.severity = options.enums === String ? "SEVERITY_UNSPECIFIED" : 0;
+                object.unifiedId = "";
+                object.confidence = 0;
             }
             if (message.startByte != null && message.hasOwnProperty("startByte"))
                 object.startByte = message.startByte;
@@ -1817,6 +2335,10 @@ $root.languagecheck = (function() {
                 object.ruleId = message.ruleId;
             if (message.severity != null && message.hasOwnProperty("severity"))
                 object.severity = options.enums === String ? $root.languagecheck.Severity[message.severity] === undefined ? message.severity : $root.languagecheck.Severity[message.severity] : message.severity;
+            if (message.unifiedId != null && message.hasOwnProperty("unifiedId"))
+                object.unifiedId = message.unifiedId;
+            if (message.confidence != null && message.hasOwnProperty("confidence"))
+                object.confidence = options.json && !isFinite(message.confidence) ? String(message.confidence) : message.confidence;
             return object;
         };
 

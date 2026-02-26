@@ -15,7 +15,16 @@
       {
         "command": "language-check.checkDocument",
         "title": "Language Check: Check Current Document"
+      },
+      {
+        "command": "language-check.openSpeedFix",
+        "title": "Language Check: Open SpeedFix"
+      },
+      {
+        "command": "language-check.checkWorkspace",
+        "title": "Language Check: Check Workspace"
       }
+    ],
     "keybindings": [
       {
         "command": "language-check.openSpeedFix",

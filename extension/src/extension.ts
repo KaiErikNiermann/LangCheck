@@ -17,10 +17,68 @@ export function activate(context: vscode.ExtensionContext) {
     client = new LanguageClient(binaryPath);
     client.start();
 
+    // Register Inlay Hints Provider
+    context.subscriptions.push(vscode.languages.registerInlayHintsProvider(
+        { language: 'markdown' },
+        {
+            provideInlayHints(document, range, token) {
+                const diagnostics = diagnosticsMap.get(document.uri.toString());
+                if (!diagnostics) return [];
+
+                const hints: vscode.InlayHint[] = [];
+                for (const d of diagnostics) {
+                    if (d.confidence && d.confidence >= 0.8 && d.suggestions && d.suggestions.length > 0) {
+                        const hint = new vscode.InlayHint(
+                            d.range.end,
+                            [
+                                {
+                                    value: ` → ${d.suggestions[0]}`,
+                                    command: {
+                                        command: 'language-check.applyFix',
+                                        title: 'Apply Fix',
+                                        arguments: [`diag-${diagnostics.indexOf(d)}`, d.suggestions[0]]
+                                    }
+                                }
+                            ],
+                            vscode.InlayHintKind.Type
+                        );
+                        hint.tooltip = `Accept suggestion: ${d.suggestions[0]}`;
+                        hints.push(hint);
+                    }
+                }
+                return hints;
+            }
+        }
+    ));
+
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.applyFix', async (diagnosticId: string, suggestion: string) => {
+        await applyFix(diagnosticId, suggestion);
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('language-check.checkDocument', async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) return;
         await checkDocument(editor.document);
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.checkWorkspace', async () => {
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "Checking workspace...",
+            cancellable: true
+        }, async (progress, token) => {
+            const files = await vscode.workspace.findFiles('**/*.md');
+            for (let i = 0; i < files.length; i++) {
+                if (token.isCancellationRequested) break;
+                
+                const file = files[i];
+                if (!file) continue;
+                progress.report({ increment: (1 / files.length) * 100, message: `Checking ${path.basename(file.fsPath)}` });
+                
+                const document = await vscode.workspace.openTextDocument(file);
+                await checkDocument(document);
+            }
+        });
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.openSpeedFix', () => {
@@ -58,6 +116,9 @@ export function activate(context: vscode.ExtensionContext) {
                     break;
                 case 'applyFix':
                     await applyFix(message.payload.diagnosticId, message.payload.suggestion);
+                    break;
+                case 'ignore':
+                    await ignoreDiagnostic(message.payload.diagnosticId);
                     break;
             }
         }, undefined, context.subscriptions);
@@ -113,8 +174,32 @@ async function applyFix(diagnosticId: string, suggestion: string) {
     }
 }
 
+async function ignoreDiagnostic(diagnosticId: string) {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || !client) return;
+
+    const diagnostics = diagnosticsMap.get(editor.document.uri.toString());
+    if (!diagnostics) return;
+
+    const index = parseInt(diagnosticId.replace('diag-', ''));
+    const diagnostic = diagnostics[index];
+    if (diagnostic) {
+        // Send ignore request to core
+        await client.sendRequest({
+            ignore: {
+                message: diagnostic.message,
+                context: editor.document.getText(diagnostic.range) // simplified context
+            }
+        });
+        
+        // Re-check document to update squiggles
+        await checkDocument(editor.document);
+    }
+}
+
 interface ExtendedDiagnostic extends vscode.Diagnostic {
     suggestions?: string[];
+    confidence?: number;
 }
 
 const diagnosticsMap = new Map<string, ExtendedDiagnostic[]>();
@@ -167,6 +252,9 @@ async function checkDocument(document: vscode.TextDocument) {
                     diagnostic.code = d.ruleId;
                 }
                 diagnostic.suggestions = d.suggestions || [];
+                if (d.confidence !== null && d.confidence !== undefined) {
+                    diagnostic.confidence = d.confidence;
+                }
                 return diagnostic;
             });
 

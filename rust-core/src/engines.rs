@@ -35,6 +35,8 @@ impl Engine for HarperEngine {
                 suggestions: lint.suggestions.into_iter().map(|s| s.to_string()).collect(),
                 rule_id: format!("harper.{:?}", lint.lint_kind),
                 severity: Severity::Warning as i32,
+                unified_id: "".to_string(), // Will be filled by normalizer
+                confidence: 0.8,
             }
         }).collect();
         
@@ -121,6 +123,8 @@ impl Engine for LanguageToolEngine {
                 suggestions: m.replacements.into_iter().map(|r| r.value).collect(),
                 rule_id: format!("languagetool.{}", m.rule.id),
                 severity: severity as i32,
+                unified_id: "".to_string(), // Will be filled by normalizer
+                confidence: 0.7,
             }
         }).collect();
 

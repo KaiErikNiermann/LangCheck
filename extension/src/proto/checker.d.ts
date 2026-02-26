@@ -14,6 +14,9 @@ export namespace languagecheck {
 
         /** Request getMetadata */
         getMetadata?: (languagecheck.IMetadataRequest|null);
+
+        /** Request ignore */
+        ignore?: (languagecheck.IIgnoreRequest|null);
     }
 
     /** Represents a Request. */
@@ -34,8 +37,11 @@ export namespace languagecheck {
         /** Request getMetadata. */
         public getMetadata?: (languagecheck.IMetadataRequest|null);
 
+        /** Request ignore. */
+        public ignore?: (languagecheck.IIgnoreRequest|null);
+
         /** Request payload. */
-        public payload?: ("checkProse"|"getMetadata");
+        public payload?: ("checkProse"|"getMetadata"|"ignore");
 
         /**
          * Creates a new Request instance using the specified properties.
@@ -115,6 +121,109 @@ export namespace languagecheck {
         public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
+    /** Properties of an IgnoreRequest. */
+    interface IIgnoreRequest {
+
+        /** IgnoreRequest message */
+        message?: (string|null);
+
+        /** IgnoreRequest context */
+        context?: (string|null);
+    }
+
+    /** Represents an IgnoreRequest. */
+    class IgnoreRequest implements IIgnoreRequest {
+
+        /**
+         * Constructs a new IgnoreRequest.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: languagecheck.IIgnoreRequest);
+
+        /** IgnoreRequest message. */
+        public message: string;
+
+        /** IgnoreRequest context. */
+        public context: string;
+
+        /**
+         * Creates a new IgnoreRequest instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns IgnoreRequest instance
+         */
+        public static create(properties?: languagecheck.IIgnoreRequest): languagecheck.IgnoreRequest;
+
+        /**
+         * Encodes the specified IgnoreRequest message. Does not implicitly {@link languagecheck.IgnoreRequest.verify|verify} messages.
+         * @param message IgnoreRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: languagecheck.IIgnoreRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified IgnoreRequest message, length delimited. Does not implicitly {@link languagecheck.IgnoreRequest.verify|verify} messages.
+         * @param message IgnoreRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: languagecheck.IIgnoreRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an IgnoreRequest message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns IgnoreRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): languagecheck.IgnoreRequest;
+
+        /**
+         * Decodes an IgnoreRequest message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns IgnoreRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): languagecheck.IgnoreRequest;
+
+        /**
+         * Verifies an IgnoreRequest message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an IgnoreRequest message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns IgnoreRequest
+         */
+        public static fromObject(object: { [k: string]: any }): languagecheck.IgnoreRequest;
+
+        /**
+         * Creates a plain object from an IgnoreRequest message. Also converts values to other types if specified.
+         * @param message IgnoreRequest
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: languagecheck.IgnoreRequest, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this IgnoreRequest to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for IgnoreRequest
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
     /** Properties of a Response. */
     interface IResponse {
 
@@ -129,6 +238,9 @@ export namespace languagecheck {
 
         /** Response error */
         error?: (languagecheck.IErrorResponse|null);
+
+        /** Response ok */
+        ok?: (languagecheck.IOkResponse|null);
     }
 
     /** Represents a Response. */
@@ -152,8 +264,11 @@ export namespace languagecheck {
         /** Response error. */
         public error?: (languagecheck.IErrorResponse|null);
 
+        /** Response ok. */
+        public ok?: (languagecheck.IOkResponse|null);
+
         /** Response payload. */
-        public payload?: ("checkProse"|"getMetadata"|"error");
+        public payload?: ("checkProse"|"getMetadata"|"error"|"ok");
 
         /**
          * Creates a new Response instance using the specified properties.
@@ -227,6 +342,97 @@ export namespace languagecheck {
 
         /**
          * Gets the default type url for Response
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of an OkResponse. */
+    interface IOkResponse {
+    }
+
+    /** Represents an OkResponse. */
+    class OkResponse implements IOkResponse {
+
+        /**
+         * Constructs a new OkResponse.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: languagecheck.IOkResponse);
+
+        /**
+         * Creates a new OkResponse instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns OkResponse instance
+         */
+        public static create(properties?: languagecheck.IOkResponse): languagecheck.OkResponse;
+
+        /**
+         * Encodes the specified OkResponse message. Does not implicitly {@link languagecheck.OkResponse.verify|verify} messages.
+         * @param message OkResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: languagecheck.IOkResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified OkResponse message, length delimited. Does not implicitly {@link languagecheck.OkResponse.verify|verify} messages.
+         * @param message OkResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: languagecheck.IOkResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an OkResponse message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns OkResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): languagecheck.OkResponse;
+
+        /**
+         * Decodes an OkResponse message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns OkResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): languagecheck.OkResponse;
+
+        /**
+         * Verifies an OkResponse message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an OkResponse message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns OkResponse
+         */
+        public static fromObject(object: { [k: string]: any }): languagecheck.OkResponse;
+
+        /**
+         * Creates a plain object from an OkResponse message. Also converts values to other types if specified.
+         * @param message OkResponse
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: languagecheck.OkResponse, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this OkResponse to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for OkResponse
          * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
          * @returns The default type url
          */
@@ -622,6 +828,12 @@ export namespace languagecheck {
 
         /** Diagnostic severity */
         severity?: (languagecheck.Severity|null);
+
+        /** Diagnostic unifiedId */
+        unifiedId?: (string|null);
+
+        /** Diagnostic confidence */
+        confidence?: (number|null);
     }
 
     /** Represents a Diagnostic. */
@@ -650,6 +862,12 @@ export namespace languagecheck {
 
         /** Diagnostic severity. */
         public severity: languagecheck.Severity;
+
+        /** Diagnostic unifiedId. */
+        public unifiedId: string;
+
+        /** Diagnostic confidence. */
+        public confidence: number;
 
         /**
          * Creates a new Diagnostic instance using the specified properties.

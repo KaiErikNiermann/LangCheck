@@ -10,11 +10,14 @@ pub mod checker {
 pub mod prose;
 pub mod engines;
 pub mod orchestrator;
+pub mod rules;
+pub mod hashing;
 
 use checker::{Request, Response, response, ErrorResponse, CheckResponse, MetadataResponse};
 use prose::ProseExtractor;
 use engines::{HarperEngine, LanguageToolEngine};
 use orchestrator::Orchestrator;
+use hashing::{IgnoreStore, DiagnosticFingerprint};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -28,6 +31,8 @@ async fn main() -> Result<()> {
     let mut orchestrator = Orchestrator::new();
     orchestrator.add_engine(Box::new(HarperEngine::new()));
     orchestrator.add_engine(Box::new(LanguageToolEngine::new("http://localhost:8010".to_string())));
+
+    let mut ignore_store = IgnoreStore::new();
 
     loop {
         // Read 4-byte length prefix
@@ -69,6 +74,13 @@ async fn main() -> Result<()> {
                                     d.start_byte += range.start_byte as u32;
                                     d.end_byte += range.start_byte as u32;
                                 }
+                                
+                                // Filter out ignored
+                                diagnostics.retain(|d| {
+                                    let fingerprint = DiagnosticFingerprint::new(&d.message, &req.text, d.start_byte as usize, d.end_byte as usize);
+                                    !ignore_store.is_ignored(&fingerprint)
+                                });
+
                                 all_diagnostics.extend(diagnostics);
                             }
                         }
@@ -76,6 +88,26 @@ async fn main() -> Result<()> {
                     }
                     Err(e) => Some(response::Payload::Error(ErrorResponse { message: e.to_string() })),
                 }
+            }
+            Some(checker::request::Payload::Ignore(req)) => {
+                // To properly ignore, we'd need the full context. 
+                // For now, let's assume the request context is enough.
+                // In a real implementation, we'd probably send the fingerprint or sufficient data.
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                use std::hash::{Hash, Hasher};
+                req.message.hash(&mut hasher);
+                let m_hash = hasher.finish();
+                
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                req.context.hash(&mut hasher);
+                let c_hash = hasher.finish();
+                
+                ignore_store.ignore(&DiagnosticFingerprint {
+                    message_hash: m_hash,
+                    context_hash: c_hash,
+                });
+                
+                Some(response::Payload::Ok(checker::OkResponse {}))
             }
             Some(checker::request::Payload::GetMetadata(_)) => {
                 Some(response::Payload::GetMetadata(MetadataResponse {
