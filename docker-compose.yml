@@ -1,0 +1,11 @@
+services:
+  languagetool:
+    image: erikvl82/languagetool
+    ports:
+      - "8010:8010"
+    restart: unless-stopped
+    environment:
+      - langtool_languageModel=/ngrams
+    # Optional: mount ngrams if the user provides them
+    # volumes:
+    #   - ./ngrams:/ngrams
