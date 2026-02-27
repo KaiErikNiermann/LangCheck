@@ -106,28 +106,19 @@
   }
 </script>
 
-<main class="h-screen flex flex-col bg-vscode-editor-bg text-vscode-editor-fg overflow-hidden">
+<main class="panel-root">
   <!-- Tab bar -->
   <nav class="flex border-b border-vscode-input-border text-sm">
     <button
-      class="px-4 py-2 border-b-2 transition-colors"
-      class:border-vscode-focus-border={activeTab === 'ast'}
-      class:border-transparent={activeTab !== 'ast'}
-      class:opacity-50={activeTab !== 'ast'}
+      class="tab-btn {activeTab === 'ast' ? 'tab-btn-active' : 'opacity-50'}"
       onclick={() => activeTab = 'ast'}
     >AST</button>
     <button
-      class="px-4 py-2 border-b-2 transition-colors"
-      class:border-vscode-focus-border={activeTab === 'prose'}
-      class:border-transparent={activeTab !== 'prose'}
-      class:opacity-50={activeTab !== 'prose'}
+      class="tab-btn {activeTab === 'prose' ? 'tab-btn-active' : 'opacity-50'}"
       onclick={() => activeTab = 'prose'}
     >Prose Extraction</button>
     <button
-      class="px-4 py-2 border-b-2 transition-colors"
-      class:border-vscode-focus-border={activeTab === 'latency'}
-      class:border-transparent={activeTab !== 'latency'}
-      class:opacity-50={activeTab !== 'latency'}
+      class="tab-btn {activeTab === 'latency' ? 'tab-btn-active' : 'opacity-50'}"
       onclick={() => activeTab = 'latency'}
     >Latency</button>
     {#if fileName}
@@ -182,7 +173,7 @@
           {@render treeNode(ast, '0', 0)}
         </div>
       {:else}
-        <div class="flex items-center justify-center h-full opacity-50 text-sm">
+        <div class="empty-state text-sm">
           Open a document to view its syntax tree.
         </div>
       {/if}
@@ -191,19 +182,19 @@
       <!-- Prose Extraction Trace -->
       {#if proseRanges.length > 0 || ignoreRanges.length > 0}
         <div class="space-y-3">
-          <h2 class="text-xs uppercase opacity-50 mb-2">Extracted Prose Ranges ({proseRanges.length})</h2>
+          <h2 class="label mb-2">Extracted Prose Ranges ({proseRanges.length})</h2>
           {#each proseRanges as range, i}
-            <div class="bg-vscode-input-bg p-3 rounded border border-vscode-input-border">
+            <div class="card p-3">
               <div class="flex justify-between items-center mb-1">
                 <span class="text-xs opacity-50">Range {i + 1}</span>
                 <span class="text-xs opacity-40">bytes {range.startByte}..{range.endByte}</span>
               </div>
-              <pre class="font-mono text-xs whitespace-pre-wrap bg-black/20 p-2 rounded">{range.text}</pre>
+              <pre class="code-block whitespace-pre-wrap text-xs">{range.text}</pre>
             </div>
           {/each}
 
           {#if ignoreRanges.length > 0}
-            <h2 class="text-xs uppercase opacity-50 mb-2 mt-4">Ignore Directives ({ignoreRanges.length})</h2>
+            <h2 class="label mb-2 mt-4">Ignore Directives ({ignoreRanges.length})</h2>
             {#each ignoreRanges as range, i}
               <div class="bg-yellow-900/10 p-3 rounded border border-yellow-800/30">
                 <div class="flex justify-between items-center mb-1">
@@ -220,7 +211,7 @@
           {/if}
         </div>
       {:else}
-        <div class="flex items-center justify-center h-full opacity-50 text-sm">
+        <div class="empty-state text-sm">
           No prose ranges extracted yet.
         </div>
       {/if}
@@ -230,7 +221,7 @@
       {#if latencyStages.length > 0}
         <div class="space-y-3">
           <div class="flex justify-between items-center mb-2">
-            <h2 class="text-xs uppercase opacity-50">Pipeline Stages</h2>
+            <h2 class="label">Pipeline Stages</h2>
             <span class="text-xs font-mono opacity-60">Total: {formatDuration(totalLatency())}</span>
           </div>
           {#each latencyStages as stage}
@@ -249,7 +240,7 @@
           {/each}
         </div>
       {:else}
-        <div class="flex items-center justify-center h-full opacity-50 text-sm">
+        <div class="empty-state text-sm">
           Run a document check to see latency breakdown.
         </div>
       {/if}

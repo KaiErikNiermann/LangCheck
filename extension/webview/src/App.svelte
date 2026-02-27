@@ -14,7 +14,6 @@
   let lowResource = $state(false);
 
   onMount(() => {
-    // Listen for messages from the extension
     window.addEventListener('message', event => {
       const message = event.data;
       switch (message.type) {
@@ -28,7 +27,6 @@
       }
     });
 
-    // Notify extension we are ready
     vscode.postMessage({ type: 'ready' });
   });
 
@@ -38,14 +36,13 @@
     if (diagnostics.length === 0) return;
 
     if (event.key >= '1' && event.key <= '9') {
-      const suggestionIndex = parseInt(event.key) - 1;
-      applyFix(suggestionIndex);
+      applyFix(parseInt(event.key) - 1);
     } else if (event.key === 'a') {
       addToDictionary();
     } else if (event.key === 'i') {
       ignore();
     } else if (event.key === ' ') {
-      skip();
+      next();
       event.preventDefault();
     }
   }
@@ -55,10 +52,7 @@
     if (diag && diag.suggestions[suggestionIndex]) {
       vscode.postMessage({
         type: 'applyFix',
-        payload: {
-          diagnosticId: diag.id,
-          suggestion: diag.suggestions[suggestionIndex]
-        }
+        payload: { diagnosticId: diag.id, suggestion: diag.suggestions[suggestionIndex] }
       });
       next();
     }
@@ -74,46 +68,36 @@
     next();
   }
 
-  function skip() {
-    next();
-  }
-
   function next() {
-    if (currentIndex < diagnostics.length - 1) {
-      currentIndex++;
-    }
+    if (currentIndex < diagnostics.length - 1) currentIndex++;
   }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
-<main class="h-screen flex flex-col bg-vscode-editor-bg text-vscode-editor-fg p-4 overflow-hidden" class:low-resource={lowResource}>
-  <header class="mb-4 flex justify-between items-center border-b border-vscode-input-border pb-2">
+<main class="panel-root p-panel" class:low-resource={lowResource}>
+  <header class="panel-header mb-4">
     <h1 class="text-lg font-bold">
       SpeedFix
       {#if lowResource}<span class="text-xs opacity-40 font-normal ml-1">LR</span>{/if}
     </h1>
-    <div class="text-sm opacity-70">
-      {currentIndex + 1} / {diagnostics.length}
-    </div>
+    <div class="text-sm opacity-70">{currentIndex + 1} / {diagnostics.length}</div>
   </header>
 
   {#if diagnostics.length > 0}
     {@const current = diagnostics[currentIndex]}
     <div class="flex-1 flex flex-col gap-6 overflow-y-auto">
-      <div class="bg-vscode-input-bg p-4 rounded border border-vscode-input-border">
-        <div class="text-xs uppercase opacity-50 mb-1">{current.ruleId}</div>
+      <div class="card">
+        <div class="label mb-1">{current.ruleId}</div>
         <div class="{lowResource ? 'text-base' : 'text-xl'} mb-4">{current.message}</div>
-        <div class="font-mono bg-black/20 p-2 rounded text-sm italic">
-          "...{current.context}..."
-        </div>
+        <div class="code-block italic">"...{current.context}..."</div>
       </div>
 
       <div class="grid gap-2">
-        <div class="text-xs uppercase opacity-50 mb-1">Suggestions</div>
+        <div class="label mb-1">Suggestions</div>
         {#each current.suggestions.slice(0, lowResource ? 3 : current.suggestions.length) as suggestion, i}
           <button
-            class="w-full text-left p-3 rounded bg-vscode-button-bg text-vscode-button-fg {lowResource ? '' : 'hover:bg-vscode-button-hover-bg transition-colors'} flex justify-between items-center {lowResource ? '' : 'group'}"
+            class="btn-primary {lowResource ? 'no-transition' : 'group'}"
             onclick={() => applyFix(i)}
           >
             <span>{suggestion}</span>
@@ -126,31 +110,21 @@
       </div>
 
       <div class="mt-auto grid grid-cols-3 gap-2 text-center text-xs opacity-70">
-        <div class="p-2 border border-vscode-input-border rounded">
-          <kbd class="bg-vscode-input-bg px-1 rounded">A</kbd> Add to Dict
-        </div>
-        <div class="p-2 border border-vscode-input-border rounded">
-          <kbd class="bg-vscode-input-bg px-1 rounded">I</kbd> Ignore
-        </div>
-        <div class="p-2 border border-vscode-input-border rounded">
-          <kbd class="bg-vscode-input-bg px-1 rounded">Space</kbd> Skip
-        </div>
+        <div class="p-2 bordered"><kbd class="kbd">A</kbd> Add to Dict</div>
+        <div class="p-2 bordered"><kbd class="kbd">I</kbd> Ignore</div>
+        <div class="p-2 bordered"><kbd class="kbd">Space</kbd> Skip</div>
       </div>
     </div>
   {:else}
-    <div class="flex-1 flex items-center justify-center opacity-50">
-      No language issues found in the current scope.
-    </div>
+    <div class="empty-state">No language issues found in the current scope.</div>
   {/if}
 </main>
 
 <style>
-  :global(body) {
-    overflow: hidden;
-  }
-  /* Low-Resource mode: disable all transitions and animations */
+  :global(body) { overflow: hidden; }
   .low-resource :global(*) {
     transition: none !important;
     animation: none !important;
   }
+  .no-transition { transition: none; }
 </style>

@@ -14,3 +14,51 @@ body {
   margin: 0;
   padding: 0;
 }
+
+/* Semantic component classes extracted from repeated Tailwind utility combos */
+@layer components {
+  .panel-root {
+    @apply h-screen flex flex-col bg-vscode-editor-bg text-vscode-editor-fg overflow-hidden;
+  }
+
+  .panel-header {
+    @apply flex justify-between items-center border-b border-vscode-input-border pb-2;
+  }
+
+  .card {
+    @apply bg-vscode-input-bg p-4 rounded border border-vscode-input-border;
+  }
+
+  .label {
+    @apply text-xs uppercase opacity-50;
+  }
+
+  .code-block {
+    @apply font-mono bg-black/20 p-2 rounded text-sm;
+  }
+
+  .btn-primary {
+    @apply w-full text-left p-3 rounded bg-vscode-button-bg text-vscode-button-fg
+           hover:bg-vscode-button-hover-bg transition-colors flex justify-between items-center;
+  }
+
+  .bordered {
+    @apply border border-vscode-input-border rounded;
+  }
+
+  .kbd {
+    @apply bg-vscode-input-bg px-1 rounded;
+  }
+
+  .empty-state {
+    @apply flex-1 flex items-center justify-center opacity-50;
+  }
+
+  .tab-btn {
+    @apply px-4 py-2 border-b-2 border-transparent transition-colors;
+  }
+
+  .tab-btn-active {
+    @apply border-vscode-focus-border;
+  }
+}
