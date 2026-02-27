@@ -33,6 +33,11 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde = { version = "1.0", features = ["derive"] }
 tree-sitter-markdown = "0.7.1"
 tree-sitter-html = "0.19.0"
+divan = "0.1"
+
+[[bench]]
+name = "benchmarks"
+harness = false
 
 [build-dependencies]
 prost-build = "0.13"
