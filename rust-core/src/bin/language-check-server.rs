@@ -14,6 +14,57 @@ use config::Config;
 use insights::ProseInsights;
 use std::time::Duration;
 use tokio::fs;
+use glob::glob;
+use std::path::{Path, PathBuf};
+
+async fn process_file_for_indexing(
+    file_path: PathBuf,
+    orchestrator_arc: Arc<Mutex<Orchestrator>>,
+    ignore_store_arc: Arc<Mutex<IgnoreStore>>,
+    workspace_index_arc: Arc<Mutex<Option<WorkspaceIndex>>>,
+    lang_id: String,
+    ts_lang: tree_sitter::Language,
+) -> Result<()> {
+    if !file_path.is_file() {
+        return Ok(());
+    }
+
+    let text = fs::read_to_string(&file_path).await?;
+    
+    let mut extractor = ProseExtractor::new(ts_lang)?;
+    
+    let ranges = extractor.extract(&text, &lang_id)?;
+    let mut all_diagnostics = Vec::new();
+
+    let mut orchestrator_lock = orchestrator_arc.lock().await; // Lock orchestrator here
+    let ignore_store_lock = ignore_store_arc.lock().await; // Lock ignore store here
+
+    for range in ranges {
+        let prose_text = &text[range.start_byte..range.end_byte];
+        if let Ok(mut diagnostics) = orchestrator_lock.check(prose_text, &lang_id).await {
+            for d in &mut diagnostics {
+                d.start_byte += range.start_byte as u32;
+                d.end_byte += range.start_byte as u32;
+            }
+            diagnostics.retain(|d| {
+                let fingerprint = DiagnosticFingerprint::new(&d.message, &text, d.start_byte as usize, d.end_byte as usize);
+                !ignore_store_lock.is_ignored(&fingerprint)
+            });
+            all_diagnostics.extend(diagnostics);
+        }
+    }
+
+    if let Some(idx) = &*workspace_index_arc.lock().await {
+        if let Some(file_path_str) = file_path.to_str() {
+            let insights = ProseInsights::analyze(&text);
+            idx.update_diagnostics(file_path_str, all_diagnostics).unwrap_or_else(|e| eprintln!("Error updating diagnostics for {}: {}", file_path_str, e));
+            idx.update_insights(file_path_str, insights).unwrap_or_else(|e| eprintln!("Error updating insights for {}: {}", file_path_str, e));
+        }
+    }
+
+    Ok(())
+}
+
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -48,48 +99,37 @@ async fn main() -> Result<()> {
 
                 if let Some(root) = workspace_root {
                     println!("Starting workspace indexing for {:?}", root);
-                    let mut orchestrator = orchestrator_arc.lock().await; // Lock orchestrator for indexing
-                    let ignore_store = ignore_store_arc.lock().await;
-                    let idx_lock = workspace_index_arc.lock().await;
-                    if let Some(idx) = idx_lock.as_ref() {
-                        // For now, only Markdown files
-                        let pattern = format!("{}/**/*.md", root.to_string_lossy());
-                        if let Ok(entries) = glob::glob(&pattern) {
-                            for entry in entries {
-                                if let Ok(path) = entry {
-                                    if path.is_file() {
-                                        if let Ok(text) = fs::read_to_string(&path).await {
-                                            // Re-initialize extractor for each file to ensure correct language
-                                            let ts_lang = tree_sitter_markdown::language();
-                                            let mut extractor = ProseExtractor::new(ts_lang).unwrap();
-                                            
-                                            if let Ok(ranges) = extractor.extract(&text, "markdown") {
-                                                let mut all_diagnostics = Vec::new();
-                                                for range in ranges {
-                                                    let prose_text = &text[range.start_byte..range.end_byte];
-                                                    if let Ok(mut diagnostics) = orchestrator.check(prose_text, "markdown").await {
-                                                        for d in &mut diagnostics {
-                                                            d.start_byte += range.start_byte as u32;
-                                                            d.end_byte += range.start_byte as u32;
-                                                        }
-                                                        diagnostics.retain(|d| {
-                                                            let fingerprint = DiagnosticFingerprint::new(&d.message, &text, d.start_byte as usize, d.end_byte as usize);
-                                                            !ignore_store.is_ignored(&fingerprint)
-                                                        });
-                                                        all_diagnostics.extend(diagnostics);
-                                                    }
-                                                }
-                                                // Store diagnostics and insights
-                                                if let Some(file_path_str) = path.to_str() {
-                                                    let insights = ProseInsights::analyze(&text);
-                                                    idx.update_diagnostics(file_path_str, all_diagnostics).unwrap();
-                                                    idx.update_insights(file_path_str, insights).unwrap();
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                    let config = orchestrator_arc.lock().await.get_config().clone(); // Get current config to decide what to index
+
+                    let mut tasks = Vec::new();
+                    // Iterate through configured file patterns and languages
+                    // For now, hardcode markdown. Later, use config.
+                    let markdown_pattern = format!("{}/**/*.md", root.to_string_lossy());
+                    let ts_lang_md = tree_sitter_markdown::language(); // Markdown language
+                    
+                    if let Ok(entries) = glob(&markdown_pattern) {
+                        for entry in entries {
+                            if let Ok(path) = entry {
+                                let task_orchestrator = orchestrator_arc.clone();
+                                let task_ignore_store = ignore_store_arc.clone();
+                                let task_workspace_index = workspace_index_arc.clone();
+                                let lang_id = "markdown".to_string();
+                                
+                                tasks.push(tokio::spawn(process_file_for_indexing(
+                                    path,
+                                    task_orchestrator,
+                                    task_ignore_store,
+                                    task_workspace_index,
+                                    lang_id,
+                                    ts_lang_md,
+                                )));
                             }
+                        }
+                    }
+
+                    for task in tasks {
+                        if let Err(e) = task.await {
+                            eprintln!("Error joining indexing task: {}", e);
                         }
                     }
                     println!("Finished workspace indexing for {:?}", root);
@@ -102,7 +142,7 @@ async fn main() -> Result<()> {
     let mut reader = stdin;
 
     loop {
-        let length: usize; // Declare length outside the if block
+        let length: usize;
 
         // Read 4-byte length prefix
         if buffer.len() < 4 {
@@ -116,7 +156,7 @@ async fn main() -> Result<()> {
 
         let mut length_buf = [0u8; 4];
         length_buf.copy_from_slice(&buffer[..4]);
-        length = u32::from_be_bytes(length_buf) as usize; // Assign to length
+        length = u32::from_be_bytes(length_buf) as usize;
 
         if buffer.len() < 4 + length {
             let mut chunk = [0u8; 4096];
@@ -134,7 +174,6 @@ async fn main() -> Result<()> {
             Some(checker::request::Payload::Initialize(req)) => {
                 let root_path = std::path::PathBuf::from(&req.workspace_root);
                 
-                // Load config from workspace root
                 let config = Config::load(&root_path).unwrap_or_else(|_| Config::default());
                 orchestrator_arc.lock().await.update_config(config);
 
@@ -142,7 +181,7 @@ async fn main() -> Result<()> {
                     Ok(index) => {
                         let mut idx_lock = workspace_index_arc.lock().await;
                         *idx_lock = Some(index);
-                        indexing_notify.notify_one(); // Trigger background indexing
+                        indexing_notify.notify_one();
                         Some(response::Payload::Ok(checker::OkResponse {}))
                     }
                     Err(e) => Some(response::Payload::Error(ErrorResponse { message: e.to_string() })),
@@ -196,7 +235,7 @@ async fn main() -> Result<()> {
                 Some(response::Payload::GetMetadata(MetadataResponse {
                     name: "Rust Core".to_string(),
                     version: "0.1.0".to_string(),
-                    supported_languages: vec!["markdown".to_string(), "html".to_string()],
+                    supported_languages: vec!["markdown".to_string(), "html".to_string(), "latex".to_string()],
                 }))
             }
             Some(checker::request::Payload::Ignore(req)) => {
@@ -234,7 +273,6 @@ async fn main() -> Result<()> {
         stdout.flush().await?;
     }
 
-    // Ensure the indexing task is awaited or gracefully shut down
     indexing_handle.abort(); 
 
     Ok(())

@@ -37,6 +37,10 @@ impl Orchestrator {
         self.initialize_engines();
     }
 
+    pub fn get_config(&self) -> &Config {
+        &self.config
+    }
+
     pub async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
         let mut all_diagnostics = Vec::new();
         
