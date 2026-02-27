@@ -48,6 +48,7 @@ message CheckRequest {
   string text = 1;
   string language_id = 2;
   map<string, string> settings = 3;
+  optional string file_path = 4;
 }
 
 message CheckResponse {

@@ -17,6 +17,9 @@ export namespace languagecheck {
 
         /** Request ignore */
         ignore?: (languagecheck.IIgnoreRequest|null);
+
+        /** Request initialize */
+        initialize?: (languagecheck.IInitializeRequest|null);
     }
 
     /** Represents a Request. */
@@ -40,8 +43,11 @@ export namespace languagecheck {
         /** Request ignore. */
         public ignore?: (languagecheck.IIgnoreRequest|null);
 
+        /** Request initialize. */
+        public initialize?: (languagecheck.IInitializeRequest|null);
+
         /** Request payload. */
-        public payload?: ("checkProse"|"getMetadata"|"ignore");
+        public payload?: ("checkProse"|"getMetadata"|"ignore"|"initialize");
 
         /**
          * Creates a new Request instance using the specified properties.
@@ -115,6 +121,103 @@ export namespace languagecheck {
 
         /**
          * Gets the default type url for Request
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of an InitializeRequest. */
+    interface IInitializeRequest {
+
+        /** InitializeRequest workspaceRoot */
+        workspaceRoot?: (string|null);
+    }
+
+    /** Represents an InitializeRequest. */
+    class InitializeRequest implements IInitializeRequest {
+
+        /**
+         * Constructs a new InitializeRequest.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: languagecheck.IInitializeRequest);
+
+        /** InitializeRequest workspaceRoot. */
+        public workspaceRoot: string;
+
+        /**
+         * Creates a new InitializeRequest instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns InitializeRequest instance
+         */
+        public static create(properties?: languagecheck.IInitializeRequest): languagecheck.InitializeRequest;
+
+        /**
+         * Encodes the specified InitializeRequest message. Does not implicitly {@link languagecheck.InitializeRequest.verify|verify} messages.
+         * @param message InitializeRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: languagecheck.IInitializeRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified InitializeRequest message, length delimited. Does not implicitly {@link languagecheck.InitializeRequest.verify|verify} messages.
+         * @param message InitializeRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: languagecheck.IInitializeRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an InitializeRequest message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns InitializeRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): languagecheck.InitializeRequest;
+
+        /**
+         * Decodes an InitializeRequest message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns InitializeRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): languagecheck.InitializeRequest;
+
+        /**
+         * Verifies an InitializeRequest message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an InitializeRequest message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns InitializeRequest
+         */
+        public static fromObject(object: { [k: string]: any }): languagecheck.InitializeRequest;
+
+        /**
+         * Creates a plain object from an InitializeRequest message. Also converts values to other types if specified.
+         * @param message InitializeRequest
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: languagecheck.InitializeRequest, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this InitializeRequest to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for InitializeRequest
          * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
          * @returns The default type url
          */
@@ -613,6 +716,9 @@ export namespace languagecheck {
 
         /** CheckRequest settings */
         settings?: ({ [k: string]: string }|null);
+
+        /** CheckRequest filePath */
+        filePath?: (string|null);
     }
 
     /** Represents a CheckRequest. */
@@ -632,6 +738,9 @@ export namespace languagecheck {
 
         /** CheckRequest settings. */
         public settings: { [k: string]: string };
+
+        /** CheckRequest filePath. */
+        public filePath?: (string|null);
 
         /**
          * Creates a new CheckRequest instance using the specified properties.

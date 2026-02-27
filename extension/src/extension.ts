@@ -239,7 +239,8 @@ async function checkDocument(document: vscode.TextDocument) {
             checkProse: {
                 text: document.getText(),
                 languageId: document.languageId,
-                settings: {}
+                settings: {},
+                filePath: document.uri.fsPath
             }
         });
 

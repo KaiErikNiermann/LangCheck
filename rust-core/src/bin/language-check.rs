@@ -1,7 +1,8 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use console::style;
-use rust_core::{prose, engines, orchestrator};
+use rust_core::{prose, engines, orchestrator, config};
+use config::Config;
 use prose::ProseExtractor;
 use engines::{HarperEngine, LanguageToolEngine};
 use orchestrator::Orchestrator;
@@ -53,9 +54,8 @@ async fn main() -> Result<()> {
 }
 
 async fn check_path(path: PathBuf, lang: String) -> Result<()> {
-    let mut orchestrator = Orchestrator::new();
-    orchestrator.add_engine(Box::new(HarperEngine::new()));
-    orchestrator.add_engine(Box::new(LanguageToolEngine::new("http://localhost:8010".to_string())));
+    let config = Config::load(&std::env::current_dir()?).unwrap_or_else(|_| Config::default());
+    let mut orchestrator = Orchestrator::new(config);
 
     let language = match lang.as_str() {
         "markdown" => tree_sitter_markdown::language(),
@@ -117,8 +117,8 @@ async fn check_file(path: &PathBuf, extractor: &mut ProseExtractor, orchestrator
 }
 
 async fn fix_path(path: PathBuf, lang: String) -> Result<()> {
-    let mut orchestrator = Orchestrator::new();
-    orchestrator.add_engine(Box::new(HarperEngine::new()));
+    let config = Config::load(&std::env::current_dir()?).unwrap_or_else(|_| Config::default());
+    let mut orchestrator = Orchestrator::new(config);
     
     let language = match lang.as_str() {
         "markdown" => tree_sitter_markdown::language(),

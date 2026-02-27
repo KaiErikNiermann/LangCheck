@@ -8,3 +8,5 @@ pub mod orchestrator;
 pub mod rules;
 pub mod hashing;
 pub mod workspace;
+pub mod config;
+pub mod insights;

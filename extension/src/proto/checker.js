@@ -28,6 +28,7 @@ $root.languagecheck = (function() {
          * @property {languagecheck.ICheckRequest|null} [checkProse] Request checkProse
          * @property {languagecheck.IMetadataRequest|null} [getMetadata] Request getMetadata
          * @property {languagecheck.IIgnoreRequest|null} [ignore] Request ignore
+         * @property {languagecheck.IInitializeRequest|null} [initialize] Request initialize
          */
 
         /**
@@ -77,17 +78,25 @@ $root.languagecheck = (function() {
          */
         Request.prototype.ignore = null;
 
+        /**
+         * Request initialize.
+         * @member {languagecheck.IInitializeRequest|null|undefined} initialize
+         * @memberof languagecheck.Request
+         * @instance
+         */
+        Request.prototype.initialize = null;
+
         // OneOf field names bound to virtual getters and setters
         var $oneOfFields;
 
         /**
          * Request payload.
-         * @member {"checkProse"|"getMetadata"|"ignore"|undefined} payload
+         * @member {"checkProse"|"getMetadata"|"ignore"|"initialize"|undefined} payload
          * @memberof languagecheck.Request
          * @instance
          */
         Object.defineProperty(Request.prototype, "payload", {
-            get: $util.oneOfGetter($oneOfFields = ["checkProse", "getMetadata", "ignore"]),
+            get: $util.oneOfGetter($oneOfFields = ["checkProse", "getMetadata", "ignore", "initialize"]),
             set: $util.oneOfSetter($oneOfFields)
         });
 
@@ -123,6 +132,8 @@ $root.languagecheck = (function() {
                 $root.languagecheck.MetadataRequest.encode(message.getMetadata, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
             if (message.ignore != null && Object.hasOwnProperty.call(message, "ignore"))
                 $root.languagecheck.IgnoreRequest.encode(message.ignore, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+            if (message.initialize != null && Object.hasOwnProperty.call(message, "initialize"))
+                $root.languagecheck.InitializeRequest.encode(message.initialize, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
             return writer;
         };
 
@@ -173,6 +184,10 @@ $root.languagecheck = (function() {
                     }
                 case 4: {
                         message.ignore = $root.languagecheck.IgnoreRequest.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 5: {
+                        message.initialize = $root.languagecheck.InitializeRequest.decode(reader, reader.uint32());
                         break;
                     }
                 default:
@@ -242,6 +257,16 @@ $root.languagecheck = (function() {
                         return "ignore." + error;
                 }
             }
+            if (message.initialize != null && message.hasOwnProperty("initialize")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    var error = $root.languagecheck.InitializeRequest.verify(message.initialize);
+                    if (error)
+                        return "initialize." + error;
+                }
+            }
             return null;
         };
 
@@ -280,6 +305,11 @@ $root.languagecheck = (function() {
                 if (typeof object.ignore !== "object")
                     throw TypeError(".languagecheck.Request.ignore: object expected");
                 message.ignore = $root.languagecheck.IgnoreRequest.fromObject(object.ignore);
+            }
+            if (object.initialize != null) {
+                if (typeof object.initialize !== "object")
+                    throw TypeError(".languagecheck.Request.initialize: object expected");
+                message.initialize = $root.languagecheck.InitializeRequest.fromObject(object.initialize);
             }
             return message;
         };
@@ -323,6 +353,11 @@ $root.languagecheck = (function() {
                 if (options.oneofs)
                     object.payload = "ignore";
             }
+            if (message.initialize != null && message.hasOwnProperty("initialize")) {
+                object.initialize = $root.languagecheck.InitializeRequest.toObject(message.initialize, options);
+                if (options.oneofs)
+                    object.payload = "initialize";
+            }
             return object;
         };
 
@@ -353,6 +388,211 @@ $root.languagecheck = (function() {
         };
 
         return Request;
+    })();
+
+    languagecheck.InitializeRequest = (function() {
+
+        /**
+         * Properties of an InitializeRequest.
+         * @memberof languagecheck
+         * @interface IInitializeRequest
+         * @property {string|null} [workspaceRoot] InitializeRequest workspaceRoot
+         */
+
+        /**
+         * Constructs a new InitializeRequest.
+         * @memberof languagecheck
+         * @classdesc Represents an InitializeRequest.
+         * @implements IInitializeRequest
+         * @constructor
+         * @param {languagecheck.IInitializeRequest=} [properties] Properties to set
+         */
+        function InitializeRequest(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * InitializeRequest workspaceRoot.
+         * @member {string} workspaceRoot
+         * @memberof languagecheck.InitializeRequest
+         * @instance
+         */
+        InitializeRequest.prototype.workspaceRoot = "";
+
+        /**
+         * Creates a new InitializeRequest instance using the specified properties.
+         * @function create
+         * @memberof languagecheck.InitializeRequest
+         * @static
+         * @param {languagecheck.IInitializeRequest=} [properties] Properties to set
+         * @returns {languagecheck.InitializeRequest} InitializeRequest instance
+         */
+        InitializeRequest.create = function create(properties) {
+            return new InitializeRequest(properties);
+        };
+
+        /**
+         * Encodes the specified InitializeRequest message. Does not implicitly {@link languagecheck.InitializeRequest.verify|verify} messages.
+         * @function encode
+         * @memberof languagecheck.InitializeRequest
+         * @static
+         * @param {languagecheck.IInitializeRequest} message InitializeRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        InitializeRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.workspaceRoot != null && Object.hasOwnProperty.call(message, "workspaceRoot"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.workspaceRoot);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified InitializeRequest message, length delimited. Does not implicitly {@link languagecheck.InitializeRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof languagecheck.InitializeRequest
+         * @static
+         * @param {languagecheck.IInitializeRequest} message InitializeRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        InitializeRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an InitializeRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof languagecheck.InitializeRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {languagecheck.InitializeRequest} InitializeRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        InitializeRequest.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.InitializeRequest();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.workspaceRoot = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an InitializeRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof languagecheck.InitializeRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {languagecheck.InitializeRequest} InitializeRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        InitializeRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an InitializeRequest message.
+         * @function verify
+         * @memberof languagecheck.InitializeRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        InitializeRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.workspaceRoot != null && message.hasOwnProperty("workspaceRoot"))
+                if (!$util.isString(message.workspaceRoot))
+                    return "workspaceRoot: string expected";
+            return null;
+        };
+
+        /**
+         * Creates an InitializeRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof languagecheck.InitializeRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {languagecheck.InitializeRequest} InitializeRequest
+         */
+        InitializeRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.languagecheck.InitializeRequest)
+                return object;
+            var message = new $root.languagecheck.InitializeRequest();
+            if (object.workspaceRoot != null)
+                message.workspaceRoot = String(object.workspaceRoot);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an InitializeRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof languagecheck.InitializeRequest
+         * @static
+         * @param {languagecheck.InitializeRequest} message InitializeRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        InitializeRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults)
+                object.workspaceRoot = "";
+            if (message.workspaceRoot != null && message.hasOwnProperty("workspaceRoot"))
+                object.workspaceRoot = message.workspaceRoot;
+            return object;
+        };
+
+        /**
+         * Converts this InitializeRequest to JSON.
+         * @function toJSON
+         * @memberof languagecheck.InitializeRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        InitializeRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for InitializeRequest
+         * @function getTypeUrl
+         * @memberof languagecheck.InitializeRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        InitializeRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/languagecheck.InitializeRequest";
+        };
+
+        return InitializeRequest;
     })();
 
     languagecheck.IgnoreRequest = (function() {
@@ -1448,6 +1688,7 @@ $root.languagecheck = (function() {
          * @property {string|null} [text] CheckRequest text
          * @property {string|null} [languageId] CheckRequest languageId
          * @property {Object.<string,string>|null} [settings] CheckRequest settings
+         * @property {string|null} [filePath] CheckRequest filePath
          */
 
         /**
@@ -1491,6 +1732,23 @@ $root.languagecheck = (function() {
         CheckRequest.prototype.settings = $util.emptyObject;
 
         /**
+         * CheckRequest filePath.
+         * @member {string|null|undefined} filePath
+         * @memberof languagecheck.CheckRequest
+         * @instance
+         */
+        CheckRequest.prototype.filePath = null;
+
+        // OneOf field names bound to virtual getters and setters
+        var $oneOfFields;
+
+        // Virtual OneOf for proto3 optional field
+        Object.defineProperty(CheckRequest.prototype, "_filePath", {
+            get: $util.oneOfGetter($oneOfFields = ["filePath"]),
+            set: $util.oneOfSetter($oneOfFields)
+        });
+
+        /**
          * Creates a new CheckRequest instance using the specified properties.
          * @function create
          * @memberof languagecheck.CheckRequest
@@ -1521,6 +1779,8 @@ $root.languagecheck = (function() {
             if (message.settings != null && Object.hasOwnProperty.call(message, "settings"))
                 for (var keys = Object.keys(message.settings), i = 0; i < keys.length; ++i)
                     writer.uint32(/* id 3, wireType 2 =*/26).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]).uint32(/* id 2, wireType 2 =*/18).string(message.settings[keys[i]]).ldelim();
+            if (message.filePath != null && Object.hasOwnProperty.call(message, "filePath"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.filePath);
             return writer;
         };
 
@@ -1588,6 +1848,10 @@ $root.languagecheck = (function() {
                         message.settings[key] = value;
                         break;
                     }
+                case 4: {
+                        message.filePath = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -1623,6 +1887,7 @@ $root.languagecheck = (function() {
         CheckRequest.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            var properties = {};
             if (message.text != null && message.hasOwnProperty("text"))
                 if (!$util.isString(message.text))
                     return "text: string expected";
@@ -1636,6 +1901,11 @@ $root.languagecheck = (function() {
                 for (var i = 0; i < key.length; ++i)
                     if (!$util.isString(message.settings[key[i]]))
                         return "settings: string{k:string} expected";
+            }
+            if (message.filePath != null && message.hasOwnProperty("filePath")) {
+                properties._filePath = 1;
+                if (!$util.isString(message.filePath))
+                    return "filePath: string expected";
             }
             return null;
         };
@@ -1663,6 +1933,8 @@ $root.languagecheck = (function() {
                 for (var keys = Object.keys(object.settings), i = 0; i < keys.length; ++i)
                     message.settings[keys[i]] = String(object.settings[keys[i]]);
             }
+            if (object.filePath != null)
+                message.filePath = String(object.filePath);
             return message;
         };
 
@@ -1694,6 +1966,11 @@ $root.languagecheck = (function() {
                 object.settings = {};
                 for (var j = 0; j < keys2.length; ++j)
                     object.settings[keys2[j]] = message.settings[keys2[j]];
+            }
+            if (message.filePath != null && message.hasOwnProperty("filePath")) {
+                object.filePath = message.filePath;
+                if (options.oneofs)
+                    object._filePath = "filePath";
             }
             return object;
         };
