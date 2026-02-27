@@ -2,35 +2,66 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { LanguageClient } from './client';
 import { languagecheck } from './proto/checker';
+import type { SpeedFixDiagnostic, WebviewToExtensionMessage } from './events';
 
 let client: LanguageClient | null = null;
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('language-check');
 let speedFixPanel: vscode.WebviewPanel | null = null;
+let languageStatusBarItem: vscode.StatusBarItem;
+let insightsStatusBarItem: vscode.StatusBarItem;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Language Check extension activated');
 
     const binaryPath = context.extensionMode === vscode.ExtensionMode.Development
-        ? path.join(context.extensionPath, '..', 'rust-core', 'target', 'debug', 'rust-core')
-        : path.join(context.extensionPath, 'bin', 'rust-core');
+        ? path.join(context.extensionPath, '..', 'rust-core', 'target', 'debug', 'language-check-server')
+        : path.join(context.extensionPath, 'bin', 'language-check-server');
 
     client = new LanguageClient(binaryPath);
     client.start();
 
+    const initializeClient = () => {
+        if (client && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            client.sendRequest({
+                initialize: {
+                    workspaceRoot: vscode.workspace.workspaceFolders[0]!.uri.fsPath
+                }
+            });
+        }
+    };
+
     // Initialize with workspace root
-    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-        client.sendRequest({
-            initialize: {
-                workspaceRoot: vscode.workspace.workspaceFolders[0]!.uri.fsPath
-            }
-        });
-    }
+    initializeClient();
+
+    // Re-initialize after auto-restart
+    client.onRestart(() => {
+        initializeClient();
+    });
+
+    // Status bar: spell-check language
+    languageStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    languageStatusBarItem.command = 'language-check.selectLanguage';
+    languageStatusBarItem.text = '$(book) EN-US';
+    languageStatusBarItem.tooltip = 'Language Check: Click to change language';
+    languageStatusBarItem.show();
+    context.subscriptions.push(languageStatusBarItem);
+
+    // Status bar: prose insights (word count, reading level)
+    insightsStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
+    insightsStatusBarItem.tooltip = 'Language Check: Prose Insights';
+    insightsStatusBarItem.show();
+    context.subscriptions.push(insightsStatusBarItem);
+
+    // Update insights when active editor changes
+    context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(updateInsightsStatusBar));
+
+    const supportedLanguages = ['markdown', 'html', 'latex'];
 
     // Register Inlay Hints Provider
     context.subscriptions.push(vscode.languages.registerInlayHintsProvider(
-        { language: 'markdown' },
+        supportedLanguages.map(lang => ({ language: lang })),
         {
-            provideInlayHints(document, range, token) {
+            provideInlayHints(document, _range, _token) {
                 const diagnostics = diagnosticsMap.get(document.uri.toString());
                 if (!diagnostics) return [];
 
@@ -60,8 +91,147 @@ export function activate(context: vscode.ExtensionContext) {
         }
     ));
 
+    // Register Inline Completion Provider (ghost text suggestions)
+    context.subscriptions.push(vscode.languages.registerInlineCompletionItemProvider(
+        supportedLanguages.map(lang => ({ language: lang })),
+        {
+            provideInlineCompletionItems(document, position, _context, _token) {
+                const diagnostics = diagnosticsMap.get(document.uri.toString());
+                if (!diagnostics) return [];
+
+                const items: vscode.InlineCompletionItem[] = [];
+                for (const d of diagnostics) {
+                    if (!d.suggestions || d.suggestions.length === 0) continue;
+                    if (!d.range.contains(position)) continue;
+
+                    const suggestion = d.suggestions[0];
+                    if (!suggestion) continue;
+
+                    items.push(new vscode.InlineCompletionItem(
+                        suggestion,
+                        d.range
+                    ));
+                }
+                return items;
+            }
+        }
+    ));
+
+    // Register Code Action Provider (quickfix lightbulb)
+    context.subscriptions.push(vscode.languages.registerCodeActionsProvider(
+        supportedLanguages.map(lang => ({ language: lang })),
+        {
+            provideCodeActions(document, range, context) {
+                const diagnostics = diagnosticsMap.get(document.uri.toString());
+                if (!diagnostics) return [];
+
+                const actions: vscode.CodeAction[] = [];
+                const relevantDiags = context.diagnostics.filter(
+                    d => d.source === 'language-check'
+                );
+
+                for (const diag of relevantDiags) {
+                    const extDiag = diagnostics.find(
+                        ed => ed.range.isEqual(diag.range) && ed.message === diag.message
+                    );
+                    if (!extDiag) continue;
+                    const diagIndex = diagnostics.indexOf(extDiag);
+
+                    // Add a quickfix for each suggestion
+                    if (extDiag.suggestions) {
+                        for (const suggestion of extDiag.suggestions) {
+                            const fix = new vscode.CodeAction(
+                                `Fix: "${suggestion}"`,
+                                vscode.CodeActionKind.QuickFix
+                            );
+                            fix.edit = new vscode.WorkspaceEdit();
+                            fix.edit.replace(document.uri, diag.range, suggestion);
+                            fix.diagnostics = [diag];
+                            fix.isPreferred = extDiag.suggestions.indexOf(suggestion) === 0;
+                            actions.push(fix);
+                        }
+                    }
+
+                    // Add "Ignore" action
+                    const ignoreAction = new vscode.CodeAction(
+                        'Ignore this issue',
+                        vscode.CodeActionKind.QuickFix
+                    );
+                    ignoreAction.command = {
+                        command: 'language-check.ignoreDiagnostic',
+                        title: 'Ignore',
+                        arguments: [`diag-${diagIndex}`]
+                    };
+                    ignoreAction.diagnostics = [diag];
+                    actions.push(ignoreAction);
+
+                    // Add "Add to Dictionary" action for spelling rules
+                    const ruleId = (diag.code as string) || '';
+                    if (ruleId.includes('Spell') || ruleId.includes('spell') || ruleId.includes('MORFOLOGIK')) {
+                        const word = document.getText(diag.range);
+                        const dictAction = new vscode.CodeAction(
+                            `Add "${word}" to dictionary`,
+                            vscode.CodeActionKind.QuickFix
+                        );
+                        dictAction.command = {
+                            command: 'language-check.addToDictionary',
+                            title: 'Add to Dictionary',
+                            arguments: [word]
+                        };
+                        dictAction.diagnostics = [diag];
+                        actions.push(dictAction);
+                    }
+                }
+
+                return actions;
+            }
+        },
+        { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
+    ));
+
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.ignoreDiagnostic', async (diagnosticId: string) => {
+        await ignoreDiagnostic(diagnosticId);
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.addToDictionary', async (word: string) => {
+        if (!client) return;
+        try {
+            const response = await client.sendRequest({
+                addDictionaryWord: { word }
+            });
+            if (response.ok) {
+                vscode.window.showInformationMessage(`Added "${word}" to dictionary`);
+                // Re-check active document to clear spelling diagnostics for this word
+                const editor = vscode.window.activeTextEditor;
+                if (editor) {
+                    await checkDocument(editor.document);
+                }
+            } else if (response.error) {
+                vscode.window.showErrorMessage(`Failed to add word: ${response.error.message}`);
+            }
+        } catch (err) {
+            vscode.window.showErrorMessage(`Failed to add word to dictionary: ${err}`);
+        }
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('language-check.applyFix', async (diagnosticId: string, suggestion: string) => {
         await applyFix(diagnosticId, suggestion);
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.selectLanguage', async () => {
+        const languages = [
+            { label: 'EN-US', description: 'English (US)' },
+            { label: 'EN-GB', description: 'English (UK)' },
+            { label: 'DE-DE', description: 'German' },
+            { label: 'FR', description: 'French' },
+            { label: 'ES', description: 'Spanish' },
+        ];
+        const selected = await vscode.window.showQuickPick(languages, {
+            placeHolder: 'Select spell-check language'
+        });
+        if (selected) {
+            languageStatusBarItem.text = `$(book) ${selected.label}`;
+        }
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.checkDocument', async () => {
@@ -76,7 +246,7 @@ export function activate(context: vscode.ExtensionContext) {
             title: "Checking workspace...",
             cancellable: true
         }, async (progress, token) => {
-            const files = await vscode.workspace.findFiles('**/*.md');
+            const files = await vscode.workspace.findFiles('**/*.{md,html,htm,tex}');
             for (let i = 0; i < files.length; i++) {
                 if (token.isCancellationRequested) break;
                 
@@ -109,8 +279,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
         );
 
-        const webviewDistPath = path.join(context.extensionPath, 'webview', 'dist');
-        const indexHtmlPath = path.join(webviewDistPath, 'index.html');
+        const _webviewDistPath = path.join(context.extensionPath, 'webview', 'dist');
         
         // In dev mode, we might want to point to the dev server, 
         // but for simplicity let's assume we build the webview.
@@ -118,7 +287,7 @@ export function activate(context: vscode.ExtensionContext) {
         
         speedFixPanel.webview.html = getWebviewContent(speedFixPanel.webview, context.extensionPath);
 
-        speedFixPanel.webview.onDidReceiveMessage(async message => {
+        speedFixPanel.webview.onDidReceiveMessage(async (message: WebviewToExtensionMessage) => {
             switch (message.type) {
                 case 'ready':
                     updateSpeedFixDiagnostics();
@@ -129,6 +298,9 @@ export function activate(context: vscode.ExtensionContext) {
                 case 'ignore':
                     await ignoreDiagnostic(message.payload.diagnosticId);
                     break;
+                case 'addDictionary':
+                    await vscode.commands.executeCommand('language-check.addToDictionary', message.payload.diagnosticId);
+                    break;
             }
         }, undefined, context.subscriptions);
 
@@ -138,7 +310,7 @@ export function activate(context: vscode.ExtensionContext) {
     }));
 
     vscode.workspace.onDidSaveTextDocument(async (document) => {
-        if (document.languageId === 'markdown') {
+        if (supportedLanguages.includes(document.languageId)) {
             await checkDocument(document);
         }
     });
@@ -220,7 +392,7 @@ function updateSpeedFixDiagnostics() {
     const diagnostics = diagnosticsMap.get(editor.document.uri.toString());
     
     if (diagnostics) {
-        const payload = diagnostics.map((d, i) => ({
+        const payload: SpeedFixDiagnostic[] = diagnostics.map((d, i) => ({
             id: `diag-${i}`,
             message: d.message,
             suggestions: d.suggestions || [],
@@ -258,6 +430,7 @@ async function checkDocument(document: vscode.TextDocument) {
                 }
 
                 const diagnostic: ExtendedDiagnostic = new vscode.Diagnostic(range, d.message as string, severity);
+                diagnostic.source = 'language-check';
                 if (d.ruleId) {
                     diagnostic.code = d.ruleId;
                 }
@@ -271,12 +444,37 @@ async function checkDocument(document: vscode.TextDocument) {
             diagnosticCollection.set(document.uri, extendedDiagnostics);
             diagnosticsMap.set(document.uri.toString(), extendedDiagnostics);
             updateSpeedFixDiagnostics();
+            updateInsightsStatusBar(vscode.window.activeTextEditor);
         } else if (response.error) {
             vscode.window.showErrorMessage(`Language Check Error: ${response.error.message}`);
         }
     } catch (err) {
         vscode.window.showErrorMessage(`Failed to communicate with language-check core: ${err}`);
     }
+}
+
+function updateInsightsStatusBar(editor?: vscode.TextEditor) {
+    if (!editor) {
+        insightsStatusBarItem.text = '';
+        insightsStatusBarItem.hide();
+        return;
+    }
+
+    const text = editor.document.getText();
+    const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
+    const charCount = text.replace(/\s/g, '').length;
+    const sentenceCount = text.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+
+    // ARI (Automated Readability Index)
+    let readingLevel = 0;
+    if (wordCount > 0 && sentenceCount > 0) {
+        readingLevel = 4.71 * (charCount / wordCount) + 0.5 * (wordCount / sentenceCount) - 21.43;
+    }
+
+    const rlLabel = readingLevel > 0 ? ` | ARI ${readingLevel.toFixed(1)}` : '';
+    insightsStatusBarItem.text = `$(pencil) ${wordCount} words${rlLabel}`;
+    insightsStatusBarItem.tooltip = `Words: ${wordCount} | Sentences: ${sentenceCount} | Characters: ${charCount} | Reading Level (ARI): ${readingLevel.toFixed(1)}`;
+    insightsStatusBarItem.show();
 }
 
 export function deactivate() {

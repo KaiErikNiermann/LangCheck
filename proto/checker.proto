@@ -9,6 +9,7 @@ message Request {
     MetadataRequest get_metadata = 3;
     IgnoreRequest ignore = 4;
     InitializeRequest initialize = 5;
+    AddDictionaryWordRequest add_dictionary_word = 6;
   }
 }
 
@@ -72,6 +73,10 @@ enum Severity {
   SEVERITY_WARNING = 2;
   SEVERITY_ERROR = 3;
   SEVERITY_HINT = 4;
+}
+
+message AddDictionaryWordRequest {
+  string word = 1;
 }
 
 message MetadataRequest {}

@@ -23,6 +23,10 @@
       {
         "command": "language-check.checkWorkspace",
         "title": "Language Check: Check Workspace"
+      },
+      {
+        "command": "language-check.selectLanguage",
+        "title": "Language Check: Select Language"
       }
     ],
     "keybindings": [
@@ -37,6 +41,7 @@
   "scripts": {
     "proto:gen": "pbjs -t static-module -w commonjs -o src/proto/checker.js ../proto/checker.proto && pbts -o src/proto/checker.d.ts src/proto/checker.js",
     "build": "tsc -p .",
+    "lint": "eslint src/",
     "test": "vitest"
   },
   "keywords": [],
@@ -48,12 +53,15 @@
     "protobufjs": "^8.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/long": "^5.0.0",
     "@types/node": "^25.3.2",
     "@types/vscode": "^1.109.0",
+    "eslint": "^10.0.2",
     "protobufjs-cli": "^2.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1",
     "vitest": "^4.0.18"
   }
 }

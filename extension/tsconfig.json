@@ -44,5 +44,5 @@
 
     "esModuleInterop": true,
   },
-  "exclude": ["node_modules", ".vscode-test", "webview"]
+  "exclude": ["node_modules", ".vscode-test", "webview", "vitest.config.ts", "eslint.config.mjs"]
 }

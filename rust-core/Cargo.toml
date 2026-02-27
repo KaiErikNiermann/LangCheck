@@ -10,7 +10,7 @@ ropey = "1.6"
 tree-sitter = "0.19.5"
 tree-sitter-markdown = "0.7.1"
 tree-sitter-html = "0.19.0"
-tree-sitter-latex = "0.1.0"
+codebook-tree-sitter-latex = "0.6.1"
 anyhow = "1.0"
 bytes = "1.0"
 harper-core = { version = "1.8.0", features = ["concurrent"] }
@@ -24,6 +24,9 @@ indicatif = "0.17"
 glob = "0.3"
 redb = "2.1"
 serde_cbor = "0.11"
+
+[dev-dependencies]
+insta = { version = "1.42", features = ["yaml"] }
 
 [build-dependencies]
 prost-build = "0.13"

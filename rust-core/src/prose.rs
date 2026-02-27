@@ -1,5 +1,5 @@
-use tree_sitter::{Parser, Language, Query, QueryCursor};
 use anyhow::{Result, anyhow};
+use tree_sitter::{Language, Parser, Query, QueryCursor};
 
 pub struct ProseExtractor {
     parser: Parser,
@@ -14,24 +14,25 @@ impl ProseExtractor {
     }
 
     pub fn extract(&mut self, text: &str, lang_id: &str) -> Result<Vec<ProseRange>> {
-        let tree = self.parser.parse(text, None)
+        let tree = self
+            .parser
+            .parse(text, None)
             .ok_or_else(|| anyhow!("Failed to parse text"))?;
-        
+
         let query_str = match lang_id {
             "markdown" => "(paragraph) @prose (atx_heading) @prose",
-            "html" => "(text) @prose",
-            "latex" => "(text) @prose",
+            "html" | "latex" => "(text) @prose",
             _ => "(paragraph) @prose",
         };
-        
+
         let query = Query::new(self.language, query_str)
-            .map_err(|e| anyhow!("Failed to create query for {}: {}", lang_id, e))?;
-        
+            .map_err(|e| anyhow!("Failed to create query for {lang_id}: {e}"))?;
+
         let mut cursor = QueryCursor::new();
         let matches = cursor.matches(&query, tree.root_node(), |node| {
             &text.as_bytes()[node.byte_range()]
         });
-        
+
         let mut ranges = Vec::new();
         for m in matches {
             for capture in m.captures {
@@ -41,12 +42,12 @@ impl ProseExtractor {
                 });
             }
         }
-        
+
         Ok(ranges)
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ProseRange {
     pub start_byte: usize,
     pub end_byte: usize,
@@ -60,19 +61,23 @@ mod tests {
     fn test_markdown_extraction() -> Result<()> {
         let language = tree_sitter_markdown::language();
         let mut extractor = ProseExtractor::new(language)?;
-        
-        let text = "# Header\n\nThis is a paragraph.\n\n```rust\nfn main() {}\n```\n\nAnother paragraph.";
+
+        let text =
+            "# Header\n\nThis is a paragraph.\n\n```rust\nfn main() {}\n```\n\nAnother paragraph.";
         let ranges = extractor.extract(text, "markdown")?;
-        
+
         // We expect "Header", "This is a paragraph.", and "Another paragraph."
         // The code block should be ignored.
         assert!(ranges.len() >= 3);
-        
-        let extracted_texts: Vec<&str> = ranges.iter().map(|r| &text[r.start_byte..r.end_byte]).collect();
+
+        let extracted_texts: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
         assert!(extracted_texts.contains(&"# Header"));
         assert!(extracted_texts.contains(&"This is a paragraph."));
         assert!(extracted_texts.contains(&"Another paragraph."));
-        
+
         Ok(())
     }
 }

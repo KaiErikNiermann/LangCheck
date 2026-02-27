@@ -29,6 +29,7 @@ $root.languagecheck = (function() {
          * @property {languagecheck.IMetadataRequest|null} [getMetadata] Request getMetadata
          * @property {languagecheck.IIgnoreRequest|null} [ignore] Request ignore
          * @property {languagecheck.IInitializeRequest|null} [initialize] Request initialize
+         * @property {languagecheck.IAddDictionaryWordRequest|null} [addDictionaryWord] Request addDictionaryWord
          */
 
         /**
@@ -86,17 +87,25 @@ $root.languagecheck = (function() {
          */
         Request.prototype.initialize = null;
 
+        /**
+         * Request addDictionaryWord.
+         * @member {languagecheck.IAddDictionaryWordRequest|null|undefined} addDictionaryWord
+         * @memberof languagecheck.Request
+         * @instance
+         */
+        Request.prototype.addDictionaryWord = null;
+
         // OneOf field names bound to virtual getters and setters
         var $oneOfFields;
 
         /**
          * Request payload.
-         * @member {"checkProse"|"getMetadata"|"ignore"|"initialize"|undefined} payload
+         * @member {"checkProse"|"getMetadata"|"ignore"|"initialize"|"addDictionaryWord"|undefined} payload
          * @memberof languagecheck.Request
          * @instance
          */
         Object.defineProperty(Request.prototype, "payload", {
-            get: $util.oneOfGetter($oneOfFields = ["checkProse", "getMetadata", "ignore", "initialize"]),
+            get: $util.oneOfGetter($oneOfFields = ["checkProse", "getMetadata", "ignore", "initialize", "addDictionaryWord"]),
             set: $util.oneOfSetter($oneOfFields)
         });
 
@@ -134,6 +143,8 @@ $root.languagecheck = (function() {
                 $root.languagecheck.IgnoreRequest.encode(message.ignore, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
             if (message.initialize != null && Object.hasOwnProperty.call(message, "initialize"))
                 $root.languagecheck.InitializeRequest.encode(message.initialize, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+            if (message.addDictionaryWord != null && Object.hasOwnProperty.call(message, "addDictionaryWord"))
+                $root.languagecheck.AddDictionaryWordRequest.encode(message.addDictionaryWord, writer.uint32(/* id 6, wireType 2 =*/50).fork()).ldelim();
             return writer;
         };
 
@@ -188,6 +199,10 @@ $root.languagecheck = (function() {
                     }
                 case 5: {
                         message.initialize = $root.languagecheck.InitializeRequest.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 6: {
+                        message.addDictionaryWord = $root.languagecheck.AddDictionaryWordRequest.decode(reader, reader.uint32());
                         break;
                     }
                 default:
@@ -267,6 +282,16 @@ $root.languagecheck = (function() {
                         return "initialize." + error;
                 }
             }
+            if (message.addDictionaryWord != null && message.hasOwnProperty("addDictionaryWord")) {
+                if (properties.payload === 1)
+                    return "payload: multiple values";
+                properties.payload = 1;
+                {
+                    var error = $root.languagecheck.AddDictionaryWordRequest.verify(message.addDictionaryWord);
+                    if (error)
+                        return "addDictionaryWord." + error;
+                }
+            }
             return null;
         };
 
@@ -310,6 +335,11 @@ $root.languagecheck = (function() {
                 if (typeof object.initialize !== "object")
                     throw TypeError(".languagecheck.Request.initialize: object expected");
                 message.initialize = $root.languagecheck.InitializeRequest.fromObject(object.initialize);
+            }
+            if (object.addDictionaryWord != null) {
+                if (typeof object.addDictionaryWord !== "object")
+                    throw TypeError(".languagecheck.Request.addDictionaryWord: object expected");
+                message.addDictionaryWord = $root.languagecheck.AddDictionaryWordRequest.fromObject(object.addDictionaryWord);
             }
             return message;
         };
@@ -357,6 +387,11 @@ $root.languagecheck = (function() {
                 object.initialize = $root.languagecheck.InitializeRequest.toObject(message.initialize, options);
                 if (options.oneofs)
                     object.payload = "initialize";
+            }
+            if (message.addDictionaryWord != null && message.hasOwnProperty("addDictionaryWord")) {
+                object.addDictionaryWord = $root.languagecheck.AddDictionaryWordRequest.toObject(message.addDictionaryWord, options);
+                if (options.oneofs)
+                    object.payload = "addDictionaryWord";
             }
             return object;
         };
@@ -2666,6 +2701,211 @@ $root.languagecheck = (function() {
         values[valuesById[3] = "SEVERITY_ERROR"] = 3;
         values[valuesById[4] = "SEVERITY_HINT"] = 4;
         return values;
+    })();
+
+    languagecheck.AddDictionaryWordRequest = (function() {
+
+        /**
+         * Properties of an AddDictionaryWordRequest.
+         * @memberof languagecheck
+         * @interface IAddDictionaryWordRequest
+         * @property {string|null} [word] AddDictionaryWordRequest word
+         */
+
+        /**
+         * Constructs a new AddDictionaryWordRequest.
+         * @memberof languagecheck
+         * @classdesc Represents an AddDictionaryWordRequest.
+         * @implements IAddDictionaryWordRequest
+         * @constructor
+         * @param {languagecheck.IAddDictionaryWordRequest=} [properties] Properties to set
+         */
+        function AddDictionaryWordRequest(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * AddDictionaryWordRequest word.
+         * @member {string} word
+         * @memberof languagecheck.AddDictionaryWordRequest
+         * @instance
+         */
+        AddDictionaryWordRequest.prototype.word = "";
+
+        /**
+         * Creates a new AddDictionaryWordRequest instance using the specified properties.
+         * @function create
+         * @memberof languagecheck.AddDictionaryWordRequest
+         * @static
+         * @param {languagecheck.IAddDictionaryWordRequest=} [properties] Properties to set
+         * @returns {languagecheck.AddDictionaryWordRequest} AddDictionaryWordRequest instance
+         */
+        AddDictionaryWordRequest.create = function create(properties) {
+            return new AddDictionaryWordRequest(properties);
+        };
+
+        /**
+         * Encodes the specified AddDictionaryWordRequest message. Does not implicitly {@link languagecheck.AddDictionaryWordRequest.verify|verify} messages.
+         * @function encode
+         * @memberof languagecheck.AddDictionaryWordRequest
+         * @static
+         * @param {languagecheck.IAddDictionaryWordRequest} message AddDictionaryWordRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        AddDictionaryWordRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.word != null && Object.hasOwnProperty.call(message, "word"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.word);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified AddDictionaryWordRequest message, length delimited. Does not implicitly {@link languagecheck.AddDictionaryWordRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof languagecheck.AddDictionaryWordRequest
+         * @static
+         * @param {languagecheck.IAddDictionaryWordRequest} message AddDictionaryWordRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        AddDictionaryWordRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an AddDictionaryWordRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof languagecheck.AddDictionaryWordRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {languagecheck.AddDictionaryWordRequest} AddDictionaryWordRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        AddDictionaryWordRequest.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.AddDictionaryWordRequest();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.word = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an AddDictionaryWordRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof languagecheck.AddDictionaryWordRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {languagecheck.AddDictionaryWordRequest} AddDictionaryWordRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        AddDictionaryWordRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an AddDictionaryWordRequest message.
+         * @function verify
+         * @memberof languagecheck.AddDictionaryWordRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        AddDictionaryWordRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.word != null && message.hasOwnProperty("word"))
+                if (!$util.isString(message.word))
+                    return "word: string expected";
+            return null;
+        };
+
+        /**
+         * Creates an AddDictionaryWordRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof languagecheck.AddDictionaryWordRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {languagecheck.AddDictionaryWordRequest} AddDictionaryWordRequest
+         */
+        AddDictionaryWordRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.languagecheck.AddDictionaryWordRequest)
+                return object;
+            var message = new $root.languagecheck.AddDictionaryWordRequest();
+            if (object.word != null)
+                message.word = String(object.word);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an AddDictionaryWordRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof languagecheck.AddDictionaryWordRequest
+         * @static
+         * @param {languagecheck.AddDictionaryWordRequest} message AddDictionaryWordRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        AddDictionaryWordRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults)
+                object.word = "";
+            if (message.word != null && message.hasOwnProperty("word"))
+                object.word = message.word;
+            return object;
+        };
+
+        /**
+         * Converts this AddDictionaryWordRequest to JSON.
+         * @function toJSON
+         * @memberof languagecheck.AddDictionaryWordRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        AddDictionaryWordRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for AddDictionaryWordRequest
+         * @function getTypeUrl
+         * @memberof languagecheck.AddDictionaryWordRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        AddDictionaryWordRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/languagecheck.AddDictionaryWordRequest";
+        };
+
+        return AddDictionaryWordRequest;
     })();
 
     languagecheck.MetadataRequest = (function() {

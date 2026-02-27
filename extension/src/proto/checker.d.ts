@@ -20,6 +20,9 @@ export namespace languagecheck {
 
         /** Request initialize */
         initialize?: (languagecheck.IInitializeRequest|null);
+
+        /** Request addDictionaryWord */
+        addDictionaryWord?: (languagecheck.IAddDictionaryWordRequest|null);
     }
 
     /** Represents a Request. */
@@ -46,8 +49,11 @@ export namespace languagecheck {
         /** Request initialize. */
         public initialize?: (languagecheck.IInitializeRequest|null);
 
+        /** Request addDictionaryWord. */
+        public addDictionaryWord?: (languagecheck.IAddDictionaryWordRequest|null);
+
         /** Request payload. */
-        public payload?: ("checkProse"|"getMetadata"|"ignore"|"initialize");
+        public payload?: ("checkProse"|"getMetadata"|"ignore"|"initialize"|"addDictionaryWord");
 
         /**
          * Creates a new Request instance using the specified properties.
@@ -1063,6 +1069,103 @@ export namespace languagecheck {
         SEVERITY_WARNING = 2,
         SEVERITY_ERROR = 3,
         SEVERITY_HINT = 4
+    }
+
+    /** Properties of an AddDictionaryWordRequest. */
+    interface IAddDictionaryWordRequest {
+
+        /** AddDictionaryWordRequest word */
+        word?: (string|null);
+    }
+
+    /** Represents an AddDictionaryWordRequest. */
+    class AddDictionaryWordRequest implements IAddDictionaryWordRequest {
+
+        /**
+         * Constructs a new AddDictionaryWordRequest.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: languagecheck.IAddDictionaryWordRequest);
+
+        /** AddDictionaryWordRequest word. */
+        public word: string;
+
+        /**
+         * Creates a new AddDictionaryWordRequest instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns AddDictionaryWordRequest instance
+         */
+        public static create(properties?: languagecheck.IAddDictionaryWordRequest): languagecheck.AddDictionaryWordRequest;
+
+        /**
+         * Encodes the specified AddDictionaryWordRequest message. Does not implicitly {@link languagecheck.AddDictionaryWordRequest.verify|verify} messages.
+         * @param message AddDictionaryWordRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: languagecheck.IAddDictionaryWordRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified AddDictionaryWordRequest message, length delimited. Does not implicitly {@link languagecheck.AddDictionaryWordRequest.verify|verify} messages.
+         * @param message AddDictionaryWordRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: languagecheck.IAddDictionaryWordRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an AddDictionaryWordRequest message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns AddDictionaryWordRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): languagecheck.AddDictionaryWordRequest;
+
+        /**
+         * Decodes an AddDictionaryWordRequest message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns AddDictionaryWordRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): languagecheck.AddDictionaryWordRequest;
+
+        /**
+         * Verifies an AddDictionaryWordRequest message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an AddDictionaryWordRequest message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns AddDictionaryWordRequest
+         */
+        public static fromObject(object: { [k: string]: any }): languagecheck.AddDictionaryWordRequest;
+
+        /**
+         * Creates a plain object from an AddDictionaryWordRequest message. Also converts values to other types if specified.
+         * @param message AddDictionaryWordRequest
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: languagecheck.AddDictionaryWordRequest, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this AddDictionaryWordRequest to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for AddDictionaryWordRequest
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a MetadataRequest. */

@@ -1,21 +1,36 @@
+#![warn(clippy::pedantic, clippy::nursery)]
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::cast_possible_truncation,
+    clippy::significant_drop_tightening,
+    clippy::too_many_lines
+)]
+
 use anyhow::Result;
-use bytes::{BytesMut, Buf};
-use prost::Message;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use std::sync::Arc;
-use tokio::sync::{Mutex, Notify};
-use rust_core::{checker, prose, orchestrator, hashing, workspace, config, insights};
-use checker::{Request, Response, response, ErrorResponse, CheckResponse, MetadataResponse};
-use prose::ProseExtractor;
-use orchestrator::Orchestrator;
-use hashing::{IgnoreStore, DiagnosticFingerprint};
-use workspace::WorkspaceIndex;
+use bytes::{Buf, BytesMut};
+use checker::{CheckResponse, ErrorResponse, MetadataResponse, Request, Response, response};
 use config::Config;
+use dictionary::Dictionary;
+use glob::glob;
+use hashing::{DiagnosticFingerprint, IgnoreStore};
 use insights::ProseInsights;
+use orchestrator::Orchestrator;
+use prose::ProseExtractor;
+use prost::Message;
+use rust_core::{checker, config, dictionary, hashing, insights, orchestrator, prose, workspace};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::fs;
-use glob::glob;
-use std::path::{Path, PathBuf};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::sync::{Mutex, Notify};
+use workspace::WorkspaceIndex;
+
+fn latex_language() -> tree_sitter::Language {
+    let raw_fn = codebook_tree_sitter_latex::LANGUAGE.into_raw();
+    unsafe { std::mem::transmute(raw_fn()) }
+}
 
 async fn process_file_for_indexing(
     file_path: PathBuf,
@@ -30,14 +45,22 @@ async fn process_file_for_indexing(
     }
 
     let text = fs::read_to_string(&file_path).await?;
-    
+
+    // Check if file is unchanged since last indexing (cache hit)
+    if let Some(file_path_str) = file_path.to_str()
+        && let Some(idx) = &*workspace_index_arc.lock().await
+        && idx.is_file_unchanged(file_path_str, &text)
+    {
+        return Ok(());
+    }
+
     let mut extractor = ProseExtractor::new(ts_lang)?;
-    
+
     let ranges = extractor.extract(&text, &lang_id)?;
     let mut all_diagnostics = Vec::new();
 
-    let mut orchestrator_lock = orchestrator_arc.lock().await; // Lock orchestrator here
-    let ignore_store_lock = ignore_store_arc.lock().await; // Lock ignore store here
+    let mut orchestrator_lock = orchestrator_arc.lock().await;
+    let ignore_store_lock = ignore_store_arc.lock().await;
 
     for range in ranges {
         let prose_text = &text[range.start_byte..range.end_byte];
@@ -47,24 +70,38 @@ async fn process_file_for_indexing(
                 d.end_byte += range.start_byte as u32;
             }
             diagnostics.retain(|d| {
-                let fingerprint = DiagnosticFingerprint::new(&d.message, &text, d.start_byte as usize, d.end_byte as usize);
+                let fingerprint = DiagnosticFingerprint::new(
+                    &d.message,
+                    &text,
+                    d.start_byte as usize,
+                    d.end_byte as usize,
+                );
                 !ignore_store_lock.is_ignored(&fingerprint)
             });
             all_diagnostics.extend(diagnostics);
         }
     }
 
-    if let Some(idx) = &*workspace_index_arc.lock().await {
-        if let Some(file_path_str) = file_path.to_str() {
-            let insights = ProseInsights::analyze(&text);
-            idx.update_diagnostics(file_path_str, all_diagnostics).unwrap_or_else(|e| eprintln!("Error updating diagnostics for {}: {}", file_path_str, e));
-            idx.update_insights(file_path_str, insights).unwrap_or_else(|e| eprintln!("Error updating insights for {}: {}", file_path_str, e));
-        }
+    // Release locks before writing to index
+    drop(orchestrator_lock);
+    drop(ignore_store_lock);
+
+    if let Some(idx) = &*workspace_index_arc.lock().await
+        && let Some(file_path_str) = file_path.to_str()
+    {
+        let insights = ProseInsights::analyze(&text);
+        idx.update_diagnostics(file_path_str, &all_diagnostics)
+            .unwrap_or_else(|e| {
+                eprintln!("Error updating diagnostics for {file_path_str}: {e}");
+            });
+        idx.update_insights(file_path_str, &insights)
+            .unwrap_or_else(|e| eprintln!("Error updating insights for {file_path_str}: {e}"));
+        idx.update_file_hash(file_path_str, &text)
+            .unwrap_or_else(|e| eprintln!("Error updating file hash for {file_path_str}: {e}"));
     }
 
     Ok(())
 }
-
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -72,8 +109,10 @@ async fn main() -> Result<()> {
     let mut stdout = tokio::io::stdout();
     let mut buffer = BytesMut::with_capacity(4096);
 
-    let orchestrator_arc: Arc<Mutex<Orchestrator>> = Arc::new(Mutex::new(Orchestrator::new(Config::default())));
+    let orchestrator_arc: Arc<Mutex<Orchestrator>> =
+        Arc::new(Mutex::new(Orchestrator::new(Config::default())));
     let ignore_store_arc: Arc<Mutex<IgnoreStore>> = Arc::new(Mutex::new(IgnoreStore::new()));
+    let dictionary_arc: Arc<Mutex<Dictionary>> = Arc::new(Mutex::new(Dictionary::new()));
     let workspace_index_arc: Arc<Mutex<Option<WorkspaceIndex>>> = Arc::new(Mutex::new(None));
     let indexing_notify = Arc::new(Notify::new());
 
@@ -87,41 +126,43 @@ async fn main() -> Result<()> {
         tokio::spawn(async move {
             loop {
                 indexing_notify.notified().await; // Wait for notification to start indexing
-                
+
                 let workspace_root = {
                     let idx_lock = workspace_index_arc.lock().await;
-                    if let Some(idx) = idx_lock.as_ref() {
-                        idx.get_root_path().map(|p| p.to_path_buf())
-                    } else {
-                        None
-                    }
+                    idx_lock
+                        .as_ref()
+                        .and_then(|idx| idx.get_root_path().map(Path::to_path_buf))
                 };
 
                 if let Some(root) = workspace_root {
-                    println!("Starting workspace indexing for {:?}", root);
-                    let config = orchestrator_arc.lock().await.get_config().clone(); // Get current config to decide what to index
+                    println!("Starting workspace indexing for {}", root.display());
+                    let _config = orchestrator_arc.lock().await.get_config().clone(); // Get current config to decide what to index
 
                     let mut tasks = Vec::new();
-                    // Iterate through configured file patterns and languages
-                    // For now, hardcode markdown. Later, use config.
-                    let markdown_pattern = format!("{}/**/*.md", root.to_string_lossy());
-                    let ts_lang_md = tree_sitter_markdown::language(); // Markdown language
-                    
-                    if let Ok(entries) = glob(&markdown_pattern) {
-                        for entry in entries {
-                            if let Ok(path) = entry {
+
+                    let file_types: &[(&str, &str, tree_sitter::Language)] = &[
+                        ("**/*.md", "markdown", tree_sitter_markdown::language()),
+                        ("**/*.html", "html", tree_sitter_html::language()),
+                        ("**/*.htm", "html", tree_sitter_html::language()),
+                        ("**/*.tex", "latex", latex_language()),
+                    ];
+
+                    for &(pattern_suffix, lang, ts_lang) in file_types {
+                        let full_pattern = format!("{}/{}", root.to_string_lossy(), pattern_suffix);
+                        if let Ok(entries) = glob(&full_pattern) {
+                            for path in entries.flatten() {
                                 let task_orchestrator = orchestrator_arc.clone();
                                 let task_ignore_store = ignore_store_arc.clone();
                                 let task_workspace_index = workspace_index_arc.clone();
-                                let lang_id = "markdown".to_string();
-                                
+                                let lang_id = lang.to_string();
+
                                 tasks.push(tokio::spawn(process_file_for_indexing(
                                     path,
                                     task_orchestrator,
                                     task_ignore_store,
                                     task_workspace_index,
                                     lang_id,
-                                    ts_lang_md,
+                                    ts_lang,
                                 )));
                             }
                         }
@@ -129,10 +170,10 @@ async fn main() -> Result<()> {
 
                     for task in tasks {
                         if let Err(e) = task.await {
-                            eprintln!("Error joining indexing task: {}", e);
+                            eprintln!("Error joining indexing task: {e}");
                         }
                     }
-                    println!("Finished workspace indexing for {:?}", root);
+                    println!("Finished workspace indexing for {}", root.display());
                 }
                 tokio::time::sleep(Duration::from_secs(600)).await; // Re-index every 10 minutes
             }
@@ -142,40 +183,81 @@ async fn main() -> Result<()> {
     let mut reader = stdin;
 
     loop {
-        let length: usize;
-
         // Read 4-byte length prefix
         if buffer.len() < 4 {
             let mut chunk = [0u8; 4096];
             let n = reader.read(&mut chunk).await?;
-            if n == 0 { break; }
+            if n == 0 {
+                break;
+            }
             buffer.extend_from_slice(&chunk[..n]);
         }
 
-        if buffer.len() < 4 { continue; }
+        if buffer.len() < 4 {
+            continue;
+        }
 
         let mut length_buf = [0u8; 4];
         length_buf.copy_from_slice(&buffer[..4]);
-        length = u32::from_be_bytes(length_buf) as usize;
+        let length: usize = u32::from_be_bytes(length_buf) as usize;
 
         if buffer.len() < 4 + length {
             let mut chunk = [0u8; 4096];
             let n = reader.read(&mut chunk).await?;
-            if n == 0 { break; }
+            if n == 0 {
+                break;
+            }
             buffer.extend_from_slice(&chunk[..n]);
             continue;
         }
 
         buffer.advance(4);
         let msg_data = buffer.split_to(length);
-        
-        let request = Request::decode(msg_data)?;
+
+        let request = match Request::decode(msg_data) {
+            Ok(req) => req,
+            Err(e) => {
+                eprintln!("Failed to decode request: {e}");
+                // Send error response with id=0 since we can't read the request id
+                let response = Response {
+                    id: 0,
+                    payload: Some(response::Payload::Error(ErrorResponse {
+                        message: format!("Failed to decode request: {e}"),
+                    })),
+                };
+                let mut out_buffer = Vec::new();
+                response.encode(&mut out_buffer)?;
+                let out_length = out_buffer.len() as u32;
+                stdout.write_all(&out_length.to_be_bytes()).await?;
+                stdout.write_all(&out_buffer).await?;
+                stdout.flush().await?;
+                continue;
+            }
+        };
         let response_payload = match request.payload {
             Some(checker::request::Payload::Initialize(req)) => {
                 let root_path = std::path::PathBuf::from(&req.workspace_root);
-                
+
                 let config = Config::load(&root_path).unwrap_or_else(|_| Config::default());
                 orchestrator_arc.lock().await.update_config(config);
+
+                // Load persisted ignore store and dictionary from workspace
+                match Dictionary::load(&root_path) {
+                    Ok(loaded_dict) => {
+                        *dictionary_arc.lock().await = loaded_dict;
+                    }
+                    Err(e) => {
+                        eprintln!("Warning: could not load dictionary: {e}");
+                    }
+                }
+                match IgnoreStore::load(&root_path) {
+                    Ok(loaded_store) => {
+                        *ignore_store_arc.lock().await = loaded_store;
+                    }
+                    Err(e) => {
+                        eprintln!("Warning: could not load ignore store: {e}");
+                    }
+                }
 
                 match WorkspaceIndex::new(&root_path) {
                     Ok(index) => {
@@ -184,79 +266,120 @@ async fn main() -> Result<()> {
                         indexing_notify.notify_one();
                         Some(response::Payload::Ok(checker::OkResponse {}))
                     }
-                    Err(e) => Some(response::Payload::Error(ErrorResponse { message: e.to_string() })),
+                    Err(e) => Some(response::Payload::Error(ErrorResponse {
+                        message: e.to_string(),
+                    })),
                 }
             }
             Some(checker::request::Payload::CheckProse(req)) => {
                 let ts_lang = match req.language_id.as_str() {
-                    "markdown" => tree_sitter_markdown::language(),
                     "html" => tree_sitter_html::language(),
+                    "latex" => latex_language(),
                     _ => tree_sitter_markdown::language(),
                 };
-                
-                let mut extractor = ProseExtractor::new(ts_lang)?;
 
-                match extractor.extract(&req.text, &req.language_id) {
-                    Ok(ranges) => {
-                        let mut all_diagnostics = Vec::new();
-                        let mut orchestrator = orchestrator_arc.lock().await;
-                        let ignore_store = ignore_store_arc.lock().await;
-                        for range in ranges {
-                            let prose_text = &req.text[range.start_byte..range.end_byte];
-                            if let Ok(mut diagnostics) = orchestrator.check(prose_text, &req.language_id).await {
-                                for d in &mut diagnostics {
-                                    d.start_byte += range.start_byte as u32;
-                                    d.end_byte += range.start_byte as u32;
+                match ProseExtractor::new(ts_lang) {
+                    Ok(mut extractor) => match extractor.extract(&req.text, &req.language_id) {
+                        Ok(ranges) => {
+                            let mut all_diagnostics = Vec::new();
+                            let mut orchestrator = orchestrator_arc.lock().await;
+                            let ignore_store = ignore_store_arc.lock().await;
+                            let dict = dictionary_arc.lock().await;
+                            for range in ranges {
+                                let prose_text = &req.text[range.start_byte..range.end_byte];
+                                if let Ok(mut diagnostics) =
+                                    orchestrator.check(prose_text, &req.language_id).await
+                                {
+                                    for d in &mut diagnostics {
+                                        d.start_byte += range.start_byte as u32;
+                                        d.end_byte += range.start_byte as u32;
+                                    }
+
+                                    diagnostics.retain(|d| {
+                                        let fingerprint = DiagnosticFingerprint::new(
+                                            &d.message,
+                                            &req.text,
+                                            d.start_byte as usize,
+                                            d.end_byte as usize,
+                                        );
+                                        if ignore_store.is_ignored(&fingerprint) {
+                                            return false;
+                                        }
+                                        // Skip spelling diagnostics for dictionary words
+                                        if d.unified_id.starts_with("spelling.") {
+                                            let word = &req.text
+                                                [d.start_byte as usize..d.end_byte as usize];
+                                            if dict.contains(word) {
+                                                return false;
+                                            }
+                                        }
+                                        true
+                                    });
+
+                                    all_diagnostics.extend(diagnostics);
                                 }
-                                
-                                diagnostics.retain(|d| {
-                                    let fingerprint = DiagnosticFingerprint::new(&d.message, &req.text, d.start_byte as usize, d.end_byte as usize);
-                                    !ignore_store.is_ignored(&fingerprint)
-                                });
+                            }
 
-                                all_diagnostics.extend(diagnostics);
-                            }
-                        }
-                        
-                        // Store diagnostics and insights in workspace index
-                        if let Some(idx) = &*workspace_index_arc.lock().await {
-                            if let Some(file_path) = req.file_path.clone() {
+                            // Store diagnostics and insights in workspace index (non-fatal)
+                            if let Some(idx) = &*workspace_index_arc.lock().await
+                                && let Some(file_path) = req.file_path.clone()
+                            {
                                 let insights = ProseInsights::analyze(&req.text);
-                                idx.update_diagnostics(&file_path, all_diagnostics.clone())?;
-                                idx.update_insights(&file_path, insights)?;
+                                idx.update_diagnostics(&file_path, &all_diagnostics)
+                                    .unwrap_or_else(|e| {
+                                        eprintln!(
+                                            "Error updating diagnostics for {file_path}: {e}"
+                                        );
+                                    });
+                                idx.update_insights(&file_path, &insights)
+                                    .unwrap_or_else(|e| {
+                                        eprintln!("Error updating insights for {file_path}: {e}");
+                                    });
                             }
+                            Some(response::Payload::CheckProse(CheckResponse {
+                                diagnostics: all_diagnostics,
+                            }))
                         }
-                        Some(response::Payload::CheckProse(CheckResponse { diagnostics: all_diagnostics }))
-                    }
-                    Err(e) => Some(response::Payload::Error(ErrorResponse { message: e.to_string() })),
+                        Err(e) => Some(response::Payload::Error(ErrorResponse {
+                            message: format!("Extraction error: {e}"),
+                        })),
+                    },
+                    Err(e) => Some(response::Payload::Error(ErrorResponse {
+                        message: format!("Failed to create prose extractor: {e}"),
+                    })),
                 }
             }
             Some(checker::request::Payload::GetMetadata(_)) => {
                 Some(response::Payload::GetMetadata(MetadataResponse {
                     name: "Rust Core".to_string(),
                     version: "0.1.0".to_string(),
-                    supported_languages: vec!["markdown".to_string(), "html".to_string(), "latex".to_string()],
+                    supported_languages: vec![
+                        "markdown".to_string(),
+                        "html".to_string(),
+                        "latex".to_string(),
+                    ],
                 }))
             }
             Some(checker::request::Payload::Ignore(req)) => {
                 let mut ignore_store = ignore_store_arc.lock().await;
-                let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                use std::hash::{Hash, Hasher};
-                req.message.hash(&mut hasher);
-                let m_hash = hasher.finish();
-                
-                let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                req.context.hash(&mut hasher);
-                let c_hash = hasher.finish();
-                
-                ignore_store.ignore(&DiagnosticFingerprint {
-                    message_hash: m_hash,
-                    context_hash: c_hash,
-                });
-                
+                let fingerprint =
+                    DiagnosticFingerprint::new(&req.message, &req.context, 0, req.context.len());
+                ignore_store.ignore(&fingerprint);
+
                 Some(response::Payload::Ok(checker::OkResponse {}))
             }
-            None => Some(response::Payload::Error(ErrorResponse { message: "Empty payload".to_string() })),
+            Some(checker::request::Payload::AddDictionaryWord(req)) => {
+                let mut dict = dictionary_arc.lock().await;
+                match dict.add_word(&req.word) {
+                    Ok(()) => Some(response::Payload::Ok(checker::OkResponse {})),
+                    Err(e) => Some(response::Payload::Error(ErrorResponse {
+                        message: format!("Failed to add word to dictionary: {e}"),
+                    })),
+                }
+            }
+            None => Some(response::Payload::Error(ErrorResponse {
+                message: "Empty payload".to_string(),
+            })),
         };
 
         let response = Response {
@@ -266,14 +389,14 @@ async fn main() -> Result<()> {
 
         let mut out_buffer = Vec::new();
         response.encode(&mut out_buffer)?;
-        
+
         let out_length = out_buffer.len() as u32;
         stdout.write_all(&out_length.to_be_bytes()).await?;
         stdout.write_all(&out_buffer).await?;
         stdout.flush().await?;
     }
 
-    indexing_handle.abort(); 
+    indexing_handle.abort();
 
     Ok(())
 }
