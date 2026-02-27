@@ -12,7 +12,7 @@ use config::Config;
 use console::style;
 use orchestrator::Orchestrator;
 use prose::ProseExtractor;
-use rust_core::{checker::Diagnostic, config, orchestrator, prose};
+use rust_core::{checker::Diagnostic, config, orchestrator, prose, rules};
 use serde::Serialize;
 use std::fs;
 use std::path::PathBuf;
@@ -46,6 +46,31 @@ enum Commands {
         #[arg(short, long)]
         lang: Option<String>,
     },
+    /// List all available grammar rules across providers
+    ListRules {
+        /// Filter by unified category prefix (e.g. "spelling", "grammar.article")
+        #[arg(short, long)]
+        filter: Option<String>,
+        /// Filter by provider name (e.g. "harper", "languagetool")
+        #[arg(short, long)]
+        provider: Option<String>,
+        /// Output format
+        #[arg(long, default_value = "pretty")]
+        format: OutputFormat,
+    },
+    /// Inspect or generate configuration
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+}
+
+#[derive(Copy, Clone, Subcommand)]
+enum ConfigAction {
+    /// Show the current effective configuration
+    Show,
+    /// Generate a default .languagecheck.json in the current directory
+    Init,
 }
 
 #[derive(Clone, ValueEnum)]
@@ -101,6 +126,16 @@ async fn main() -> Result<()> {
         Commands::Fix { path, lang } => {
             let lang = lang.unwrap_or_else(|| detect_lang(&path));
             fix_path(path, lang).await?;
+        }
+        Commands::ListRules {
+            filter,
+            provider,
+            format,
+        } => {
+            list_rules(filter.as_deref(), provider.as_deref(), &format);
+        }
+        Commands::Config { action } => {
+            handle_config(action)?;
         }
     }
 
@@ -257,6 +292,75 @@ async fn fix_file(
         println!("  No fixes applied.");
     }
 
+    Ok(())
+}
+
+fn list_rules(filter: Option<&str>, provider: Option<&str>, format: &OutputFormat) {
+    let normalizer = rules::RuleNormalizer::new();
+    let mut mappings = normalizer.all_mappings();
+
+    if let Some(p) = provider {
+        mappings.retain(|(prov, _, _)| prov == p);
+    }
+    if let Some(f) = filter {
+        mappings.retain(|(_, _, unified)| unified.starts_with(f));
+    }
+
+    match format {
+        OutputFormat::Pretty => {
+            println!(
+                "{:<16} {:<50} {}",
+                style("PROVIDER").bold(),
+                style("NATIVE RULE ID").bold(),
+                style("UNIFIED ID").bold()
+            );
+            println!("{}", "-".repeat(90));
+            for (prov, native, unified) in &mappings {
+                println!(
+                    "{:<16} {:<50} {}",
+                    style(prov).cyan(),
+                    native,
+                    style(unified).yellow()
+                );
+            }
+            println!("\n{} rules total.", style(mappings.len()).green());
+        }
+        OutputFormat::Json => {
+            let json: Vec<_> = mappings
+                .iter()
+                .map(|(p, n, u)| {
+                    serde_json::json!({"provider": p, "native_id": n, "unified_id": u})
+                })
+                .collect();
+            println!("{}", serde_json::to_string_pretty(&json).unwrap());
+        }
+    }
+}
+
+fn handle_config(action: ConfigAction) -> Result<()> {
+    match action {
+        ConfigAction::Show => {
+            let config =
+                Config::load(&std::env::current_dir()?).unwrap_or_else(|_| Config::default());
+            println!("{}", serde_json::to_string_pretty(&config)?);
+        }
+        ConfigAction::Init => {
+            let path = std::env::current_dir()?.join(".languagecheck.json");
+            if path.exists() {
+                println!(
+                    "{} .languagecheck.json already exists.",
+                    style("Warning:").yellow()
+                );
+                return Ok(());
+            }
+            let config = Config::default();
+            fs::write(&path, serde_json::to_string_pretty(&config)?)?;
+            println!(
+                "Created {} with default configuration.",
+                style(".languagecheck.json").green()
+            );
+        }
+    }
     Ok(())
 }
 

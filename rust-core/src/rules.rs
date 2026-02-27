@@ -143,6 +143,19 @@ impl RuleNormalizer {
         self.mappings.insert("languagetool".to_string(), lt);
     }
 
+    /// Returns all (provider, native\_id, unified\_id) triples, sorted for stable output.
+    #[must_use]
+    pub fn all_mappings(&self) -> Vec<(String, String, String)> {
+        let mut result = Vec::new();
+        for (provider, map) in &self.mappings {
+            for (native, unified) in map {
+                result.push((provider.clone(), native.clone(), unified.clone()));
+            }
+        }
+        result.sort();
+        result
+    }
+
     #[must_use]
     pub fn normalize(&self, provider: &str, native_id: &str) -> String {
         if let Some(provider_mappings) = self.mappings.get(provider)
