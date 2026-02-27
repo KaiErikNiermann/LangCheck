@@ -10,6 +10,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use config::Config;
 use console::style;
+use indicatif::{ProgressBar, ProgressStyle};
 use orchestrator::Orchestrator;
 use prose::ProseExtractor;
 use rust_core::{checker::Diagnostic, config, orchestrator, prose, rules};
@@ -162,9 +163,34 @@ async fn check_path(path: PathBuf, lang: String, format: &OutputFormat) -> Resul
             "latex" => "**/*.tex",
             _ => "**/*.md",
         };
-        let entries = glob::glob(&format!("{}/{}", path.to_string_lossy(), pattern))?;
-        for p in entries.flatten() {
-            check_file(&p, &mut extractor, &mut orchestrator, &lang, format, &mut all_json_diagnostics).await?;
+        let files: Vec<_> = glob::glob(&format!("{}/{}", path.to_string_lossy(), pattern))?
+            .flatten()
+            .collect();
+
+        let pb = if files.len() > 1 && matches!(format, OutputFormat::Pretty) {
+            let bar = ProgressBar::new(files.len() as u64);
+            bar.set_style(
+                ProgressStyle::default_bar()
+                    .template("{spinner:.green} [{bar:40.cyan/blue}] {pos}/{len} files ({eta})")
+                    .expect("valid template")
+                    .progress_chars("#>-"),
+            );
+            Some(bar)
+        } else {
+            None
+        };
+
+        for p in &files {
+            if let Some(ref bar) = pb {
+                bar.set_message(p.file_name().map_or_else(String::new, |n| n.to_string_lossy().to_string()));
+            }
+            check_file(p, &mut extractor, &mut orchestrator, &lang, format, &mut all_json_diagnostics).await?;
+            if let Some(ref bar) = pb {
+                bar.inc(1);
+            }
+        }
+        if let Some(bar) = pb {
+            bar.finish_and_clear();
         }
     }
 
