@@ -167,6 +167,132 @@ impl Engine for LanguageToolEngine {
     }
 }
 
+/// An external checker engine that communicates with a subprocess via stdin/stdout JSON.
+pub struct ExternalEngine {
+    name: String,
+    command: String,
+    args: Vec<String>,
+}
+
+impl ExternalEngine {
+    #[must_use]
+    pub fn new(name: String, command: String, args: Vec<String>) -> Self {
+        Self {
+            name,
+            command,
+            args,
+        }
+    }
+}
+
+/// JSON request sent to the external process on stdin.
+#[derive(serde::Serialize)]
+struct ExternalRequest<'a> {
+    text: &'a str,
+    language_id: &'a str,
+}
+
+/// JSON diagnostic returned by the external process on stdout.
+#[derive(Deserialize)]
+struct ExternalDiagnostic {
+    start_byte: u32,
+    end_byte: u32,
+    message: String,
+    #[serde(default)]
+    suggestions: Vec<String>,
+    #[serde(default)]
+    rule_id: String,
+    #[serde(default = "default_severity_value")]
+    severity: i32,
+    #[serde(default)]
+    confidence: f32,
+}
+
+fn default_severity_value() -> i32 {
+    Severity::Warning as i32
+}
+
+#[async_trait::async_trait]
+impl Engine for ExternalEngine {
+    async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
+        use tokio::process::Command;
+
+        let request = ExternalRequest { text, language_id };
+        let input = serde_json::to_string(&request)?;
+
+        let output = match Command::new(&self.command)
+            .args(&self.args)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+        {
+            Ok(mut child) => {
+                use tokio::io::AsyncWriteExt;
+                if let Some(mut stdin) = child.stdin.take() {
+                    stdin.write_all(input.as_bytes()).await?;
+                    stdin.shutdown().await?;
+                }
+                child.wait_with_output().await?
+            }
+            Err(e) => {
+                eprintln!("Failed to spawn external provider '{}': {e}", self.name);
+                return Ok(vec![]);
+            }
+        };
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!(
+                "External provider '{}' exited with {}: {}",
+                self.name,
+                output.status,
+                stderr.trim()
+            );
+            return Ok(vec![]);
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let ext_diagnostics: Vec<ExternalDiagnostic> = match serde_json::from_str(&stdout) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!(
+                    "Failed to parse output from external provider '{}': {e}",
+                    self.name
+                );
+                return Ok(vec![]);
+            }
+        };
+
+        let diagnostics = ext_diagnostics
+            .into_iter()
+            .map(|ed| {
+                let rule_id = if ed.rule_id.is_empty() {
+                    format!("external.{}", self.name)
+                } else {
+                    format!("external.{}.{}", self.name, ed.rule_id)
+                };
+                Diagnostic {
+                    start_byte: ed.start_byte,
+                    end_byte: ed.end_byte,
+                    message: ed.message,
+                    suggestions: ed.suggestions,
+                    rule_id,
+                    severity: ed.severity,
+                    unified_id: String::new(),
+                    confidence: if ed.confidence > 0.0 {
+                        ed.confidence
+                    } else {
+                        0.7
+                    },
+                }
+            })
+            .collect();
+
+        Ok(diagnostics)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,6 +305,59 @@ mod tests {
 
         // Harper should find "an test" error
         assert!(!diagnostics.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn external_engine_with_echo() -> Result<()> {
+        // Use a simple shell command that echoes a valid JSON response
+        let mut engine = ExternalEngine::new(
+            "test-provider".to_string(),
+            "sh".to_string(),
+            vec![
+                "-c".to_string(),
+                r#"cat > /dev/null; echo '[{"start_byte":0,"end_byte":4,"message":"test issue","suggestions":["fix"],"rule_id":"test.rule","severity":2}]'"#.to_string(),
+            ],
+        );
+
+        let diagnostics = engine.check("some text", "markdown").await?;
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].message, "test issue");
+        assert_eq!(diagnostics[0].rule_id, "external.test-provider.test.rule");
+        assert_eq!(diagnostics[0].suggestions, vec!["fix"]);
+        assert_eq!(diagnostics[0].start_byte, 0);
+        assert_eq!(diagnostics[0].end_byte, 4);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn external_engine_missing_binary() -> Result<()> {
+        let mut engine = ExternalEngine::new(
+            "nonexistent".to_string(),
+            "/nonexistent/binary".to_string(),
+            vec![],
+        );
+
+        // Should not error, just return empty
+        let diagnostics = engine.check("text", "markdown").await?;
+        assert!(diagnostics.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn external_engine_bad_json_output() -> Result<()> {
+        let mut engine = ExternalEngine::new(
+            "bad-json".to_string(),
+            "echo".to_string(),
+            vec!["not json".to_string()],
+        );
+
+        // Should not error, just return empty
+        let diagnostics = engine.check("text", "markdown").await?;
+        assert!(diagnostics.is_empty());
 
         Ok(())
     }

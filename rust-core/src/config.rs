@@ -38,6 +38,27 @@ pub struct EngineConfig {
     pub languagetool: bool,
     #[serde(default = "default_lt_url")]
     pub languagetool_url: String,
+    /// External checker providers registered via config.
+    #[serde(default)]
+    pub external: Vec<ExternalProvider>,
+}
+
+/// An external checker binary that communicates via stdin/stdout JSON.
+///
+/// The binary receives `{"text": "...", "language_id": "..."}` on stdin
+/// and returns `[{"start_byte": N, "end_byte": N, "message": "...", ...}]` on stdout.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ExternalProvider {
+    /// Display name for this provider.
+    pub name: String,
+    /// Path to the executable.
+    pub command: String,
+    /// Optional arguments to pass to the command.
+    #[serde(default)]
+    pub args: Vec<String>,
+    /// Optional file extensions this provider supports (empty = all).
+    #[serde(default)]
+    pub extensions: Vec<String>,
 }
 
 impl Default for EngineConfig {
@@ -46,6 +67,7 @@ impl Default for EngineConfig {
             harper: true,
             languagetool: true,
             languagetool_url: "http://localhost:8010".to_string(),
+            external: Vec::new(),
         }
     }
 }
@@ -355,5 +377,35 @@ auto_fix:
     fn default_config_has_empty_auto_fix() {
         let config = Config::default();
         assert!(config.auto_fix.is_empty());
+    }
+
+    #[test]
+    fn external_providers_from_yaml() {
+        let yaml = r#"
+engines:
+  harper: true
+  languagetool: false
+  external:
+    - name: vale
+      command: /usr/bin/vale
+      args: ["--output", "JSON"]
+      extensions: [md, rst]
+    - name: custom-checker
+      command: ./my-checker
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.engines.external.len(), 2);
+        assert_eq!(config.engines.external[0].name, "vale");
+        assert_eq!(config.engines.external[0].command, "/usr/bin/vale");
+        assert_eq!(config.engines.external[0].args, vec!["--output", "JSON"]);
+        assert_eq!(config.engines.external[0].extensions, vec!["md", "rst"]);
+        assert_eq!(config.engines.external[1].name, "custom-checker");
+        assert!(config.engines.external[1].args.is_empty());
+    }
+
+    #[test]
+    fn default_config_has_no_external_providers() {
+        let config = Config::default();
+        assert!(config.engines.external.is_empty());
     }
 }

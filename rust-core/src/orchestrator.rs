@@ -1,6 +1,6 @@
 use crate::checker::{Diagnostic, Severity};
 use crate::config::Config;
-use crate::engines::{Engine, HarperEngine, LanguageToolEngine};
+use crate::engines::{Engine, ExternalEngine, HarperEngine, LanguageToolEngine};
 use crate::ignore_rules::IgnoreParser;
 use crate::rules::RuleNormalizer;
 use anyhow::Result;
@@ -32,6 +32,15 @@ impl Orchestrator {
         if self.config.engines.languagetool {
             self.engines.push(Box::new(LanguageToolEngine::new(
                 self.config.engines.languagetool_url.clone(),
+            )));
+        }
+
+        // Register external providers from config
+        for provider in &self.config.engines.external {
+            self.engines.push(Box::new(ExternalEngine::new(
+                provider.name.clone(),
+                provider.command.clone(),
+                provider.args.clone(),
             )));
         }
     }
