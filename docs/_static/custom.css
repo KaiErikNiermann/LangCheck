@@ -1,0 +1,14 @@
+/* Custom styling for Language Check docs */
+
+/* Improve code block readability */
+.highlight pre {
+    border-radius: 6px;
+    padding: 1em;
+}
+
+/* Dark mode adjustments for code blocks */
+@media (prefers-color-scheme: dark) {
+    .wy-side-nav-search {
+        background-color: #1a1a2e;
+    }
+}
