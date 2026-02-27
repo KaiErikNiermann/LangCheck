@@ -37,6 +37,9 @@ jobs:
       - name: Security audit
         run: cargo install cargo-audit --locked && cargo audit
 
+      - name: License & dependency check
+        run: cargo install cargo-deny --locked && cargo deny check
+
   typescript-lint:
     name: TypeScript Lint
     runs-on: ubuntu-latest
