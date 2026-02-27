@@ -2,9 +2,11 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { LanguageClient } from './client';
 import { languagecheck } from './proto/checker';
+import { TraceLogger } from './trace';
 import type { SpeedFixDiagnostic, WebviewToExtensionMessage } from './events';
 
 let client: LanguageClient | null = null;
+let traceLogger: TraceLogger | null = null;
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('language-check');
 let speedFixPanel: vscode.WebviewPanel | null = null;
 let languageStatusBarItem: vscode.StatusBarItem;
@@ -17,7 +19,11 @@ export function activate(context: vscode.ExtensionContext) {
         ? path.join(context.extensionPath, '..', 'rust-core', 'target', 'debug', 'language-check-server')
         : path.join(context.extensionPath, 'bin', 'language-check-server');
 
+    traceLogger = new TraceLogger();
+    context.subscriptions.push({ dispose: () => traceLogger?.dispose() });
+
     client = new LanguageClient(binaryPath);
+    client.setTraceLogger(traceLogger);
     client.start();
 
     const initializeClient = () => {
@@ -191,6 +197,18 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.ignoreDiagnostic', async (diagnosticId: string) => {
         await ignoreDiagnostic(diagnosticId);
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.toggleTrace', () => {
+        if (!traceLogger) return;
+        const enabled = traceLogger.toggle();
+        vscode.window.showInformationMessage(
+            `Language Check: Protobuf trace ${enabled ? 'enabled' : 'disabled'}`
+        );
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.showTrace', () => {
+        traceLogger?.show();
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.addToDictionary', async (word: string) => {

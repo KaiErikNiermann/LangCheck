@@ -1,5 +1,6 @@
 import * as cp from 'child_process';
 import { languagecheck } from './proto/checker';
+import type { TraceLogger } from './trace';
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_RESTART_ATTEMPTS = 3;
@@ -13,12 +14,19 @@ export class LanguageClient {
         resolve: (res: languagecheck.Response) => void;
         reject: (err: Error) => void;
         timer: ReturnType<typeof setTimeout>;
+        startTime: number;
     }>();
     private restartAttempts = 0;
     private stopped = false;
     private onRestartCallbacks: Array<() => void> = [];
+    private trace: TraceLogger | null = null;
 
     constructor(private binaryPath: string) {}
+
+    /** Attach a trace logger for debugging protobuf traffic. */
+    public setTraceLogger(logger: TraceLogger): void {
+        this.trace = logger;
+    }
 
     /** Register a callback that fires after the client auto-restarts. */
     public onRestart(cb: () => void) {
@@ -43,11 +51,13 @@ export class LanguageClient {
 
         this.process.on('error', (err) => {
             console.error('Failed to start language-check core:', err);
+            this.trace?.logEvent(`Process error: ${err.message}`);
             this.attemptRestart();
         });
 
         this.process.on('exit', (code) => {
             console.log(`language-check core exited with code ${code}`);
+            this.trace?.logEvent(`Process exited with code ${code}`);
             if (!this.stopped) {
                 this.rejectAllPending('Process exited unexpectedly');
                 this.attemptRestart();
@@ -102,6 +112,8 @@ export class LanguageClient {
             const pending = this.pendingRequests.get(id);
             if (pending) {
                 clearTimeout(pending.timer);
+                const durationMs = Date.now() - pending.startTime;
+                this.trace?.logResponse(response, durationMs);
                 pending.resolve(response);
                 this.pendingRequests.delete(id);
             }
@@ -124,12 +136,14 @@ export class LanguageClient {
             const lengthBuf = Buffer.alloc(4);
             lengthBuf.writeUInt32BE(msgData.length, 0);
 
+            this.trace?.logRequest(request);
+
             const timer = setTimeout(() => {
                 this.pendingRequests.delete(id);
                 reject(new Error(`Request ${id} timed out after ${REQUEST_TIMEOUT_MS}ms`));
             }, REQUEST_TIMEOUT_MS);
 
-            this.pendingRequests.set(id, { resolve, reject, timer });
+            this.pendingRequests.set(id, { resolve, reject, timer, startTime: Date.now() });
 
             this.process.stdin.write(lengthBuf);
             this.process.stdin.write(msgData);

@@ -27,6 +27,14 @@
       {
         "command": "language-check.selectLanguage",
         "title": "Language Check: Select Language"
+      },
+      {
+        "command": "language-check.toggleTrace",
+        "title": "Language Check: Toggle Protobuf Trace"
+      },
+      {
+        "command": "language-check.showTrace",
+        "title": "Language Check: Show Protobuf Trace"
       }
     ],
     "keybindings": [
