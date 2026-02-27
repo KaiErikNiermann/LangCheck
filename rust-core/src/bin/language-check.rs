@@ -397,22 +397,29 @@ fn handle_config(action: ConfigAction) -> Result<()> {
         ConfigAction::Show => {
             let config =
                 Config::load(&std::env::current_dir()?).unwrap_or_else(|_| Config::default());
-            println!("{}", serde_json::to_string_pretty(&config)?);
+            println!("{}", serde_yaml::to_string(&config)?);
         }
         ConfigAction::Init => {
-            let path = std::env::current_dir()?.join(".languagecheck.json");
-            if path.exists() {
+            let yaml_path = std::env::current_dir()?.join(".languagecheck.yaml");
+            let json_path = std::env::current_dir()?.join(".languagecheck.json");
+            if yaml_path.exists() || json_path.exists() {
+                let existing = if yaml_path.exists() {
+                    ".languagecheck.yaml"
+                } else {
+                    ".languagecheck.json"
+                };
                 println!(
-                    "{} .languagecheck.json already exists.",
-                    style("Warning:").yellow()
+                    "{} {} already exists.",
+                    style("Warning:").yellow(),
+                    existing
                 );
                 return Ok(());
             }
             let config = Config::default();
-            fs::write(&path, serde_json::to_string_pretty(&config)?)?;
+            fs::write(&yaml_path, serde_yaml::to_string(&config)?)?;
             println!(
                 "Created {} with default configuration.",
-                style(".languagecheck.json").green()
+                style(".languagecheck.yaml").green()
             );
         }
     }

@@ -50,9 +50,21 @@ fn default_exclude() -> Vec<String> {
 
 impl Config {
     pub fn load(workspace_root: &Path) -> Result<Self> {
-        let config_path = workspace_root.join(".languagecheck.json");
-        if config_path.exists() {
-            let content = std::fs::read_to_string(config_path)?;
+        // Prefer YAML, fall back to JSON for backward compatibility
+        let yaml_path = workspace_root.join(".languagecheck.yaml");
+        let yml_path = workspace_root.join(".languagecheck.yml");
+        let json_path = workspace_root.join(".languagecheck.json");
+
+        if yaml_path.exists() {
+            let content = std::fs::read_to_string(yaml_path)?;
+            let config: Self = serde_yaml::from_str(&content)?;
+            Ok(config)
+        } else if yml_path.exists() {
+            let content = std::fs::read_to_string(yml_path)?;
+            let config: Self = serde_yaml::from_str(&content)?;
+            Ok(config)
+        } else if json_path.exists() {
+            let content = std::fs::read_to_string(json_path)?;
             let config: Self = serde_json::from_str(&content)?;
             Ok(config)
         } else {
@@ -121,8 +133,8 @@ mod tests {
     }
 
     #[test]
-    fn load_from_file() {
-        let dir = std::env::temp_dir().join("lang_check_test_config");
+    fn load_from_json_file() {
+        let dir = std::env::temp_dir().join("lang_check_test_config_json");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
 
@@ -136,6 +148,51 @@ mod tests {
         let config = Config::load(&dir).unwrap();
         assert!(!config.engines.harper);
         assert!(config.engines.languagetool);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn load_from_yaml_file() {
+        let dir = std::env::temp_dir().join("lang_check_test_config_yaml");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let config_path = dir.join(".languagecheck.yaml");
+        std::fs::write(
+            &config_path,
+            "engines:\n  harper: false\n  languagetool: true\n",
+        )
+        .unwrap();
+
+        let config = Config::load(&dir).unwrap();
+        assert!(!config.engines.harper);
+        assert!(config.engines.languagetool);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn yaml_takes_precedence_over_json() {
+        let dir = std::env::temp_dir().join("lang_check_test_config_precedence");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Write both files with different values
+        std::fs::write(
+            dir.join(".languagecheck.yaml"),
+            "engines:\n  harper: false\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join(".languagecheck.json"),
+            r#"{"engines": {"harper": true}}"#,
+        )
+        .unwrap();
+
+        let config = Config::load(&dir).unwrap();
+        // YAML should win
+        assert!(!config.engines.harper);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
