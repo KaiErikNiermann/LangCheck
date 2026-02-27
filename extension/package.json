@@ -10,39 +10,40 @@
     "onLanguage:markdown"
   ],
   "main": "./out/extension.js",
+  "l10n": "./l10n",
   "contributes": {
     "commands": [
       {
         "command": "language-check.checkDocument",
-        "title": "Language Check: Check Current Document"
+        "title": "%command.checkDocument%"
       },
       {
         "command": "language-check.openSpeedFix",
-        "title": "Language Check: Open SpeedFix"
+        "title": "%command.openSpeedFix%"
       },
       {
         "command": "language-check.checkWorkspace",
-        "title": "Language Check: Check Workspace"
+        "title": "%command.checkWorkspace%"
       },
       {
         "command": "language-check.selectLanguage",
-        "title": "Language Check: Select Language"
+        "title": "%command.selectLanguage%"
       },
       {
         "command": "language-check.openInspector",
-        "title": "Language Check: Open Inspector"
+        "title": "%command.openInspector%"
       },
       {
         "command": "language-check.switchCore",
-        "title": "Language Check: Switch Core Binary"
+        "title": "%command.switchCore%"
       },
       {
         "command": "language-check.toggleTrace",
-        "title": "Language Check: Toggle Protobuf Trace"
+        "title": "%command.toggleTrace%"
       },
       {
         "command": "language-check.showTrace",
-        "title": "Language Check: Show Protobuf Trace"
+        "title": "%command.showTrace%"
       }
     ],
     "keybindings": [
@@ -54,70 +55,70 @@
       }
     ],
     "configuration": {
-      "title": "Language Check",
+      "title": "%config.title%",
       "properties": {
         "languageCheck.core.channel": {
           "type": "string",
           "default": "stable",
           "enum": ["stable", "canary", "dev"],
           "enumDescriptions": [
-            "Production release",
-            "Pre-release with latest features",
-            "Development build with debug symbols"
+            "%config.core.channel.stable%",
+            "%config.core.channel.canary%",
+            "%config.core.channel.dev%"
           ],
-          "description": "Which core binary channel to use."
+          "description": "%config.core.channel%"
         },
         "languageCheck.core.binaryPath": {
           "type": "string",
           "default": "",
-          "description": "Custom path to the language-check-server binary. Overrides the channel setting."
+          "description": "%config.core.binaryPath%"
         },
         "languageCheck.trace.enable": {
           "type": "boolean",
           "default": false,
-          "description": "Enable Protobuf message tracing to the output channel."
+          "description": "%config.trace.enable%"
         },
         "languageCheck.performance.highPerformanceMode": {
           "type": "boolean",
           "default": false,
-          "description": "Low-resource mode: disables LanguageTool and external providers, simplifies SpeedFix UI rendering."
+          "description": "%config.performance.hpm%"
         }
       }
     },
     "walkthroughs": [
       {
         "id": "language-check.welcome",
-        "title": "Get Started with Language Check",
-        "description": "Learn how to check and fix prose in your documents.",
+        "title": "%walkthrough.title%",
+        "description": "%walkthrough.description%",
         "steps": [
           {
             "id": "language-check.welcome.check",
-            "title": "Check Your Writing",
-            "description": "Open a Markdown, HTML, or LaTeX file and save it to automatically check for grammar, spelling, and style issues.\n\n[Check Current Document](command:language-check.checkDocument)",
+            "title": "%walkthrough.check.title%",
+            "description": "%walkthrough.check.description%",
             "media": {
               "markdown": "media/walkthrough-check.md"
             }
           },
           {
             "id": "language-check.welcome.speedfix",
-            "title": "SpeedFix: Batch Fix Issues",
-            "description": "Press **Alt+F** to open the SpeedFix panel and review all diagnostics at once. Apply fixes, ignore issues, or add words to the dictionary.\n\n[Open SpeedFix](command:language-check.openSpeedFix)",
+            "title": "%walkthrough.speedfix.title%",
+            "description": "%walkthrough.speedfix.description%",
             "media": {
               "markdown": "media/walkthrough-speedfix.md"
             }
           },
           {
             "id": "language-check.welcome.language",
-            "title": "Switch Language",
-            "description": "Click the language indicator in the Status Bar (bottom right) to switch between English, German, French, and Spanish.\n\n[Select Language](command:language-check.selectLanguage)",
+            "title": "%walkthrough.language.title%",
+            "description": "%walkthrough.language.description%",
             "media": {
               "markdown": "media/walkthrough-language.md"
             }
           },
           {
             "id": "language-check.welcome.configure",
-            "title": "Configure Rules",
-            "description": "Create a `.languagecheck.yaml` in your workspace root to disable rules, add auto-fix patterns, or configure engines. See the [documentation](https://github.com) for details.",
+            "title": "%walkthrough.configure.title%",
+            "description": "%walkthrough.configure.description%",
             "media": {
               "markdown": "media/walkthrough-configure.md"
             }
@@ -137,6 +138,7 @@
   "license": "ISC",
   "packageManager": "pnpm@10.14.0",
   "dependencies": {
+    "@vscode/l10n": "^0.0.18",
     "long": "^5.3.2",
     "protobufjs": "^8.0.0"
   },

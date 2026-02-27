@@ -1,0 +1,20 @@
+{
+  "command.checkDocument": "Language Check: Comprobar documento actual",
+  "command.openSpeedFix": "Language Check: Abrir SpeedFix",
+  "command.checkWorkspace": "Language Check: Comprobar espacio de trabajo",
+  "command.selectLanguage": "Language Check: Seleccionar idioma",
+  "command.openInspector": "Language Check: Abrir Inspector",
+  "command.switchCore": "Language Check: Cambiar binario core",
+  "command.toggleTrace": "Language Check: Alternar traza Protobuf",
+  "command.showTrace": "Language Check: Mostrar traza Protobuf",
+  "config.title": "Language Check",
+  "config.core.channel": "Qué canal de binario core utilizar.",
+  "config.core.channel.stable": "Versión estable",
+  "config.core.channel.canary": "Versión preliminar con las últimas funciones",
+  "config.core.channel.dev": "Versión de desarrollo con símbolos de depuración",
+  "config.core.binaryPath": "Ruta personalizada al binario language-check-server. Anula la configuración del canal.",
+  "config.trace.enable": "Habilitar el rastreo de mensajes Protobuf en el canal de salida.",
+  "config.performance.hpm": "Modo de bajo consumo: desactiva LanguageTool y proveedores externos, simplifica la interfaz de SpeedFix.",
+  "walkthrough.title": "Primeros pasos con Language Check",
+  "walkthrough.description": "Aprenda a verificar y corregir la prosa en sus documentos."
+}

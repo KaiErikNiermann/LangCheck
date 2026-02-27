@@ -26,11 +26,11 @@ export function activate(context: vscode.ExtensionContext) {
     if (!hasSeenWelcome) {
         context.globalState.update('language-check.hasSeenWelcome', true);
         vscode.window.showInformationMessage(
-            'Welcome to Language Check! Open the Get Started walkthrough to learn the basics.',
-            'Open Walkthrough',
-            'Dismiss'
+            vscode.l10n.t('Welcome to Language Check! Open the Get Started walkthrough to learn the basics.'),
+            vscode.l10n.t('Open Walkthrough'),
+            vscode.l10n.t('Dismiss')
         ).then(selection => {
-            if (selection === 'Open Walkthrough') {
+            if (selection === vscode.l10n.t('Open Walkthrough')) {
                 vscode.commands.executeCommand(
                     'workbench.action.openWalkthrough',
                     'gemini.extension#language-check.welcome',
@@ -91,11 +91,11 @@ export function activate(context: vscode.ExtensionContext) {
     const binDir = path.join(context.extensionPath, 'bin');
     if (context.extensionMode !== vscode.ExtensionMode.Development && !binaryExists(binDir)) {
         vscode.window.showWarningMessage(
-            'Language Check: Core binary not found. Download it now?',
-            'Download',
-            'Manual Setup'
+            vscode.l10n.t('Core binary not found. Download it now?'),
+            vscode.l10n.t('Download'),
+            vscode.l10n.t('Manual Setup')
         ).then(async (selection) => {
-            if (selection === 'Download') {
+            if (selection === vscode.l10n.t('Download')) {
                 try {
                     await vscode.window.withProgress(
                         {
@@ -105,13 +105,13 @@ export function activate(context: vscode.ExtensionContext) {
                         },
                         (progress) => downloadBinary(binDir, progress),
                     );
-                    vscode.window.showInformationMessage('Language Check: Core binary downloaded successfully. Restarting...');
+                    vscode.window.showInformationMessage(vscode.l10n.t('Core binary downloaded successfully. Restarting...'));
                     startClient();
                     initializeClient();
                 } catch (err) {
-                    vscode.window.showErrorMessage(`Language Check: Download failed: ${err}`);
+                    vscode.window.showErrorMessage(vscode.l10n.t('Download failed: {0}', String(err)));
                 }
-            } else if (selection === 'Manual Setup') {
+            } else if (selection === vscode.l10n.t('Manual Setup')) {
                 vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${GITHUB_REPO}/releases`));
             }
         });
@@ -281,7 +281,7 @@ export function activate(context: vscode.ExtensionContext) {
         if (!traceLogger) return;
         const enabled = traceLogger.toggle();
         vscode.window.showInformationMessage(
-            `Language Check: Protobuf trace ${enabled ? 'enabled' : 'disabled'}`
+            vscode.l10n.t('Protobuf trace {0}', enabled ? vscode.l10n.t('enabled') : vscode.l10n.t('disabled'))
         );
     }));
 
@@ -291,12 +291,12 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.switchCore', async () => {
         const channels = [
-            { label: 'Stable', description: 'Production release', channel: 'stable' },
-            { label: 'Canary', description: 'Pre-release with latest features', channel: 'canary' },
-            { label: 'Dev', description: 'Development build (debug symbols)', channel: 'dev' },
+            { label: vscode.l10n.t('Stable'), description: vscode.l10n.t('Production release'), channel: 'stable' },
+            { label: vscode.l10n.t('Canary'), description: vscode.l10n.t('Pre-release with latest features'), channel: 'canary' },
+            { label: vscode.l10n.t('Dev'), description: vscode.l10n.t('Development build (debug symbols)'), channel: 'dev' },
         ];
         const selected = await vscode.window.showQuickPick(channels, {
-            placeHolder: 'Select core binary channel',
+            placeHolder: vscode.l10n.t('Select core binary channel'),
         });
         if (!selected) return;
 
@@ -307,7 +307,7 @@ export function activate(context: vscode.ExtensionContext) {
         initializeClient();
 
         vscode.window.showInformationMessage(
-            `Language Check: Switched to ${selected.label} core`
+            vscode.l10n.t('Switched to {0} core', selected.label)
         );
     }));
 
@@ -318,17 +318,17 @@ export function activate(context: vscode.ExtensionContext) {
                 addDictionaryWord: { word }
             });
             if (response.ok) {
-                vscode.window.showInformationMessage(`Added "${word}" to dictionary`);
+                vscode.window.showInformationMessage(vscode.l10n.t('Added "{0}" to dictionary', word));
                 // Re-check active document to clear spelling diagnostics for this word
                 const editor = vscode.window.activeTextEditor;
                 if (editor) {
                     await checkDocument(editor.document);
                 }
             } else if (response.error) {
-                vscode.window.showErrorMessage(`Failed to add word: ${response.error.message}`);
+                vscode.window.showErrorMessage(vscode.l10n.t('Failed to add word: {0}', response.error.message ?? ''));
             }
         } catch (err) {
-            vscode.window.showErrorMessage(`Failed to add word to dictionary: ${err}`);
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to add word: {0}', String(err)));
         }
     }));
 
@@ -338,14 +338,14 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.selectLanguage', async () => {
         const languages = [
-            { label: 'EN-US', description: 'English (US)' },
-            { label: 'EN-GB', description: 'English (UK)' },
-            { label: 'DE-DE', description: 'German' },
-            { label: 'FR', description: 'French' },
-            { label: 'ES', description: 'Spanish' },
+            { label: 'EN-US', description: vscode.l10n.t('English (US)') },
+            { label: 'EN-GB', description: vscode.l10n.t('English (UK)') },
+            { label: 'DE-DE', description: vscode.l10n.t('German') },
+            { label: 'FR', description: vscode.l10n.t('French') },
+            { label: 'ES', description: vscode.l10n.t('Spanish') },
         ];
         const selected = await vscode.window.showQuickPick(languages, {
-            placeHolder: 'Select spell-check language'
+            placeHolder: vscode.l10n.t('Select spell-check language')
         });
         if (selected) {
             languageStatusBarItem.text = `$(book) ${selected.label}`;
@@ -361,16 +361,16 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand('language-check.checkWorkspace', async () => {
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
-            title: "Checking workspace...",
+            title: vscode.l10n.t('Checking workspace...'),
             cancellable: true
         }, async (progress, token) => {
             const files = await vscode.workspace.findFiles('**/*.{md,html,htm,tex}');
             for (let i = 0; i < files.length; i++) {
                 if (token.isCancellationRequested) break;
-                
+
                 const file = files[i];
                 if (!file) continue;
-                progress.report({ increment: (1 / files.length) * 100, message: `Checking ${path.basename(file.fsPath)}` });
+                progress.report({ increment: (1 / files.length) * 100, message: vscode.l10n.t('Checking {0}', path.basename(file.fsPath)) });
                 
                 const document = await vscode.workspace.openTextDocument(file);
                 await checkDocument(document);
@@ -762,10 +762,10 @@ async function checkDocument(document: vscode.TextDocument) {
             updateSpeedFixDiagnostics();
             updateInsightsStatusBar(vscode.window.activeTextEditor);
         } else if (response.error) {
-            vscode.window.showErrorMessage(`Language Check Error: ${response.error.message}`);
+            vscode.window.showErrorMessage(vscode.l10n.t('Language Check Error: {0}', response.error.message ?? ''));
         }
     } catch (err) {
-        vscode.window.showErrorMessage(`Failed to communicate with language-check core: ${err}`);
+        vscode.window.showErrorMessage(vscode.l10n.t('Failed to communicate with language-check core: {0}', String(err)));
     }
 }
 
