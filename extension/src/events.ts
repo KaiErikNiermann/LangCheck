@@ -12,7 +12,8 @@ export interface SpeedFixDiagnostic {
 
 // Messages from extension → SpeedFix webview
 export type ExtensionToWebviewMessage =
-    | { type: 'setDiagnostics'; payload: SpeedFixDiagnostic[] };
+    | { type: 'setDiagnostics'; payload: SpeedFixDiagnostic[] }
+    | { type: 'setLowResource'; payload: boolean };
 
 // Messages from SpeedFix webview → extension
 export type WebviewToExtensionMessage =

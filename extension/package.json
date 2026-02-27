@@ -76,6 +76,11 @@
           "type": "boolean",
           "default": false,
           "description": "Enable Protobuf message tracing to the output channel."
+        },
+        "languageCheck.performance.highPerformanceMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Low-resource mode: disables LanguageTool and external providers, simplifies SpeedFix UI rendering."
         }
       }
     },

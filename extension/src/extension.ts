@@ -407,9 +407,13 @@ export function activate(context: vscode.ExtensionContext) {
 
         speedFixPanel.webview.onDidReceiveMessage(async (message: WebviewToExtensionMessage) => {
             switch (message.type) {
-                case 'ready':
+                case 'ready': {
+                    const hpm = vscode.workspace.getConfiguration('languageCheck')
+                        .get<boolean>('performance.highPerformanceMode', false);
+                    speedFixPanel?.webview.postMessage({ type: 'setLowResource', payload: hpm });
                     updateSpeedFixDiagnostics();
                     break;
+                }
                 case 'applyFix':
                     await applyFix(message.payload.diagnosticId, message.payload.suggestion);
                     break;

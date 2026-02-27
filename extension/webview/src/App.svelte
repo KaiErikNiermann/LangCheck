@@ -11,6 +11,7 @@
 
   let diagnostics: Diagnostic[] = $state([]);
   let currentIndex = $state(0);
+  let lowResource = $state(false);
 
   onMount(() => {
     // Listen for messages from the extension
@@ -20,6 +21,9 @@
         case 'setDiagnostics':
           diagnostics = message.payload;
           currentIndex = 0;
+          break;
+        case 'setLowResource':
+          lowResource = message.payload;
           break;
       }
     });
@@ -83,9 +87,12 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<main class="h-screen flex flex-col bg-vscode-editor-bg text-vscode-editor-fg p-4 overflow-hidden">
+<main class="h-screen flex flex-col bg-vscode-editor-bg text-vscode-editor-fg p-4 overflow-hidden" class:low-resource={lowResource}>
   <header class="mb-4 flex justify-between items-center border-b border-vscode-input-border pb-2">
-    <h1 class="text-lg font-bold">SpeedFix</h1>
+    <h1 class="text-lg font-bold">
+      SpeedFix
+      {#if lowResource}<span class="text-xs opacity-40 font-normal ml-1">LR</span>{/if}
+    </h1>
     <div class="text-sm opacity-70">
       {currentIndex + 1} / {diagnostics.length}
     </div>
@@ -96,7 +103,7 @@
     <div class="flex-1 flex flex-col gap-6 overflow-y-auto">
       <div class="bg-vscode-input-bg p-4 rounded border border-vscode-input-border">
         <div class="text-xs uppercase opacity-50 mb-1">{current.ruleId}</div>
-        <div class="text-xl mb-4">{current.message}</div>
+        <div class="{lowResource ? 'text-base' : 'text-xl'} mb-4">{current.message}</div>
         <div class="font-mono bg-black/20 p-2 rounded text-sm italic">
           "...{current.context}..."
         </div>
@@ -104,15 +111,18 @@
 
       <div class="grid gap-2">
         <div class="text-xs uppercase opacity-50 mb-1">Suggestions</div>
-        {#each current.suggestions as suggestion, i}
+        {#each current.suggestions.slice(0, lowResource ? 3 : current.suggestions.length) as suggestion, i}
           <button
-            class="w-full text-left p-3 rounded bg-vscode-button-bg text-vscode-button-fg hover:bg-vscode-button-hover-bg transition-colors flex justify-between items-center group"
+            class="w-full text-left p-3 rounded bg-vscode-button-bg text-vscode-button-fg {lowResource ? '' : 'hover:bg-vscode-button-hover-bg transition-colors'} flex justify-between items-center {lowResource ? '' : 'group'}"
             onclick={() => applyFix(i)}
           >
             <span>{suggestion}</span>
-            <span class="opacity-50 text-xs group-hover:opacity-100 bg-black/20 px-1 rounded">{i + 1}</span>
+            <span class="{lowResource ? 'opacity-50' : 'opacity-50 group-hover:opacity-100'} text-xs bg-black/20 px-1 rounded">{i + 1}</span>
           </button>
         {/each}
+        {#if lowResource && current.suggestions.length > 3}
+          <div class="text-xs opacity-40 text-center">+{current.suggestions.length - 3} more (use keyboard 4-9)</div>
+        {/if}
       </div>
 
       <div class="mt-auto grid grid-cols-3 gap-2 text-center text-xs opacity-70">
@@ -137,5 +147,10 @@
 <style>
   :global(body) {
     overflow: hidden;
+  }
+  /* Low-Resource mode: disable all transitions and animations */
+  .low-resource :global(*) {
+    transition: none !important;
+    animation: none !important;
   }
 </style>
