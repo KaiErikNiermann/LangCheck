@@ -14,6 +14,9 @@
   "config.core.channel.dev": "Entwicklungsversion mit Debug-Symbolen",
   "config.core.binaryPath": "Benutzerdefinierter Pfad zur language-check-server-Binärdatei. Überschreibt die Kanaleinstellung.",
   "config.trace.enable": "Protobuf-Nachverfolgung im Ausgabekanal aktivieren.",
+  "config.check.trigger": "Wann Dokumentprüfungen ausgelöst werden sollen.",
+  "config.check.trigger.onChange": "Beim Tippen prüfen (mit Verzögerung)",
+  "config.check.trigger.onSave": "Nur beim Speichern prüfen",
   "config.performance.hpm": "Ressourcenschonender Modus: Deaktiviert LanguageTool und externe Anbieter, vereinfacht die SpeedFix-Darstellung.",
   "walkthrough.title": "Erste Schritte mit Language Check",
   "walkthrough.description": "Erfahren Sie, wie Sie Prosa in Ihren Dokumenten prüfen und korrigieren."

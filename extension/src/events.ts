@@ -8,19 +8,26 @@ export interface SpeedFixDiagnostic {
     suggestions: string[];
     context: string;
     ruleId: string;
+    fileName: string;
+    lineNumber: number;
 }
 
 // Messages from extension → SpeedFix webview
 export type ExtensionToWebviewMessage =
     | { type: 'setDiagnostics'; payload: SpeedFixDiagnostic[] }
-    | { type: 'setLowResource'; payload: boolean };
+    | { type: 'setLowResource'; payload: boolean }
+    | { type: 'loading'; payload: boolean };
 
 // Messages from SpeedFix webview → extension
 export type WebviewToExtensionMessage =
     | { type: 'ready' }
     | { type: 'applyFix'; payload: { diagnosticId: string; suggestion: string } }
     | { type: 'ignore'; payload: { diagnosticId: string } }
-    | { type: 'addDictionary'; payload: { diagnosticId: string } };
+    | { type: 'addDictionary'; payload: { diagnosticId: string } }
+    | { type: 'goToLocation'; payload: { diagnosticId: string } }
+    | { type: 'prev' }
+    | { type: 'next' }
+    | { type: 'refresh' };
 
 // ── Inspector ──
 

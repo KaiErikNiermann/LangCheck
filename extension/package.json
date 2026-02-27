@@ -78,6 +78,16 @@
           "default": false,
           "description": "%config.trace.enable%"
         },
+        "languageCheck.check.trigger": {
+          "type": "string",
+          "default": "onChange",
+          "enum": ["onChange", "onSave"],
+          "enumDescriptions": [
+            "%config.check.trigger.onChange%",
+            "%config.check.trigger.onSave%"
+          ],
+          "description": "%config.check.trigger%"
+        },
         "languageCheck.performance.highPerformanceMode": {
           "type": "boolean",
           "default": false,

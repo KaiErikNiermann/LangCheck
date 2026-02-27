@@ -14,6 +14,9 @@
   "config.core.channel.dev": "Version de développement avec symboles de débogage",
   "config.core.binaryPath": "Chemin personnalisé vers le binaire language-check-server. Remplace le paramètre de canal.",
   "config.trace.enable": "Activer la trace des messages Protobuf dans le canal de sortie.",
+  "config.check.trigger": "Quand déclencher les vérifications de document.",
+  "config.check.trigger.onChange": "Vérifier en cours de frappe (avec temporisation)",
+  "config.check.trigger.onSave": "Vérifier uniquement lors de l'enregistrement",
   "config.performance.hpm": "Mode économique : désactive LanguageTool et les fournisseurs externes, simplifie le rendu de SpeedFix.",
   "walkthrough.title": "Premiers pas avec Language Check",
   "walkthrough.description": "Apprenez à vérifier et corriger la prose dans vos documents."
