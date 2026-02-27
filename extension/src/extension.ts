@@ -36,16 +36,44 @@ export function activate(context: vscode.ExtensionContext) {
         });
     }
 
-    const binaryPath = context.extensionMode === vscode.ExtensionMode.Development
-        ? path.join(context.extensionPath, '..', 'rust-core', 'target', 'debug', 'language-check-server')
-        : path.join(context.extensionPath, 'bin', 'language-check-server');
+    const resolveBinaryPath = (channel?: string): string => {
+        const config = vscode.workspace.getConfiguration('languageCheck');
+        const customPath = config.get<string>('core.binaryPath', '');
+        if (customPath) return customPath;
+
+        const selectedChannel = channel ?? config.get<string>('core.channel', 'stable');
+
+        if (context.extensionMode === vscode.ExtensionMode.Development) {
+            const target = selectedChannel === 'dev' ? 'debug' : 'release';
+            return path.join(context.extensionPath, '..', 'rust-core', 'target', target, 'language-check-server');
+        }
+
+        switch (selectedChannel) {
+            case 'canary':
+                return path.join(context.extensionPath, 'bin', 'language-check-server-canary');
+            case 'dev':
+                return path.join(context.extensionPath, 'bin', 'language-check-server-dev');
+            default:
+                return path.join(context.extensionPath, 'bin', 'language-check-server');
+        }
+    };
+
+    const startClient = (channel?: string) => {
+        if (client) {
+            client.stop();
+        }
+        const binaryPath = resolveBinaryPath(channel);
+        client = new LanguageClient(binaryPath);
+        if (traceLogger) client.setTraceLogger(traceLogger);
+        client.onRestart(() => initializeClient());
+        client.start();
+        traceLogger?.logEvent(`Core started: ${binaryPath} (channel: ${channel ?? 'stable'})`);
+    };
 
     traceLogger = new TraceLogger();
     context.subscriptions.push({ dispose: () => traceLogger?.dispose() });
 
-    client = new LanguageClient(binaryPath);
-    client.setTraceLogger(traceLogger);
-    client.start();
+    startClient();
 
     const initializeClient = () => {
         if (client && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
@@ -59,11 +87,6 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Initialize with workspace root
     initializeClient();
-
-    // Re-initialize after auto-restart
-    client.onRestart(() => {
-        initializeClient();
-    });
 
     // Status bar: spell-check language
     languageStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -230,6 +253,28 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.showTrace', () => {
         traceLogger?.show();
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.switchCore', async () => {
+        const channels = [
+            { label: 'Stable', description: 'Production release', channel: 'stable' },
+            { label: 'Canary', description: 'Pre-release with latest features', channel: 'canary' },
+            { label: 'Dev', description: 'Development build (debug symbols)', channel: 'dev' },
+        ];
+        const selected = await vscode.window.showQuickPick(channels, {
+            placeHolder: 'Select core binary channel',
+        });
+        if (!selected) return;
+
+        await vscode.workspace.getConfiguration('languageCheck')
+            .update('core.channel', selected.channel, vscode.ConfigurationTarget.Global);
+
+        startClient(selected.channel);
+        initializeClient();
+
+        vscode.window.showInformationMessage(
+            `Language Check: Switched to ${selected.label} core`
+        );
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.addToDictionary', async (word: string) => {

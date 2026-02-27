@@ -29,6 +29,10 @@
         "title": "Language Check: Select Language"
       },
       {
+        "command": "language-check.switchCore",
+        "title": "Language Check: Switch Core Binary"
+      },
+      {
         "command": "language-check.toggleTrace",
         "title": "Language Check: Toggle Protobuf Trace"
       },
@@ -45,6 +49,32 @@
         "when": "editorTextFocus"
       }
     ],
+    "configuration": {
+      "title": "Language Check",
+      "properties": {
+        "languageCheck.core.channel": {
+          "type": "string",
+          "default": "stable",
+          "enum": ["stable", "canary", "dev"],
+          "enumDescriptions": [
+            "Production release",
+            "Pre-release with latest features",
+            "Development build with debug symbols"
+          ],
+          "description": "Which core binary channel to use."
+        },
+        "languageCheck.core.binaryPath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to the language-check-server binary. Overrides the channel setting."
+        },
+        "languageCheck.trace.enable": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Protobuf message tracing to the output channel."
+        }
+      }
+    },
     "walkthroughs": [
       {
         "id": "language-check.welcome",
