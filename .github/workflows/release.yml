@@ -1,0 +1,140 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-binaries:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            binary: language-check
+            server_binary: language-check-server
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            binary: language-check
+            server_binary: language-check-server
+            cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            binary: language-check
+            server_binary: language-check-server
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            binary: language-check
+            server_binary: language-check-server
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            binary: language-check.exe
+            server_binary: language-check-server.exe
+    defaults:
+      run:
+        working-directory: rust-core
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.cross
+        run: cargo install cross --locked
+
+      - name: Build (native)
+        if: "!matrix.cross"
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Build (cross)
+        if: matrix.cross
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Package binaries
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} dist/
+          cp target/${{ matrix.target }}/release/${{ matrix.server_binary }} dist/
+          cd dist
+          tar czf ../language-check-${{ matrix.target }}.tar.gz *
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: rust-core/language-check-${{ matrix.target }}.tar.gz
+
+  build-vsix:
+    name: Package VSIX
+    runs-on: ubuntu-latest
+    needs: build-binaries
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: extension/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download all binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Stage native binaries
+        run: |
+          mkdir -p native
+          for archive in ../artifacts/binary-*/language-check-*.tar.gz; do
+            target=$(basename "$archive" .tar.gz | sed 's/language-check-//')
+            mkdir -p "native/$target"
+            tar xzf "$archive" -C "native/$target"
+          done
+
+      - name: Build extension
+        run: pnpm run build
+
+      - name: Package VSIX
+        run: npx @vscode/vsce package --no-dependencies
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: extension/*.vsix
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-binaries, build-vsix]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/binary-*/language-check-*.tar.gz
+            artifacts/vsix/*.vsix
