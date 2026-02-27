@@ -6,7 +6,7 @@ import { TraceLogger } from './trace';
 import { createAPI } from './api';
 import { binaryExists, downloadBinary } from './downloader';
 import type { LanguageCheckDiagnostic } from './api';
-import type { SpeedFixDiagnostic, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorASTNode } from './events';
+import type { SpeedFixDiagnostic, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorASTNode, InspectorDiagnosticSummary } from './events';
 
 const GITHUB_REPO = 'gemini/lang-check';
 
@@ -25,8 +25,11 @@ const inlayHintEmitter = new vscode.EventEmitter<void>();
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const DEBOUNCE_MS = 500;
 
-// SpeedFix navigation state (managed by extension for webview)
-let speedFixIndex = 0;
+// Checking state (for status bar spinner)
+let isChecking = false;
+
+// Last check timing (real benchmark data for inspector)
+let lastCheckTimings: { name: string; durationMs: number }[] = [];
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Language Check extension activated');
@@ -330,9 +333,9 @@ export function activate(context: vscode.ExtensionContext) {
                 addDictionaryWord: { word }
             });
             if (response.ok) {
-                vscode.window.showInformationMessage(vscode.l10n.t('Added "{0}" to dictionary', word));
                 // Optimistic removal: remove all spelling diagnostics for this word immediately
                 const editor = vscode.window.activeTextEditor;
+                let removedCount = 0;
                 if (editor) {
                     const uri = editor.document.uri.toString();
                     const diagnostics = diagnosticsMap.get(uri);
@@ -341,7 +344,11 @@ export function activate(context: vscode.ExtensionContext) {
                             const diagWord = editor.document.getText(d.range);
                             const isSpelling = typeof d.code === 'string' &&
                                 (d.code.includes('Spell') || d.code.includes('spell') || d.code.includes('MORFOLOGIK'));
-                            return !(isSpelling && diagWord === word);
+                            if (isSpelling && diagWord === word) {
+                                removedCount++;
+                                return false;
+                            }
+                            return true;
                         });
                         diagnosticsMap.set(uri, remaining);
                         diagnosticCollection.set(editor.document.uri, remaining);
@@ -351,6 +358,8 @@ export function activate(context: vscode.ExtensionContext) {
                     // Background re-check for full consistency
                     checkDocument(editor.document);
                 }
+                const extra = removedCount > 1 ? vscode.l10n.t(' ({0} occurrences resolved)', removedCount) : '';
+                vscode.window.showInformationMessage(vscode.l10n.t('Added "{0}" to dictionary', word) + extra);
             } else if (response.error) {
                 vscode.window.showErrorMessage(vscode.l10n.t('Failed to add word: {0}', response.error.message ?? ''));
             }
@@ -384,7 +393,13 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand('language-check.checkDocument', async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) return;
-        await checkDocument(editor.document);
+        const result = await checkDocument(editor.document);
+        // Show feedback when invoked manually
+        if (result === 0) {
+            vscode.window.showInformationMessage(vscode.l10n.t('No language issues found.'));
+        } else if (result > 0) {
+            vscode.window.showInformationMessage(vscode.l10n.t('Found {0} issue(s).', result));
+        }
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.checkWorkspace', async () => {
@@ -410,6 +425,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand('language-check.openSpeedFix', () => {
         if (speedFixPanel) {
             speedFixPanel.reveal(vscode.ViewColumn.Beside);
+            updateSpeedFixDiagnostics();
             return;
         }
 
@@ -422,12 +438,10 @@ export function activate(context: vscode.ExtensionContext) {
                 retainContextWhenHidden: true,
                 localResourceRoots: [
                     vscode.Uri.file(path.join(context.extensionPath, 'webview', 'dist')),
-                    vscode.Uri.file(path.join(context.extensionPath, 'webview', 'out')) // fallback for dev
+                    vscode.Uri.file(path.join(context.extensionPath, 'webview', 'out'))
                 ]
             }
         );
-
-        const _webviewDistPath = path.join(context.extensionPath, 'webview', 'dist');
 
         speedFixPanel.webview.html = getWebviewContent(speedFixPanel.webview, context.extensionPath);
 
@@ -442,12 +456,16 @@ export function activate(context: vscode.ExtensionContext) {
                 }
                 case 'applyFix':
                     await applyFix(message.payload.diagnosticId, message.payload.suggestion);
+                    // Refocus panel after action
+                    speedFixPanel?.reveal(vscode.ViewColumn.Beside, false);
                     break;
                 case 'ignore':
                     await ignoreDiagnostic(message.payload.diagnosticId);
+                    speedFixPanel?.reveal(vscode.ViewColumn.Beside, false);
                     break;
                 case 'addDictionary':
-                    await vscode.commands.executeCommand('language-check.addToDictionary', message.payload.diagnosticId);
+                    await vscode.commands.executeCommand('language-check.addToDictionary', message.payload.word);
+                    speedFixPanel?.reveal(vscode.ViewColumn.Beside, false);
                     break;
                 case 'goToLocation': {
                     const editor = vscode.window.activeTextEditor;
@@ -462,6 +480,11 @@ export function activate(context: vscode.ExtensionContext) {
                     }
                     break;
                 }
+                case 'skip':
+                case 'prev':
+                case 'next':
+                    // Navigation is handled client-side in the webview
+                    break;
                 case 'refresh': {
                     const editor = vscode.window.activeTextEditor;
                     if (editor) {
@@ -471,9 +494,8 @@ export function activate(context: vscode.ExtensionContext) {
                     }
                     break;
                 }
-                case 'prev':
-                case 'next':
-                    // Navigation is handled client-side in the webview
+                case 'close':
+                    speedFixPanel?.dispose();
                     break;
             }
         }, undefined, context.subscriptions);
@@ -495,6 +517,7 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.ViewColumn.Beside,
             {
                 enableScripts: true,
+                retainContextWhenHidden: true,
                 localResourceRoots: [
                     vscode.Uri.file(path.join(context.extensionPath, 'webview', 'dist')),
                 ]
@@ -619,6 +642,15 @@ function sendSpeedFixLoading(loading: boolean) {
     speedFixPanel?.webview.postMessage({ type: 'loading', payload: loading });
 }
 
+function setCheckingSpinner(active: boolean) {
+    isChecking = active;
+    if (active) {
+        insightsStatusBarItem.text = `$(sync~spin) Checking...`;
+    } else {
+        updateInsightsStatusBar(vscode.window.activeTextEditor);
+    }
+}
+
 function getWebviewContent(webview: vscode.Webview, extensionPath: string): string {
     const scriptUri = webview.asWebviewUri(vscode.Uri.file(path.join(extensionPath, 'webview', 'dist', 'assets', 'index.js')));
     const cssUri = webview.asWebviewUri(vscode.Uri.file(path.join(extensionPath, 'webview', 'dist', 'assets', 'index.css')));
@@ -716,22 +748,40 @@ async function updateInspectorData() {
         payload: { prose: proseRanges, ignores: [] },
     });
 
-    const diags = diagnosticsMap.get(document.uri.toString());
-    const stages = [
-        { name: 'Parse document', durationMs: 0.5 + Math.random() * 2 },
-        { name: 'Extract prose', durationMs: 0.2 + Math.random() * 1 },
-        { name: 'Harper engine', durationMs: 5 + Math.random() * 20 },
-        { name: 'Normalize rules', durationMs: 0.1 + Math.random() * 0.5 },
-        { name: 'Deduplicate', durationMs: 0.05 + Math.random() * 0.2 },
-    ];
-    if (diags && diags.length > 0) {
-        stages.push({ name: `Render ${diags.length} diagnostics`, durationMs: 0.5 + Math.random() * 2 });
+    // Send real benchmark timings if available, otherwise mock
+    if (lastCheckTimings.length > 0) {
+        inspectorPanel.webview.postMessage({
+            type: 'setLatency',
+            payload: { stages: lastCheckTimings },
+        });
     }
 
-    inspectorPanel.webview.postMessage({
-        type: 'setLatency',
-        payload: { stages },
-    });
+    // Send diagnostic summary
+    const diags = diagnosticsMap.get(document.uri.toString());
+    if (diags && diags.length > 0) {
+        const byRule = new Map<string, number>();
+        const bySeverity = new Map<string, number>();
+        for (const d of diags) {
+            const rule = (d.code as string) || 'unknown';
+            byRule.set(rule, (byRule.get(rule) || 0) + 1);
+            const sev = d.severity === vscode.DiagnosticSeverity.Error ? 'error' :
+                        d.severity === vscode.DiagnosticSeverity.Warning ? 'warning' :
+                        d.severity === vscode.DiagnosticSeverity.Hint ? 'hint' : 'info';
+            bySeverity.set(sev, (bySeverity.get(sev) || 0) + 1);
+        }
+        const summary: InspectorDiagnosticSummary = {
+            total: diags.length,
+            byRule: [...byRule.entries()]
+                .map(([ruleId, count]) => ({ ruleId, count }))
+                .sort((a, b) => b.count - a.count),
+            bySeverity: [...bySeverity.entries()]
+                .map(([severity, count]) => ({ severity, count })),
+        };
+        inspectorPanel.webview.postMessage({
+            type: 'setDiagnosticSummary',
+            payload: summary,
+        });
+    }
 }
 
 async function applyFix(diagnosticId: string, suggestion: string) {
@@ -810,12 +860,12 @@ function updateSpeedFixDiagnostics() {
     const diagnostics = diagnosticsMap.get(editor.document.uri.toString());
     const fileName = path.basename(editor.document.uri.fsPath);
 
-    if (diagnostics) {
+    if (diagnostics && diagnostics.length > 0) {
         const payload: SpeedFixDiagnostic[] = diagnostics.map((d, i) => ({
             id: `diag-${i}`,
             message: d.message,
             suggestions: d.suggestions || [],
-            context: editor.document.getText(d.range),
+            context: editor.document.lineAt(d.range.start.line).text.trim(),
             ruleId: d.code as string || 'unknown',
             fileName,
             lineNumber: d.range.start.line + 1,
@@ -826,20 +876,31 @@ function updateSpeedFixDiagnostics() {
     }
 }
 
-async function checkDocument(document: vscode.TextDocument) {
-    if (!client) return;
+/** Returns the number of issues found, or -1 on error. */
+async function checkDocument(document: vscode.TextDocument): Promise<number> {
+    if (!client) return -1;
+
+    setCheckingSpinner(true);
+    const timings: { name: string; durationMs: number }[] = [];
 
     try {
+        const t0 = performance.now();
+        const textContent = document.getText();
+        timings.push({ name: 'Read document', durationMs: performance.now() - t0 });
+
+        const t1 = performance.now();
         const response = await client.sendRequest({
             checkProse: {
-                text: document.getText(),
+                text: textContent,
                 languageId: document.languageId,
                 settings: {},
                 filePath: document.uri.fsPath
             }
         });
+        timings.push({ name: 'Core RPC (checkProse)', durationMs: performance.now() - t1 });
 
         if (response.checkProse) {
+            const t2 = performance.now();
             const extendedDiagnostics: ExtendedDiagnostic[] = response.checkProse.diagnostics!.map(d => {
                 const start = document.positionAt(d.startByte as number);
                 const end = document.positionAt(d.endByte as number);
@@ -863,21 +924,45 @@ async function checkDocument(document: vscode.TextDocument) {
                 }
                 return diagnostic;
             });
+            timings.push({ name: 'Map diagnostics', durationMs: performance.now() - t2 });
 
+            const t3 = performance.now();
             diagnosticCollection.set(document.uri, extendedDiagnostics);
             diagnosticsMap.set(document.uri.toString(), extendedDiagnostics);
             inlayHintEmitter.fire();
             updateSpeedFixDiagnostics();
+            timings.push({ name: 'Update UI', durationMs: performance.now() - t3 });
+
             updateInsightsStatusBar(vscode.window.activeTextEditor);
+
+            // Store timings for inspector
+            lastCheckTimings = timings;
+            // Update inspector if open
+            if (inspectorPanel) {
+                inspectorPanel.webview.postMessage({
+                    type: 'setLatency',
+                    payload: { stages: timings },
+                });
+            }
+
+            return extendedDiagnostics.length;
         } else if (response.error) {
             vscode.window.showErrorMessage(vscode.l10n.t('Language Check Error: {0}', response.error.message ?? ''));
+            return -1;
         }
     } catch (err) {
         vscode.window.showErrorMessage(vscode.l10n.t('Failed to communicate with language-check core: {0}', String(err)));
+        return -1;
+    } finally {
+        setCheckingSpinner(false);
     }
+
+    return 0;
 }
 
 function updateInsightsStatusBar(editor?: vscode.TextEditor) {
+    if (isChecking) return; // Don't overwrite spinner
+
     if (!editor) {
         insightsStatusBarItem.text = '';
         insightsStatusBarItem.hide();

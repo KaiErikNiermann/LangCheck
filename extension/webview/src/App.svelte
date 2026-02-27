@@ -16,6 +16,7 @@
   let lowResource = $state(false);
   let loading = $state(false);
   let selectedAction = $state(0);
+  let allDone = $state(false);
 
   const vscode = (window as any).acquireVsCodeApi();
 
@@ -25,6 +26,10 @@
       switch (message.type) {
         case 'setDiagnostics':
           diagnostics = message.payload;
+          allDone = false;
+          if (diagnostics.length === 0) {
+            allDone = true;
+          }
           if (currentIndex >= diagnostics.length) {
             currentIndex = Math.max(0, diagnostics.length - 1);
           }
@@ -36,6 +41,9 @@
         case 'loading':
           loading = message.payload;
           break;
+        case 'allDone':
+          allDone = true;
+          break;
       }
     });
 
@@ -43,27 +51,38 @@
   });
 
   function handleKeydown(event: KeyboardEvent) {
+    // Escape always works
+    if (event.key === 'Escape') {
+      vscode.postMessage({ type: 'close' });
+      return;
+    }
+
     if (diagnostics.length === 0) return;
 
-    if (event.key === 'ArrowDown') {
+    // Vim-style + arrow navigation for action selection
+    if (event.key === 'ArrowDown' || event.key === 'j') {
       event.preventDefault();
-      const maxActions = actionCount;
-      selectedAction = Math.min(selectedAction + 1, maxActions - 1);
-    } else if (event.key === 'ArrowUp') {
+      selectedAction = Math.min(selectedAction + 1, actionCount - 1);
+    } else if (event.key === 'ArrowUp' || event.key === 'k') {
       event.preventDefault();
       selectedAction = Math.max(selectedAction - 1, 0);
     } else if (event.key === 'Enter') {
       event.preventDefault();
       executeSelectedAction();
-    } else if (event.key === 'ArrowRight' || event.key === ' ') {
+    } else if (event.key === 's' || event.key === 'S' || event.key === ' ') {
+      event.preventDefault();
+      skip();
+    } else if (event.key === 'ArrowRight' || event.key === 'l') {
       event.preventDefault();
       next();
-    } else if (event.key === 'ArrowLeft') {
+    } else if (event.key === 'ArrowLeft' || event.key === 'h') {
       event.preventDefault();
       prev();
     } else if (event.key >= '1' && event.key <= '9') {
       applyFix(parseInt(event.key) - 1);
-    } else if (event.key === 'a') {
+    } else if (event.key === '0') {
+      applyFix(9);
+    } else if (event.key === 'a' || event.key === 'A') {
       addToDictionary();
     } else if (event.key === 'i') {
       ignore();
@@ -104,21 +123,47 @@
         type: 'applyFix',
         payload: { diagnosticId: diag.id, suggestion: diag.suggestions[suggestionIndex] }
       });
-      next();
+      // Advance after action
+      advanceAfterAction();
     }
   }
 
   function addToDictionary() {
     const diag = diagnostics[currentIndex];
     if (!diag) return;
-    vscode.postMessage({ type: 'addDictionary', payload: { diagnosticId: diag.context } });
-    next();
+    // Extract the problematic word from context — it's the text at the diagnostic range
+    // For dictionary, we send the word directly (extracted on extension side from context)
+    vscode.postMessage({ type: 'addDictionary', payload: { word: getErrorWord() } });
+    advanceAfterAction();
+  }
+
+  function getErrorWord(): string {
+    const diag = diagnostics[currentIndex];
+    if (!diag) return '';
+    // The error word is the text that the diagnostic highlights.
+    // We get it from the context line by matching the diagnostic message pattern.
+    // Since we don't have the exact range text separately, the extension should extract it.
+    // For now, pass the context which the extension resolves.
+    return diag.context;
   }
 
   function ignore() {
     const diag = diagnostics[currentIndex];
     if (!diag) return;
     vscode.postMessage({ type: 'ignore', payload: { diagnosticId: diag.id } });
+    advanceAfterAction();
+  }
+
+  function advanceAfterAction() {
+    // After an action, the diagnostics list will be updated by the extension.
+    // If it was the last item, it stays; otherwise advance.
+    if (currentIndex < diagnostics.length - 1) {
+      currentIndex++;
+    }
+  }
+
+  function skip() {
+    vscode.postMessage({ type: 'skip' });
     next();
   }
 
@@ -144,14 +189,16 @@
     vscode.postMessage({ type: 'goToLocation', payload: { diagnosticId: diag.id } });
   }
 
-  function highlightInContext(context: string, word: string): string {
-    if (!word) return escapeHtml(context);
+  function highlightInContext(context: string, errorText: string): string {
+    if (!errorText || !context) return escapeHtml(context || '');
     const escaped = escapeHtml(context);
-    const escapedWord = escapeHtml(word);
-    return escaped.replace(
-      escapedWord,
-      `<span class="highlight">${escapedWord}</span>`
-    );
+    const escapedWord = escapeHtml(errorText);
+    // Highlight first occurrence
+    const idx = escaped.indexOf(escapedWord);
+    if (idx === -1) return escaped;
+    return escaped.substring(0, idx) +
+      `<span class="highlight">${escapedWord}</span>` +
+      escaped.substring(idx + escapedWord.length);
   }
 
   function escapeHtml(str: string): string {
@@ -171,65 +218,66 @@
 
 <main class="panel-root" class:low-resource={lowResource}>
   <!-- Loading bar -->
-  {#if loading}
-    <div class="loading-bar">
-      <div class="loading-bar-inner"></div>
-    </div>
-  {/if}
+  <div class="loading-bar" class:active={loading}>
+    <div class="loading-bar-inner"></div>
+  </div>
 
   <!-- Header -->
   <header class="header">
     <div class="header-top">
-      <h1 class="title">SpeedFix</h1>
-      <div class="counter">{diagnostics.length > 0 ? currentIndex + 1 : 0} / {diagnostics.length}</div>
-    </div>
-    {#if diagnostics.length > 0}
-      <div class="progress-track">
-        <div class="progress-fill" style="width: {progressPercent}%"></div>
+      <div class="header-left">
+        <div class="progress-text">{diagnostics.length > 0 ? currentIndex + 1 : 0} / {diagnostics.length}</div>
+        {#if diagnostics.length > 0}
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: {progressPercent}%"></div>
+          </div>
+        {/if}
       </div>
-    {/if}
-    <div class="shortcuts-legend">
-      <span class="legend-item"><kbd>&#8593;&#8595;</kbd> Select</span>
-      <span class="legend-item"><kbd>Enter</kbd> Apply</span>
-      <span class="legend-item"><kbd>&#8592;&#8594;</kbd> Nav</span>
-      <span class="legend-item"><kbd>R</kbd> Refresh</span>
+      <div class="shortcuts">
+        <kbd>&uarr;&darr;</kbd> select &middot; <kbd>Enter</kbd> apply &middot; <kbd>A</kbd> dict &middot; <kbd>S</kbd> skip &middot; <kbd>&larr;&rarr;</kbd> nav &middot; <kbd>Esc</kbd> close
+      </div>
     </div>
   </header>
 
-  {#if diagnostics.length > 0}
+  {#if allDone && diagnostics.length === 0}
+    <!-- All done state -->
+    <div class="all-done">
+      <div class="all-done-icon">&#10024;</div>
+      <div class="all-done-text">All done! No more issues to fix.</div>
+      <button class="nav-btn" onclick={() => vscode.postMessage({ type: 'close' })} type="button">
+        <kbd class="key-badge">Esc</kbd> Close
+      </button>
+    </div>
+  {:else if diagnostics.length > 0}
     {@const current = diagnostics[currentIndex]}
-
-    <div class="content">
+    <div class="main" class:loading-dim={loading}>
       <!-- File location -->
-      <button class="file-location" onclick={goToLocation} type="button">
+      <button class="location" onclick={goToLocation} type="button">
         {current.fileName}:{current.lineNumber}
       </button>
 
-      <!-- Error text -->
+      <!-- Error text (the flagged word/phrase) -->
       <div class="error-text">{current.context}</div>
 
-      <!-- Context block -->
-      <div class="context-block">
-        {@html highlightInContext(`...${current.context}...`, current.context)}
+      <!-- Context block with highlight -->
+      <div class="context">
+        {@html highlightInContext(current.context, current.context)}
       </div>
 
       <!-- Diagnostic message -->
-      <div class="diag-message">
-        <span class="rule-badge">{current.ruleId}</span>
-        {current.message}
-      </div>
+      <div class="message">{current.message}</div>
 
       <!-- Action buttons -->
       <div class="actions">
         {#each current.suggestions.slice(0, lowResource ? 3 : current.suggestions.length) as suggestion, i}
           <button
-            class="action-btn"
-            class:action-selected={selectedAction === i}
+            class="action"
+            class:selected={selectedAction === i}
             onclick={() => applyFix(i)}
             type="button"
           >
-            <span class="action-label">{suggestion}</span>
-            <kbd class="key-badge">{i + 1}</kbd>
+            {#if i < 10}<span class="key">{i < 9 ? i + 1 : 0}</span>{/if}
+            <span class="action-title">{suggestion}</span>
           </button>
         {/each}
         {#if lowResource && current.suggestions.length > 3}
@@ -237,45 +285,40 @@
         {/if}
 
         <button
-          class="action-btn action-secondary"
-          class:action-selected={selectedAction === current.suggestions.length}
+          class="action"
+          class:selected={selectedAction === current.suggestions.length}
           onclick={addToDictionary}
           type="button"
         >
-          <span class="action-label">Add to Dictionary</span>
-          <kbd class="key-badge">A</kbd>
+          <span class="key">A</span>
+          <span class="action-title">Add to Dictionary</span>
         </button>
 
         <button
-          class="action-btn action-secondary"
-          class:action-selected={selectedAction === current.suggestions.length + 1}
+          class="action"
+          class:selected={selectedAction === current.suggestions.length + 1}
           onclick={ignore}
           type="button"
         >
-          <span class="action-label">Ignore</span>
-          <kbd class="key-badge">I</kbd>
+          <span class="key">I</span>
+          <span class="action-title">Ignore</span>
         </button>
       </div>
 
       <!-- Navigation -->
-      <nav class="nav-bar">
-        <button class="nav-btn" onclick={prev} disabled={currentIndex === 0} type="button">
-          <kbd class="key-badge">&#8592;</kbd> Previous
-        </button>
-        <button class="nav-btn" onclick={next} disabled={currentIndex >= diagnostics.length - 1} type="button">
-          Next <kbd class="key-badge">&#8594;</kbd>
-        </button>
-        <button class="nav-btn" onclick={refresh} type="button">
-          <kbd class="key-badge">R</kbd> Refresh
-        </button>
-      </nav>
+      <div class="nav-buttons">
+        <button class="nav-btn" onclick={skip} type="button"><kbd>S</kbd>Skip</button>
+        <button class="nav-btn" onclick={prev} disabled={currentIndex === 0} type="button"><kbd>&larr;</kbd>Previous</button>
+        <button class="nav-btn" onclick={next} disabled={currentIndex >= diagnostics.length - 1} type="button"><kbd>&rarr;</kbd>Next</button>
+        <button class="nav-btn" onclick={refresh} type="button"><kbd>R</kbd>Refresh</button>
+      </div>
     </div>
   {:else}
     <div class="empty-state">
       {#if loading}
         Checking...
       {:else}
-        No language issues found.
+        Open a document and run a check to see issues here.
       {/if}
     </div>
   {/if}
@@ -297,6 +340,8 @@
     animation: none !important;
   }
 
+  * { box-sizing: border-box; }
+
   .panel-root {
     height: 100vh;
     display: flex;
@@ -310,30 +355,44 @@
     position: absolute;
     top: 0;
     left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--vscode-progressBar-background, var(--vscode-focusBorder));
+    width: 100%;
+    height: 3px;
+    background: transparent;
     overflow: hidden;
-    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 1000;
+  }
+
+  .loading-bar.active {
+    opacity: 1;
   }
 
   .loading-bar-inner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 30%;
     height: 100%;
-    width: 40%;
-    background: var(--vscode-progressBar-background, var(--vscode-focusBorder));
-    animation: loading-slide 1.2s ease-in-out infinite;
+    background: linear-gradient(90deg, transparent, var(--vscode-textLink-foreground, var(--vscode-focusBorder)), transparent);
+    animation: loading-slide 1s ease-in-out infinite;
   }
 
   @keyframes loading-slide {
     0% { transform: translateX(-100%); }
-    100% { transform: translateX(350%); }
+    100% { transform: translateX(400%); }
+  }
+
+  .loading-dim {
+    opacity: 0.6;
+    pointer-events: none;
   }
 
   /* ── Header ── */
   .header {
-    padding: 12px 16px 8px;
-    border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+    padding: 12px 20px;
     background: var(--vscode-titleBar-activeBackground, var(--vscode-editor-background));
+    border-bottom: 1px solid var(--vscode-panel-border, transparent);
     flex-shrink: 0;
   }
 
@@ -341,77 +400,63 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
   }
 
-  .title {
-    font-size: 13px;
-    font-weight: 600;
-    margin: 0;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--vscode-titleBar-activeForeground, var(--vscode-editor-foreground));
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
 
-  .counter {
-    font-size: 12px;
-    opacity: 0.7;
+  .progress-text {
+    font-size: 14px;
+    color: var(--vscode-descriptionForeground, var(--vscode-editor-foreground));
     font-variant-numeric: tabular-nums;
   }
 
-  .progress-track {
-    height: 3px;
+  .progress-bar {
+    width: 100px;
+    height: 4px;
     background: var(--vscode-progressBar-background, var(--vscode-focusBorder));
     opacity: 0.2;
     border-radius: 2px;
-    margin-bottom: 8px;
     overflow: hidden;
   }
 
   .progress-fill {
     height: 100%;
-    background: var(--vscode-progressBar-background, var(--vscode-focusBorder));
-    opacity: 1;
+    background: var(--vscode-textLink-foreground, var(--vscode-focusBorder));
     border-radius: 2px;
-    transition: width 0.2s ease;
+    transition: width 0.2s;
   }
 
-  .shortcuts-legend {
-    display: flex;
-    gap: 12px;
-    font-size: 11px;
-    opacity: 0.5;
+  .shortcuts {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground, var(--vscode-editor-foreground));
+    opacity: 0.7;
   }
 
-  .legend-item {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-  }
-
-  .legend-item kbd {
-    font-size: 10px;
-    padding: 0 3px;
-    border-radius: 3px;
+  .shortcuts kbd {
     background: var(--vscode-keybindingLabel-background, rgba(128,128,128,0.15));
     border: 1px solid var(--vscode-keybindingLabel-border, rgba(128,128,128,0.25));
-    color: var(--vscode-keybindingLabel-foreground, var(--vscode-editor-foreground));
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 11px;
     font-family: var(--vscode-font-family);
-    line-height: 1.4;
   }
 
-  /* ── Content ── */
-  .content {
+  /* ── Main content ── */
+  .main {
     flex: 1;
+    padding: 20px;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 12px 16px;
-    overflow-y: auto;
+    gap: 12px;
   }
 
-  .file-location {
-    font-size: 11px;
+  .location {
+    font-size: 12px;
     color: var(--vscode-textLink-foreground);
     background: none;
     border: none;
@@ -419,103 +464,97 @@
     cursor: pointer;
     text-align: left;
     font-family: var(--vscode-editor-font-family, monospace);
-    text-decoration: underline;
-    text-decoration-style: dotted;
+    text-decoration: none;
   }
 
-  .file-location:hover {
-    color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
+  .location:hover {
+    text-decoration: underline;
   }
 
   .error-text {
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 24px;
+    font-weight: bold;
     color: var(--vscode-errorForeground, var(--vscode-editorError-foreground, #f44));
     word-break: break-word;
     line-height: 1.3;
   }
 
-  .context-block {
+  .context {
     font-family: var(--vscode-editor-font-family, monospace);
-    font-size: var(--vscode-editor-font-size, 13px);
+    font-size: 14px;
     background: var(--vscode-textCodeBlock-background, rgba(128,128,128,0.1));
-    padding: 8px 12px;
-    border-radius: 4px;
-    line-height: 1.5;
-    color: var(--vscode-editor-foreground);
+    padding: 12px 16px;
+    border-radius: 6px;
     white-space: pre-wrap;
     word-break: break-word;
+    line-height: 1.5;
   }
 
-  .context-block :global(.highlight) {
+  .context :global(.highlight) {
     background: var(--vscode-editor-findMatchHighlightBackground, rgba(234,92,0,0.33));
-    border-radius: 2px;
-    padding: 0 1px;
+    border-bottom: 2px solid var(--vscode-errorForeground, #f44);
   }
 
-  .diag-message {
-    font-size: 12px;
-    line-height: 1.4;
-    opacity: 0.8;
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-  }
-
-  .rule-badge {
-    font-size: 10px;
-    padding: 1px 5px;
-    border-radius: 3px;
-    background: var(--vscode-badge-background, rgba(128,128,128,0.2));
-    color: var(--vscode-badge-foreground, var(--vscode-editor-foreground));
-    flex-shrink: 0;
-    font-family: var(--vscode-editor-font-family, monospace);
+  .message {
+    font-size: 14px;
+    color: var(--vscode-descriptionForeground, var(--vscode-editor-foreground));
   }
 
   /* ── Actions ── */
   .actions {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 8px;
   }
 
-  .action-btn {
+  .action {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 7px 10px;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--vscode-button-secondaryBackground, rgba(128,128,128,0.2));
+    color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
     border: 1px solid transparent;
-    border-radius: 4px;
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
+    border-radius: 6px;
     cursor: pointer;
-    font-size: 13px;
-    font-family: var(--vscode-font-family);
     text-align: left;
-    transition: background 0.1s, border-color 0.1s;
+    font-size: 14px;
+    font-family: var(--vscode-font-family);
+    transition: all 0.1s;
   }
 
-  .action-btn:hover {
+  .action:hover, .action:focus {
+    background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,0.3));
+    outline: none;
+  }
+
+  .action.selected {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    outline: 2px solid var(--vscode-focusBorder);
+    outline-offset: -2px;
+  }
+
+  .action.selected:hover {
     background: var(--vscode-button-hoverBackground);
   }
 
-  .action-btn.action-selected {
-    border-color: var(--vscode-focusBorder);
-    outline: 1px solid var(--vscode-focusBorder);
-    outline-offset: -1px;
+  .key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: var(--vscode-keybindingLabel-background, rgba(128,128,128,0.15));
+    border: 1px solid var(--vscode-keybindingLabel-border, rgba(128,128,128,0.25));
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    flex-shrink: 0;
+    color: var(--vscode-keybindingLabel-foreground, var(--vscode-editor-foreground));
   }
 
-  .action-secondary {
-    background: var(--vscode-button-secondaryBackground, rgba(128,128,128,0.2));
-    color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
-  }
-
-  .action-secondary:hover {
-    background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,0.3));
-  }
-
-  .action-label {
+  .action-title {
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -524,17 +563,11 @@
 
   .key-badge {
     font-size: 11px;
-    min-width: 18px;
-    text-align: center;
     padding: 1px 5px;
     border-radius: 3px;
     background: var(--vscode-keybindingLabel-background, rgba(128,128,128,0.15));
     border: 1px solid var(--vscode-keybindingLabel-border, rgba(128,128,128,0.25));
-    color: var(--vscode-keybindingLabel-foreground, var(--vscode-editor-foreground));
     font-family: var(--vscode-font-family);
-    line-height: 1.3;
-    flex-shrink: 0;
-    margin-left: 8px;
   }
 
   .more-hint {
@@ -545,29 +578,26 @@
   }
 
   /* ── Navigation ── */
-  .nav-bar {
+  .nav-buttons {
     display: flex;
-    gap: 6px;
-    padding-top: 8px;
+    gap: 8px;
     margin-top: auto;
-    border-top: 1px solid var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+    padding-top: 16px;
+    border-top: 1px solid var(--vscode-panel-border, transparent);
   }
 
   .nav-btn {
-    flex: 1;
+    padding: 8px 16px;
+    background: transparent;
+    color: var(--vscode-descriptionForeground, var(--vscode-editor-foreground));
+    border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.3));
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: var(--vscode-font-family);
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 6px 8px;
-    border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3));
-    border-radius: 4px;
-    background: transparent;
-    color: var(--vscode-editor-foreground);
-    cursor: pointer;
-    font-size: 11px;
-    font-family: var(--vscode-font-family);
-    transition: background 0.1s;
+    gap: 6px;
   }
 
   .nav-btn:hover:not(:disabled) {
@@ -579,11 +609,32 @@
     cursor: default;
   }
 
-  .nav-btn .key-badge {
-    font-size: 10px;
-    padding: 0 3px;
-    min-width: auto;
-    margin-left: 0;
+  .nav-btn kbd {
+    background: var(--vscode-keybindingLabel-background, rgba(128,128,128,0.15));
+    border: 1px solid var(--vscode-keybindingLabel-border, rgba(128,128,128,0.25));
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 11px;
+    font-family: var(--vscode-font-family);
+  }
+
+  /* ── All done state ── */
+  .all-done {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+
+  .all-done-icon {
+    font-size: 48px;
+  }
+
+  .all-done-text {
+    font-size: 18px;
+    color: var(--vscode-descriptionForeground, var(--vscode-editor-foreground));
   }
 
   /* ── Empty state ── */
