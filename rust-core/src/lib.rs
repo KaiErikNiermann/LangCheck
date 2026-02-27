@@ -12,6 +12,7 @@ pub mod checker {
 
 pub mod cache;
 pub mod config;
+pub mod detection;
 pub mod dictionary;
 pub mod engines;
 pub mod hashing;
