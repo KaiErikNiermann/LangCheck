@@ -11,6 +11,23 @@ pub struct Config {
     pub rules: HashMap<String, RuleConfig>,
     #[serde(default = "default_exclude")]
     pub exclude: Vec<String>,
+    #[serde(default)]
+    pub auto_fix: Vec<AutoFixRule>,
+}
+
+/// A user-defined find->replace auto-fix rule.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AutoFixRule {
+    /// Pattern to find (plain text, case-sensitive).
+    pub find: String,
+    /// Replacement text.
+    pub replace: String,
+    /// Optional context filter: only apply when surrounding text matches.
+    #[serde(default)]
+    pub context: Option<String>,
+    /// Optional description for the rule.
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -71,6 +88,29 @@ impl Config {
             Ok(Self::default())
         }
     }
+
+    /// Apply user-defined auto-fix rules to the given text, returning the modified text
+    /// and the number of replacements made.
+    #[must_use]
+    pub fn apply_auto_fixes(&self, text: &str) -> (String, usize) {
+        let mut result = text.to_string();
+        let mut total = 0;
+
+        for rule in &self.auto_fix {
+            if let Some(ctx) = &rule.context {
+                if !result.contains(ctx.as_str()) {
+                    continue;
+                }
+            }
+            let count = result.matches(&rule.find).count();
+            if count > 0 {
+                result = result.replace(&rule.find, &rule.replace);
+                total += count;
+            }
+        }
+
+        (result, total)
+    }
 }
 
 impl Default for Config {
@@ -79,6 +119,7 @@ impl Default for Config {
             engines: EngineConfig::default(),
             rules: HashMap::new(),
             exclude: default_exclude(),
+            auto_fix: Vec::new(),
         }
     }
 }
@@ -207,5 +248,112 @@ mod tests {
         assert!(config.engines.harper);
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn auto_fix_simple_replacement() {
+        let config = Config {
+            auto_fix: vec![AutoFixRule {
+                find: "teh".to_string(),
+                replace: "the".to_string(),
+                context: None,
+                description: None,
+            }],
+            ..Config::default()
+        };
+        let (result, count) = config.apply_auto_fixes("Fix teh typo in teh text.");
+        assert_eq!(result, "Fix the typo in the text.");
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn auto_fix_with_context_filter() {
+        let config = Config {
+            auto_fix: vec![AutoFixRule {
+                find: "colour".to_string(),
+                replace: "color".to_string(),
+                context: Some("American".to_string()),
+                description: Some("Use American spelling".to_string()),
+            }],
+            ..Config::default()
+        };
+        // Context matches — replacement should happen
+        let (result, count) = config.apply_auto_fixes("American English: the colour is red.");
+        assert_eq!(result, "American English: the color is red.");
+        assert_eq!(count, 1);
+
+        // Context does not match — no replacement
+        let (result, count) = config.apply_auto_fixes("British English: the colour is red.");
+        assert_eq!(result, "British English: the colour is red.");
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn auto_fix_no_match() {
+        let config = Config {
+            auto_fix: vec![AutoFixRule {
+                find: "foo".to_string(),
+                replace: "bar".to_string(),
+                context: None,
+                description: None,
+            }],
+            ..Config::default()
+        };
+        let (result, count) = config.apply_auto_fixes("No matches here.");
+        assert_eq!(result, "No matches here.");
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn auto_fix_multiple_rules() {
+        let config = Config {
+            auto_fix: vec![
+                AutoFixRule {
+                    find: "recieve".to_string(),
+                    replace: "receive".to_string(),
+                    context: None,
+                    description: None,
+                },
+                AutoFixRule {
+                    find: "seperate".to_string(),
+                    replace: "separate".to_string(),
+                    context: None,
+                    description: None,
+                },
+            ],
+            ..Config::default()
+        };
+        let (result, count) =
+            config.apply_auto_fixes("Please recieve the seperate package.");
+        assert_eq!(result, "Please receive the separate package.");
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn auto_fix_loads_from_yaml() {
+        let yaml = r#"
+auto_fix:
+  - find: "teh"
+    replace: "the"
+    description: "Fix common typo"
+  - find: "colour"
+    replace: "color"
+    context: "American"
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.auto_fix.len(), 2);
+        assert_eq!(config.auto_fix[0].find, "teh");
+        assert_eq!(config.auto_fix[0].replace, "the");
+        assert_eq!(
+            config.auto_fix[0].description.as_deref(),
+            Some("Fix common typo")
+        );
+        assert_eq!(config.auto_fix[1].context.as_deref(), Some("American"));
+    }
+
+    #[test]
+    fn default_config_has_empty_auto_fix() {
+        let config = Config::default();
+        assert!(config.auto_fix.is_empty());
     }
 }

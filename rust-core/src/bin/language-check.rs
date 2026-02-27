@@ -340,9 +340,20 @@ async fn fix_file(
         );
     }
 
+    // Apply user-defined auto-fix rules
+    let (fixed_text, auto_fix_count) = orchestrator.get_config().apply_auto_fixes(&text);
+    if auto_fix_count > 0 {
+        text = fixed_text;
+        total_fixes += auto_fix_count;
+        println!(
+            "  Applied {} user-defined auto-fix replacements.",
+            style(auto_fix_count).green()
+        );
+    }
+
     if total_fixes > 0 {
         fs::write(path, text)?;
-        println!("  Applied {} fixes.", style(total_fixes).green());
+        println!("  Applied {} total fixes.", style(total_fixes).green());
     } else {
         println!("  No fixes applied.");
     }
