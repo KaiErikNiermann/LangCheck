@@ -17,6 +17,15 @@ export function activate(context: vscode.ExtensionContext) {
     client = new LanguageClient(binaryPath);
     client.start();
 
+    // Initialize with workspace root
+    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+        client.sendRequest({
+            initialize: {
+                workspaceRoot: vscode.workspace.workspaceFolders[0]!.uri.fsPath
+            }
+        });
+    }
+
     // Register Inlay Hints Provider
     context.subscriptions.push(vscode.languages.registerInlayHintsProvider(
         { language: 'markdown' },

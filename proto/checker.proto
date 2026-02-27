@@ -8,7 +8,12 @@ message Request {
     CheckRequest check_prose = 2;
     MetadataRequest get_metadata = 3;
     IgnoreRequest ignore = 4;
+    InitializeRequest initialize = 5;
   }
+}
+
+message InitializeRequest {
+  string workspace_root = 1;
 }
 
 message IgnoreRequest {

@@ -2,43 +2,36 @@ use anyhow::Result;
 use bytes::{BytesMut, Buf};
 use prost::Message;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-pub mod checker {
-    include!(concat!(env!("OUT_DIR"), "/languagecheck.rs"));
-}
-
-pub mod prose;
-pub mod engines;
-pub mod orchestrator;
-pub mod rules;
-pub mod hashing;
-
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use rust_core::{checker, prose, engines, orchestrator, hashing, workspace};
 use checker::{Request, Response, response, ErrorResponse, CheckResponse, MetadataResponse};
 use prose::ProseExtractor;
 use engines::{HarperEngine, LanguageToolEngine};
 use orchestrator::Orchestrator;
 use hashing::{IgnoreStore, DiagnosticFingerprint};
+use workspace::WorkspaceIndex;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut stdin = tokio::io::stdin();
+    let stdin = tokio::io::stdin();
     let mut stdout = tokio::io::stdout();
     let mut buffer = BytesMut::with_capacity(4096);
 
-    let language = tree_sitter_markdown::language();
-    let mut extractor = ProseExtractor::new(language)?;
-    
     let mut orchestrator = Orchestrator::new();
     orchestrator.add_engine(Box::new(HarperEngine::new()));
     orchestrator.add_engine(Box::new(LanguageToolEngine::new("http://localhost:8010".to_string())));
 
     let mut ignore_store = IgnoreStore::new();
+    let workspace_index: Arc<Mutex<Option<WorkspaceIndex>>> = Arc::new(Mutex::new(None));
+
+    let mut reader = stdin;
 
     loop {
         // Read 4-byte length prefix
         if buffer.len() < 4 {
             let mut chunk = [0u8; 4096];
-            let n = stdin.read(&mut chunk).await?;
+            let n = reader.read(&mut chunk).await?;
             if n == 0 { break; }
             buffer.extend_from_slice(&chunk[..n]);
         }
@@ -51,7 +44,7 @@ async fn main() -> Result<()> {
 
         if buffer.len() < 4 + length {
             let mut chunk = [0u8; 4096];
-            let n = stdin.read(&mut chunk).await?;
+            let n = reader.read(&mut chunk).await?;
             if n == 0 { break; }
             buffer.extend_from_slice(&chunk[..n]);
             continue;
@@ -62,8 +55,29 @@ async fn main() -> Result<()> {
         
         let request = Request::decode(msg_data)?;
         let response_payload = match request.payload {
+            Some(checker::request::Payload::Initialize(req)) => {
+                let root_path = std::path::PathBuf::from(&req.workspace_root);
+                match WorkspaceIndex::new(&root_path) {
+                    Ok(index) => {
+                        let mut idx_lock = workspace_index.lock().await;
+                        *idx_lock = Some(index);
+                        Some(response::Payload::Ok(checker::OkResponse {}))
+                    }
+                    Err(e) => Some(response::Payload::Error(ErrorResponse { message: e.to_string() })),
+                }
+            }
             Some(checker::request::Payload::CheckProse(req)) => {
-                match extractor.extract(&req.text) {
+                // Determine TS language based on request language_id
+                let ts_lang = match req.language_id.as_str() {
+                    "markdown" => tree_sitter_markdown::language(),
+                    "html" => tree_sitter_html::language(),
+                    _ => tree_sitter_markdown::language(),
+                };
+                
+                // Re-init extractor if language changed (simplified for now)
+                let mut extractor = ProseExtractor::new(ts_lang)?;
+
+                match extractor.extract(&req.text, &req.language_id) {
                     Ok(ranges) => {
                         let mut all_diagnostics = Vec::new();
                         for range in ranges {
@@ -89,10 +103,14 @@ async fn main() -> Result<()> {
                     Err(e) => Some(response::Payload::Error(ErrorResponse { message: e.to_string() })),
                 }
             }
+            Some(checker::request::Payload::GetMetadata(_)) => {
+                Some(response::Payload::GetMetadata(MetadataResponse {
+                    name: "Rust Core".to_string(),
+                    version: "0.1.0".to_string(),
+                    supported_languages: vec!["markdown".to_string(), "html".to_string(), "latex".to_string()],
+                }))
+            }
             Some(checker::request::Payload::Ignore(req)) => {
-                // To properly ignore, we'd need the full context. 
-                // For now, let's assume the request context is enough.
-                // In a real implementation, we'd probably send the fingerprint or sufficient data.
                 let mut hasher = std::collections::hash_map::DefaultHasher::new();
                 use std::hash::{Hash, Hasher};
                 req.message.hash(&mut hasher);
@@ -108,13 +126,6 @@ async fn main() -> Result<()> {
                 });
                 
                 Some(response::Payload::Ok(checker::OkResponse {}))
-            }
-            Some(checker::request::Payload::GetMetadata(_)) => {
-                Some(response::Payload::GetMetadata(MetadataResponse {
-                    name: "Rust Core".to_string(),
-                    version: "0.1.0".to_string(),
-                    supported_languages: vec!["markdown".to_string()],
-                }))
             }
             None => Some(response::Payload::Error(ErrorResponse { message: "Empty payload".to_string() })),
         };

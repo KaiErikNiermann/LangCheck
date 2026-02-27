@@ -28,11 +28,18 @@ impl Engine for HarperEngine {
         let lints = self.linter.lint(&document);
         
         let diagnostics = lints.into_iter().map(|lint| {
+            let suggestions = lint.suggestions.into_iter().map(|s| {
+                match s {
+                    harper_core::linting::Suggestion::ReplaceWith(chars) => chars.into_iter().collect::<String>(),
+                    _ => s.to_string(),
+                }
+            }).collect();
+
             Diagnostic {
                 start_byte: lint.span.start as u32,
                 end_byte: lint.span.end as u32,
                 message: lint.message,
-                suggestions: lint.suggestions.into_iter().map(|s| s.to_string()).collect(),
+                suggestions,
                 rule_id: format!("harper.{:?}", lint.lint_kind),
                 severity: Severity::Warning as i32,
                 unified_id: "".to_string(), // Will be filled by normalizer

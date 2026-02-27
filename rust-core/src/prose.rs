@@ -13,14 +13,19 @@ impl ProseExtractor {
         Ok(Self { parser, language })
     }
 
-    pub fn extract(&mut self, text: &str) -> Result<Vec<ProseRange>> {
+    pub fn extract(&mut self, text: &str, lang_id: &str) -> Result<Vec<ProseRange>> {
         let tree = self.parser.parse(text, None)
             .ok_or_else(|| anyhow!("Failed to parse text"))?;
         
-        // Example query for Markdown (this might need adjustment based on the grammar)
-        let query_str = "(paragraph) @prose (atx_heading) @prose";
+        let query_str = match lang_id {
+            "markdown" => "(paragraph) @prose (atx_heading) @prose",
+            "html" => "(text) @prose",
+            "latex" => "(text) @prose",
+            _ => "(paragraph) @prose",
+        };
+        
         let query = Query::new(self.language, query_str)
-            .map_err(|e| anyhow!("Failed to create query: {}", e))?;
+            .map_err(|e| anyhow!("Failed to create query for {}: {}", lang_id, e))?;
         
         let mut cursor = QueryCursor::new();
         let matches = cursor.matches(&query, tree.root_node(), |node| {
@@ -57,7 +62,7 @@ mod tests {
         let mut extractor = ProseExtractor::new(language)?;
         
         let text = "# Header\n\nThis is a paragraph.\n\n```rust\nfn main() {}\n```\n\nAnother paragraph.";
-        let ranges = extractor.extract(text)?;
+        let ranges = extractor.extract(text, "markdown")?;
         
         // We expect "Header", "This is a paragraph.", and "Another paragraph."
         // The code block should be ignored.
