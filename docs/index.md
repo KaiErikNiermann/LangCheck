@@ -28,5 +28,6 @@ advanced/api
 
 reference/cli
 reference/config-schema
+reference/publishing
 reference/troubleshooting
 ```
