@@ -161,9 +161,9 @@ async fn check_path(path: PathBuf, lang: String, format: &OutputFormat) -> Resul
     let mut orchestrator = Orchestrator::new(config);
 
     let language = match lang.as_str() {
-        "html" => tree_sitter_html::language(),
-        "latex" => latex_language(),
-        _ => tree_sitter_markdown::language(),
+        "html" => tree_sitter_html::LANGUAGE.into(),
+        "latex" => codebook_tree_sitter_latex::LANGUAGE.into(),
+        _ => tree_sitter_md::LANGUAGE.into(),
     };
     let mut extractor = ProseExtractor::new(language)?;
     let mut all_json_diagnostics: Vec<JsonDiagnostic> = Vec::new();
@@ -277,9 +277,9 @@ async fn fix_path(path: PathBuf, lang: String) -> Result<()> {
     let mut orchestrator = Orchestrator::new(config);
 
     let language = match lang.as_str() {
-        "html" => tree_sitter_html::language(),
-        "latex" => latex_language(),
-        _ => tree_sitter_markdown::language(),
+        "html" => tree_sitter_html::LANGUAGE.into(),
+        "latex" => codebook_tree_sitter_latex::LANGUAGE.into(),
+        _ => tree_sitter_md::LANGUAGE.into(),
     };
     let mut extractor = ProseExtractor::new(language)?;
 
@@ -456,11 +456,6 @@ fn detect_lang(path: &std::path::Path) -> String {
         Some("tex" | "latex") => "latex".to_string(),
         _ => "markdown".to_string(),
     }
-}
-
-fn latex_language() -> tree_sitter::Language {
-    let raw_fn = codebook_tree_sitter_latex::LANGUAGE.into_raw();
-    unsafe { std::mem::transmute(raw_fn()) }
 }
 
 fn get_line_col(text: &str, byte_offset: usize) -> (usize, usize) {

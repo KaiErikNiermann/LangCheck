@@ -1,8 +1,7 @@
 ---
 source: tests/snapshot_diagnostics.rs
-assertion_line: 46
 expression: extracted
 ---
-- "# Title"
-- A paragraph.
+- "# Title\n"
+- "A paragraph.\n"
 - Another paragraph.

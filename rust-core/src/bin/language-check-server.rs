@@ -40,11 +40,6 @@ fn safe_slice(s: &str, start: usize, end: usize) -> &str {
     &s[lo..hi]
 }
 
-fn latex_language() -> tree_sitter::Language {
-    let raw_fn = codebook_tree_sitter_latex::LANGUAGE.into_raw();
-    unsafe { std::mem::transmute(raw_fn()) }
-}
-
 async fn process_file_for_indexing(
     file_path: PathBuf,
     orchestrator_arc: Arc<Mutex<Orchestrator>>,
@@ -174,14 +169,15 @@ async fn main() -> Result<()> {
 
                     let mut tasks = Vec::new();
 
-                    let file_types: &[(&str, &str, tree_sitter::Language)] = &[
-                        ("**/*.md", "markdown", tree_sitter_markdown::language()),
-                        ("**/*.html", "html", tree_sitter_html::language()),
-                        ("**/*.htm", "html", tree_sitter_html::language()),
-                        ("**/*.tex", "latex", latex_language()),
+                    use tree_sitter_language::LanguageFn;
+                    let file_types: &[(&str, &str, LanguageFn)] = &[
+                        ("**/*.md", "markdown", tree_sitter_md::LANGUAGE),
+                        ("**/*.html", "html", tree_sitter_html::LANGUAGE),
+                        ("**/*.htm", "html", tree_sitter_html::LANGUAGE),
+                        ("**/*.tex", "latex", codebook_tree_sitter_latex::LANGUAGE),
                     ];
 
-                    for &(pattern_suffix, lang, ts_lang) in file_types {
+                    for &(pattern_suffix, lang, ts_lang_fn) in file_types {
                         let full_pattern = format!("{}/{}", root.to_string_lossy(), pattern_suffix);
                         if let Ok(entries) = glob(&full_pattern) {
                             for path in entries.flatten() {
@@ -203,7 +199,7 @@ async fn main() -> Result<()> {
                                     task_ignore_store,
                                     task_workspace_index,
                                     lang_id,
-                                    ts_lang,
+                                    ts_lang_fn.into(),
                                 )));
                             }
                         }
@@ -313,10 +309,10 @@ async fn main() -> Result<()> {
                 }
             }
             Some(checker::request::Payload::CheckProse(req)) => {
-                let ts_lang = match req.language_id.as_str() {
-                    "html" => tree_sitter_html::language(),
-                    "latex" => latex_language(),
-                    _ => tree_sitter_markdown::language(),
+                let ts_lang: tree_sitter::Language = match req.language_id.as_str() {
+                    "html" => tree_sitter_html::LANGUAGE.into(),
+                    "latex" => codebook_tree_sitter_latex::LANGUAGE.into(),
+                    _ => tree_sitter_md::LANGUAGE.into(),
                 };
 
                 match ProseExtractor::new(ts_lang) {
