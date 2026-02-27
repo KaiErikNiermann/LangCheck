@@ -3,6 +3,8 @@ import * as path from 'path';
 import { LanguageClient } from './client';
 import { languagecheck } from './proto/checker';
 import { TraceLogger } from './trace';
+import { createAPI } from './api';
+import type { LanguageCheckDiagnostic } from './api';
 import type { SpeedFixDiagnostic, WebviewToExtensionMessage } from './events';
 
 let client: LanguageClient | null = null;
@@ -334,6 +336,49 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     context.subscriptions.push(diagnosticCollection);
+
+    // Expose public API for other extensions
+    const api = createAPI(
+        client!,
+        async (uri: vscode.Uri): Promise<LanguageCheckDiagnostic[]> => {
+            if (!client) return [];
+            const document = await vscode.workspace.openTextDocument(uri);
+            const text = document.getText();
+            const languageId = document.languageId;
+
+            try {
+                const response = await client.sendRequest({
+                    checkProse: { text, languageId, filePath: uri.fsPath }
+                });
+                if (!response.checkProse?.diagnostics) return [];
+                return response.checkProse.diagnostics.map(d => ({
+                    startByte: d.startByte ?? 0,
+                    endByte: d.endByte ?? 0,
+                    message: d.message ?? '',
+                    ruleId: d.ruleId ?? '',
+                    unifiedId: d.unifiedId ?? '',
+                    severity: severityToString(d.severity),
+                    suggestions: d.suggestions ?? [],
+                    confidence: d.confidence ?? 0,
+                }));
+            } catch {
+                return [];
+            }
+        },
+        context.extension.packageJSON.version ?? '0.0.0',
+    );
+
+    return api;
+}
+
+function severityToString(severity: number | null | undefined): 'error' | 'warning' | 'information' | 'hint' {
+    switch (severity) {
+        case 1: return 'error';
+        case 2: return 'warning';
+        case 3: return 'information';
+        case 4: return 'hint';
+        default: return 'warning';
+    }
 }
 
 function getWebviewContent(webview: vscode.Webview, extensionPath: string): string {
