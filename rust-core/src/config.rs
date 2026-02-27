@@ -13,6 +13,37 @@ pub struct Config {
     pub exclude: Vec<String>,
     #[serde(default)]
     pub auto_fix: Vec<AutoFixRule>,
+    #[serde(default)]
+    pub performance: PerformanceConfig,
+}
+
+/// Performance tuning options. High Performance Mode (HPM) disables
+/// expensive engines and external providers, using only harper-core.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PerformanceConfig {
+    /// Enable High Performance Mode (only harper, no LT/externals).
+    #[serde(default)]
+    pub high_performance_mode: bool,
+    /// Debounce delay in milliseconds for LSP on-type checking.
+    #[serde(default = "default_debounce_ms")]
+    pub debounce_ms: u64,
+    /// Maximum file size in bytes to check (0 = unlimited).
+    #[serde(default)]
+    pub max_file_size: usize,
+}
+
+impl Default for PerformanceConfig {
+    fn default() -> Self {
+        Self {
+            high_performance_mode: false,
+            debounce_ms: 300,
+            max_file_size: 0,
+        }
+    }
+}
+
+fn default_debounce_ms() -> u64 {
+    300
 }
 
 /// A user-defined find->replace auto-fix rule.
@@ -142,6 +173,7 @@ impl Default for Config {
             rules: HashMap::new(),
             exclude: default_exclude(),
             auto_fix: Vec::new(),
+            performance: PerformanceConfig::default(),
         }
     }
 }
@@ -407,5 +439,27 @@ engines:
     fn default_config_has_no_external_providers() {
         let config = Config::default();
         assert!(config.engines.external.is_empty());
+    }
+
+    #[test]
+    fn performance_config_defaults() {
+        let config = Config::default();
+        assert!(!config.performance.high_performance_mode);
+        assert_eq!(config.performance.debounce_ms, 300);
+        assert_eq!(config.performance.max_file_size, 0);
+    }
+
+    #[test]
+    fn performance_config_from_yaml() {
+        let yaml = r#"
+performance:
+  high_performance_mode: true
+  debounce_ms: 500
+  max_file_size: 1048576
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.performance.high_performance_mode);
+        assert_eq!(config.performance.debounce_ms, 500);
+        assert_eq!(config.performance.max_file_size, 1_048_576);
     }
 }

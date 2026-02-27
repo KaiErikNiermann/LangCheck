@@ -26,22 +26,27 @@ impl Orchestrator {
 
     fn initialize_engines(&mut self) {
         self.engines.clear();
+        let hpm = self.config.performance.high_performance_mode;
+
         if self.config.engines.harper {
             self.engines.push(Box::new(HarperEngine::new()));
         }
-        if self.config.engines.languagetool {
-            self.engines.push(Box::new(LanguageToolEngine::new(
-                self.config.engines.languagetool_url.clone(),
-            )));
-        }
 
-        // Register external providers from config
-        for provider in &self.config.engines.external {
-            self.engines.push(Box::new(ExternalEngine::new(
-                provider.name.clone(),
-                provider.command.clone(),
-                provider.args.clone(),
-            )));
+        // In HPM, skip LanguageTool and external providers for speed
+        if !hpm {
+            if self.config.engines.languagetool {
+                self.engines.push(Box::new(LanguageToolEngine::new(
+                    self.config.engines.languagetool_url.clone(),
+                )));
+            }
+
+            for provider in &self.config.engines.external {
+                self.engines.push(Box::new(ExternalEngine::new(
+                    provider.name.clone(),
+                    provider.command.clone(),
+                    provider.args.clone(),
+                )));
+            }
         }
     }
 
@@ -56,6 +61,12 @@ impl Orchestrator {
     }
 
     pub async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
+        // Skip checking if file exceeds max_file_size
+        let max = self.config.performance.max_file_size;
+        if max > 0 && text.len() > max {
+            return Ok(Vec::new());
+        }
+
         let mut all_diagnostics = Vec::new();
 
         for engine in &mut self.engines {
