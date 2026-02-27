@@ -1,0 +1,106 @@
+name: Benchmarks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "rust-core/**"
+
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  benchmark:
+    name: Run Benchmarks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust-core
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+
+      - name: Run benchmarks (current)
+        run: cargo bench --bench benchmarks 2>&1 | tee bench-current.txt
+
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+
+      - name: Run benchmarks (base)
+        working-directory: base/rust-core
+        run: cargo bench --bench benchmarks 2>&1 | tee bench-base.txt
+
+      - name: Compare and comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const current = fs.readFileSync('rust-core/bench-current.txt', 'utf8');
+            const base = fs.readFileSync('base/rust-core/bench-base.txt', 'utf8');
+
+            function parseBench(text) {
+              const results = {};
+              for (const line of text.split('\n')) {
+                // Match divan output: "├─ name  fastest │ ..."
+                const match = line.match(/[├╰]─\s+(\S+)\s+([\d.]+)\s*(ns|µs|ms|s)/);
+                if (match) {
+                  const [, name, value, unit] = match;
+                  let ns = parseFloat(value);
+                  if (unit === 'µs') ns *= 1000;
+                  if (unit === 'ms') ns *= 1e6;
+                  if (unit === 's') ns *= 1e9;
+                  results[name] = ns;
+                }
+              }
+              return results;
+            }
+
+            const currentResults = parseBench(current);
+            const baseResults = parseBench(base);
+
+            let body = '## Benchmark Results\n\n';
+            body += '| Benchmark | Base | Current | Change |\n';
+            body += '|-----------|------|---------|--------|\n';
+
+            let hasRegression = false;
+            for (const [name, currentNs] of Object.entries(currentResults)) {
+              const baseNs = baseResults[name];
+              if (baseNs) {
+                const change = ((currentNs - baseNs) / baseNs * 100).toFixed(1);
+                const emoji = change > 5 ? '🔴' : change < -5 ? '🟢' : '⚪';
+                if (change > 5) hasRegression = true;
+                const fmt = (ns) => ns > 1e6 ? `${(ns/1e6).toFixed(2)}ms` : ns > 1000 ? `${(ns/1000).toFixed(2)}µs` : `${ns.toFixed(0)}ns`;
+                body += `| ${name} | ${fmt(baseNs)} | ${fmt(currentNs)} | ${emoji} ${change}% |\n`;
+              } else {
+                const fmt = (ns) => ns > 1e6 ? `${(ns/1e6).toFixed(2)}ms` : ns > 1000 ? `${(ns/1000).toFixed(2)}µs` : `${ns.toFixed(0)}ns`;
+                body += `| ${name} | *new* | ${fmt(currentNs)} | ➕ |\n`;
+              }
+            }
+
+            if (hasRegression) {
+              body += '\n⚠️ **Performance regression detected (>5% slower)**\n';
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+            if (hasRegression) {
+              core.setFailed('Benchmark regression >5% detected');
+            }
