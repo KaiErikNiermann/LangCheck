@@ -1,0 +1,61 @@
+---
+source: tests/snapshot_diagnostics.rs
+assertion_line: 228
+expression: mapped
+---
+- - languagetool.MORFOLOGIK_RULE_EN_US
+  - spelling.typo
+- - languagetool.MORFOLOGIK_RULE_EN_GB
+  - spelling.typo
+- - languagetool.MORFOLOGIK_RULE_DE_DE
+  - spelling.typo
+- - languagetool.MORFOLOGIK_RULE_FR
+  - spelling.typo
+- - languagetool.MORFOLOGIK_RULE_ES
+  - spelling.typo
+- - languagetool.HUNSPELL_RULE
+  - spelling.typo
+- - languagetool.EN_A_VS_AN
+  - grammar.article
+- - languagetool.AGREEMENT_SENT_START
+  - grammar.agreement
+- - languagetool.PERS_PRONOUN_AGREEMENT
+  - grammar.agreement
+- - languagetool.SUBJECT_VERB_AGREEMENT
+  - grammar.agreement
+- - languagetool.DT_JJ_NO_NOUN
+  - grammar.agreement
+- - languagetool.BEEN_PART_AGREEMENT
+  - grammar.general
+- - languagetool.HE_VERB_AGR
+  - grammar.general
+- - languagetool.IF_IS_WERE
+  - grammar.general
+- - languagetool.DOUBLE_PUNCTUATION
+  - typography.punctuation
+- - languagetool.COMMA_PARENTHESIS_WHITESPACE
+  - typography.punctuation
+- - languagetool.UNPAIRED_BRACKETS
+  - typography.punctuation
+- - languagetool.WHITESPACE_RULE
+  - typography.formatting
+- - languagetool.SENTENCE_WHITESPACE
+  - typography.formatting
+- - languagetool.UPPERCASE_SENTENCE_START
+  - typography.capitalization
+- - languagetool.REDUNDANCY
+  - style.redundancy
+- - languagetool.TOO_LONG_SENTENCE
+  - style.readability
+- - languagetool.PASSIVE_VOICE
+  - style.passive_voice
+- - languagetool.ENGLISH_WORD_REPEAT_RULE
+  - typography.repeated_word
+- - languagetool.ENGLISH_WORD_REPEAT_BEGINNING_RULE
+  - style.repetition
+- - languagetool.CONFUSION_RULE
+  - grammar.confusion
+- - languagetool.COMP_THAN
+  - grammar.comparison
+- - languagetool.POSSESSIVE_APOSTROPHE
+  - typography.punctuation

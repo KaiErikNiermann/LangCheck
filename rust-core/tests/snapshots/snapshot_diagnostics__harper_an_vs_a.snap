@@ -1,0 +1,14 @@
+---
+source: tests/snapshot_diagnostics.rs
+assertion_line: 117
+expression: snap
+---
+- start_byte: 8
+  end_byte: 10
+  message: Incorrect indefinite article.
+  rule_id: harper.Miscellaneous
+  unified_id: style.unknown
+  severity: 2
+  suggestions:
+    - a
+  confidence: 0.8

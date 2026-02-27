@@ -1,0 +1,14 @@
+---
+source: tests/snapshot_diagnostics.rs
+assertion_line: 243
+expression: mapped
+---
+- - unknown
+  - some_spell_checker
+  - spelling.unknown
+- - unknown
+  - some_grammar_rule
+  - grammar.unknown
+- - unknown
+  - totally.random.id
+  - style.unknown

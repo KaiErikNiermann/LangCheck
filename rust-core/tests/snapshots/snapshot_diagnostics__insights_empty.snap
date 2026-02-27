@@ -1,0 +1,9 @@
+---
+source: tests/snapshot_diagnostics.rs
+assertion_line: 266
+expression: insights
+---
+word_count: 0
+sentence_count: 0
+character_count: 0
+reading_level: 0

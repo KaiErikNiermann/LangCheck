@@ -1,0 +1,14 @@
+---
+source: tests/snapshot_diagnostics.rs
+assertion_line: 130
+expression: snap
+---
+- start_byte: 0
+  end_byte: 7
+  message: Did you mean to repeat this word?
+  rule_id: harper.Repetition
+  unified_id: typography.repeated_word
+  severity: 2
+  suggestions:
+    - The
+  confidence: 0.8

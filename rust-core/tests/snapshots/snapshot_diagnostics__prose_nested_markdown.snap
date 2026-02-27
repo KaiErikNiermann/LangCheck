@@ -1,0 +1,12 @@
+---
+source: tests/snapshot_diagnostics.rs
+assertion_line: 73
+expression: extracted
+---
+- "# Heading One"
+- Some prose text here.
+- "## Subheading"
+- List item one
+- List item two with **bold** text
+- Blockquote content here.
+- "Final paragraph with [a link](https://example.com)."

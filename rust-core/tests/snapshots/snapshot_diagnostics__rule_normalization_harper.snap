@@ -1,0 +1,49 @@
+---
+source: tests/snapshot_diagnostics.rs
+assertion_line: 188
+expression: mapped
+---
+- - harper.Spelling
+  - spelling.typo
+- - harper.Typo
+  - spelling.typo
+- - harper.Agreement
+  - grammar.agreement
+- - harper.Grammar
+  - grammar.general
+- - harper.AnA
+  - grammar.article
+- - harper.Repetition
+  - typography.repeated_word
+- - harper.RepeatedWord
+  - typography.repeated_word
+- - harper.Redundancy
+  - style.redundancy
+- - harper.Punctuation
+  - typography.punctuation
+- - harper.Formatting
+  - typography.formatting
+- - harper.Style
+  - style.general
+- - harper.Readability
+  - style.readability
+- - harper.WordChoice
+  - style.word_choice
+- - harper.Enhancement
+  - style.enhancement
+- - harper.Usage
+  - grammar.usage
+- - harper.Malapropism
+  - grammar.malapropism
+- - harper.Eggcorn
+  - grammar.eggcorn
+- - harper.BoundaryError
+  - grammar.boundary
+- - harper.Capitalization
+  - typography.capitalization
+- - harper.Nonstandard
+  - style.nonstandard
+- - harper.Regionalism
+  - style.regionalism
+- - harper.Miscellaneous
+  - style.unknown
