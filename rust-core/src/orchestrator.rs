@@ -1,6 +1,6 @@
 use crate::checker::{Diagnostic, Severity};
 use crate::config::Config;
-use crate::engines::{Engine, ExternalEngine, HarperEngine, LanguageToolEngine};
+use crate::engines::{Engine, ExternalEngine, HarperEngine, LanguageToolEngine, WasmEngine};
 use crate::ignore_rules::IgnoreParser;
 use crate::rules::RuleNormalizer;
 use anyhow::Result;
@@ -47,6 +47,19 @@ impl Orchestrator {
                     provider.args.clone(),
                 )));
             }
+
+            for wasm_plugin in &self.config.engines.wasm_plugins {
+                match WasmEngine::new(
+                    wasm_plugin.name.clone(),
+                    std::path::PathBuf::from(&wasm_plugin.path),
+                ) {
+                    Ok(engine) => self.engines.push(Box::new(engine)),
+                    Err(e) => eprintln!(
+                        "Failed to load WASM plugin '{}' from {}: {e}",
+                        wasm_plugin.name, wasm_plugin.path
+                    ),
+                }
+            }
         }
     }
 
@@ -76,6 +89,10 @@ impl Orchestrator {
                     for d in &mut diagnostics {
                         let provider = if d.rule_id.starts_with("harper") {
                             "harper"
+                        } else if d.rule_id.starts_with("wasm.") {
+                            "wasm"
+                        } else if d.rule_id.starts_with("external.") {
+                            "external"
                         } else {
                             "languagetool"
                         };

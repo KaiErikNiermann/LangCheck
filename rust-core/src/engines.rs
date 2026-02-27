@@ -1,5 +1,6 @@
 use crate::checker::{Diagnostic, Severity};
 use anyhow::Result;
+use extism::{Manifest, Plugin, Wasm};
 use harper_core::{
     Dialect, Document, Lrc,
     linting::{LintGroup, Linter},
@@ -7,6 +8,7 @@ use harper_core::{
     spell::FstDictionary,
 };
 use serde::Deserialize;
+use std::path::PathBuf;
 
 #[async_trait::async_trait]
 pub trait Engine {
@@ -293,6 +295,122 @@ impl Engine for ExternalEngine {
     }
 }
 
+/// A WASM checker plugin loaded via Extism.
+///
+/// The plugin must export a `check` function that accepts a JSON string
+/// `{"text": "...", "language_id": "..."}` and returns a JSON array of
+/// diagnostics matching the `ExternalDiagnostic` schema.
+pub struct WasmEngine {
+    name: String,
+    plugin: Plugin,
+}
+
+// SAFETY: Extism Plugin is not Send by default because it wraps a wasmtime Store
+// which holds raw pointers. However, we only ever access the plugin from a single
+// &mut self call at a time (the Engine trait takes &mut self), so this is safe
+// as long as we don't share across threads simultaneously.
+unsafe impl Send for WasmEngine {}
+
+impl WasmEngine {
+    /// Create a new WASM engine from a `.wasm` file path.
+    pub fn new(name: String, wasm_path: PathBuf) -> Result<Self> {
+        let wasm = Wasm::file(wasm_path);
+        let manifest = Manifest::new([wasm]);
+        let plugin = Plugin::new(&manifest, [], true)?;
+        Ok(Self { name, plugin })
+    }
+
+    /// Create a new WASM engine from raw bytes (useful for testing).
+    pub fn from_bytes(name: String, wasm_bytes: &[u8]) -> Result<Self> {
+        let wasm = Wasm::data(wasm_bytes.to_vec());
+        let manifest = Manifest::new([wasm]);
+        let plugin = Plugin::new(&manifest, [], true)?;
+        Ok(Self { name, plugin })
+    }
+}
+
+#[async_trait::async_trait]
+impl Engine for WasmEngine {
+    async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
+        let request = serde_json::json!({
+            "text": text,
+            "language_id": language_id,
+        });
+        let input = request.to_string();
+
+        let output = match self.plugin.call::<&str, &str>("check", &input) {
+            Ok(result) => result.to_string(),
+            Err(e) => {
+                eprintln!("WASM plugin '{}' call failed: {e}", self.name);
+                return Ok(vec![]);
+            }
+        };
+
+        let ext_diagnostics: Vec<ExternalDiagnostic> = match serde_json::from_str(&output) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!(
+                    "Failed to parse output from WASM plugin '{}': {e}",
+                    self.name
+                );
+                return Ok(vec![]);
+            }
+        };
+
+        let diagnostics = ext_diagnostics
+            .into_iter()
+            .map(|ed| {
+                let rule_id = if ed.rule_id.is_empty() {
+                    format!("wasm.{}", self.name)
+                } else {
+                    format!("wasm.{}.{}", self.name, ed.rule_id)
+                };
+                Diagnostic {
+                    start_byte: ed.start_byte,
+                    end_byte: ed.end_byte,
+                    message: ed.message,
+                    suggestions: ed.suggestions,
+                    rule_id,
+                    severity: ed.severity,
+                    unified_id: String::new(),
+                    confidence: if ed.confidence > 0.0 {
+                        ed.confidence
+                    } else {
+                        0.7
+                    },
+                }
+            })
+            .collect();
+
+        Ok(diagnostics)
+    }
+}
+
+/// Discover WASM plugins from a directory (e.g. `.languagecheck/plugins/`).
+/// Returns a list of (name, path) pairs for each `.wasm` file found.
+#[must_use]
+pub fn discover_wasm_plugins(plugin_dir: &std::path::Path) -> Vec<(String, PathBuf)> {
+    let Ok(entries) = std::fs::read_dir(plugin_dir) else {
+        return Vec::new();
+    };
+
+    entries
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "wasm") {
+                let name = path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                Some((name, path))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -360,5 +478,61 @@ mod tests {
         assert!(diagnostics.is_empty());
 
         Ok(())
+    }
+
+    #[test]
+    fn wasm_engine_invalid_bytes_returns_error() {
+        let result = WasmEngine::from_bytes("bad-plugin".to_string(), b"not a wasm file");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn wasm_engine_missing_file_returns_error() {
+        let result = WasmEngine::new(
+            "missing".to_string(),
+            PathBuf::from("/nonexistent/plugin.wasm"),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn discover_wasm_plugins_empty_dir() {
+        let dir = std::env::temp_dir().join("lang_check_test_wasm_empty");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let plugins = discover_wasm_plugins(&dir);
+        assert!(plugins.is_empty());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn discover_wasm_plugins_finds_wasm_files() {
+        let dir = std::env::temp_dir().join("lang_check_test_wasm_discover");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Create fake .wasm files and a non-wasm file
+        std::fs::write(dir.join("checker.wasm"), b"fake").unwrap();
+        std::fs::write(dir.join("linter.wasm"), b"fake").unwrap();
+        std::fs::write(dir.join("readme.txt"), b"not a plugin").unwrap();
+
+        let mut plugins = discover_wasm_plugins(&dir);
+        plugins.sort_by(|a, b| a.0.cmp(&b.0));
+
+        assert_eq!(plugins.len(), 2);
+        assert_eq!(plugins[0].0, "checker");
+        assert_eq!(plugins[1].0, "linter");
+        assert!(plugins[0].1.ends_with("checker.wasm"));
+        assert!(plugins[1].1.ends_with("linter.wasm"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn discover_wasm_plugins_nonexistent_dir() {
+        let plugins = discover_wasm_plugins(std::path::Path::new("/nonexistent/dir"));
+        assert!(plugins.is_empty());
     }
 }

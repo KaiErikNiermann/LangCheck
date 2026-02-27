@@ -72,6 +72,9 @@ pub struct EngineConfig {
     /// External checker providers registered via config.
     #[serde(default)]
     pub external: Vec<ExternalProvider>,
+    /// WASM checker plugins loaded via Extism.
+    #[serde(default)]
+    pub wasm_plugins: Vec<WasmPlugin>,
 }
 
 /// An external checker binary that communicates via stdin/stdout JSON.
@@ -92,6 +95,21 @@ pub struct ExternalProvider {
     pub extensions: Vec<String>,
 }
 
+/// A WASM plugin loaded via Extism.
+///
+/// Plugins must export a `check` function that receives a JSON string
+/// `{"text": "...", "language_id": "..."}` and returns a JSON array of diagnostics.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WasmPlugin {
+    /// Display name for this plugin.
+    pub name: String,
+    /// Path to the `.wasm` file (relative to workspace root or absolute).
+    pub path: String,
+    /// Optional file extensions this plugin supports (empty = all).
+    #[serde(default)]
+    pub extensions: Vec<String>,
+}
+
 impl Default for EngineConfig {
     fn default() -> Self {
         Self {
@@ -99,6 +117,7 @@ impl Default for EngineConfig {
             languagetool: true,
             languagetool_url: "http://localhost:8010".to_string(),
             external: Vec::new(),
+            wasm_plugins: Vec::new(),
         }
     }
 }
@@ -439,6 +458,39 @@ engines:
     fn default_config_has_no_external_providers() {
         let config = Config::default();
         assert!(config.engines.external.is_empty());
+    }
+
+    #[test]
+    fn wasm_plugins_from_yaml() {
+        let yaml = r#"
+engines:
+  harper: true
+  wasm_plugins:
+    - name: custom-checker
+      path: .languagecheck/plugins/checker.wasm
+      extensions: [md, html]
+    - name: style-linter
+      path: /opt/plugins/style.wasm
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.engines.wasm_plugins.len(), 2);
+        assert_eq!(config.engines.wasm_plugins[0].name, "custom-checker");
+        assert_eq!(
+            config.engines.wasm_plugins[0].path,
+            ".languagecheck/plugins/checker.wasm"
+        );
+        assert_eq!(
+            config.engines.wasm_plugins[0].extensions,
+            vec!["md", "html"]
+        );
+        assert_eq!(config.engines.wasm_plugins[1].name, "style-linter");
+        assert!(config.engines.wasm_plugins[1].extensions.is_empty());
+    }
+
+    #[test]
+    fn default_config_has_no_wasm_plugins() {
+        let config = Config::default();
+        assert!(config.engines.wasm_plugins.is_empty());
     }
 
     #[test]
