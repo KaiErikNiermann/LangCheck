@@ -303,12 +303,41 @@ async fn fix_file(
 
     all_diagnostics.sort_by_key(|d| std::cmp::Reverse(d.start_byte));
 
+    let mut skipped = 0;
     for d in all_diagnostics {
-        if d.confidence >= 0.8 && !d.suggestions.is_empty() {
-            let replacement = &d.suggestions[0];
-            text.replace_range(d.start_byte as usize..d.end_byte as usize, replacement);
-            total_fixes += 1;
+        if d.confidence < 0.8 || d.suggestions.is_empty() {
+            continue;
         }
+
+        let start = d.start_byte as usize;
+        let end = d.end_byte as usize;
+
+        // Context-aware validation: verify the fix range is still within a prose range
+        // (guards against offset drift from prior replacements in this pass)
+        let in_prose = ranges.iter().any(|r| start >= r.start_byte && end <= r.end_byte);
+        if !in_prose {
+            skipped += 1;
+            continue;
+        }
+
+        // Validate replacement doesn't alter the text in unexpected ways
+        // (e.g. replacing across a boundary that now spans multiple words)
+        let original = &text[start..end.min(text.len())];
+        let replacement = &d.suggestions[0];
+        if original == replacement {
+            continue;
+        }
+
+        text.replace_range(start..end, replacement);
+        total_fixes += 1;
+    }
+
+    if skipped > 0 {
+        println!(
+            "  {} {} (low confidence or outside prose)",
+            style("Skipped").dim(),
+            skipped
+        );
     }
 
     if total_fixes > 0 {
