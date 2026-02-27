@@ -37,110 +37,18 @@ impl RuleNormalizer {
     }
 
     fn load_defaults(&mut self) {
-        // Harper mappings (based on LintKind enum variants)
-        let harper_mappings = [
-            // Spelling & Typos
-            ("harper.Spelling", "spelling.typo"),
-            ("harper.Typo", "spelling.typo"),
-            // Grammar
-            ("harper.Agreement", "grammar.agreement"),
-            ("harper.Grammar", "grammar.general"),
-            // Articles (legacy rule name kept for backward compat)
-            ("harper.AnA", "grammar.article"),
-            // Repetition
-            ("harper.Repetition", "typography.repeated_word"),
-            ("harper.RepeatedWord", "typography.repeated_word"),
-            // Redundancy
-            ("harper.Redundancy", "style.redundancy"),
-            // Punctuation & Formatting
-            ("harper.Punctuation", "typography.punctuation"),
-            ("harper.Formatting", "typography.formatting"),
-            // Style & Readability
-            ("harper.Style", "style.general"),
-            ("harper.Readability", "style.readability"),
-            ("harper.WordChoice", "style.word_choice"),
-            ("harper.Enhancement", "style.enhancement"),
-            // Usage & Malapropisms
-            ("harper.Usage", "grammar.usage"),
-            ("harper.Malapropism", "grammar.malapropism"),
-            ("harper.Eggcorn", "grammar.eggcorn"),
-            // Boundary & Compound words
-            ("harper.BoundaryError", "grammar.boundary"),
-            // Capitalization
-            ("harper.Capitalization", "typography.capitalization"),
-            // Nonstandard & Regionalism
-            ("harper.Nonstandard", "style.nonstandard"),
-            ("harper.Regionalism", "style.regionalism"),
-            // Misc
-            ("harper.Miscellaneous", "style.unknown"),
-        ];
-        let mut harper = HashMap::new();
-        for (native, unified) in harper_mappings {
-            harper.insert(native.to_string(), unified.to_string());
-        }
-        self.mappings.insert("harper".to_string(), harper);
+        const HARPER_YAML: &str = include_str!("../data/harper_mapping.yaml");
+        const LT_YAML: &str = include_str!("../data/languagetool_mapping.yaml");
 
-        // LanguageTool mappings (common rule IDs)
-        let lt_mappings = [
-            // Spelling
-            ("languagetool.MORFOLOGIK_RULE_EN_US", "spelling.typo"),
-            ("languagetool.MORFOLOGIK_RULE_EN_GB", "spelling.typo"),
-            ("languagetool.MORFOLOGIK_RULE_DE_DE", "spelling.typo"),
-            ("languagetool.MORFOLOGIK_RULE_FR", "spelling.typo"),
-            ("languagetool.MORFOLOGIK_RULE_ES", "spelling.typo"),
-            ("languagetool.HUNSPELL_RULE", "spelling.typo"),
-            // Grammar: Articles
-            ("languagetool.EN_A_VS_AN", "grammar.article"),
-            // Grammar: Agreement
-            ("languagetool.AGREEMENT_SENT_START", "grammar.agreement"),
-            ("languagetool.PERS_PRONOUN_AGREEMENT", "grammar.agreement"),
-            ("languagetool.SUBJECT_VERB_AGREEMENT", "grammar.agreement"),
-            ("languagetool.DT_JJ_NO_NOUN", "grammar.agreement"),
-            // Grammar: General
-            ("languagetool.BEEN_PART_AGREEMENT", "grammar.general"),
-            ("languagetool.HE_VERB_AGR", "grammar.general"),
-            ("languagetool.IF_IS_WERE", "grammar.general"),
-            // Typography: Punctuation
-            ("languagetool.DOUBLE_PUNCTUATION", "typography.punctuation"),
-            (
-                "languagetool.COMMA_PARENTHESIS_WHITESPACE",
-                "typography.punctuation",
-            ),
-            ("languagetool.UNPAIRED_BRACKETS", "typography.punctuation"),
-            ("languagetool.WHITESPACE_RULE", "typography.formatting"),
-            ("languagetool.SENTENCE_WHITESPACE", "typography.formatting"),
-            // Typography: Capitalization
-            (
-                "languagetool.UPPERCASE_SENTENCE_START",
-                "typography.capitalization",
-            ),
-            // Style: Redundancy & Verbosity
-            ("languagetool.REDUNDANCY", "style.redundancy"),
-            ("languagetool.TOO_LONG_SENTENCE", "style.readability"),
-            // Style: Word Choice & Passive
-            ("languagetool.PASSIVE_VOICE", "style.passive_voice"),
-            (
-                "languagetool.ENGLISH_WORD_REPEAT_RULE",
-                "typography.repeated_word",
-            ),
-            (
-                "languagetool.ENGLISH_WORD_REPEAT_BEGINNING_RULE",
-                "style.repetition",
-            ),
-            // Confusion pairs
-            ("languagetool.CONFUSION_RULE", "grammar.confusion"),
-            // Misc common
-            ("languagetool.COMP_THAN", "grammar.comparison"),
-            (
-                "languagetool.POSSESSIVE_APOSTROPHE",
-                "typography.punctuation",
-            ),
-        ];
-        let mut lt = HashMap::new();
-        for (native, unified) in lt_mappings {
-            lt.insert(native.to_string(), unified.to_string());
+        for yaml_src in [HARPER_YAML, LT_YAML] {
+            let mapping: RuleMapping =
+                serde_yaml::from_str(yaml_src).expect("embedded YAML mapping should be valid");
+            let mut map = HashMap::new();
+            for entry in mapping.mappings {
+                map.insert(entry.native_id, entry.unified_id);
+            }
+            self.mappings.insert(mapping.provider, map);
         }
-        self.mappings.insert("languagetool".to_string(), lt);
     }
 
     /// Returns all (provider, native\_id, unified\_id) triples, sorted for stable output.

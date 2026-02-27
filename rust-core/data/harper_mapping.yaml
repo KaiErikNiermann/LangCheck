@@ -1,0 +1,67 @@
+provider: harper
+mappings:
+  # Spelling & Typos
+  - native_id: harper.Spelling
+    unified_id: spelling.typo
+  - native_id: harper.Typo
+    unified_id: spelling.typo
+
+  # Grammar
+  - native_id: harper.Agreement
+    unified_id: grammar.agreement
+  - native_id: harper.Grammar
+    unified_id: grammar.general
+  - native_id: harper.AnA
+    unified_id: grammar.article
+
+  # Repetition
+  - native_id: harper.Repetition
+    unified_id: typography.repeated_word
+  - native_id: harper.RepeatedWord
+    unified_id: typography.repeated_word
+
+  # Redundancy
+  - native_id: harper.Redundancy
+    unified_id: style.redundancy
+
+  # Punctuation & Formatting
+  - native_id: harper.Punctuation
+    unified_id: typography.punctuation
+  - native_id: harper.Formatting
+    unified_id: typography.formatting
+
+  # Style & Readability
+  - native_id: harper.Style
+    unified_id: style.general
+  - native_id: harper.Readability
+    unified_id: style.readability
+  - native_id: harper.WordChoice
+    unified_id: style.word_choice
+  - native_id: harper.Enhancement
+    unified_id: style.enhancement
+
+  # Usage & Malapropisms
+  - native_id: harper.Usage
+    unified_id: grammar.usage
+  - native_id: harper.Malapropism
+    unified_id: grammar.malapropism
+  - native_id: harper.Eggcorn
+    unified_id: grammar.eggcorn
+
+  # Boundary & Compound words
+  - native_id: harper.BoundaryError
+    unified_id: grammar.boundary
+
+  # Capitalization
+  - native_id: harper.Capitalization
+    unified_id: typography.capitalization
+
+  # Nonstandard & Regionalism
+  - native_id: harper.Nonstandard
+    unified_id: style.nonstandard
+  - native_id: harper.Regionalism
+    unified_id: style.regionalism
+
+  # Misc
+  - native_id: harper.Miscellaneous
+    unified_id: style.unknown

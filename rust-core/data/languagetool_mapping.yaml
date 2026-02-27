@@ -1,0 +1,77 @@
+provider: languagetool
+mappings:
+  # Spelling
+  - native_id: languagetool.MORFOLOGIK_RULE_EN_US
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_EN_GB
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_DE_DE
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_FR
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_ES
+    unified_id: spelling.typo
+  - native_id: languagetool.HUNSPELL_RULE
+    unified_id: spelling.typo
+
+  # Grammar: Articles
+  - native_id: languagetool.EN_A_VS_AN
+    unified_id: grammar.article
+
+  # Grammar: Agreement
+  - native_id: languagetool.AGREEMENT_SENT_START
+    unified_id: grammar.agreement
+  - native_id: languagetool.PERS_PRONOUN_AGREEMENT
+    unified_id: grammar.agreement
+  - native_id: languagetool.SUBJECT_VERB_AGREEMENT
+    unified_id: grammar.agreement
+  - native_id: languagetool.DT_JJ_NO_NOUN
+    unified_id: grammar.agreement
+
+  # Grammar: General
+  - native_id: languagetool.BEEN_PART_AGREEMENT
+    unified_id: grammar.general
+  - native_id: languagetool.HE_VERB_AGR
+    unified_id: grammar.general
+  - native_id: languagetool.IF_IS_WERE
+    unified_id: grammar.general
+
+  # Typography: Punctuation
+  - native_id: languagetool.DOUBLE_PUNCTUATION
+    unified_id: typography.punctuation
+  - native_id: languagetool.COMMA_PARENTHESIS_WHITESPACE
+    unified_id: typography.punctuation
+  - native_id: languagetool.UNPAIRED_BRACKETS
+    unified_id: typography.punctuation
+  - native_id: languagetool.WHITESPACE_RULE
+    unified_id: typography.formatting
+  - native_id: languagetool.SENTENCE_WHITESPACE
+    unified_id: typography.formatting
+
+  # Typography: Capitalization
+  - native_id: languagetool.UPPERCASE_SENTENCE_START
+    unified_id: typography.capitalization
+
+  # Style: Redundancy & Verbosity
+  - native_id: languagetool.REDUNDANCY
+    unified_id: style.redundancy
+  - native_id: languagetool.TOO_LONG_SENTENCE
+    unified_id: style.readability
+
+  # Style: Word Choice & Passive
+  - native_id: languagetool.PASSIVE_VOICE
+    unified_id: style.passive_voice
+  - native_id: languagetool.ENGLISH_WORD_REPEAT_RULE
+    unified_id: typography.repeated_word
+  - native_id: languagetool.ENGLISH_WORD_REPEAT_BEGINNING_RULE
+    unified_id: style.repetition
+
+  # Confusion pairs
+  - native_id: languagetool.CONFUSION_RULE
+    unified_id: grammar.confusion
+
+  # Misc common
+  - native_id: languagetool.COMP_THAN
+    unified_id: grammar.comparison
+  - native_id: languagetool.POSSESSIVE_APOSTROPHE
+    unified_id: typography.punctuation
