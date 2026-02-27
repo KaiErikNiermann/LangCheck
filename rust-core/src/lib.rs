@@ -19,4 +19,5 @@ pub mod insights;
 pub mod orchestrator;
 pub mod prose;
 pub mod rules;
+pub mod scoping;
 pub mod workspace;
