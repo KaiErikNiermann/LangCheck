@@ -15,6 +15,8 @@ pub struct Config {
     pub auto_fix: Vec<AutoFixRule>,
     #[serde(default)]
     pub performance: PerformanceConfig,
+    #[serde(default)]
+    pub dictionaries: DictionaryConfig,
 }
 
 /// Performance tuning options. High Performance Mode (HPM) disables
@@ -44,6 +46,28 @@ impl Default for PerformanceConfig {
 
 fn default_debounce_ms() -> u64 {
     300
+}
+
+/// Configuration for bundled and additional wordlist dictionaries.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DictionaryConfig {
+    /// Whether to load the bundled domain-specific dictionaries (software terms,
+    /// TypeScript, companies, jargon). Default: true.
+    #[serde(default = "default_true")]
+    pub bundled: bool,
+    /// Paths to additional wordlist files (one word per line, `#` comments).
+    /// Relative paths are resolved from the workspace root.
+    #[serde(default)]
+    pub paths: Vec<String>,
+}
+
+impl Default for DictionaryConfig {
+    fn default() -> Self {
+        Self {
+            bundled: true,
+            paths: Vec::new(),
+        }
+    }
 }
 
 /// A user-defined find->replace auto-fix rule.
@@ -213,6 +237,7 @@ impl Default for Config {
             exclude: default_exclude(),
             auto_fix: Vec::new(),
             performance: PerformanceConfig::default(),
+            dictionaries: DictionaryConfig::default(),
         }
     }
 }

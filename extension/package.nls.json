@@ -18,6 +18,8 @@
   "config.check.trigger.onChange": "Check as you type (with debounce)",
   "config.check.trigger.onSave": "Check only when the file is saved",
   "config.performance.hpm": "Low-resource mode: disables LanguageTool and external providers, simplifies SpeedFix UI rendering.",
+  "config.dictionaries.bundled": "Load bundled domain-specific dictionaries (software terms, TypeScript, companies, jargon). Disable to reduce false-negative spelling suggestions.",
+  "config.dictionaries.paths": "Paths to additional wordlist files (one word per line). Relative paths resolve from the workspace root.",
   "walkthrough.title": "Get Started with Language Check",
   "walkthrough.description": "Learn how to check and fix prose in your documents.",
   "walkthrough.check.title": "Check Your Writing",

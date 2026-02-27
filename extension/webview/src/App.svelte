@@ -5,6 +5,7 @@
     id: string;
     message: string;
     suggestions: string[];
+    text: string;
     context: string;
     ruleId: string;
     fileName: string;
@@ -140,11 +141,7 @@
   function getErrorWord(): string {
     const diag = diagnostics[currentIndex];
     if (!diag) return '';
-    // The error word is the text that the diagnostic highlights.
-    // We get it from the context line by matching the diagnostic message pattern.
-    // Since we don't have the exact range text separately, the extension should extract it.
-    // For now, pass the context which the extension resolves.
-    return diag.context;
+    return diag.text;
   }
 
   function ignore() {
@@ -257,11 +254,11 @@
       </button>
 
       <!-- Error text (the flagged word/phrase) -->
-      <div class="error-text">{current.context}</div>
+      <div class="error-text">{current.text}</div>
 
       <!-- Context block with highlight -->
       <div class="context">
-        {@html highlightInContext(current.context, current.context)}
+        {@html highlightInContext(current.context, current.text)}
       </div>
 
       <!-- Diagnostic message -->

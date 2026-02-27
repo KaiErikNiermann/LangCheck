@@ -30,6 +30,7 @@ serde_yaml = "0.9"
 whatlang = "0.18"
 regex = "1"
 extism = "1"
+dirs = "6"
 
 [dev-dependencies]
 insta = { version = "1.42", features = ["yaml"] }

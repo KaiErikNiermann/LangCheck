@@ -102,6 +102,65 @@ fn prose_extraction_code_only_markdown() {
     insta::assert_yaml_snapshot!("prose_code_only", extracted);
 }
 
+#[test]
+fn prose_extraction_latex() {
+    let lang = codebook_tree_sitter_latex::LANGUAGE.into();
+    let mut ext = ProseExtractor::new(lang).unwrap();
+    let text = r"\documentclass{article}
+\usepackage{amsmath}
+\title{My Title}
+
+\begin{document}
+
+\section{Introduction}
+
+This is a simple paragraph with some text.
+
+\textbf{Bold text} and \textit{italic text} here.
+
+$E = mc^2$ is a famous equation.
+
+\[
+  \int_0^1 f(x) \, dx
+\]
+
+\begin{verbatim}
+Skip this verbatim content.
+\end{verbatim}
+
+\begin{algorithm}[H]
+  \caption{InsertionSort}
+  \begin{algorithmic}[1]
+    \State $i \gets 1$
+  \end{algorithmic}
+\end{algorithm}
+
+\begin{itemize}
+  \item First list item
+  \item Second list item
+\end{itemize}
+
+Final paragraph here.
+
+\end{document}
+";
+    let ranges = ext.extract(text, "latex").unwrap();
+    let extracted: Vec<&str> = ranges.iter().map(|r| &text[r.start_byte..r.end_byte]).collect();
+    insta::assert_yaml_snapshot!("prose_latex", extracted);
+}
+
+#[test]
+fn prose_extraction_latex_no_document() {
+    let lang = codebook_tree_sitter_latex::LANGUAGE.into();
+    let mut ext = ProseExtractor::new(lang).unwrap();
+    let text = r"\section{Test Section}
+Some text without a document environment.
+";
+    let ranges = ext.extract(text, "latex").unwrap();
+    let extracted: Vec<&str> = ranges.iter().map(|r| &text[r.start_byte..r.end_byte]).collect();
+    insta::assert_yaml_snapshot!("prose_latex_no_document", extracted);
+}
+
 // ── Harper diagnostics snapshots ─────────────────────────────────────
 
 #[tokio::test]

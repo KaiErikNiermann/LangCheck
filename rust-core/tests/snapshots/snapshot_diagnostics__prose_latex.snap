@@ -1,0 +1,14 @@
+---
+source: tests/snapshot_diagnostics.rs
+expression: extracted
+---
+- Introduction
+- This is a simple paragraph with some text.
+- Bold text
+- and
+- italic text
+- here.
+- is a famous equation.
+- First list item
+- Second list item
+- Final paragraph here.

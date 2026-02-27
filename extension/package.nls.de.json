@@ -18,6 +18,8 @@
   "config.check.trigger.onChange": "Beim Tippen prüfen (mit Verzögerung)",
   "config.check.trigger.onSave": "Nur beim Speichern prüfen",
   "config.performance.hpm": "Ressourcenschonender Modus: Deaktiviert LanguageTool und externe Anbieter, vereinfacht die SpeedFix-Darstellung.",
+  "config.dictionaries.bundled": "Mitgelieferte Fachwörterbücher laden (Software-Begriffe, TypeScript, Firmennamen, Fachsprache). Deaktivieren, um falsch-negative Rechtschreibvorschläge zu reduzieren.",
+  "config.dictionaries.paths": "Pfade zu zusätzlichen Wortlistendateien (ein Wort pro Zeile). Relative Pfade werden vom Arbeitsbereich aus aufgelöst.",
   "walkthrough.title": "Erste Schritte mit Language Check",
   "walkthrough.description": "Erfahren Sie, wie Sie Prosa in Ihren Dokumenten prüfen und korrigieren."
 }

@@ -44,6 +44,47 @@ impl Dictionary {
         Ok(dict)
     }
 
+    /// Load the bundled dictionaries that ship with the extension.
+    /// These contain domain-specific technical terms from open-source wordlists.
+    pub fn load_bundled(&mut self) {
+        for words_str in bundled::ALL {
+            parse_wordlist_into(words_str, &mut self.words);
+        }
+    }
+
+    /// Load additional words from a file path. The file is expected to contain
+    /// one word per line; lines starting with `#` and blank lines are skipped.
+    ///
+    /// Paths are resolved relative to `base` if they are not absolute.
+    pub fn load_wordlist_file(&mut self, path: &Path, base: &Path) -> Result<()> {
+        let resolved = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            base.join(path)
+        };
+
+        let resolved = resolved.canonicalize().map_err(|e| {
+            anyhow::anyhow!("Cannot resolve wordlist path {}: {e}", resolved.display())
+        })?;
+
+        // Security: refuse to read files outside the workspace or common config dirs
+        if !resolved.starts_with(base)
+            && !resolved.starts_with(dirs::config_dir().unwrap_or_default())
+            && !resolved.starts_with(dirs::home_dir().unwrap_or_default().join(".config"))
+        {
+            anyhow::bail!(
+                "Wordlist path {} is outside the workspace and known config directories",
+                resolved.display()
+            );
+        }
+
+        let content = std::fs::read_to_string(&resolved).map_err(|e| {
+            anyhow::anyhow!("Cannot read wordlist {}: {e}", resolved.display())
+        })?;
+        parse_wordlist_into(&content, &mut self.words);
+        Ok(())
+    }
+
     /// Add a word to the dictionary and persist to disk.
     pub fn add_word(&mut self, word: &str) -> Result<()> {
         let lower = word.to_lowercase();
@@ -64,6 +105,18 @@ impl Dictionary {
         self.words.iter()
     }
 
+    /// Return the total number of words loaded.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.words.len()
+    }
+
+    /// Whether the dictionary is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.words.is_empty()
+    }
+
     fn persist(&self) -> Result<()> {
         let Some(path) = &self.workspace_path else {
             return Ok(());
@@ -79,6 +132,44 @@ impl Dictionary {
         std::fs::write(path, content + "\n")?;
         Ok(())
     }
+}
+
+/// Parse a wordlist string (one word per line) into a set.
+fn parse_wordlist_into(content: &str, set: &mut HashSet<String>) {
+    for line in content.lines() {
+        let word = line.trim();
+        if !word.is_empty() && !word.starts_with('#') {
+            set.insert(word.to_lowercase());
+        }
+    }
+}
+
+/// Bundled dictionary data embedded at compile time.
+/// See `dictionaries/THIRD_PARTY_NOTICES.md` for attribution and licensing.
+pub mod bundled {
+    /// Software development terms, tools, acronyms, and compound words.
+    /// Sources: cspell-dicts (software-terms, cpp). License: MIT.
+    pub const SOFTWARE_TERMS: &str =
+        include_str!("../dictionaries/bundled/software-terms.txt");
+
+    /// TypeScript and JavaScript keywords, builtins, and API terms.
+    /// Source: cspell-dicts (typescript). License: MIT.
+    pub const TYPESCRIPT: &str =
+        include_str!("../dictionaries/bundled/typescript.txt");
+
+    /// Well-known company and brand names.
+    /// Source: cspell-dicts (companies). License: MIT.
+    pub const COMPANIES: &str =
+        include_str!("../dictionaries/bundled/companies.txt");
+
+    /// Computing jargon, hardware terms, and domain-specific vocabulary.
+    /// Sources: hunspell-jargon (MIT), `SpellCheckDic` (MIT),
+    ///          autoware-spell-check-dict (Apache-2.0).
+    pub const JARGON: &str =
+        include_str!("../dictionaries/bundled/jargon.txt");
+
+    /// All bundled wordlists for convenient iteration.
+    pub const ALL: &[&str] = &[SOFTWARE_TERMS, TYPESCRIPT, COMPANIES, JARGON];
 }
 
 #[cfg(test)]
@@ -160,5 +251,72 @@ mod tests {
         dict.words.insert("alpha".to_string());
         dict.words.insert("beta".to_string());
         assert_eq!(dict.words().count(), 2);
+    }
+
+    #[test]
+    fn bundled_dictionaries_load() {
+        let mut dict = Dictionary::new();
+        dict.load_bundled();
+
+        // Should have thousands of words from bundled sources
+        assert!(
+            dict.len() > 5000,
+            "Expected > 5000 bundled words, got {}",
+            dict.len()
+        );
+
+        // Spot-check some well-known terms from each category
+        assert!(dict.contains("kubernetes"), "software-terms should include kubernetes");
+        assert!(dict.contains("webpack"), "software-terms should include webpack");
+        assert!(dict.contains("instanceof"), "typescript should include instanceof");
+        assert!(dict.contains("stdout"), "jargon should include stdout");
+    }
+
+    #[test]
+    fn bundled_plus_user_words() {
+        let mut dict = Dictionary::new();
+        dict.load_bundled();
+        let bundled_count = dict.len();
+
+        dict.words.insert("myprojectword".to_string());
+        assert_eq!(dict.len(), bundled_count + 1);
+        assert!(dict.contains("myprojectword"));
+        // Bundled words still present
+        assert!(dict.contains("kubernetes"));
+    }
+
+    #[test]
+    fn load_wordlist_file_works() {
+        let dir = std::env::temp_dir().join("lang_check_test_wordlist");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let wordlist = dir.join("custom.txt");
+        std::fs::write(&wordlist, "# My custom words\nfoobar\nbazqux\n").unwrap();
+
+        let mut dict = Dictionary::new();
+        dict.load_wordlist_file(&wordlist, &dir).unwrap();
+
+        assert!(dict.contains("foobar"));
+        assert!(dict.contains("bazqux"));
+        assert_eq!(dict.len(), 2);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn load_wordlist_file_relative_path() {
+        let dir = std::env::temp_dir().join("lang_check_test_wordlist_rel");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        std::fs::write(dir.join("terms.txt"), "myterm\n").unwrap();
+
+        let mut dict = Dictionary::new();
+        dict.load_wordlist_file(Path::new("terms.txt"), &dir).unwrap();
+
+        assert!(dict.contains("myterm"));
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

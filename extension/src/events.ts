@@ -6,7 +6,8 @@ export interface SpeedFixDiagnostic {
     id: string;
     message: string;
     suggestions: string[];
-    context: string;
+    text: string;       // The actual problematic word/phrase at the diagnostic range
+    context: string;    // The full line of text for context display
     ruleId: string;
     fileName: string;
     lineNumber: number;

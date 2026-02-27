@@ -276,11 +276,28 @@ async fn main() -> Result<()> {
                 let root_path = std::path::PathBuf::from(&req.workspace_root);
 
                 let config = Config::load(&root_path).unwrap_or_else(|_| Config::default());
-                orchestrator_arc.lock().await.update_config(config);
+                orchestrator_arc.lock().await.update_config(config.clone());
 
                 // Load persisted ignore store and dictionary from workspace
                 match Dictionary::load(&root_path) {
-                    Ok(loaded_dict) => {
+                    Ok(mut loaded_dict) => {
+                        // Load bundled domain-specific dictionaries
+                        if config.dictionaries.bundled {
+                            loaded_dict.load_bundled();
+                        }
+                        // Load user-configured additional wordlist files
+                        for path_str in &config.dictionaries.paths {
+                            let path = std::path::Path::new(path_str);
+                            if let Err(e) = loaded_dict.load_wordlist_file(path, &root_path) {
+                                eprintln!("Warning: could not load wordlist {path_str}: {e}");
+                            }
+                        }
+                        eprintln!(
+                            "Dictionary loaded: {} words (bundled={}, extra_paths={})",
+                            loaded_dict.len(),
+                            config.dictionaries.bundled,
+                            config.dictionaries.paths.len(),
+                        );
                         *dictionary_arc.lock().await = loaded_dict;
                     }
                     Err(e) => {

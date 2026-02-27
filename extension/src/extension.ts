@@ -457,8 +457,6 @@ export function activate(context: vscode.ExtensionContext) {
                 }
                 case 'applyFix':
                     await applyFix(message.payload.diagnosticId, message.payload.suggestion);
-                    // Refocus panel after action
-                    speedFixPanel?.reveal(vscode.ViewColumn.Beside, false);
                     break;
                 case 'ignore':
                     await ignoreDiagnostic(message.payload.diagnosticId);
@@ -553,6 +551,27 @@ export function activate(context: vscode.ExtensionContext) {
     // Update inspector when active editor changes
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(async () => {
         await updateInspectorData();
+    }));
+
+    // ── Auto-check on document open ──
+    context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((document) => {
+        if (!supportedLanguages.includes(document.languageId)) return;
+        const trigger = vscode.workspace.getConfiguration('languageCheck').get<string>('check.trigger', 'onChange');
+        if (trigger === 'onSave') return; // onSave mode skips auto-check on open
+        checkDocument(document);
+    }));
+
+    // Also check when the active editor changes (e.g. switching tabs)
+    context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((editor) => {
+        if (!editor) return;
+        if (!supportedLanguages.includes(editor.document.languageId)) return;
+        const trigger = vscode.workspace.getConfiguration('languageCheck').get<string>('check.trigger', 'onChange');
+        if (trigger === 'onSave') return;
+        // Only check if we don't already have diagnostics for this document
+        const uri = editor.document.uri.toString();
+        if (!diagnosticsMap.has(uri)) {
+            checkDocument(editor.document);
+        }
     }));
 
     // ── Check-on-change with debounce ──
@@ -797,28 +816,73 @@ async function applyFix(diagnosticId: string, suggestion: string) {
     const editor = vscode.window.activeTextEditor;
     if (!editor) return;
 
-    const uri = editor.document.uri.toString();
-    const diagnostics = diagnosticsMap.get(uri);
+    const uri = editor.document.uri;
+    const uriStr = uri.toString();
+    const diagnostics = diagnosticsMap.get(uriStr);
     if (!diagnostics) return;
 
     const index = parseInt(diagnosticId.replace('diag-', ''));
     const diagnostic = diagnostics[index];
-    if (diagnostic) {
-        sendSpeedFixLoading(true);
-        const edit = new vscode.WorkspaceEdit();
-        edit.replace(editor.document.uri, diagnostic.range, suggestion);
-        await vscode.workspace.applyEdit(edit);
+    if (!diagnostic) return;
+
+    sendSpeedFixLoading(true);
+
+    try {
+        // Ensure the editor is focused — code action providers require an active editor
+        await vscode.window.showTextDocument(editor.document, {
+            viewColumn: vscode.ViewColumn.One,
+            preserveFocus: false,
+        });
+
+        // Get fresh code actions from all providers for this diagnostic range
+        const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+            'vscode.executeCodeActionProvider',
+            uri,
+            diagnostic.range,
+            vscode.CodeActionKind.QuickFix.value
+        ) || [];
+
+        // Find the action whose title matches the suggestion (e.g. `Fix: "word"`)
+        const matchingAction = actions.find(a =>
+            a.title === `Fix: "${suggestion}"` || a.title === suggestion
+        );
+
+        let applied = false;
+        if (matchingAction) {
+            // Apply the real code action (edit + command)
+            if (matchingAction.edit) {
+                await vscode.workspace.applyEdit(matchingAction.edit);
+                applied = true;
+            }
+            if (matchingAction.command) {
+                await vscode.commands.executeCommand(
+                    matchingAction.command.command,
+                    ...(matchingAction.command.arguments || [])
+                );
+                applied = true;
+            }
+        }
+
+        // Fallback: if no matching code action, do a direct replacement
+        if (!applied) {
+            const edit = new vscode.WorkspaceEdit();
+            edit.replace(uri, diagnostic.range, suggestion);
+            await vscode.workspace.applyEdit(edit);
+        }
 
         // Optimistic removal: remove the fixed diagnostic immediately
         const remaining = diagnostics.filter((_, i) => i !== index);
-        diagnosticsMap.set(uri, remaining);
-        diagnosticCollection.set(editor.document.uri, remaining);
+        diagnosticsMap.set(uriStr, remaining);
+        diagnosticCollection.set(uri, remaining);
         inlayHintEmitter.fire();
         updateSpeedFixDiagnostics();
-        sendSpeedFixLoading(false);
 
         // Background re-check for full consistency
         checkDocument(editor.document);
+    } finally {
+        sendSpeedFixLoading(false);
+        // Refocus the SpeedFix panel so the user can continue through issues
+        speedFixPanel?.reveal(vscode.ViewColumn.Beside, false);
     }
 }
 
@@ -874,6 +938,7 @@ function updateSpeedFixDiagnostics() {
             id: `diag-${i}`,
             message: d.message,
             suggestions: d.suggestions || [],
+            text: editor.document.getText(d.range),
             context: editor.document.lineAt(d.range.start.line).text.trim(),
             ruleId: d.code as string || 'unknown',
             fileName,

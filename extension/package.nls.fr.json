@@ -18,6 +18,8 @@
   "config.check.trigger.onChange": "Vérifier en cours de frappe (avec temporisation)",
   "config.check.trigger.onSave": "Vérifier uniquement lors de l'enregistrement",
   "config.performance.hpm": "Mode économique : désactive LanguageTool et les fournisseurs externes, simplifie le rendu de SpeedFix.",
+  "config.dictionaries.bundled": "Charger les dictionnaires techniques intégrés (termes logiciels, TypeScript, entreprises, jargon). Désactiver pour réduire les faux négatifs orthographiques.",
+  "config.dictionaries.paths": "Chemins vers des fichiers de listes de mots supplémentaires (un mot par ligne). Les chemins relatifs sont résolus depuis la racine de l'espace de travail.",
   "walkthrough.title": "Premiers pas avec Language Check",
   "walkthrough.description": "Apprenez à vérifier et corriger la prose dans vos documents."
 }

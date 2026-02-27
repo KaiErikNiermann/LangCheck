@@ -1,0 +1,220 @@
+{
+  "generated_on": "2026-02-28",
+  "purpose": "Direct wordlist/source-file links for spellchecking dictionaries, with license and attribution metadata. Only includes files whose direct raw URLs were verified during lookup. License values are per file/package/repository where verified; ambiguous cases are labeled clearly.",
+  "sources": [
+    {
+      "id": "cspell_software_terms",
+      "repository": {
+        "name": "streetsidesoftware/cspell-dicts",
+        "url": "https://github.com/streetsidesoftware/cspell-dicts",
+        "attribution": "Street Side Software / contributors"
+      },
+      "license": {
+        "name": "MIT",
+        "scope": "package-level for dictionaries/software-terms",
+        "evidence": "package.json for dictionaries/software-terms declares license MIT"
+      },
+      "files": [
+        {
+          "name": "software-terms.txt",
+          "format": "txt",
+          "url": "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/main/dictionaries/software-terms/src/software-terms.txt"
+        },
+        {
+          "name": "coding-compound-terms.txt",
+          "format": "txt",
+          "url": "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/main/dictionaries/software-terms/src/coding-compound-terms.txt"
+        },
+        {
+          "name": "computing-acronyms.txt",
+          "format": "txt",
+          "url": "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/main/dictionaries/software-terms/src/computing-acronyms.txt"
+        },
+        {
+          "name": "software-tools.txt",
+          "format": "txt",
+          "url": "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/main/dictionaries/software-terms/src/software-tools.txt"
+        }
+      ]
+    },
+    {
+      "id": "cspell_typescript",
+      "repository": {
+        "name": "streetsidesoftware/cspell-dicts",
+        "url": "https://github.com/streetsidesoftware/cspell-dicts",
+        "attribution": "Street Side Software / contributors"
+      },
+      "license": {
+        "name": "MIT",
+        "scope": "package-level for dictionaries/typescript",
+        "evidence": "package.json for dictionaries/typescript declares license MIT"
+      },
+      "files": [
+        {
+          "name": "typescript.txt",
+          "format": "txt",
+          "url": "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/main/dictionaries/typescript/src/typescript.txt"
+        }
+      ]
+    },
+    {
+      "id": "cspell_companies",
+      "repository": {
+        "name": "streetsidesoftware/cspell-dicts",
+        "url": "https://github.com/streetsidesoftware/cspell-dicts",
+        "attribution": "Street Side Software / contributors"
+      },
+      "license": {
+        "name": "MIT",
+        "scope": "package-level for dictionaries/companies",
+        "evidence": "package.json for dictionaries/companies declares license MIT"
+      },
+      "files": [
+        {
+          "name": "companies.txt",
+          "format": "txt",
+          "url": "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/main/dictionaries/companies/src/companies.txt"
+        }
+      ]
+    },
+    {
+      "id": "cspell_cpp",
+      "repository": {
+        "name": "streetsidesoftware/cspell-dicts",
+        "url": "https://github.com/streetsidesoftware/cspell-dicts",
+        "attribution": "Street Side Software / contributors"
+      },
+      "license": {
+        "name": "MIT",
+        "scope": "package-level for dictionaries/cpp",
+        "evidence": "package.json for dictionaries/cpp declares license MIT"
+      },
+      "files": [
+        {
+          "name": "additional-terms.txt",
+          "format": "txt",
+          "url": "https://raw.githubusercontent.com/streetsidesoftware/cspell-dicts/main/dictionaries/cpp/src/additional-terms.txt"
+        }
+      ]
+    },
+    {
+      "id": "spellcheckdic",
+      "repository": {
+        "name": "motchy869/SpellCheckDic",
+        "url": "https://github.com/motchy869/SpellCheckDic",
+        "attribution": "motchy869"
+      },
+      "license": {
+        "name": "MIT",
+        "scope": "repository-level",
+        "evidence": "LICENSE file is MIT"
+      },
+      "files": [
+        {
+          "name": "dict.txt",
+          "format": "txt",
+          "url": "https://raw.githubusercontent.com/motchy869/SpellCheckDic/develop/dict.txt"
+        }
+      ]
+    },
+    {
+      "id": "hunspell_jargon",
+      "repository": {
+        "name": "smoeding/hunspell-jargon",
+        "url": "https://github.com/smoeding/hunspell-jargon",
+        "attribution": "Stefan Möding"
+      },
+      "license": {
+        "name": "MIT",
+        "scope": "repository-level",
+        "evidence": "LICENSE file is MIT"
+      },
+      "files": [
+        {
+          "name": "jargon.txt",
+          "format": "txt",
+          "url": "https://raw.githubusercontent.com/smoeding/hunspell-jargon/main/jargon.txt"
+        },
+        {
+          "name": "jargon.dic",
+          "format": "dic",
+          "url": "https://raw.githubusercontent.com/smoeding/hunspell-jargon/main/jargon.dic"
+        },
+        {
+          "name": "jargon.aff",
+          "format": "aff",
+          "url": "https://raw.githubusercontent.com/smoeding/hunspell-jargon/main/jargon.aff"
+        }
+      ]
+    },
+    {
+      "id": "acamedic",
+      "repository": {
+        "name": "emareg/acamedic",
+        "url": "https://github.com/emareg/acamedic",
+        "attribution": "emareg"
+      },
+      "license": {
+        "name": "CC-BY-4.0",
+        "scope": "repository-level",
+        "evidence": "LICENSE file states Creative Commons Attribution 4.0 International"
+      },
+      "files": [
+        {
+          "name": "en-Academic.dic",
+          "format": "dic",
+          "url": "https://raw.githubusercontent.com/emareg/acamedic/master/en-Academic.dic"
+        },
+        {
+          "name": "en-Academic.aff",
+          "format": "aff",
+          "url": "https://raw.githubusercontent.com/emareg/acamedic/master/en-Academic.aff"
+        }
+      ]
+    },
+    {
+      "id": "autoware_spell_check_dict",
+      "repository": {
+        "name": "tier4/autoware-spell-check-dict",
+        "url": "https://github.com/tier4/autoware-spell-check-dict",
+        "attribution": "Tier IV / contributors"
+      },
+      "license": {
+        "name": "Apache-2.0",
+        "scope": "repository-level",
+        "evidence": "LICENSE file is Apache License 2.0"
+      },
+      "files": [
+        {
+          "name": ".cspell.json",
+          "format": "json",
+          "url": "https://raw.githubusercontent.com/tier4/autoware-spell-check-dict/main/.cspell.json"
+        }
+      ]
+    },
+    {
+      "id": "scowl_alt12dicts_5desk",
+      "repository": {
+        "name": "en-wl/wordlist",
+        "url": "https://github.com/en-wl/wordlist",
+        "attribution": "Kevin Atkinson; derived from multiple sources including 12dicts and ENABLE2K"
+      },
+      "license": {
+        "name": "SCOWL copyright notice / MIT-like permission notice",
+        "scope": "repository-level for SCOWLv2; source mix includes public-domain and other notices",
+        "evidence": "Copyright file grants permission to use/copy/modify/distribute/sell, with additional source notices"
+      },
+      "files": [
+        {
+          "name": "5desk.txt",
+          "format": "txt",
+          "url": "https://raw.githubusercontent.com/en-wl/wordlist/master/alt12dicts/5desk.txt"
+        }
+      ],
+      "notes": [
+        "This one is useful as a simple generic baseline wordlist.",
+        "Licensing here is not a single SPDX label; consult the repository Copyright file for redistribution details."
+      ]
+    }
+  ]
+}
