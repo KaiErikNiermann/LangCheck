@@ -44,6 +44,47 @@
         "mac": "alt+f",
         "when": "editorTextFocus"
       }
+    ],
+    "walkthroughs": [
+      {
+        "id": "language-check.welcome",
+        "title": "Get Started with Language Check",
+        "description": "Learn how to check and fix prose in your documents.",
+        "steps": [
+          {
+            "id": "language-check.welcome.check",
+            "title": "Check Your Writing",
+            "description": "Open a Markdown, HTML, or LaTeX file and save it to automatically check for grammar, spelling, and style issues.\n\n[Check Current Document](command:language-check.checkDocument)",
+            "media": {
+              "markdown": "media/walkthrough-check.md"
+            }
+          },
+          {
+            "id": "language-check.welcome.speedfix",
+            "title": "SpeedFix: Batch Fix Issues",
+            "description": "Press **Alt+F** to open the SpeedFix panel and review all diagnostics at once. Apply fixes, ignore issues, or add words to the dictionary.\n\n[Open SpeedFix](command:language-check.openSpeedFix)",
+            "media": {
+              "markdown": "media/walkthrough-speedfix.md"
+            }
+          },
+          {
+            "id": "language-check.welcome.language",
+            "title": "Switch Language",
+            "description": "Click the language indicator in the Status Bar (bottom right) to switch between English, German, French, and Spanish.\n\n[Select Language](command:language-check.selectLanguage)",
+            "media": {
+              "markdown": "media/walkthrough-language.md"
+            }
+          },
+          {
+            "id": "language-check.welcome.configure",
+            "title": "Configure Rules",
+            "description": "Create a `.languagecheck.yaml` in your workspace root to disable rules, add auto-fix patterns, or configure engines. See the [documentation](https://github.com) for details.",
+            "media": {
+              "markdown": "media/walkthrough-configure.md"
+            }
+          }
+        ]
+      }
     ]
   },
   "scripts": {

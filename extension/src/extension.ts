@@ -17,6 +17,25 @@ let insightsStatusBarItem: vscode.StatusBarItem;
 export function activate(context: vscode.ExtensionContext) {
     console.log('Language Check extension activated');
 
+    // First-run onboarding: show welcome notification once
+    const hasSeenWelcome = context.globalState.get<boolean>('language-check.hasSeenWelcome', false);
+    if (!hasSeenWelcome) {
+        context.globalState.update('language-check.hasSeenWelcome', true);
+        vscode.window.showInformationMessage(
+            'Welcome to Language Check! Open the Get Started walkthrough to learn the basics.',
+            'Open Walkthrough',
+            'Dismiss'
+        ).then(selection => {
+            if (selection === 'Open Walkthrough') {
+                vscode.commands.executeCommand(
+                    'workbench.action.openWalkthrough',
+                    'gemini.extension#language-check.welcome',
+                    false
+                );
+            }
+        });
+    }
+
     const binaryPath = context.extensionMode === vscode.ExtensionMode.Development
         ? path.join(context.extensionPath, '..', 'rust-core', 'target', 'debug', 'language-check-server')
         : path.join(context.extensionPath, 'bin', 'language-check-server');
