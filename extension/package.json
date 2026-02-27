@@ -129,7 +129,7 @@
   },
   "scripts": {
     "proto:gen": "pbjs -t static-module -w commonjs -o src/proto/checker.js ../proto/checker.proto && pbts -o src/proto/checker.d.ts src/proto/checker.js",
-    "build": "tsc -p .",
+    "build": "tsc -p . && mkdir -p out/proto && cp src/proto/checker.js src/proto/checker.d.ts out/proto/",
     "lint": "eslint src/",
     "test": "vitest"
   },

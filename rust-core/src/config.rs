@@ -65,7 +65,7 @@ pub struct AutoFixRule {
 pub struct EngineConfig {
     #[serde(default = "default_true")]
     pub harper: bool,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub languagetool: bool,
     #[serde(default = "default_lt_url")]
     pub languagetool_url: String,
@@ -114,7 +114,7 @@ impl Default for EngineConfig {
     fn default() -> Self {
         Self {
             harper: true,
-            languagetool: true,
+            languagetool: false,
             languagetool_url: "http://localhost:8010".to_string(),
             external: Vec::new(),
             wasm_plugins: Vec::new(),
@@ -202,10 +202,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_config_has_both_engines_enabled() {
+    fn default_config_has_harper_enabled_lt_disabled() {
         let config = Config::default();
         assert!(config.engines.harper);
-        assert!(config.engines.languagetool);
+        assert!(!config.engines.languagetool);
     }
 
     #[test]
@@ -242,7 +242,7 @@ mod tests {
         let json = r#"{}"#;
         let config: Config = serde_json::from_str(json).unwrap();
         assert!(config.engines.harper);
-        assert!(config.engines.languagetool);
+        assert!(!config.engines.languagetool);
         assert!(config.rules.is_empty());
     }
 

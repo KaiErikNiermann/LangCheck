@@ -48,7 +48,7 @@ export function activate(context: vscode.ExtensionContext) {
         const selectedChannel = channel ?? config.get<string>('core.channel', 'stable');
 
         if (context.extensionMode === vscode.ExtensionMode.Development) {
-            const target = selectedChannel === 'dev' ? 'debug' : 'release';
+            const target = selectedChannel === 'release' ? 'release' : 'debug';
             return path.join(context.extensionPath, '..', 'rust-core', 'target', target, 'language-check-server');
         }
 

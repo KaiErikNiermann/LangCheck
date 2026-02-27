@@ -5,6 +5,9 @@ import { resolve } from 'path'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [svelte()],
+  resolve: {
+    conditions: ['browser', 'import', 'module', 'default'],
+  },
   build: {
     rollupOptions: {
       input: {

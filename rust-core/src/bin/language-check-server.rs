@@ -59,16 +59,20 @@ async fn process_file_for_indexing(
     let ranges = extractor.extract(&text, &lang_id)?;
     let mut all_diagnostics = Vec::new();
 
-    let mut orchestrator_lock = orchestrator_arc.lock().await;
-    let ignore_store_lock = ignore_store_arc.lock().await;
-
+    // Acquire/release locks per-range to avoid starving foreground requests
     for range in ranges {
         let prose_text = &text[range.start_byte..range.end_byte];
-        if let Ok(mut diagnostics) = orchestrator_lock.check(prose_text, &lang_id).await {
+
+        let mut orchestrator_lock = orchestrator_arc.lock().await;
+        let check_result = orchestrator_lock.check(prose_text, &lang_id).await;
+        drop(orchestrator_lock);
+
+        if let Ok(mut diagnostics) = check_result {
             for d in &mut diagnostics {
                 d.start_byte += range.start_byte as u32;
                 d.end_byte += range.start_byte as u32;
             }
+            let ignore_store_lock = ignore_store_arc.lock().await;
             diagnostics.retain(|d| {
                 let fingerprint = DiagnosticFingerprint::new(
                     &d.message,
@@ -78,13 +82,13 @@ async fn process_file_for_indexing(
                 );
                 !ignore_store_lock.is_ignored(&fingerprint)
             });
+            drop(ignore_store_lock);
             all_diagnostics.extend(diagnostics);
         }
-    }
 
-    // Release locks before writing to index
-    drop(orchestrator_lock);
-    drop(ignore_store_lock);
+        // Yield to let foreground requests acquire the lock
+        tokio::task::yield_now().await;
+    }
 
     if let Some(idx) = &*workspace_index_arc.lock().await
         && let Some(file_path_str) = file_path.to_str()
@@ -127,6 +131,9 @@ async fn main() -> Result<()> {
             loop {
                 indexing_notify.notified().await; // Wait for notification to start indexing
 
+                // Delay indexing to let initial foreground requests complete first
+                tokio::time::sleep(Duration::from_secs(3)).await;
+
                 let workspace_root = {
                     let idx_lock = workspace_index_arc.lock().await;
                     idx_lock
@@ -135,8 +142,15 @@ async fn main() -> Result<()> {
                 };
 
                 if let Some(root) = workspace_root {
-                    println!("Starting workspace indexing for {}", root.display());
-                    let _config = orchestrator_arc.lock().await.get_config().clone(); // Get current config to decide what to index
+                    eprintln!("Starting workspace indexing for {}", root.display());
+                    let config = orchestrator_arc.lock().await.get_config().clone();
+
+                    // Build exclude matchers from config
+                    let exclude_patterns: Vec<glob::Pattern> = config
+                        .exclude
+                        .iter()
+                        .filter_map(|p| glob::Pattern::new(p).ok())
+                        .collect();
 
                     let mut tasks = Vec::new();
 
@@ -151,6 +165,13 @@ async fn main() -> Result<()> {
                         let full_pattern = format!("{}/{}", root.to_string_lossy(), pattern_suffix);
                         if let Ok(entries) = glob(&full_pattern) {
                             for path in entries.flatten() {
+                                // Skip files matching exclude patterns
+                                let rel = path.strip_prefix(&root).unwrap_or(&path);
+                                let rel_str = rel.to_string_lossy();
+                                if exclude_patterns.iter().any(|p| p.matches(&rel_str)) {
+                                    continue;
+                                }
+
                                 let task_orchestrator = orchestrator_arc.clone();
                                 let task_ignore_store = ignore_store_arc.clone();
                                 let task_workspace_index = workspace_index_arc.clone();
@@ -173,7 +194,7 @@ async fn main() -> Result<()> {
                             eprintln!("Error joining indexing task: {e}");
                         }
                     }
-                    println!("Finished workspace indexing for {}", root.display());
+                    eprintln!("Finished workspace indexing for {}", root.display());
                 }
                 tokio::time::sleep(Duration::from_secs(600)).await; // Re-index every 10 minutes
             }
