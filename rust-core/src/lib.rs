@@ -14,6 +14,7 @@ pub mod cache;
 pub mod config;
 pub mod detection;
 pub mod dictionary;
+pub mod document;
 pub mod engines;
 pub mod hashing;
 pub mod ignore_rules;
