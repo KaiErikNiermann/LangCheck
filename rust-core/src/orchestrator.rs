@@ -1,6 +1,7 @@
 use crate::checker::{Diagnostic, Severity};
 use crate::config::Config;
 use crate::engines::{Engine, HarperEngine, LanguageToolEngine};
+use crate::ignore_rules::IgnoreParser;
 use crate::rules::RuleNormalizer;
 use anyhow::Result;
 
@@ -88,6 +89,12 @@ impl Orchestrator {
         all_diagnostics.dedup_by(|a, b| {
             a.start_byte == b.start_byte && a.end_byte == b.end_byte && a.unified_id == b.unified_id
         });
+
+        // Filter out diagnostics suppressed by inline ignore directives
+        let ignore_ranges = IgnoreParser::parse(text);
+        if !ignore_ranges.is_empty() {
+            all_diagnostics.retain(|d| !IgnoreParser::should_ignore(d, &ignore_ranges));
+        }
 
         Ok(all_diagnostics)
     }

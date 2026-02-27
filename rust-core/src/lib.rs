@@ -16,6 +16,7 @@ pub mod detection;
 pub mod dictionary;
 pub mod engines;
 pub mod hashing;
+pub mod ignore_rules;
 pub mod insights;
 pub mod orchestrator;
 pub mod prose;
