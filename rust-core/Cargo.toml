@@ -23,6 +23,7 @@ console = "0.15"
 indicatif = "0.17"
 glob = "0.3"
 redb = "2.1"
+lru = "0.12"
 serde_cbor = "0.11"
 
 [dev-dependencies]

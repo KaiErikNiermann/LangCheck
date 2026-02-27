@@ -47,7 +47,7 @@ impl ProseExtractor {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProseRange {
     pub start_byte: usize,
     pub end_byte: usize,

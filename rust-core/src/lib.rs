@@ -10,6 +10,7 @@ pub mod checker {
     include!(concat!(env!("OUT_DIR"), "/languagecheck.rs"));
 }
 
+pub mod cache;
 pub mod config;
 pub mod dictionary;
 pub mod engines;
