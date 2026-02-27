@@ -29,6 +29,10 @@
         "title": "Language Check: Select Language"
       },
       {
+        "command": "language-check.openInspector",
+        "title": "Language Check: Open Inspector"
+      },
+      {
         "command": "language-check.switchCore",
         "title": "Language Check: Switch Core Binary"
       },
