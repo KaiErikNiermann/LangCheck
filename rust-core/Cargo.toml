@@ -42,5 +42,10 @@ divan = "0.1"
 name = "benchmarks"
 harness = false
 
+# Optimize dependencies in debug builds (keeps compile times reasonable
+# while making FST deserialization, tree-sitter, and redb usable in debug).
+[profile.dev.package."*"]
+opt-level = 2
+
 [build-dependencies]
 prost-build = "0.13"

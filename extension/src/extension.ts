@@ -6,7 +6,7 @@ import { TraceLogger } from './trace';
 import { createAPI } from './api';
 import { binaryExists, downloadBinary } from './downloader';
 import type { LanguageCheckDiagnostic } from './api';
-import type { SpeedFixDiagnostic, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorASTNode, InspectorDiagnosticSummary } from './events';
+import type { SpeedFixDiagnostic, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorASTNode, InspectorDiagnosticSummary, InspectorCheckInfo } from './events';
 
 const GITHUB_REPO = 'gemini/lang-check';
 
@@ -30,6 +30,7 @@ let isChecking = false;
 
 // Last check timing (real benchmark data for inspector)
 let lastCheckTimings: { name: string; durationMs: number }[] = [];
+let lastCheckInfo: InspectorCheckInfo | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Language Check extension activated');
@@ -61,7 +62,7 @@ export function activate(context: vscode.ExtensionContext) {
         const selectedChannel = channel ?? config.get<string>('core.channel', 'stable');
 
         if (context.extensionMode === vscode.ExtensionMode.Development) {
-            const target = selectedChannel === 'release' ? 'release' : 'debug';
+            const target = selectedChannel === 'debug' ? 'debug' : 'release';
             return path.join(context.extensionPath, '..', 'rust-core', 'target', target, 'language-check-server');
         }
 
@@ -748,11 +749,19 @@ async function updateInspectorData() {
         payload: { prose: proseRanges, ignores: [] },
     });
 
-    // Send real benchmark timings if available, otherwise mock
+    // Send real benchmark timings if available
     if (lastCheckTimings.length > 0) {
         inspectorPanel.webview.postMessage({
             type: 'setLatency',
             payload: { stages: lastCheckTimings },
+        });
+    }
+
+    // Send check info if available
+    if (lastCheckInfo) {
+        inspectorPanel.webview.postMessage({
+            type: 'setCheckInfo',
+            payload: lastCheckInfo,
         });
     }
 
@@ -935,13 +944,25 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
 
             updateInsightsStatusBar(vscode.window.activeTextEditor);
 
-            // Store timings for inspector
+            // Store timings and check info for inspector
             lastCheckTimings = timings;
+            lastCheckInfo = {
+                fileName: path.basename(document.uri.fsPath),
+                fileSize: new TextEncoder().encode(textContent).length,
+                languageId: document.languageId,
+                proseRangeCount: 0,  // not available from protobuf response
+                totalProseBytes: 0,
+                diagnosticCount: extendedDiagnostics.length,
+            };
             // Update inspector if open
             if (inspectorPanel) {
                 inspectorPanel.webview.postMessage({
                     type: 'setLatency',
                     payload: { stages: timings },
+                });
+                inspectorPanel.webview.postMessage({
+                    type: 'setCheckInfo',
+                    payload: lastCheckInfo,
                 });
             }
 

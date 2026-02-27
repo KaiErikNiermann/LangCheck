@@ -36,6 +36,15 @@
     bySeverity: { severity: string; count: number }[];
   }
 
+  interface CheckInfo {
+    fileName: string;
+    fileSize: number;
+    languageId: string;
+    proseRangeCount: number;
+    totalProseBytes: number;
+    diagnosticCount: number;
+  }
+
   type Tab = 'ast' | 'prose' | 'latency' | 'diagnostics';
 
   let ast: ASTNode | null = $state(null);
@@ -43,6 +52,7 @@
   let ignoreRanges: IgnoreRange[] = $state([]);
   let latencyStages: LatencyStage[] = $state([]);
   let diagnosticSummary: DiagnosticSummary | null = $state(null);
+  let checkInfo: CheckInfo | null = $state(null);
   let activeTab: Tab = $state('ast');
   let expandedNodes = $state(new Set<string>());
   let hoveredNode: ASTNode | null = $state(null);
@@ -70,6 +80,9 @@
         case 'setDiagnosticSummary':
           diagnosticSummary = message.payload;
           break;
+        case 'setCheckInfo':
+          checkInfo = message.payload;
+          break;
       }
     });
 
@@ -95,6 +108,12 @@
       type: 'highlightRange',
       payload: { startByte: node.startByte, endByte: node.endByte }
     });
+  }
+
+  function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   function formatDuration(ms: number): string {
@@ -314,6 +333,35 @@
               </span>
             {/each}
           </div>
+
+          <!-- Check Info -->
+          {#if checkInfo}
+            <div class="section-header" style="margin-top: 16px">
+              <span class="section-title">Checked Document</span>
+            </div>
+            <div class="check-info-grid">
+              <div class="check-info-row">
+                <span class="check-info-label">File</span>
+                <span class="check-info-value">{checkInfo.fileName}</span>
+              </div>
+              <div class="check-info-row">
+                <span class="check-info-label">Size</span>
+                <span class="check-info-value">{formatBytes(checkInfo.fileSize)}</span>
+              </div>
+              <div class="check-info-row">
+                <span class="check-info-label">Language</span>
+                <span class="check-info-value">{checkInfo.languageId}</span>
+              </div>
+              <div class="check-info-row">
+                <span class="check-info-label">Issues found</span>
+                <span class="check-info-value">{checkInfo.diagnosticCount}</span>
+              </div>
+              <div class="check-info-row">
+                <span class="check-info-label">Throughput</span>
+                <span class="check-info-value">{total > 0 ? formatBytes(Math.round(checkInfo.fileSize / (total / 1000))) + '/s' : '—'}</span>
+              </div>
+            </div>
+          {/if}
         </div>
       {:else}
         <div class="empty-state">Run a document check to see timing breakdown.</div>
@@ -681,6 +729,30 @@
     font-size: 10px;
     opacity: 0.4;
     font-family: var(--vscode-editor-font-family, monospace);
+  }
+
+  /* ── Check Info ── */
+  .check-info-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    padding: 4px 0;
+  }
+
+  .check-info-row {
+    display: contents;
+  }
+
+  .check-info-label {
+    font-size: 11px;
+    opacity: 0.5;
+    white-space: nowrap;
+  }
+
+  .check-info-value {
+    font-size: 11px;
+    font-family: var(--vscode-editor-font-family, monospace);
+    text-align: right;
   }
 
   /* ── Diagnostics ── */

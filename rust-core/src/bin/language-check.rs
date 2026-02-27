@@ -8,6 +8,19 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
+
+/// Slice a `&str` at byte offsets, snapping to the nearest char boundaries.
+fn safe_slice(s: &str, start: usize, end: usize) -> &str {
+    let mut lo = start.min(s.len());
+    while lo > 0 && !s.is_char_boundary(lo) {
+        lo -= 1;
+    }
+    let mut hi = end.min(s.len());
+    while hi < s.len() && !s.is_char_boundary(hi) {
+        hi += 1;
+    }
+    &s[lo..hi]
+}
 use config::Config;
 use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -220,7 +233,7 @@ async fn check_file(
     let mut found_issues = 0;
 
     for range in ranges {
-        let prose_text = &text[range.start_byte..range.end_byte];
+        let prose_text = safe_slice(&text, range.start_byte, range.end_byte);
         let diagnostics = orchestrator.check(prose_text, lang).await?;
 
         for d in diagnostics {
@@ -291,7 +304,7 @@ async fn fix_file(
 
     let mut all_diagnostics = Vec::new();
     for range in &ranges {
-        let prose_text = &text[range.start_byte..range.end_byte];
+        let prose_text = safe_slice(&text, range.start_byte, range.end_byte);
         if let Ok(mut diagnostics) = orchestrator.check(prose_text, lang).await {
             for d in &mut diagnostics {
                 d.start_byte += range.start_byte as u32;

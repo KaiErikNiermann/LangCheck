@@ -69,12 +69,22 @@ export interface InspectorDiagnosticSummary {
     bySeverity: { severity: string; count: number }[];
 }
 
+export interface InspectorCheckInfo {
+    fileName: string;
+    fileSize: number;
+    languageId: string;
+    proseRangeCount: number;
+    totalProseBytes: number;
+    diagnosticCount: number;
+}
+
 // Messages from extension → Inspector webview
 export type ExtensionToInspectorMessage =
     | { type: 'setAST'; payload: { ast: InspectorASTNode; fileName: string } }
     | { type: 'setProseRanges'; payload: { prose: InspectorProseRange[]; ignores: InspectorIgnoreRange[] } }
     | { type: 'setLatency'; payload: { stages: InspectorLatencyStage[] } }
-    | { type: 'setDiagnosticSummary'; payload: InspectorDiagnosticSummary };
+    | { type: 'setDiagnosticSummary'; payload: InspectorDiagnosticSummary }
+    | { type: 'setCheckInfo'; payload: InspectorCheckInfo };
 
 // Messages from Inspector webview → extension
 export type InspectorToExtensionMessage =

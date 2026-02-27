@@ -27,6 +27,19 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Mutex, Notify};
 use workspace::WorkspaceIndex;
 
+/// Slice a `&str` at byte offsets, snapping to the nearest char boundaries.
+fn safe_slice(s: &str, start: usize, end: usize) -> &str {
+    let mut lo = start.min(s.len());
+    while lo > 0 && !s.is_char_boundary(lo) {
+        lo -= 1;
+    }
+    let mut hi = end.min(s.len());
+    while hi < s.len() && !s.is_char_boundary(hi) {
+        hi += 1;
+    }
+    &s[lo..hi]
+}
+
 fn latex_language() -> tree_sitter::Language {
     let raw_fn = codebook_tree_sitter_latex::LANGUAGE.into_raw();
     unsafe { std::mem::transmute(raw_fn()) }
@@ -61,7 +74,7 @@ async fn process_file_for_indexing(
 
     // Acquire/release locks per-range to avoid starving foreground requests
     for range in ranges {
-        let prose_text = &text[range.start_byte..range.end_byte];
+        let prose_text = safe_slice(&text, range.start_byte, range.end_byte);
 
         let mut orchestrator_lock = orchestrator_arc.lock().await;
         let check_result = orchestrator_lock.check(prose_text, &lang_id).await;
@@ -145,12 +158,19 @@ async fn main() -> Result<()> {
                     eprintln!("Starting workspace indexing for {}", root.display());
                     let config = orchestrator_arc.lock().await.get_config().clone();
 
-                    // Build exclude matchers from config
+                    // Build exclude matchers from config.
+                    // We use MatchOptions with require_literal_separator = false
+                    // so that "node_modules/**" matches "node_modules/a/b/c".
                     let exclude_patterns: Vec<glob::Pattern> = config
                         .exclude
                         .iter()
                         .filter_map(|p| glob::Pattern::new(p).ok())
                         .collect();
+                    let match_opts = glob::MatchOptions {
+                        require_literal_separator: false,
+                        require_literal_leading_dot: false,
+                        case_sensitive: true,
+                    };
 
                     let mut tasks = Vec::new();
 
@@ -168,7 +188,7 @@ async fn main() -> Result<()> {
                                 // Skip files matching exclude patterns
                                 let rel = path.strip_prefix(&root).unwrap_or(&path);
                                 let rel_str = rel.to_string_lossy();
-                                if exclude_patterns.iter().any(|p| p.matches(&rel_str)) {
+                                if exclude_patterns.iter().any(|p| p.matches_with(&rel_str, match_opts)) {
                                     continue;
                                 }
 
@@ -307,7 +327,7 @@ async fn main() -> Result<()> {
                             let ignore_store = ignore_store_arc.lock().await;
                             let dict = dictionary_arc.lock().await;
                             for range in ranges {
-                                let prose_text = &req.text[range.start_byte..range.end_byte];
+                                let prose_text = safe_slice(&req.text, range.start_byte, range.end_byte);
                                 if let Ok(mut diagnostics) =
                                     orchestrator.check(prose_text, &req.language_id).await
                                 {
@@ -328,8 +348,11 @@ async fn main() -> Result<()> {
                                         }
                                         // Skip spelling diagnostics for dictionary words
                                         if d.unified_id.starts_with("spelling.") {
-                                            let word = &req.text
-                                                [d.start_byte as usize..d.end_byte as usize];
+                                            let word = safe_slice(
+                                                &req.text,
+                                                d.start_byte as usize,
+                                                d.end_byte as usize,
+                                            );
                                             if dict.contains(word) {
                                                 return false;
                                             }

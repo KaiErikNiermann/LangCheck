@@ -134,7 +134,27 @@ fn default_lt_url() -> String {
     "http://localhost:8010".to_string()
 }
 fn default_exclude() -> Vec<String> {
-    vec!["node_modules/**".to_string(), ".git/**".to_string()]
+    vec![
+        "node_modules/**".to_string(),
+        ".git/**".to_string(),
+        "target/**".to_string(),
+        "dist/**".to_string(),
+        "build/**".to_string(),
+        ".next/**".to_string(),
+        ".nuxt/**".to_string(),
+        "vendor/**".to_string(),
+        "__pycache__/**".to_string(),
+        ".venv/**".to_string(),
+        "venv/**".to_string(),
+        ".tox/**".to_string(),
+        ".mypy_cache/**".to_string(),
+        "*.min.js".to_string(),
+        "*.min.css".to_string(),
+        "*.bundle.js".to_string(),
+        "package-lock.json".to_string(),
+        "yarn.lock".to_string(),
+        "pnpm-lock.yaml".to_string(),
+    ]
 }
 
 impl Config {
@@ -213,6 +233,9 @@ mod tests {
         let config = Config::default();
         assert!(config.exclude.contains(&"node_modules/**".to_string()));
         assert!(config.exclude.contains(&".git/**".to_string()));
+        assert!(config.exclude.contains(&"target/**".to_string()));
+        assert!(config.exclude.contains(&"dist/**".to_string()));
+        assert!(config.exclude.contains(&"vendor/**".to_string()));
     }
 
     #[test]
