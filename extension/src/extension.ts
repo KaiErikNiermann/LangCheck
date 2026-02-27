@@ -4,8 +4,11 @@ import { LanguageClient } from './client';
 import { languagecheck } from './proto/checker';
 import { TraceLogger } from './trace';
 import { createAPI } from './api';
+import { binaryExists, downloadBinary } from './downloader';
 import type { LanguageCheckDiagnostic } from './api';
 import type { SpeedFixDiagnostic, WebviewToExtensionMessage } from './events';
+
+const GITHUB_REPO = 'gemini/lang-check';
 
 let client: LanguageClient | null = null;
 let traceLogger: TraceLogger | null = null;
@@ -58,6 +61,16 @@ export function activate(context: vscode.ExtensionContext) {
         }
     };
 
+    const initializeClient = () => {
+        if (client && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            client.sendRequest({
+                initialize: {
+                    workspaceRoot: vscode.workspace.workspaceFolders[0]!.uri.fsPath
+                }
+            });
+        }
+    };
+
     const startClient = (channel?: string) => {
         if (client) {
             client.stop();
@@ -73,17 +86,37 @@ export function activate(context: vscode.ExtensionContext) {
     traceLogger = new TraceLogger();
     context.subscriptions.push({ dispose: () => traceLogger?.dispose() });
 
-    startClient();
-
-    const initializeClient = () => {
-        if (client && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-            client.sendRequest({
-                initialize: {
-                    workspaceRoot: vscode.workspace.workspaceFolders[0]!.uri.fsPath
+    // Check if binary exists; offer to download if missing (production only)
+    const binDir = path.join(context.extensionPath, 'bin');
+    if (context.extensionMode !== vscode.ExtensionMode.Development && !binaryExists(binDir)) {
+        vscode.window.showWarningMessage(
+            'Language Check: Core binary not found. Download it now?',
+            'Download',
+            'Manual Setup'
+        ).then(async (selection) => {
+            if (selection === 'Download') {
+                try {
+                    await vscode.window.withProgress(
+                        {
+                            location: vscode.ProgressLocation.Notification,
+                            title: 'Language Check',
+                            cancellable: false,
+                        },
+                        (progress) => downloadBinary(binDir, progress),
+                    );
+                    vscode.window.showInformationMessage('Language Check: Core binary downloaded successfully. Restarting...');
+                    startClient();
+                    initializeClient();
+                } catch (err) {
+                    vscode.window.showErrorMessage(`Language Check: Download failed: ${err}`);
                 }
-            });
-        }
-    };
+            } else if (selection === 'Manual Setup') {
+                vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${GITHUB_REPO}/releases`));
+            }
+        });
+    }
+
+    startClient();
 
     // Initialize with workspace root
     initializeClient();
