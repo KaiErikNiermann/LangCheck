@@ -51,7 +51,12 @@ impl Engine for HarperEngine {
                         harper_core::linting::Suggestion::ReplaceWith(chars) => {
                             chars.into_iter().collect::<String>()
                         }
-                        _ => s.to_string(),
+                        harper_core::linting::Suggestion::InsertAfter(chars) => {
+                            let content: String = chars.into_iter().collect();
+                            format!("Insert \"{content}\"")
+                        }
+                        // Empty string replacement = delete the diagnostic range
+                        harper_core::linting::Suggestion::Remove => String::new(),
                     })
                     .collect();
 

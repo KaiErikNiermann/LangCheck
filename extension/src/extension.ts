@@ -246,7 +246,7 @@ export function activate(context: vscode.ExtensionContext) {
                             fix.edit = new vscode.WorkspaceEdit();
                             // Handle "Insert" suggestions: `Insert ","` means insert
                             // the quoted text, not replace with the literal string
-                            const insertMatch = suggestion.match(/^Insert\s+"(.+)"$/);
+                            const insertMatch = suggestion.match(/^Insert\s+[""\u201C](.+)[""\u201D]$/);
                             if (insertMatch && insertMatch[1]) {
                                 fix.edit.insert(document.uri, diag.range.end, insertMatch[1]);
                             } else {
@@ -875,7 +875,7 @@ async function applyFix(diagnosticId: string, suggestion: string) {
         // at the diagnostic position, not replace the diagnostic range with the
         // literal string `Insert ","`.
         const edit = new vscode.WorkspaceEdit();
-        const insertMatch = suggestion.match(/^Insert\s+"(.+)"$/);
+        const insertMatch = suggestion.match(/^Insert\s+[""\u201C](.+)[""\u201D]$/);
         if (insertMatch && insertMatch[1]) {
             // Insertion: insert the quoted content at the end of the diagnostic range
             edit.insert(uri, diagnostic.range.end, insertMatch[1]);
