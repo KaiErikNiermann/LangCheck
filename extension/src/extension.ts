@@ -375,7 +375,7 @@ export function activate(context: vscode.ExtensionContext) {
             });
             if (response.ok) {
                 // Optimistic removal: remove all spelling diagnostics for this word immediately
-                const editor = vscode.window.activeTextEditor;
+                const editor = findEditorWithDiagnostics();
                 let removedCount = 0;
                 const wordLower = word.toLowerCase();
                 if (editor) {
@@ -887,8 +887,19 @@ async function updateInspectorData() {
     }
 }
 
+/** Find a text editor that has diagnostics, preferring activeTextEditor.
+ *  Falls back to visibleTextEditors when a webview panel has stolen focus. */
+function findEditorWithDiagnostics(): vscode.TextEditor | undefined {
+    const active = vscode.window.activeTextEditor;
+    if (active && diagnosticsMap.has(active.document.uri.toString())) return active;
+    // Fallback: find a visible editor that has diagnostics
+    return vscode.window.visibleTextEditors.find(e =>
+        diagnosticsMap.has(e.document.uri.toString())
+    );
+}
+
 async function applyFix(diagnosticId: string, suggestion: string) {
-    const editor = vscode.window.activeTextEditor;
+    const editor = findEditorWithDiagnostics();
     if (!editor) return;
 
     const uri = editor.document.uri;
@@ -934,7 +945,7 @@ async function applyFix(diagnosticId: string, suggestion: string) {
 }
 
 async function ignoreDiagnostic(diagnosticId: string) {
-    const editor = vscode.window.activeTextEditor;
+    const editor = findEditorWithDiagnostics();
     if (!editor || !client) return;
 
     const uri = editor.document.uri.toString();
@@ -974,9 +985,10 @@ interface ExtendedDiagnostic extends vscode.Diagnostic {
 const diagnosticsMap = new Map<string, ExtendedDiagnostic[]>();
 
 function updateSpeedFixDiagnostics() {
-    if (!speedFixPanel || !vscode.window.activeTextEditor) return;
+    if (!speedFixPanel) return;
+    const editor = findEditorWithDiagnostics() ?? vscode.window.activeTextEditor;
+    if (!editor) return;
 
-    const editor = vscode.window.activeTextEditor;
     const diagnostics = diagnosticsMap.get(editor.document.uri.toString());
     const fileName = path.basename(editor.document.uri.fsPath);
 
