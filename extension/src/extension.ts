@@ -956,11 +956,15 @@ async function ignoreDiagnostic(diagnosticId: string) {
     const diagnostic = diagnostics[index];
     if (diagnostic) {
         sendSpeedFixLoading(true);
-        // Send ignore request to core
+        // Send ignore request to core with full document text + original byte
+        // offsets so the fingerprint matches the one created during checkProse.
         await client.sendRequest({
             ignore: {
                 message: diagnostic.message,
-                context: editor.document.getText(diagnostic.range)
+                context: editor.document.getText(diagnostic.range),
+                text: editor.document.getText(),
+                startByte: diagnostic.coreStartByte ?? 0,
+                endByte: diagnostic.coreEndByte ?? 0,
             }
         });
 
@@ -980,6 +984,9 @@ async function ignoreDiagnostic(diagnosticId: string) {
 interface ExtendedDiagnostic extends vscode.Diagnostic {
     suggestions?: string[];
     confidence?: number;
+    /** Original byte offsets from the core, needed for fingerprint matching. */
+    coreStartByte?: number;
+    coreEndByte?: number;
 }
 
 const diagnosticsMap = new Map<string, ExtendedDiagnostic[]>();
@@ -1052,6 +1059,8 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
                     diagnostic.code = d.ruleId;
                 }
                 diagnostic.suggestions = d.suggestions || [];
+                diagnostic.coreStartByte = d.startByte as number;
+                diagnostic.coreEndByte = d.endByte as number;
                 if (d.confidence !== null && d.confidence !== undefined) {
                     diagnostic.confidence = d.confidence;
                 }

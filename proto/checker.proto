@@ -20,6 +20,9 @@ message InitializeRequest {
 message IgnoreRequest {
   string message = 1;
   string context = 2;
+  string text = 3;
+  uint32 start_byte = 4;
+  uint32 end_byte = 5;
 }
 
 message Response {

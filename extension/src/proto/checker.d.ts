@@ -238,6 +238,15 @@ export namespace languagecheck {
 
         /** IgnoreRequest context */
         context?: (string|null);
+
+        /** IgnoreRequest text */
+        text?: (string|null);
+
+        /** IgnoreRequest startByte */
+        startByte?: (number|null);
+
+        /** IgnoreRequest endByte */
+        endByte?: (number|null);
     }
 
     /** Represents an IgnoreRequest. */
@@ -254,6 +263,15 @@ export namespace languagecheck {
 
         /** IgnoreRequest context. */
         public context: string;
+
+        /** IgnoreRequest text. */
+        public text: string;
+
+        /** IgnoreRequest startByte. */
+        public startByte: number;
+
+        /** IgnoreRequest endByte. */
+        public endByte: number;
 
         /**
          * Creates a new IgnoreRequest instance using the specified properties.

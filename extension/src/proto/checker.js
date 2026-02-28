@@ -638,6 +638,9 @@ $root.languagecheck = (function() {
          * @interface IIgnoreRequest
          * @property {string|null} [message] IgnoreRequest message
          * @property {string|null} [context] IgnoreRequest context
+         * @property {string|null} [text] IgnoreRequest text
+         * @property {number|null} [startByte] IgnoreRequest startByte
+         * @property {number|null} [endByte] IgnoreRequest endByte
          */
 
         /**
@@ -672,6 +675,30 @@ $root.languagecheck = (function() {
         IgnoreRequest.prototype.context = "";
 
         /**
+         * IgnoreRequest text.
+         * @member {string} text
+         * @memberof languagecheck.IgnoreRequest
+         * @instance
+         */
+        IgnoreRequest.prototype.text = "";
+
+        /**
+         * IgnoreRequest startByte.
+         * @member {number} startByte
+         * @memberof languagecheck.IgnoreRequest
+         * @instance
+         */
+        IgnoreRequest.prototype.startByte = 0;
+
+        /**
+         * IgnoreRequest endByte.
+         * @member {number} endByte
+         * @memberof languagecheck.IgnoreRequest
+         * @instance
+         */
+        IgnoreRequest.prototype.endByte = 0;
+
+        /**
          * Creates a new IgnoreRequest instance using the specified properties.
          * @function create
          * @memberof languagecheck.IgnoreRequest
@@ -699,6 +726,12 @@ $root.languagecheck = (function() {
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.message);
             if (message.context != null && Object.hasOwnProperty.call(message, "context"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.context);
+            if (message.text != null && Object.hasOwnProperty.call(message, "text"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.text);
+            if (message.startByte != null && Object.hasOwnProperty.call(message, "startByte"))
+                writer.uint32(/* id 4, wireType 0 =*/32).uint32(message.startByte);
+            if (message.endByte != null && Object.hasOwnProperty.call(message, "endByte"))
+                writer.uint32(/* id 5, wireType 0 =*/40).uint32(message.endByte);
             return writer;
         };
 
@@ -743,6 +776,18 @@ $root.languagecheck = (function() {
                         message.context = reader.string();
                         break;
                     }
+                case 3: {
+                        message.text = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.startByte = reader.uint32();
+                        break;
+                    }
+                case 5: {
+                        message.endByte = reader.uint32();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -784,6 +829,15 @@ $root.languagecheck = (function() {
             if (message.context != null && message.hasOwnProperty("context"))
                 if (!$util.isString(message.context))
                     return "context: string expected";
+            if (message.text != null && message.hasOwnProperty("text"))
+                if (!$util.isString(message.text))
+                    return "text: string expected";
+            if (message.startByte != null && message.hasOwnProperty("startByte"))
+                if (!$util.isInteger(message.startByte))
+                    return "startByte: integer expected";
+            if (message.endByte != null && message.hasOwnProperty("endByte"))
+                if (!$util.isInteger(message.endByte))
+                    return "endByte: integer expected";
             return null;
         };
 
@@ -803,6 +857,12 @@ $root.languagecheck = (function() {
                 message.message = String(object.message);
             if (object.context != null)
                 message.context = String(object.context);
+            if (object.text != null)
+                message.text = String(object.text);
+            if (object.startByte != null)
+                message.startByte = object.startByte >>> 0;
+            if (object.endByte != null)
+                message.endByte = object.endByte >>> 0;
             return message;
         };
 
@@ -822,11 +882,20 @@ $root.languagecheck = (function() {
             if (options.defaults) {
                 object.message = "";
                 object.context = "";
+                object.text = "";
+                object.startByte = 0;
+                object.endByte = 0;
             }
             if (message.message != null && message.hasOwnProperty("message"))
                 object.message = message.message;
             if (message.context != null && message.hasOwnProperty("context"))
                 object.context = message.context;
+            if (message.text != null && message.hasOwnProperty("text"))
+                object.text = message.text;
+            if (message.startByte != null && message.hasOwnProperty("startByte"))
+                object.startByte = message.startByte;
+            if (message.endByte != null && message.hasOwnProperty("endByte"))
+                object.endByte = message.endByte;
             return object;
         };
 

@@ -438,8 +438,24 @@ async fn main() -> Result<()> {
             }
             Some(checker::request::Payload::Ignore(req)) => {
                 let mut ignore_store = ignore_store_arc.lock().await;
-                let fingerprint =
-                    DiagnosticFingerprint::new(&req.message, &req.context, 0, req.context.len());
+                // Use full document text + byte offsets when available (matches
+                // the fingerprint created during checkProse), falling back to
+                // context-only for backwards compatibility.
+                let fingerprint = if req.text.is_empty() {
+                    DiagnosticFingerprint::new(
+                        &req.message,
+                        &req.context,
+                        0,
+                        req.context.len(),
+                    )
+                } else {
+                    DiagnosticFingerprint::new(
+                        &req.message,
+                        &req.text,
+                        req.start_byte as usize,
+                        req.end_byte as usize,
+                    )
+                };
                 ignore_store.ignore(&fingerprint);
 
                 Some(response::Payload::Ok(checker::OkResponse {}))
