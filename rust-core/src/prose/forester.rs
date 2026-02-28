@@ -479,7 +479,7 @@ mod tests {
         let text = r"\title{Hello World}
 \p{This is a paragraph.}
 ";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -504,7 +504,7 @@ mod tests {
         // Display math between paragraphs (separated by blank line) should
         // not appear in prose ranges.
         let text = "\\p{Text before math.}\n\n##{\\int_0^1 f(x) \\, dx}\n\n\\p{Text after math.}\n";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -534,7 +534,7 @@ mod tests {
 \ref{tree-0001}
 \p{Some actual prose.}
 ";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -561,7 +561,7 @@ mod tests {
         let mut extractor = forester_extractor()?;
 
         let text = "\\p{Before code.}\n```\nfn main() {}\n```\n\\p{After code.}";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -588,7 +588,7 @@ mod tests {
         let mut extractor = forester_extractor()?;
 
         let text = r"\p{This has \em{emphasized} words in it.}";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -613,7 +613,7 @@ mod tests {
   x^2 + y^2 = z^2
 }
 which proves our claim.}";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
 
         // Should bridge across display math
         let bridged = ranges.iter().find(|r| {
@@ -655,7 +655,7 @@ which proves our claim.}";
         let mut extractor = forester_extractor()?;
 
         let text = r"\ol{\li{Item one}\li{Item two}\li{Item three}}";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
 
         // Each \li should be a separate prose range — never merged into one sentence
         assert!(
@@ -684,7 +684,7 @@ which proves our claim.}";
         let mut extractor = forester_extractor()?;
 
         let text = r"\p{The value #{x + y} is positive.}";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -719,7 +719,7 @@ which proves our claim.}";
         // Block math with real newlines inside \p — tree-sitter parses ##{...}
         // as display_math which is in SKIP_KINDS, so it should be excluded.
         let text = "\\p{Consider the equation\n##{  x^2 + y^2 = z^2 }\nwhich is well known.}";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
 
         // The math content should not appear in extracted prose
         for range in &ranges {
@@ -759,7 +759,7 @@ which proves our claim.}";
         let text = r"\solution{
   \p{Prose inside unknown wrapper.}
 }";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -784,7 +784,7 @@ which proves our claim.}";
         let text = r"\p{Real prose here.}
 \mymacro{macro content}
 \p{More real prose.}";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -812,7 +812,7 @@ which proves our claim.}";
 \p{First paragraph.}
 \p{Second paragraph.}
 }";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -853,7 +853,7 @@ which proves our claim.}";
   \end{align*}
 }
 which completes the proof.}}";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
 
         for range in &ranges {
             let clean = range.extract_text(text);
@@ -897,7 +897,7 @@ which completes the proof.}}";
         let mut extractor = forester_extractor()?;
 
         let text = r"\p{This has \em{emphasized} words.}";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
 
         let range = ranges
             .iter()
@@ -931,7 +931,7 @@ which completes the proof.}}";
         // Unknown inline macros like \cf{...} should be excluded from prose
         // (their content is not checked) while surrounding prose bridges.
         let text = r"\li{The carrier \cf{Fin A.n} is important.}";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
 
         for range in &ranges {
             let clean = range.extract_text(text);
@@ -970,7 +970,7 @@ which completes the proof.}}";
   U = \{A, B\} \quad I = \{\texttt{taller} \mapsto \{\langle A, B\rangle\}\}
 }
 \p{Is it a model?}";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
 
         for range in &ranges {
             let clean = range.extract_text(text);
@@ -1018,7 +1018,7 @@ which completes the proof.}}";
   \end{align*}
 }
 \p{Evaluate the terms.}";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
 
         for range in &ranges {
             let clean = range.extract_text(text);
@@ -1063,7 +1063,7 @@ which completes the proof.}}";
     }
     is the structure now a model?
   }";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
 
         for range in &ranges {
             let clean = range.extract_text(text);
@@ -1106,7 +1106,7 @@ which completes the proof.}}";
     \li{Second item.}
   }
 }";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -1136,7 +1136,7 @@ which completes the proof.}}";
 
         // Multiple inline math expressions in a single \li — all should be excluded
         let text = r"\li{#{p(a)} evaluates to #{\top} because #{a = \alpha}.}";
-        let ranges = extractor.extract(text, "forester")?;
+        let ranges = extractor.extract(text, "forester", &[])?;
 
         for range in &ranges {
             let clean = range.extract_text(text);

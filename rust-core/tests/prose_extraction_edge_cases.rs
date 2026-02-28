@@ -12,7 +12,7 @@ fn extract_texts<'a>(
     text: &'a str,
     lang: &str,
 ) -> Result<Vec<String>> {
-    let ranges = extractor.extract(text, lang)?;
+    let ranges = extractor.extract(text, lang, &[])?;
     Ok(ranges
         .iter()
         .map(|r| r.extract_text(text).into_owned())

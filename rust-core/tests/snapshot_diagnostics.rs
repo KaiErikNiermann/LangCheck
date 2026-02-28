@@ -41,7 +41,7 @@ fn prose_extraction_basic_markdown() {
     let lang = tree_sitter_md::LANGUAGE.into();
     let mut ext = ProseExtractor::new(lang).unwrap();
     let text = "# Title\n\nA paragraph.\n\n```rust\nfn main(){}\n```\n\nAnother paragraph.";
-    let ranges = ext.extract(text, "markdown").unwrap();
+    let ranges = ext.extract(text, "markdown", &[]).unwrap();
     let extracted: Vec<&str> = ranges
         .iter()
         .map(|r| &text[r.start_byte..r.end_byte])
@@ -71,7 +71,7 @@ print('ignore this')
 
 Final paragraph with [a link](https://example.com).
 ";
-    let ranges = ext.extract(text, "markdown").unwrap();
+    let ranges = ext.extract(text, "markdown", &[]).unwrap();
     let extracted: Vec<&str> = ranges
         .iter()
         .map(|r| &text[r.start_byte..r.end_byte])
@@ -84,7 +84,7 @@ fn prose_extraction_html() {
     let lang = tree_sitter_html::LANGUAGE.into();
     let mut ext = ProseExtractor::new(lang).unwrap();
     let text = "<html><body><p>Hello world.</p><script>var x = 1;</script><p>Second para.</p></body></html>";
-    let ranges = ext.extract(text, "html").unwrap();
+    let ranges = ext.extract(text, "html", &[]).unwrap();
     let extracted: Vec<&str> = ranges
         .iter()
         .map(|r| &text[r.start_byte..r.end_byte])
@@ -96,7 +96,7 @@ fn prose_extraction_html() {
 fn prose_extraction_empty_markdown() {
     let lang = tree_sitter_md::LANGUAGE.into();
     let mut ext = ProseExtractor::new(lang).unwrap();
-    let ranges = ext.extract("", "markdown").unwrap();
+    let ranges = ext.extract("", "markdown", &[]).unwrap();
     let extracted: Vec<&str> = ranges
         .iter()
         .map(|r| &""[r.start_byte..r.end_byte])
@@ -109,7 +109,7 @@ fn prose_extraction_code_only_markdown() {
     let lang = tree_sitter_md::LANGUAGE.into();
     let mut ext = ProseExtractor::new(lang).unwrap();
     let text = "```rust\nfn main() {}\n```";
-    let ranges = ext.extract(text, "markdown").unwrap();
+    let ranges = ext.extract(text, "markdown", &[]).unwrap();
     let extracted: Vec<&str> = ranges
         .iter()
         .map(|r| &text[r.start_byte..r.end_byte])
@@ -159,7 +159,7 @@ Final paragraph here.
 
 \end{document}
 ";
-    let ranges = ext.extract(text, "latex").unwrap();
+    let ranges = ext.extract(text, "latex", &[]).unwrap();
     let extracted: Vec<&str> = ranges
         .iter()
         .map(|r| &text[r.start_byte..r.end_byte])
@@ -174,7 +174,7 @@ fn prose_extraction_latex_no_document() {
     let text = r"\section{Test Section}
 Some text without a document environment.
 ";
-    let ranges = ext.extract(text, "latex").unwrap();
+    let ranges = ext.extract(text, "latex", &[]).unwrap();
     let extracted: Vec<&str> = ranges
         .iter()
         .map(|r| &text[r.start_byte..r.end_byte])

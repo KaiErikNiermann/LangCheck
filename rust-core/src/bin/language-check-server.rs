@@ -49,6 +49,7 @@ async fn process_file_for_indexing(
     ignore_store_arc: Arc<Mutex<IgnoreStore>>,
     schema_registry_arc: Arc<Mutex<SchemaRegistry>>,
     workspace_index_arc: Arc<Mutex<Option<WorkspaceIndex>>>,
+    config_arc: Arc<Mutex<Config>>,
     lang_id: String,
 ) -> Result<()> {
     if !file_path.is_file() {
@@ -67,11 +68,13 @@ async fn process_file_for_indexing(
 
     let ranges = {
         let schema_registry = schema_registry_arc.lock().await;
+        let cfg = config_arc.lock().await;
         prose::extract_with_fallback(
             &text,
             &lang_id,
             Some(file_path.as_path()),
             Some(&schema_registry),
+            &cfg.languages.latex.skip_environments,
         )?
     };
     let mut all_diagnostics = Vec::new();
@@ -133,6 +136,7 @@ async fn main() -> Result<()> {
 
     let orchestrator_arc: Arc<Mutex<Orchestrator>> =
         Arc::new(Mutex::new(Orchestrator::new(Config::default())));
+    let config_arc: Arc<Mutex<Config>> = Arc::new(Mutex::new(Config::default()));
     let ignore_store_arc: Arc<Mutex<IgnoreStore>> = Arc::new(Mutex::new(IgnoreStore::new()));
     let dictionary_arc: Arc<Mutex<Dictionary>> = Arc::new(Mutex::new(Dictionary::new()));
     let schema_registry_arc: Arc<Mutex<SchemaRegistry>> =
@@ -143,6 +147,7 @@ async fn main() -> Result<()> {
     // Background indexing task
     let indexing_handle = {
         let orchestrator_arc = orchestrator_arc.clone();
+        let config_arc = config_arc.clone();
         let ignore_store_arc = ignore_store_arc.clone();
         let schema_registry_arc = schema_registry_arc.clone();
         let workspace_index_arc = workspace_index_arc.clone();
@@ -199,6 +204,7 @@ async fn main() -> Result<()> {
                                 }
 
                                 let task_orchestrator = orchestrator_arc.clone();
+                                let task_config = config_arc.clone();
                                 let task_ignore_store = ignore_store_arc.clone();
                                 let task_schema_registry = schema_registry_arc.clone();
                                 let task_workspace_index = workspace_index_arc.clone();
@@ -210,6 +216,7 @@ async fn main() -> Result<()> {
                                     task_ignore_store,
                                     task_schema_registry,
                                     task_workspace_index,
+                                    task_config,
                                     lang_id,
                                 )));
                             }
@@ -288,6 +295,7 @@ async fn main() -> Result<()> {
 
                 let config = Config::load(&root_path).unwrap_or_else(|_| Config::default());
                 orchestrator_arc.lock().await.update_config(config.clone());
+                *config_arc.lock().await = config.clone();
 
                 // Load persisted ignore store and dictionary from workspace
                 match Dictionary::load(&root_path) {
@@ -351,11 +359,13 @@ async fn main() -> Result<()> {
                 let file_path = req.file_path.as_deref().map(Path::new);
                 let extraction = {
                     let schema_registry = schema_registry_arc.lock().await;
+                    let cfg = config_arc.lock().await;
                     prose::extract_with_fallback(
                         &req.text,
                         canonical_lang,
                         file_path,
                         Some(&schema_registry),
+                        &cfg.languages.latex.skip_environments,
                     )
                 };
 

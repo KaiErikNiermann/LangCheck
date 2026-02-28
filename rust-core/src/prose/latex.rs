@@ -52,6 +52,7 @@ const SKIP_GENERIC_ENVS: &[&str] = &[
     "Bmatrix",
     "Vmatrix",
     "cases",
+    "bnf",
 ];
 
 /// Node types that represent math and should be skipped.
@@ -113,11 +114,11 @@ const SKIP_GENERIC_COMMANDS: &[&str] = &[
 /// Walks the tree collecting `word` leaf nodes, skipping preamble, math,
 /// verbatim, and other non-prose environments. Adjacent words are merged
 /// into sentence-level prose chunks.
-pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
+pub(crate) fn extract(text: &str, root: Node, extra_skip_envs: &[String]) -> Vec<ProseRange> {
     let doc_start = find_document_body_start(root, text);
 
     let mut word_ranges: Vec<(usize, usize)> = Vec::new();
-    collect_words(root, text, doc_start, false, &mut word_ranges);
+    collect_words(root, text, doc_start, false, extra_skip_envs, &mut word_ranges);
 
     shared::merge_ranges(
         &word_ranges,
@@ -168,6 +169,7 @@ fn collect_words(
     text: &str,
     doc_start: usize,
     in_structural: bool,
+    extra_skip_envs: &[String],
     out: &mut Vec<(usize, usize)>,
 ) {
     if node.end_byte() <= doc_start {
@@ -180,7 +182,7 @@ fn collect_words(
         return;
     }
 
-    if kind == "generic_environment" && should_skip_generic_env(node, text) {
+    if kind == "generic_environment" && should_skip_generic_env(node, text, extra_skip_envs) {
         return;
     }
 
@@ -203,12 +205,12 @@ fn collect_words(
 
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        collect_words(child, text, doc_start, structural, out);
+        collect_words(child, text, doc_start, structural, extra_skip_envs, out);
     }
 }
 
 /// Check if a `generic_environment` node should be skipped based on its name.
-fn should_skip_generic_env(node: Node, text: &str) -> bool {
+fn should_skip_generic_env(node: Node, text: &str, extra_skip_envs: &[String]) -> bool {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() != "begin" {
@@ -225,7 +227,11 @@ fn should_skip_generic_env(node: Node, text: &str) -> bool {
                     continue;
                 }
                 let env_name = &text[name_child.start_byte()..name_child.end_byte()];
-                return SKIP_GENERIC_ENVS.contains(&env_name.trim());
+                let env_name = env_name.trim();
+                if SKIP_GENERIC_ENVS.contains(&env_name) {
+                    return true;
+                }
+                return extra_skip_envs.iter().any(|e| e == env_name);
             }
         }
         break;
@@ -493,7 +499,7 @@ Another paragraph after verbatim.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -545,7 +551,7 @@ Text after display math.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -587,7 +593,7 @@ Hello world.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -617,7 +623,7 @@ Hello world.
         let text = r"\section{Test}
 Some text here.
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -684,7 +690,7 @@ method InsertionSortA(a : array<int>)
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -739,7 +745,7 @@ Text after algorithm.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -771,7 +777,7 @@ Some text, with a comma and more text after it.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -809,7 +815,7 @@ Some text after.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -847,7 +853,7 @@ which proves our claim.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
 
         // The sentence should bridge across the display math
         let bridged = ranges.iter().any(|r| {
@@ -917,7 +923,7 @@ the intuition here being that all elements are in sorted order.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
 
         // Should bridge across \[...\] into one chunk
         let bridged = ranges.iter().find(|r| {
@@ -976,7 +982,7 @@ The proof is complete.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -1020,7 +1026,7 @@ Hello world.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -1052,7 +1058,7 @@ Some real prose here.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -1072,6 +1078,51 @@ Some real prose here.
     }
 
     #[test]
+    fn test_latex_bnf_env_skipped() -> Result<()> {
+        let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+
+        let text = r"\documentclass{article}
+\begin{document}
+
+The syntax is defined as follows.
+\begin{bnf}(
+        prod-delim={--},
+        comment={//},
+      )[
+        colspec = {llcll},
+      ]
+      e // Expr ::=
+      | n // number
+    \end{bnf}
+
+That concludes the grammar.
+
+\end{document}
+";
+        let ranges = extractor.extract(text, "latex", &[])?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted.iter().any(|t| t.contains("syntax is defined")),
+            "Should extract prose before bnf, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("concludes the grammar")),
+            "Should extract prose after bnf, got: {extracted:?}"
+        );
+        assert!(
+            !extracted.iter().any(|t| t.contains("prod-delim") || t.contains("colspec")),
+            "Should NOT extract bnf parameters, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_latex_inline_math_excluded_from_text() -> Result<()> {
         let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
         let mut extractor = ProseExtractor::new(language)?;
@@ -1083,7 +1134,7 @@ The value $x + 1$ is positive and $y - 2$ is negative.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
 
         let range = ranges
             .iter()
@@ -1126,7 +1177,7 @@ We define \(f(x) = x^2\) for all reals.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
 
         let range = ranges
             .iter()
@@ -1161,7 +1212,7 @@ The \textsc{Foo} method solves \textbf{bar} problems.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "latex")?;
+        let ranges = extractor.extract(text, "latex", &[])?;
 
         let range = ranges
             .iter()
@@ -1189,6 +1240,58 @@ The \textsc{Foo} method solves \textbf{bar} problems.
         assert!(
             clean.contains("solves"),
             "extract_text should preserve surrounding prose, got: {clean:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_latex_custom_skip_env() -> Result<()> {
+        let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+
+        let text = r"\documentclass{article}
+\begin{document}
+
+Text before custom env.
+
+\begin{prooftree}
+  Some proof tree content here.
+\end{prooftree}
+
+Text after custom env.
+
+\end{document}
+";
+        // Without extra skip envs, prooftree content is extracted
+        let ranges = extractor.extract(text, "latex", &[])?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+        assert!(
+            extracted.iter().any(|t| t.contains("proof tree content")),
+            "Without config, prooftree content should be extracted, got: {extracted:?}"
+        );
+
+        // With extra skip envs, prooftree content is skipped
+        let extra = vec!["prooftree".to_string()];
+        let ranges = extractor.extract(text, "latex", &extra)?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+        assert!(
+            !extracted.iter().any(|t| t.contains("proof tree content")),
+            "With config, prooftree content should be skipped, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("Text before")),
+            "Prose before should still be extracted, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("Text after")),
+            "Prose after should still be extracted, got: {extracted:?}"
         );
 
         Ok(())

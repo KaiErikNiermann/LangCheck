@@ -11,6 +11,7 @@ Complete reference for `.languagecheck.yaml`.
 | `exclude`     | `string[]`                  | `["node_modules/**", ".git/**"]` | Glob patterns to skip |
 | `auto_fix`    | [`AutoFixRule[]`](#auto-fix)| `[]`                  | Custom find/replace rules     |
 | `performance` | [`PerformanceConfig`](#performance)| See below     | Performance tuning            |
+| `languages`   | [`LanguageConfig`](#languages)     | See below     | Per-language settings          |
 
 ## Engines
 
@@ -61,3 +62,28 @@ Complete reference for `.languagecheck.yaml`.
 | `high_performance_mode`| `bool`  | `false` | Only use Harper (skip LT/externals) |
 | `debounce_ms`          | `number`| `300`   | LSP debounce delay in milliseconds  |
 | `max_file_size`        | `number`| `0`     | Max file size in bytes (0=unlimited)|
+
+## Languages
+
+| Field        | Type                                  | Default | Description                          |
+|-------------|---------------------------------------|---------|--------------------------------------|
+| `extensions`| `map<string, string[]>`               | `{}`    | Additional file extensions per language ID |
+| `latex`     | [`LaTeXConfig`](#languages-latex)     | See below | LaTeX-specific settings            |
+
+### `languages.latex`
+
+| Field               | Type       | Default | Description                                     |
+|--------------------|------------|---------|--------------------------------------------------|
+| `skip_environments`| `string[]` | `[]`    | Extra environment names to skip during prose extraction |
+
+Environments listed here are skipped in addition to the built-in set (algorithm,
+equation, tikzpicture, tabular, etc.). Use this for custom or niche environments
+whose content should not be grammar-checked.
+
+```yaml
+languages:
+  latex:
+    skip_environments:
+      - prooftree
+      - mycustomenv
+```

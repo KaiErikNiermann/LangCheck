@@ -29,7 +29,12 @@ impl ProseExtractor {
         Ok(Self { parser, language })
     }
 
-    pub fn extract(&mut self, text: &str, lang_id: &str) -> Result<Vec<ProseRange>> {
+    pub fn extract(
+        &mut self,
+        text: &str,
+        lang_id: &str,
+        extra_skip_envs: &[String],
+    ) -> Result<Vec<ProseRange>> {
         let tree = self
             .parser
             .parse(text, None)
@@ -38,8 +43,8 @@ impl ProseExtractor {
         let root = tree.root_node();
 
         match lang_id {
-            "latex" => Ok(latex::extract(text, root)),
-            "sweave" => Ok(sweave::extract(text, root)),
+            "latex" => Ok(latex::extract(text, root, extra_skip_envs)),
+            "sweave" => Ok(sweave::extract(text, root, extra_skip_envs)),
             "forester" => Ok(forester::extract(text, root)),
             "tinylang" => Ok(tinylang::extract(text, root)),
             "rst" => Ok(rst::extract(text, root)),
@@ -60,6 +65,7 @@ pub fn extract_with_fallback(
     lang_id: &str,
     path: Option<&Path>,
     schema_registry: Option<&SchemaRegistry>,
+    extra_skip_envs: &[String],
 ) -> Result<Vec<ProseRange>> {
     if let Some(ext) = path
         .and_then(|value| value.extension())
@@ -73,7 +79,7 @@ pub fn extract_with_fallback(
     let canonical_lang = crate::languages::resolve_language_id(lang_id);
     let language = crate::languages::resolve_ts_language(canonical_lang);
     let mut extractor = ProseExtractor::new(language)?;
-    let mut ranges = extractor.extract(text, canonical_lang)?;
+    let mut ranges = extractor.extract(text, canonical_lang, extra_skip_envs)?;
 
     let directives = IgnoreParser::parse_directives(text);
     let resolved = IgnoreParser::resolve_all(text, &directives);
@@ -83,7 +89,7 @@ pub fn extract_with_fallback(
         .filter(|r| r.options.doc_type.is_some())
         .collect();
     if !type_regions.is_empty() {
-        ranges = apply_type_overrides(text, ranges, &type_regions)?;
+        ranges = apply_type_overrides(text, ranges, &type_regions, extra_skip_envs)?;
     }
 
     Ok(ranges)
@@ -99,6 +105,7 @@ fn apply_type_overrides(
     text: &str,
     base_ranges: Vec<ProseRange>,
     type_regions: &[&DirectiveRegion],
+    extra_skip_envs: &[String],
 ) -> Result<Vec<ProseRange>> {
     let override_spans: Vec<&Range<usize>> =
         type_regions.iter().map(|r| &r.byte_range).collect();
@@ -123,7 +130,7 @@ fn apply_type_overrides(
         let slice = &text[region.byte_range.clone()];
         let ts_lang = crate::languages::resolve_ts_language(canonical);
         let mut ext = ProseExtractor::new(ts_lang)?;
-        let sub_ranges = ext.extract(slice, canonical)?;
+        let sub_ranges = ext.extract(slice, canonical, extra_skip_envs)?;
 
         let offset = region.byte_range.start;
         for mut r in sub_ranges {
@@ -198,7 +205,7 @@ mod tests {
 
         let text =
             "# Header\n\nThis is a paragraph.\n\n```rust\nfn main() {}\n```\n\nAnother paragraph.";
-        let ranges = extractor.extract(text, "markdown")?;
+        let ranges = extractor.extract(text, "markdown", &[])?;
 
         assert!(ranges.len() >= 3);
 
@@ -252,7 +259,7 @@ Some intro text.
 
 Final paragraph.";
 
-        let ranges = extract_with_fallback(text, "markdown", None, None)?;
+        let ranges = extract_with_fallback(text, "markdown", None, None, &[])?;
 
         let texts: Vec<&str> = ranges
             .iter()
@@ -285,7 +292,7 @@ Some content here.
 
 Trailing text.";
 
-        let ranges = extract_with_fallback(text, "markdown", None, None)?;
+        let ranges = extract_with_fallback(text, "markdown", None, None, &[])?;
 
         let texts: Vec<&str> = ranges
             .iter()
@@ -318,7 +325,7 @@ Some LaTeX prose.
 
 Last paragraph after.";
 
-        let ranges = extract_with_fallback(text, "markdown", None, None)?;
+        let ranges = extract_with_fallback(text, "markdown", None, None, &[])?;
 
         let texts: Vec<&str> = ranges
             .iter()

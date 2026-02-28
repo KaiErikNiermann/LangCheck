@@ -156,7 +156,7 @@ mod tests {
   year = {2024},
 }
 "#;
-        let ranges = extractor.extract(text, "bibtex")?;
+        let ranges = extractor.extract(text, "bibtex", &[])?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
 
         assert!(
@@ -184,7 +184,7 @@ mod tests {
   journal = {Nature},
 }
 "#;
-        let ranges = extractor.extract(text, "bibtex")?;
+        let ranges = extractor.extract(text, "bibtex", &[])?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
 
         assert!(
@@ -208,7 +208,7 @@ mod tests {
   publisher = {Addison-Wesley},
 }
 "#;
-        let ranges = extractor.extract(text, "bibtex")?;
+        let ranges = extractor.extract(text, "bibtex", &[])?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
 
         assert!(
@@ -230,7 +230,7 @@ mod tests {
   title = {A Paper on \emph{Important} Things},
 }
 "#;
-        let ranges = extractor.extract(text, "bibtex")?;
+        let ranges = extractor.extract(text, "bibtex", &[])?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
 
         assert!(
@@ -257,7 +257,7 @@ mod tests {
   doi = {10.1234/example},
 }
 "#;
-        let ranges = extractor.extract(text, "bibtex")?;
+        let ranges = extractor.extract(text, "bibtex", &[])?;
         assert!(
             ranges.is_empty(),
             "No prose fields present, should have no ranges, got: {:?}",

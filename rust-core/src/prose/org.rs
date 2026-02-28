@@ -88,7 +88,7 @@ mod tests {
     fn test_org_basic_extraction() -> Result<()> {
         let mut extractor = org_extractor()?;
         let text = "* Introduction\n\nThis is a paragraph.\n";
-        let ranges = extractor.extract(text, "org")?;
+        let ranges = extractor.extract(text, "org", &[])?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
 
         assert!(
@@ -108,7 +108,7 @@ mod tests {
         let mut extractor = org_extractor()?;
         let text =
             "Some text.\n\n#+begin_src python\ndef hello():\n    pass\n#+end_src\n\nMore text.\n";
-        let ranges = extractor.extract(text, "org")?;
+        let ranges = extractor.extract(text, "org", &[])?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
 
         assert!(
@@ -131,7 +131,7 @@ mod tests {
     fn test_org_drawer_excluded() -> Result<()> {
         let mut extractor = org_extractor()?;
         let text = "* Heading\n\n:PROPERTIES:\n:ID: some-id\n:END:\n\nSome prose.\n";
-        let ranges = extractor.extract(text, "org")?;
+        let ranges = extractor.extract(text, "org", &[])?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
 
         assert!(
@@ -150,7 +150,7 @@ mod tests {
     fn test_org_list_items_extracted() -> Result<()> {
         let mut extractor = org_extractor()?;
         let text = "- First item\n- Second item\n";
-        let ranges = extractor.extract(text, "org")?;
+        let ranges = extractor.extract(text, "org", &[])?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
 
         assert!(
@@ -169,7 +169,7 @@ mod tests {
     fn test_org_latex_env_excluded() -> Result<()> {
         let mut extractor = org_extractor()?;
         let text = "Before math.\n\n\\begin{equation}\nE = mc^2\n\\end{equation}\n\nAfter math.\n";
-        let ranges = extractor.extract(text, "org")?;
+        let ranges = extractor.extract(text, "org", &[])?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
 
         assert!(

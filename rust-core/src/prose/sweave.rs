@@ -128,7 +128,7 @@ fn is_chunk_end(line: &[u8]) -> bool {
 /// LaTeX prose extractor. Since preprocessing preserves byte offsets (replacing
 /// code bytes with spaces and keeping newlines), the returned ranges map
 /// directly back to the original document.
-pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
+pub(crate) fn extract(text: &str, root: Node, extra_skip_envs: &[String]) -> Vec<ProseRange> {
     let preprocessed = preprocess(text);
 
     // Re-parse the preprocessed text with the same LaTeX grammar so that the
@@ -144,7 +144,7 @@ pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     // Use the original root parameter is ignored; we parse fresh.
     let _ = root;
 
-    latex::extract(&preprocessed, new_root)
+    latex::extract(&preprocessed, new_root, extra_skip_envs)
 }
 
 #[cfg(test)]
@@ -246,7 +246,7 @@ Another paragraph after the R chunk.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "sweave")?;
+        let ranges = extractor.extract(text, "sweave", &[])?;
         let extracted: Vec<&str> = ranges
             .iter()
             .map(|r| &text[r.start_byte..r.end_byte])
@@ -286,7 +286,7 @@ Some prose after code.
 
 \end{document}
 ";
-        let ranges = extractor.extract(text, "sweave")?;
+        let ranges = extractor.extract(text, "sweave", &[])?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
 
         assert!(

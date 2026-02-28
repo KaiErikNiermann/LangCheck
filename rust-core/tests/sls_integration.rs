@@ -89,7 +89,7 @@ skip_blocks: []
     let registry = SchemaRegistry::from_workspace(&workspace).expect("registry should load");
     let text = "My Title\n========\n\nThis is a paragraph.\n";
     let path = workspace.join("doc.rst");
-    let ranges = prose::extract_with_fallback(&text, "rst", Some(&path), Some(&registry))
+    let ranges = prose::extract_with_fallback(&text, "rst", Some(&path), Some(&registry), &[])
         .expect("built-in rst extractor should be used");
 
     assert!(!ranges.is_empty());

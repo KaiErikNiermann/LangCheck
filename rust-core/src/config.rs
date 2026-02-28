@@ -38,6 +38,26 @@ pub struct LanguageConfig {
     /// Additional file extensions per language ID (without leading dots).
     #[serde(default)]
     pub extensions: HashMap<String, Vec<String>>,
+    /// LaTeX-specific settings.
+    #[serde(default)]
+    pub latex: LaTeXConfig,
+}
+
+/// LaTeX-specific configuration.
+///
+/// ```yaml
+/// languages:
+///   latex:
+///     skip_environments:
+///       - prooftree
+///       - mycustomenv
+/// ```
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct LaTeXConfig {
+    /// Extra environment names to skip during prose extraction.
+    /// These are checked in addition to the built-in skip list.
+    #[serde(default)]
+    pub skip_environments: Vec<String>,
 }
 
 /// Performance tuning options. High Performance Mode (HPM) disables
@@ -582,5 +602,27 @@ performance:
         assert!(config.performance.high_performance_mode);
         assert_eq!(config.performance.debounce_ms, 500);
         assert_eq!(config.performance.max_file_size, 1_048_576);
+    }
+
+    #[test]
+    fn latex_skip_environments_from_yaml() {
+        let yaml = r#"
+languages:
+  latex:
+    skip_environments:
+      - prooftree
+      - mycustomenv
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(
+            config.languages.latex.skip_environments,
+            vec!["prooftree", "mycustomenv"]
+        );
+    }
+
+    #[test]
+    fn default_config_has_empty_latex_skip_environments() {
+        let config = Config::default();
+        assert!(config.languages.latex.skip_environments.is_empty());
     }
 }

@@ -213,7 +213,7 @@ mod tests {
         let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
         let mut extractor = ProseExtractor::new(language)?;
         let text = "This is a simple sentence.\n";
-        let ranges = extractor.extract(text, "tinylang")?;
+        let ranges = extractor.extract(text, "tinylang", &[])?;
         assert!(!ranges.is_empty(), "Should extract prose from plain text");
         let prose = ranges[0].extract_text(text);
         assert!(
@@ -229,7 +229,7 @@ mod tests {
         let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
         let mut extractor = ProseExtractor::new(language)?;
         let text = "Before code.\n\n~~~\nfn main() {}\n~~~\n\nAfter code.\n";
-        let ranges = extractor.extract(text, "tinylang")?;
+        let ranges = extractor.extract(text, "tinylang", &[])?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
         assert!(
             !all_prose.contains("fn main"),
@@ -249,7 +249,7 @@ mod tests {
         let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
         let mut extractor = ProseExtractor::new(language)?;
         let text = "@author{Jane Doe}\n@date{2025-01-01}\n\nSome prose text here.\n";
-        let ranges = extractor.extract(text, "tinylang")?;
+        let ranges = extractor.extract(text, "tinylang", &[])?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
         assert!(
             !all_prose.contains("Jane Doe"),
@@ -269,7 +269,7 @@ mod tests {
         let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
         let mut extractor = ProseExtractor::new(language)?;
         let text = "The formula $E = mc^2$ is famous.\n";
-        let ranges = extractor.extract(text, "tinylang")?;
+        let ranges = extractor.extract(text, "tinylang", &[])?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
         assert!(
             !all_prose.contains("mc^2"),
@@ -289,7 +289,7 @@ mod tests {
         let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
         let mut extractor = ProseExtractor::new(language)?;
         let text = "Visible text.\n// This is a comment\nMore text.\n";
-        let ranges = extractor.extract(text, "tinylang")?;
+        let ranges = extractor.extract(text, "tinylang", &[])?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
         assert!(
             !all_prose.contains("This is a comment"),
@@ -304,7 +304,7 @@ mod tests {
         let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
         let mut extractor = ProseExtractor::new(language)?;
         let text = "@title{My Great Document}\n\nSome text.\n";
-        let ranges = extractor.extract(text, "tinylang")?;
+        let ranges = extractor.extract(text, "tinylang", &[])?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
         assert!(
             all_prose.contains("Great Document"),
