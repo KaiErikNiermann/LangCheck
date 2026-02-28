@@ -119,7 +119,7 @@ impl ProseExtractor {
         let doc_start = find_document_body_start(root, text);
 
         let mut word_ranges: Vec<(usize, usize)> = Vec::new();
-        collect_latex_words(root, text, doc_start, &mut word_ranges);
+        collect_latex_words(root, text, doc_start, false, &mut word_ranges);
 
         // Merge adjacent word ranges into prose chunks.
         // Words separated by only whitespace/punctuation (no commands) get merged.
@@ -144,11 +144,15 @@ fn find_document_body_start(root: Node, text: &str) -> usize {
     0
 }
 
-/// Recursively collect `word` leaf nodes, skipping excluded subtrees.
+/// Recursively collect prose leaf nodes (`word` and punctuation), skipping
+/// excluded subtrees. The `in_structural` flag propagates through the tree
+/// so that `word` nodes nested inside structural parents (at any depth) are
+/// skipped.
 fn collect_latex_words(
     node: Node,
     text: &str,
     doc_start: usize,
+    in_structural: bool,
     out: &mut Vec<(usize, usize)>,
 ) {
     // Skip anything before \begin{document}
@@ -163,22 +167,22 @@ fn collect_latex_words(
         return;
     }
 
-    // Skip structural parents — their word children are env names, not prose
-    if LATEX_STRUCTURAL_PARENTS.contains(&kind) {
-        return;
-    }
-
     // For generic_environment, check if its name is in the skip list
     if kind == "generic_environment" && should_skip_generic_env(node, text) {
         return;
     }
 
-    // `word` is a leaf node — this is actual prose text
+    // Track whether we're inside a structural parent
+    let structural = in_structural || LATEX_STRUCTURAL_PARENTS.contains(&kind);
+
+    // `word` is a leaf node — this is actual prose text (unless inside structural)
     if kind == "word" {
-        let start = node.start_byte();
-        let end = node.end_byte();
-        if start >= doc_start && start < end {
-            out.push((start, end));
+        if !structural {
+            let start = node.start_byte();
+            let end = node.end_byte();
+            if start >= doc_start && start < end {
+                out.push((start, end));
+            }
         }
         return;
     }
@@ -186,7 +190,7 @@ fn collect_latex_words(
     // Recurse into children
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        collect_latex_words(child, text, doc_start, out);
+        collect_latex_words(child, text, doc_start, structural, out);
     }
 }
 
@@ -217,10 +221,19 @@ fn should_skip_generic_env(node: Node, text: &str) -> bool {
 
 /// Merge word byte ranges into larger prose chunks.
 ///
-/// Two adjacent words are merged only when the gap between them is **pure
-/// whitespace** (spaces, tabs, single newlines). Any gap that contains
-/// non-whitespace characters (LaTeX commands, math, braces) or a paragraph
-/// break (double newline) starts a new chunk.
+/// Two adjacent words are merged when they belong to the same sentence/block.
+/// We break on:
+/// - Paragraph breaks (blank lines / double newlines)
+/// - Gaps that start new structural blocks (e.g. `\begin`, `\end`, `\section`)
+///
+/// We deliberately bridge across:
+/// - Inline math (`$...$`, `\(...\)`)
+/// - Punctuation (commas, periods between words)
+/// - Single newlines (LaTeX treats them as spaces)
+/// - Commands within prose (`\textbf{...}`, etc.)
+///
+/// This ensures the grammar checker sees complete sentences even when they
+/// contain inline math like "the variable $i$ is always positive".
 fn merge_word_ranges(words: &[(usize, usize)], text: &str) -> Vec<ProseRange> {
     if words.is_empty() {
         return Vec::new();
@@ -232,10 +245,9 @@ fn merge_word_ranges(words: &[(usize, usize)], text: &str) -> Vec<ProseRange> {
 
     for &(start, end) in &words[1..] {
         let gap = &text[chunk_end..start];
-        let is_pure_whitespace = gap.chars().all(|c| c.is_ascii_whitespace());
-        let is_paragraph_break = gap.contains("\n\n");
+        let should_break = is_paragraph_break(gap) || is_structural_break(gap);
 
-        if !is_pure_whitespace || is_paragraph_break {
+        if should_break {
             // Flush current chunk and start a new one
             ranges.push(ProseRange {
                 start_byte: chunk_start,
@@ -253,6 +265,30 @@ fn merge_word_ranges(words: &[(usize, usize)], text: &str) -> Vec<ProseRange> {
     });
 
     ranges
+}
+
+/// Check if a gap contains a paragraph break (blank line).
+fn is_paragraph_break(gap: &str) -> bool {
+    gap.contains("\n\n") || gap.contains("\r\n\r\n")
+}
+
+/// Check if a gap contains a structural LaTeX command that typically starts
+/// a new block and should break the prose chunk.
+fn is_structural_break(gap: &str) -> bool {
+    // These commands start new structural blocks
+    let structural = [
+        "\\begin{", "\\end{",
+        "\\section", "\\subsection", "\\subsubsection",
+        "\\chapter", "\\part",
+        "\\item",
+        "\\paragraph", "\\subparagraph",
+    ];
+    for cmd in &structural {
+        if gap.contains(cmd) {
+            return true;
+        }
+    }
+    false
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -585,6 +621,80 @@ Text after algorithm.
         assert!(
             extracted.iter().any(|t| t.contains("after algorithm")),
             "Should extract text after algorithm, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_latex_inline_math_bridges() -> Result<()> {
+        let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+
+        let text = r"\documentclass{article}
+\begin{document}
+
+The variable $i$ is always between $1$ and the length of the array.
+
+Some text, with a comma and more text after it.
+
+\end{document}
+";
+        let ranges = extractor.extract(text, "latex")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        // Sentence with inline math should be ONE chunk, not fragmented
+        assert!(
+            extracted.iter().any(|t| t.contains("variable") && t.contains("always between") && t.contains("length")),
+            "Sentence with inline math should be a single chunk bridging across $i$ and $1$, got: {extracted:?}"
+        );
+        // Comma sentence should also be one chunk
+        assert!(
+            extracted.iter().any(|t| t.contains("text,") || (t.contains("text") && t.contains("comma"))),
+            "Sentence with comma should stay together, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_latex_includegraphics_not_extracted() -> Result<()> {
+        let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+
+        let text = r"\documentclass{article}
+\begin{document}
+
+Some text before.
+
+\includegraphics[width=0.5\textwidth]{array.pdf}
+
+Some text after.
+
+\end{document}
+";
+        let ranges = extractor.extract(text, "latex")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        // Should NOT extract "width" or "0.5" from includegraphics optional args
+        assert!(
+            !extracted.iter().any(|t| *t == "width" || *t == "0.5"),
+            "Should NOT extract includegraphics optional args, got: {extracted:?}"
+        );
+        // Should extract surrounding prose
+        assert!(
+            extracted.iter().any(|t| t.contains("text before")),
+            "Should extract prose before includegraphics, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("text after")),
+            "Should extract prose after includegraphics, got: {extracted:?}"
         );
 
         Ok(())

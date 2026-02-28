@@ -4,10 +4,7 @@ expression: extracted
 ---
 - Introduction
 - This is a simple paragraph with some text.
-- Bold text
-- and
-- italic text
-- here.
+- "Bold text} and \\textit{italic text} here."
 - is a famous equation.
 - First list item
 - Second list item

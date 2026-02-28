@@ -244,7 +244,14 @@ export function activate(context: vscode.ExtensionContext) {
                                 vscode.CodeActionKind.QuickFix
                             );
                             fix.edit = new vscode.WorkspaceEdit();
-                            fix.edit.replace(document.uri, diag.range, suggestion);
+                            // Handle "Insert" suggestions: `Insert ","` means insert
+                            // the quoted text, not replace with the literal string
+                            const insertMatch = suggestion.match(/^Insert\s+"(.+)"$/);
+                            if (insertMatch && insertMatch[1]) {
+                                fix.edit.insert(document.uri, diag.range.end, insertMatch[1]);
+                            } else {
+                                fix.edit.replace(document.uri, diag.range, suggestion);
+                            }
                             fix.diagnostics = [diag];
                             fix.isPreferred = extDiag.suggestions.indexOf(suggestion) === 0;
                             actions.push(fix);
@@ -337,6 +344,7 @@ export function activate(context: vscode.ExtensionContext) {
                 // Optimistic removal: remove all spelling diagnostics for this word immediately
                 const editor = vscode.window.activeTextEditor;
                 let removedCount = 0;
+                const wordLower = word.toLowerCase();
                 if (editor) {
                     const uri = editor.document.uri.toString();
                     const diagnostics = diagnosticsMap.get(uri);
@@ -345,7 +353,7 @@ export function activate(context: vscode.ExtensionContext) {
                             const diagWord = editor.document.getText(d.range);
                             const isSpelling = typeof d.code === 'string' &&
                                 (d.code.includes('Spell') || d.code.includes('spell') || d.code.includes('MORFOLOGIK'));
-                            if (isSpelling && diagWord === word) {
+                            if (isSpelling && diagWord.toLowerCase() === wordLower) {
                                 removedCount++;
                                 return false;
                             }
@@ -356,8 +364,8 @@ export function activate(context: vscode.ExtensionContext) {
                         inlayHintEmitter.fire();
                         updateSpeedFixDiagnostics();
                     }
-                    // Background re-check for full consistency
-                    checkDocument(editor.document);
+                    // Full re-check for consistency (dictionary is now server-side updated)
+                    await checkDocument(editor.document);
                 }
                 const extra = removedCount > 1 ? vscode.l10n.t(' ({0} occurrences resolved)', removedCount) : '';
                 vscode.window.showInformationMessage(vscode.l10n.t('Added "{0}" to dictionary', word) + extra);
@@ -452,7 +460,16 @@ export function activate(context: vscode.ExtensionContext) {
                     const hpm = vscode.workspace.getConfiguration('languageCheck')
                         .get<boolean>('performance.highPerformanceMode', false);
                     speedFixPanel?.webview.postMessage({ type: 'setLowResource', payload: hpm });
+                    // If we already have diagnostics, send them immediately
                     updateSpeedFixDiagnostics();
+                    // If no diagnostics exist yet, auto-run a check
+                    const activeEditor = vscode.window.activeTextEditor;
+                    if (activeEditor && !diagnosticsMap.has(activeEditor.document.uri.toString())) {
+                        sendSpeedFixLoading(true);
+                        checkDocument(activeEditor.document).then(() => {
+                            sendSpeedFixLoading(false);
+                        });
+                    }
                     break;
                 }
                 case 'applyFix':
@@ -527,9 +544,15 @@ export function activate(context: vscode.ExtensionContext) {
 
         inspectorPanel.webview.onDidReceiveMessage(async (message: InspectorToExtensionMessage) => {
             switch (message.type) {
-                case 'inspectorReady':
+                case 'inspectorReady': {
+                    // If no diagnostics exist yet, auto-run a check first
+                    const activeEd = vscode.window.activeTextEditor;
+                    if (activeEd && !diagnosticsMap.has(activeEd.document.uri.toString())) {
+                        await checkDocument(activeEd.document);
+                    }
                     await updateInspectorData();
                     break;
+                }
                 case 'highlightRange': {
                     const editor = vscode.window.activeTextEditor;
                     if (editor) {
@@ -556,8 +579,9 @@ export function activate(context: vscode.ExtensionContext) {
     // ── Auto-check on document open ──
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((document) => {
         if (!supportedLanguages.includes(document.languageId)) return;
+        if (!client) return; // Client not ready yet
         const trigger = vscode.workspace.getConfiguration('languageCheck').get<string>('check.trigger', 'onChange');
-        if (trigger === 'onSave') return; // onSave mode skips auto-check on open
+        if (trigger === 'onSave') return;
         checkDocument(document);
     }));
 
@@ -565,6 +589,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((editor) => {
         if (!editor) return;
         if (!supportedLanguages.includes(editor.document.languageId)) return;
+        if (!client) return;
         const trigger = vscode.workspace.getConfiguration('languageCheck').get<string>('check.trigger', 'onChange');
         if (trigger === 'onSave') return;
         // Only check if we don't already have diagnostics for this document
@@ -573,6 +598,23 @@ export function activate(context: vscode.ExtensionContext) {
             checkDocument(editor.document);
         }
     }));
+
+    // ── Initial check: if there's already an active editor when the extension activates ──
+    // This handles window reload where the editor is already open before activation.
+    if (vscode.window.activeTextEditor) {
+        const doc = vscode.window.activeTextEditor.document;
+        if (supportedLanguages.includes(doc.languageId)) {
+            const trigger = vscode.workspace.getConfiguration('languageCheck').get<string>('check.trigger', 'onChange');
+            if (trigger !== 'onSave') {
+                // Delay slightly to let the client finish starting
+                setTimeout(() => {
+                    if (client && !diagnosticsMap.has(doc.uri.toString())) {
+                        checkDocument(doc);
+                    }
+                }, 500);
+            }
+        }
+    }
 
     // ── Check-on-change with debounce ──
     context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((event) => {
@@ -828,47 +870,19 @@ async function applyFix(diagnosticId: string, suggestion: string) {
     sendSpeedFixLoading(true);
 
     try {
-        // Ensure the editor is focused — code action providers require an active editor
-        await vscode.window.showTextDocument(editor.document, {
-            viewColumn: vscode.ViewColumn.One,
-            preserveFocus: false,
-        });
-
-        // Get fresh code actions from all providers for this diagnostic range
-        const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
-            'vscode.executeCodeActionProvider',
-            uri,
-            diagnostic.range,
-            vscode.CodeActionKind.QuickFix.value
-        ) || [];
-
-        // Find the action whose title matches the suggestion (e.g. `Fix: "word"`)
-        const matchingAction = actions.find(a =>
-            a.title === `Fix: "${suggestion}"` || a.title === suggestion
-        );
-
-        let applied = false;
-        if (matchingAction) {
-            // Apply the real code action (edit + command)
-            if (matchingAction.edit) {
-                await vscode.workspace.applyEdit(matchingAction.edit);
-                applied = true;
-            }
-            if (matchingAction.command) {
-                await vscode.commands.executeCommand(
-                    matchingAction.command.command,
-                    ...(matchingAction.command.arguments || [])
-                );
-                applied = true;
-            }
-        }
-
-        // Fallback: if no matching code action, do a direct replacement
-        if (!applied) {
-            const edit = new vscode.WorkspaceEdit();
+        // Apply the fix directly — we are our own code action provider.
+        // Handle "Insert" suggestions: `Insert ","` means insert the quoted text
+        // at the diagnostic position, not replace the diagnostic range with the
+        // literal string `Insert ","`.
+        const edit = new vscode.WorkspaceEdit();
+        const insertMatch = suggestion.match(/^Insert\s+"(.+)"$/);
+        if (insertMatch && insertMatch[1]) {
+            // Insertion: insert the quoted content at the end of the diagnostic range
+            edit.insert(uri, diagnostic.range.end, insertMatch[1]);
+        } else {
             edit.replace(uri, diagnostic.range, suggestion);
-            await vscode.workspace.applyEdit(edit);
         }
+        await vscode.workspace.applyEdit(edit);
 
         // Optimistic removal: remove the fixed diagnostic immediately
         const remaining = diagnostics.filter((_, i) => i !== index);

@@ -2,5 +2,4 @@
 source: tests/snapshot_diagnostics.rs
 expression: extracted
 ---
-- Test Section
-- Some text without a document environment.
+- "Test Section}\nSome text without a document environment."
