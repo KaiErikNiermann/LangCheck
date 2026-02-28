@@ -1,14 +1,41 @@
-/* Custom styling for Language Check docs */
+/* Language switcher styles */
+.lang-switcher {
+    padding: 10px 15px;
+    background: rgba(128, 128, 128, 0.1);
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+    font-size: 0.9em;
+}
+
+.lang-switcher .fa-language {
+    margin-right: 5px;
+    opacity: 0.6;
+}
+
+.lang-switcher ul.languages {
+    list-style: none;
+    padding: 0;
+    margin: 5px 0 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.lang-switcher ul.languages li {
+    display: inline-block;
+}
+
+.lang-switcher ul.languages li.current {
+    font-weight: bold;
+}
+
+.lang-switcher ul.languages li.unsupported a {
+    opacity: 0.5;
+    text-decoration: none;
+    cursor: not-allowed;
+}
 
 /* Improve code block readability */
 .highlight pre {
     border-radius: 6px;
     padding: 1em;
-}
-
-/* Dark mode adjustments for code blocks */
-@media (prefers-color-scheme: dark) {
-    .wy-side-nav-search {
-        background-color: #1a1a2e;
-    }
 }

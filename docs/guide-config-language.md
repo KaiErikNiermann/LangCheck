@@ -1,63 +1,191 @@
 # Adding Language Support via Config (No Code Required)
 
-lang-check ships with built-in support for a handful of prose-heavy file
-formats.  If the format you need is structurally similar to one of those
-languages, you can add support for new file extensions with a single config
-change -- no Rust code, no tree-sitter grammar, no rebuild.
+lang-check supports two no-code ways to recognize additional file formats:
 
-## What this gives you
+- map a new extension onto an existing built-in language, or
+- define a **Simplified Language Schema (SLS)** in YAML for a format that does
+  not have a built-in tree-sitter extractor.
 
-You map a new file extension to an existing supported language.  lang-check
-will then:
+This page focuses on the SLS workflow.
 
-- recognize files with that extension during workspace scanning,
-- parse them with the target language's tree-sitter grammar,
-- extract prose regions using the target language's extractor, and
-- apply all spelling / grammar checks to those regions.
+## When to use an SLS schema
 
-## What this does NOT give you
+Use an SLS schema when:
 
-- **Custom AST-aware extraction.**  The file is parsed *as the target
-  language*.  Any syntax that does not exist in the target grammar (e.g. JSX
-  components inside an `.mdx` file) will not be understood by the parser and
-  will be treated as prose, which may produce false positives.
-- **Language-specific math or code exclusions.**  Only the exclusion zones
-  defined for the target language apply.
-- **A new tree-sitter grammar.**  If the file format has meaningfully
-  different structure, you need the plugin path instead (see
-  [guide-plugin-language.md](guide-plugin-language.md)).
+- the format is mostly line-oriented markup or config,
+- you can describe prose lines with regular expressions,
+- code blocks or metadata can be skipped with simple line or block rules, and
+- you do not want to write Rust or add a tree-sitter grammar.
 
-## How it works
+Common examples include AsciiDoc, TOML-with-comments, INI-like formats, and
+project-specific note formats.
 
-lang-check's configuration file (`.languagecheck.yaml` at your workspace root)
-accepts a `languages.extensions` map.  Each key is a **canonical language ID**
-and its value is a list of additional file extensions (without leading dots) to
-associate with that language.
+## Where schema files live
 
-When lang-check encounters a file, it checks user-defined extension mappings
-*first*, then falls back to the built-in table.  This means you can also
-override built-in mappings if needed.
+Create schema files in your workspace at:
 
-## Currently supported base languages
+```text
+.langcheck/schemas/
+```
 
-These are the canonical language IDs you can map extensions to:
+lang-check loads every `.yaml` and `.yml` file from that directory in both the
+CLI and the language-check server.
 
-| Language ID  | Built-in extensions          |
-|--------------|------------------------------|
-| `markdown`   | `.md`, `.markdown`           |
-| `html`       | `.html`, `.htm`              |
-| `latex`      | `.tex`, `.latex`, `.ltx`     |
-| `forester`   | `.tree`                      |
-| `tinylang`   | `.tiny`                      |
+Example layout:
 
-## Step-by-step example: `.mdx` files as Markdown
+```text
+my-project/
+  .languagecheck.yaml
+  .langcheck/
+    schemas/
+      asciidoc.yaml
+      toml-notes.yml
+```
 
-MDX files are Markdown with embedded JSX.  The Markdown portions will be
-checked correctly; JSX blocks that the Markdown parser cannot parse will be
-treated as inline text.
+## Schema file format
 
-1. Create or open `.languagecheck.yaml` in your project root.
-2. Add the extension mapping:
+Each schema file is a YAML object with these fields:
+
+- `name`: a human-readable language ID for the schema.
+- `extensions`: file extensions handled by the schema, without leading dots.
+- `prose_patterns`: regex rules for lines that count as prose.
+- `skip_patterns`: regex rules for lines that should be ignored.
+- `skip_blocks`: start/end regex pairs for multi-line blocks that should be
+  ignored entirely.
+
+Minimal shape:
+
+```yaml
+name: my-format
+extensions:
+  - myfmt
+prose_patterns:
+  - pattern: "..."
+skip_patterns:
+  - pattern: "..."
+skip_blocks:
+  - start: "..."
+    end: "..."
+```
+
+### `prose_patterns`
+
+`prose_patterns` is a list of line-level regexes. A non-empty line is treated
+as prose only if it matches at least one pattern.
+
+If you leave `prose_patterns` empty, every non-empty line is treated as prose
+unless it is excluded by `skip_patterns` or `skip_blocks`.
+
+### `skip_patterns`
+
+`skip_patterns` is a list of line-level regexes. If a line matches any of them,
+that line is excluded from checking.
+
+Use this for:
+
+- headings,
+- directive lines,
+- comments,
+- key/value assignments,
+- delimiter lines.
+
+### `skip_blocks`
+
+`skip_blocks` defines multi-line regions to exclude. Each entry has:
+
+- `start`: regex for the opening line,
+- `end`: regex for the closing line.
+
+Once a `start` line matches, lang-check skips that line, everything inside the
+block, and the closing delimiter line.
+
+Use this for:
+
+- fenced code blocks,
+- literal blocks,
+- embedded scripts,
+- heredoc-style regions.
+
+## Worked Example: AsciiDoc
+
+This schema treats normal text as prose, skips headings, and ignores fenced
+listing blocks delimited by `----`.
+
+Create `.langcheck/schemas/asciidoc.yaml` in your workspace with:
+
+```yaml
+name: asciidoc
+extensions:
+  - adoc
+  - asciidoc
+prose_patterns: []
+skip_patterns:
+  - pattern: "^=+\\s"
+skip_blocks:
+  - start: "^----\\s*$"
+    end: "^----\\s*$"
+```
+
+Sample file:
+
+```text
+= Document Title
+
+This is an test.
+
+----
+This is an test in code.
+----
+```
+
+With the schema above:
+
+- the heading line is skipped by `skip_patterns`,
+- the fenced block is skipped by `skip_blocks`,
+- `This is an test.` is treated as prose and checked.
+
+Verify it with:
+
+```bash
+language-check check path/to/file.adoc
+```
+
+## Worked Example: TOML Notes
+
+For a TOML-like file where only free-form comment lines should be checked:
+
+```yaml
+name: toml-notes
+extensions:
+  - toml
+prose_patterns: []
+skip_patterns:
+  - pattern: "^\\s*\\["
+  - pattern: "^\\s*\\w+\\s*="
+skip_blocks: []
+```
+
+This will ignore tables and assignments while still checking plain text lines
+that do not match those patterns.
+
+## Built-in languages still win
+
+SLS schemas are a fallback only. If a file extension already has a built-in
+tree-sitter extractor, lang-check keeps using the built-in extractor for that
+extension.
+
+That means:
+
+- a custom `.rst` schema will not replace the built-in reStructuredText
+  extractor,
+- a custom `.md` schema will not replace Markdown,
+- schemas are primarily for new extensions that do not already have first-class
+  support.
+
+## When to use extension aliases instead
+
+If the new format is truly the same as an existing built-in format, a simple
+extension alias in `.languagecheck.yaml` is usually better:
 
 ```yaml
 languages:
@@ -66,68 +194,15 @@ languages:
       - mdx
 ```
 
-3. Verify it works:
-
-```
-language-check check myfile.mdx
-```
-
-lang-check will parse `myfile.mdx` using the Markdown grammar and report any
-spelling or grammar issues it finds in the prose regions.
-
-## Another example: `.xhtml` files as HTML
-
-XHTML is structurally close enough to HTML that the HTML grammar handles it
-well.  (Note that `.htm` is already built-in, so you do not need to add it.)
-
-```yaml
-languages:
-  extensions:
-    html:
-      - xhtml
-```
-
-You can list multiple extensions under the same language:
-
-```yaml
-languages:
-  extensions:
-    html:
-      - xhtml
-      - mjml
-```
-
-## Verifying your configuration
-
-Run the CLI against a file with the new extension:
-
-```
-language-check check path/to/file.xhtml
-```
-
-If the extension is mapped correctly, lang-check will parse the file and report
-diagnostics.  If the mapping is missing, the file will fall back to the default
-language (Markdown).
+That reuses the target language's full tree-sitter extractor instead of the
+regex-based SLS fallback.
 
 ## Limitations
 
-- **No custom AST parsing.** The file is parsed entirely as the target
-  language.  Constructs that do not exist in the target grammar (e.g. JSX
-  inside Markdown, or custom directives inside LaTeX) are not recognized by the
-  parser and will be treated as prose.  This can produce false-positive
-  diagnostics on syntax tokens.
+- SLS extraction is regex-based, not AST-aware.
+- Matching is line-oriented; nested syntax is not understood.
+- Block skipping depends entirely on your `start`/`end` patterns.
+- If a format needs structural parsing, use the plugin workflow instead.
 
-- **Language-specific constructs are invisible.** If the source format has its
-  own code fences, math delimiters, or metadata blocks that differ from the
-  target language, they will not be excluded from checking.
-
-- **No custom math or code exclusions.** Only the exclusion zones that the
-  target language defines (e.g. fenced code blocks and inline code in Markdown,
-  `\begin{equation}` in LaTeX) will be honored.
-
-- **Extension matching is case-insensitive.** `.MDX` and `.mdx` are treated
-  identically.
-
-- **For full support, use the plugin path.** If you need a dedicated
-  tree-sitter grammar or custom prose extraction, see
-  [guide-plugin-language.md](guide-plugin-language.md).
+For a dedicated tree-sitter-based language integration, see
+[guide-plugin-language.md](guide-plugin-language.md).

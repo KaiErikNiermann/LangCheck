@@ -1,13 +1,12 @@
 # Configuration file for the Sphinx documentation builder.
 
 project = "Language Check"
-copyright = "2025, Gemini"
-author = "Gemini"
+copyright = "2025, KaiErikNiermann"
+author = "KaiErikNiermann"
 release = "0.1.0"
 
 extensions = [
     "myst_parser",
-    "sphinx_rtd_theme",
     "sphinx_copybutton",
     "sphinx_design",
 ]
@@ -21,24 +20,34 @@ myst_enable_extensions = [
 ]
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", ".venv", "README.md"]
 
-# Theme
-html_theme = "sphinx_rtd_theme"
+# Theme — furo with dark/light mode toggle
+html_theme = "furo"
 html_theme_options = {
-    "navigation_depth": 4,
-    "collapse_navigation": False,
-    "style_nav_header_background": "#2b2b2b",
+    "navigation_with_keys": True,
 }
-
-# Dark mode: RTD theme supports it via user's browser preference
 
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 
 # Internationalization
+language = "en"
 locale_dirs = ["locale/"]
 gettext_compact = False
+
+languages = [
+    ("en", "English"),
+    ("fr", "Français"),
+    ("es", "Español"),
+    ("ja", "日本語"),
+]
+
+# Context for templates
+html_context = {
+    "languages": languages,
+    "current_language": language,
+}
 
 # Source file suffixes
 source_suffix = {
