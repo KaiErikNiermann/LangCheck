@@ -1,0 +1,3 @@
+# Clippy lint configuration for lang-check
+# Enforces a maximum function length to keep code readable.
+too-many-lines-threshold = 80
