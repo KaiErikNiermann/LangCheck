@@ -1,6 +1,12 @@
+mod bibtex;
 mod forester;
 mod latex;
+mod org;
 mod query;
+mod rst;
+mod shared;
+mod sweave;
+mod tinylang;
 
 use anyhow::{Result, anyhow};
 use tree_sitter::{Language, Parser};
@@ -27,7 +33,12 @@ impl ProseExtractor {
 
         match lang_id {
             "latex" => Ok(latex::extract(text, root)),
+            "sweave" => Ok(sweave::extract(text, root)),
             "forester" => Ok(forester::extract(text, root)),
+            "tinylang" => Ok(tinylang::extract(text, root)),
+            "rst" => Ok(rst::extract(text, root)),
+            "bibtex" => Ok(bibtex::extract(text, root)),
+            "org" => Ok(org::extract(text, root)),
             lang => query::extract(text, root, &self.language, lang),
         }
     }
@@ -779,6 +790,531 @@ which proves our claim.}";
             clean_text.contains("know that"),
             "extract_text should still contain prose, got: {:?}",
             clean_text
+        );
+
+        Ok(())
+    }
+
+    // ── TinyLang tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_tinylang_basic_extraction() -> Result<()> {
+        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+        let text = "This is a simple sentence.\n";
+        let ranges = extractor.extract(text, "tinylang")?;
+        assert!(!ranges.is_empty(), "Should extract prose from plain text");
+        let prose = ranges[0].extract_text(text);
+        assert!(
+            prose.contains("simple sentence"),
+            "Prose should contain 'simple sentence', got: {:?}",
+            prose
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_tinylang_code_excluded() -> Result<()> {
+        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+        let text = "Before code.\n\n~~~\nfn main() {}\n~~~\n\nAfter code.\n";
+        let ranges = extractor.extract(text, "tinylang")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            !all_prose.contains("fn main"),
+            "Code block content should not appear in prose, got: {:?}",
+            all_prose
+        );
+        assert!(
+            all_prose.contains("Before code"),
+            "Prose before code should be extracted, got: {:?}",
+            all_prose
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_tinylang_structural_commands_excluded() -> Result<()> {
+        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+        let text = "@author{Jane Doe}\n@date{2025-01-01}\n\nSome prose text here.\n";
+        let ranges = extractor.extract(text, "tinylang")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            !all_prose.contains("Jane Doe"),
+            "Structural command args should not be in prose, got: {:?}",
+            all_prose
+        );
+        assert!(
+            all_prose.contains("prose text here"),
+            "Regular prose should be extracted, got: {:?}",
+            all_prose
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_tinylang_math_excluded() -> Result<()> {
+        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+        let text = "The formula $E = mc^2$ is famous.\n";
+        let ranges = extractor.extract(text, "tinylang")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            !all_prose.contains("mc^2"),
+            "Inline math should not be in prose, got: {:?}",
+            all_prose
+        );
+        assert!(
+            all_prose.contains("formula"),
+            "Prose around math should be extracted, got: {:?}",
+            all_prose
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_tinylang_comment_excluded() -> Result<()> {
+        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+        let text = "Visible text.\n// This is a comment\nMore text.\n";
+        let ranges = extractor.extract(text, "tinylang")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            !all_prose.contains("This is a comment"),
+            "Comments should not be in prose, got: {:?}",
+            all_prose
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_tinylang_prose_command_included() -> Result<()> {
+        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+        let text = "@title{My Great Document}\n\nSome text.\n";
+        let ranges = extractor.extract(text, "tinylang")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            all_prose.contains("Great Document"),
+            "Prose command args should be extracted, got: {:?}",
+            all_prose
+        );
+        Ok(())
+    }
+
+    // ── reStructuredText tests ──────────────────────────────────────
+
+    fn rst_extractor() -> Result<ProseExtractor> {
+        let language: tree_sitter::Language = tree_sitter_rst::LANGUAGE.into();
+        ProseExtractor::new(language)
+    }
+
+    #[test]
+    fn test_rst_basic_extraction() -> Result<()> {
+        let mut extractor = rst_extractor()?;
+        let text = "My Title\n========\n\nThis is a paragraph.\n";
+        let ranges = extractor.extract(text, "rst")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            all_prose.contains("My Title"),
+            "Title should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            all_prose.contains("This is a paragraph"),
+            "Paragraph should be extracted, got: {all_prose:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_rst_code_block_excluded() -> Result<()> {
+        let mut extractor = rst_extractor()?;
+        let text = "Some text.\n\n.. code-block:: python\n\n   def hello():\n       pass\n\nMore text.\n";
+        let ranges = extractor.extract(text, "rst")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            all_prose.contains("Some text"),
+            "Paragraph before code should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            all_prose.contains("More text"),
+            "Paragraph after code should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            !all_prose.contains("def hello"),
+            "Code block content should not be in prose, got: {all_prose:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_rst_math_excluded() -> Result<()> {
+        let mut extractor = rst_extractor()?;
+        let text = "Before math.\n\n.. math::\n\n   E = mc^2\n\nAfter math.\n";
+        let ranges = extractor.extract(text, "rst")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            all_prose.contains("Before math"),
+            "Paragraph before math should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            !all_prose.contains("mc^2"),
+            "Math directive content should not be in prose, got: {all_prose:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_rst_inline_code_excluded() -> Result<()> {
+        let mut extractor = rst_extractor()?;
+        let text = "Use ``some_function()`` to do things.\n";
+        let ranges = extractor.extract(text, "rst")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            all_prose.contains("Use"),
+            "Text around inline code should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            !all_prose.contains("some_function"),
+            "Inline code should be excluded, got: {all_prose:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_rst_list_items_extracted() -> Result<()> {
+        let mut extractor = rst_extractor()?;
+        let text = "- First item\n- Second item\n";
+        let ranges = extractor.extract(text, "rst")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            all_prose.contains("First item"),
+            "List items should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            all_prose.contains("Second item"),
+            "List items should be extracted, got: {all_prose:?}"
+        );
+        Ok(())
+    }
+
+    // ── Sweave (R Sweave / .Rnw) tests ────────────────────────────────
+
+    fn sweave_extractor() -> Result<ProseExtractor> {
+        let language = crate::languages::resolve_ts_language("sweave");
+        ProseExtractor::new(language)
+    }
+
+    #[test]
+    fn test_sweave_basic_extraction() -> Result<()> {
+        let mut extractor = sweave_extractor()?;
+
+        let text = r"\documentclass{article}
+\begin{document}
+
+This is a paragraph in a Sweave document.
+
+<<setup, echo=FALSE>>=
+library(ggplot2)
+x <- rnorm(100)
+@
+
+Another paragraph after the R chunk.
+
+\end{document}
+";
+        let ranges = extractor.extract(text, "sweave")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted.iter().any(|t| t.contains("paragraph in a Sweave")),
+            "Should extract prose text before R chunk, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("Another paragraph after")),
+            "Should extract prose text after R chunk, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sweave_r_chunk_excluded() -> Result<()> {
+        let mut extractor = sweave_extractor()?;
+
+        let text = r"\documentclass{article}
+\begin{document}
+
+Some prose before code.
+
+<<my-chunk, fig=TRUE>>=
+plot(1:10)
+summary(lm(y ~ x))
+@
+
+Some prose after code.
+
+\end{document}
+";
+        let ranges = extractor.extract(text, "sweave")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+
+        assert!(
+            !all_prose.contains("plot(1:10)"),
+            "R code should NOT appear in prose, got: {all_prose:?}"
+        );
+        assert!(
+            !all_prose.contains("summary(lm"),
+            "R code should NOT appear in prose, got: {all_prose:?}"
+        );
+        assert!(
+            all_prose.contains("prose before code"),
+            "Prose before R chunk should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            all_prose.contains("prose after code"),
+            "Prose after R chunk should be extracted, got: {all_prose:?}"
+        );
+
+        Ok(())
+    }
+
+    // ── BibTeX tests ────────────────────────────────────────────────
+
+    fn bibtex_extractor() -> Result<ProseExtractor> {
+        let language: tree_sitter::Language = tree_sitter_bibtex::LANGUAGE.into();
+        ProseExtractor::new(language)
+    }
+
+    #[test]
+    fn test_bibtex_title_extracted() -> Result<()> {
+        let mut extractor = bibtex_extractor()?;
+        let text = r#"@article{key2024,
+  title = {A Great Paper on Important Things},
+  author = {John Doe},
+  year = {2024},
+}
+"#;
+        let ranges = extractor.extract(text, "bibtex")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+
+        assert!(
+            all_prose.contains("Great Paper"),
+            "Title should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            !all_prose.contains("John Doe"),
+            "Author should NOT be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            !all_prose.contains("2024"),
+            "Year should NOT be extracted, got: {all_prose:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_bibtex_abstract_extracted() -> Result<()> {
+        let mut extractor = bibtex_extractor()?;
+        let text = r#"@article{key2024,
+  title = {Some Title},
+  abstract = {This paper presents a novel approach to solving problems.},
+  journal = {Nature},
+}
+"#;
+        let ranges = extractor.extract(text, "bibtex")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+
+        assert!(
+            all_prose.contains("novel approach"),
+            "Abstract should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            !all_prose.contains("Nature"),
+            "Journal should NOT be extracted, got: {all_prose:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_bibtex_note_extracted() -> Result<()> {
+        let mut extractor = bibtex_extractor()?;
+        let text = r#"@book{key2024,
+  title = {Some Title},
+  note = {Accepted for publication.},
+  publisher = {Addison-Wesley},
+}
+"#;
+        let ranges = extractor.extract(text, "bibtex")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+
+        assert!(
+            all_prose.contains("Accepted for publication"),
+            "Note should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            !all_prose.contains("Addison-Wesley"),
+            "Publisher should NOT be extracted, got: {all_prose:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_bibtex_latex_commands_in_title() -> Result<()> {
+        let mut extractor = bibtex_extractor()?;
+        let text = r#"@article{key2024,
+  title = {A Paper on \emph{Important} Things},
+}
+"#;
+        let ranges = extractor.extract(text, "bibtex")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+
+        assert!(
+            all_prose.contains("Important"),
+            "Text inside LaTeX commands should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            !all_prose.contains("\\emph"),
+            "LaTeX command names should NOT be extracted, got: {all_prose:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_bibtex_non_prose_fields_excluded() -> Result<()> {
+        let mut extractor = bibtex_extractor()?;
+        let text = r#"@article{key2024,
+  author = {John Doe and Jane Smith},
+  journal = {Nature},
+  year = {2024},
+  volume = {42},
+  pages = {100--200},
+  doi = {10.1234/example},
+}
+"#;
+        let ranges = extractor.extract(text, "bibtex")?;
+        assert!(
+            ranges.is_empty(),
+            "No prose fields present, should have no ranges, got: {:?}",
+            ranges.iter().map(|r| &text[r.start_byte..r.end_byte]).collect::<Vec<_>>()
+        );
+
+        Ok(())
+    }
+
+    // ── Org mode tests ──────────────────────────────────────────────
+
+    fn org_extractor() -> Result<ProseExtractor> {
+        let language: tree_sitter::Language = crate::org_ts::LANGUAGE.into();
+        ProseExtractor::new(language)
+    }
+
+    #[test]
+    fn test_org_basic_extraction() -> Result<()> {
+        let mut extractor = org_extractor()?;
+        let text = "* Introduction\n\nThis is a paragraph.\n";
+        let ranges = extractor.extract(text, "org")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+
+        assert!(
+            all_prose.contains("Introduction"),
+            "Heading should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            all_prose.contains("This is a paragraph"),
+            "Paragraph should be extracted, got: {all_prose:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_org_code_block_excluded() -> Result<()> {
+        let mut extractor = org_extractor()?;
+        let text = "Some text.\n\n#+begin_src python\ndef hello():\n    pass\n#+end_src\n\nMore text.\n";
+        let ranges = extractor.extract(text, "org")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+
+        assert!(
+            all_prose.contains("Some text"),
+            "Paragraph before code should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            all_prose.contains("More text"),
+            "Paragraph after code should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            !all_prose.contains("def hello"),
+            "Code block content should not be in prose, got: {all_prose:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_org_drawer_excluded() -> Result<()> {
+        let mut extractor = org_extractor()?;
+        let text = "* Heading\n\n:PROPERTIES:\n:ID: some-id\n:END:\n\nSome prose.\n";
+        let ranges = extractor.extract(text, "org")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+
+        assert!(
+            all_prose.contains("Some prose"),
+            "Paragraph should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            !all_prose.contains("some-id"),
+            "Drawer content should not be in prose, got: {all_prose:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_org_list_items_extracted() -> Result<()> {
+        let mut extractor = org_extractor()?;
+        let text = "- First item\n- Second item\n";
+        let ranges = extractor.extract(text, "org")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+
+        assert!(
+            all_prose.contains("First item"),
+            "List items should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            all_prose.contains("Second item"),
+            "List items should be extracted, got: {all_prose:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_org_latex_env_excluded() -> Result<()> {
+        let mut extractor = org_extractor()?;
+        let text = "Before math.\n\n\\begin{equation}\nE = mc^2\n\\end{equation}\n\nAfter math.\n";
+        let ranges = extractor.extract(text, "org")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+
+        assert!(
+            all_prose.contains("Before math"),
+            "Paragraph before LaTeX should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            all_prose.contains("After math"),
+            "Paragraph after LaTeX should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            !all_prose.contains("mc^2"),
+            "LaTeX env content should not be in prose, got: {all_prose:?}"
         );
 
         Ok(())

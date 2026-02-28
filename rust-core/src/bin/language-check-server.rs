@@ -27,6 +27,11 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Mutex, Notify};
 use workspace::WorkspaceIndex;
 
+/// Resolve a canonical language ID to a tree-sitter Language.
+fn resolve_ts_language(lang: &str) -> tree_sitter::Language {
+    rust_core::languages::resolve_ts_language(lang)
+}
+
 /// Slice a `&str` at byte offsets, snapping to the nearest char boundaries.
 fn safe_slice(s: &str, start: usize, end: usize) -> &str {
     let mut lo = start.min(s.len());
@@ -170,30 +175,31 @@ async fn main() -> Result<()> {
 
                     let mut tasks = Vec::new();
 
-                    use tree_sitter_language::LanguageFn;
-                    let file_types: &[(&str, &str, LanguageFn)] = &[
-                        ("**/*.md", "markdown", tree_sitter_md::LANGUAGE),
-                        ("**/*.html", "html", tree_sitter_html::LANGUAGE),
-                        ("**/*.htm", "html", tree_sitter_html::LANGUAGE),
-                        ("**/*.tex", "latex", codebook_tree_sitter_latex::LANGUAGE),
-                        ("**/*.tree", "forester", rust_core::forester_ts::LANGUAGE),
-                    ];
+                    let file_patterns =
+                        rust_core::languages::all_file_patterns(&config);
 
-                    for &(pattern_suffix, lang, ts_lang_fn) in file_types {
-                        let full_pattern = format!("{}/{}", root.to_string_lossy(), pattern_suffix);
+                    for (pattern_suffix, lang) in &file_patterns {
+                        let ts_lang = resolve_ts_language(
+                            rust_core::languages::resolve_language_id(lang),
+                        );
+                        let full_pattern =
+                            format!("{}/{}", root.to_string_lossy(), pattern_suffix);
                         if let Ok(entries) = glob(&full_pattern) {
                             for path in entries.flatten() {
                                 // Skip files matching exclude patterns
                                 let rel = path.strip_prefix(&root).unwrap_or(&path);
                                 let rel_str = rel.to_string_lossy();
-                                if exclude_patterns.iter().any(|p| p.matches_with(&rel_str, match_opts)) {
+                                if exclude_patterns
+                                    .iter()
+                                    .any(|p| p.matches_with(&rel_str, match_opts))
+                                {
                                     continue;
                                 }
 
                                 let task_orchestrator = orchestrator_arc.clone();
                                 let task_ignore_store = ignore_store_arc.clone();
                                 let task_workspace_index = workspace_index_arc.clone();
-                                let lang_id = lang.to_string();
+                                let lang_id = lang.clone();
 
                                 tasks.push(tokio::spawn(process_file_for_indexing(
                                     path,
@@ -201,7 +207,7 @@ async fn main() -> Result<()> {
                                     task_ignore_store,
                                     task_workspace_index,
                                     lang_id,
-                                    ts_lang_fn.into(),
+                                    ts_lang.clone(),
                                 )));
                             }
                         }
@@ -328,15 +334,12 @@ async fn main() -> Result<()> {
                 }
             }
             Some(checker::request::Payload::CheckProse(req)) => {
-                let ts_lang: tree_sitter::Language = match req.language_id.as_str() {
-                    "html" => tree_sitter_html::LANGUAGE.into(),
-                    "latex" => codebook_tree_sitter_latex::LANGUAGE.into(),
-                    "forester" => rust_core::forester_ts::LANGUAGE.into(),
-                    _ => tree_sitter_md::LANGUAGE.into(),
-                };
+                let canonical_lang =
+                    rust_core::languages::resolve_language_id(&req.language_id);
+                let ts_lang = resolve_ts_language(canonical_lang);
 
                 match ProseExtractor::new(ts_lang) {
-                    Ok(mut extractor) => match extractor.extract(&req.text, &req.language_id) {
+                    Ok(mut extractor) => match extractor.extract(&req.text, canonical_lang) {
                         Ok(ranges) => {
                             let mut all_diagnostics = Vec::new();
                             let mut orchestrator = orchestrator_arc.lock().await;
@@ -414,12 +417,10 @@ async fn main() -> Result<()> {
                 Some(response::Payload::GetMetadata(MetadataResponse {
                     name: "Rust Core".to_string(),
                     version: "0.1.0".to_string(),
-                    supported_languages: vec![
-                        "markdown".to_string(),
-                        "html".to_string(),
-                        "latex".to_string(),
-                        "forester".to_string(),
-                    ],
+                    supported_languages: rust_core::languages::SUPPORTED_LANGUAGE_IDS
+                        .iter()
+                        .map(|s| (*s).to_string())
+                        .collect(),
                 }))
             }
             Some(checker::request::Payload::Ignore(req)) => {

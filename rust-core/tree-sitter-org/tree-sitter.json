@@ -1,0 +1,13 @@
+{
+  "metadata": {
+    "version": "1.3.4",
+    "license": "MIT"
+  },
+  "grammars": [
+    {
+      "name": "org",
+      "path": ".",
+      "scope": "source.org"
+    }
+  ]
+}

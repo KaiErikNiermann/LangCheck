@@ -1,0 +1,316 @@
+{
+  "$schema": "https://tree-sitter.github.io/tree-sitter/assets/schemas/grammar.schema.json",
+  "name": "tinylang",
+  "rules": {
+    "source_file": {
+      "type": "REPEAT",
+      "content": {
+        "type": "SYMBOL",
+        "name": "_node"
+      }
+    },
+    "_node": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "heading"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "command"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "display_math"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "inline_math"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "code_block"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "code_span"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "link"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "comment"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "bold"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "italic"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "text"
+        }
+      ]
+    },
+    "heading": {
+      "type": "PREC_RIGHT",
+      "value": 0,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "TOKEN",
+            "content": {
+              "type": "PREC",
+              "value": 1,
+              "content": {
+                "type": "PATTERN",
+                "value": "#{1,6} "
+              }
+            }
+          },
+          {
+            "type": "REPEAT",
+            "content": {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "bold"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "italic"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "code_span"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "inline_math"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "text"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "command": {
+      "type": "PREC_RIGHT",
+      "value": 0,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "SYMBOL",
+            "name": "command_name"
+          },
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "command_arg"
+              },
+              {
+                "type": "BLANK"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "command_name": {
+      "type": "PATTERN",
+      "value": "@[a-zA-Z][a-zA-Z0-9_-]*"
+    },
+    "command_arg": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "{"
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_node"
+          }
+        },
+        {
+          "type": "STRING",
+          "value": "}"
+        }
+      ]
+    },
+    "link": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "link_text"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "link_url"
+        }
+      ]
+    },
+    "link_text": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "["
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "bold"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "italic"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "text"
+              }
+            ]
+          }
+        },
+        {
+          "type": "STRING",
+          "value": "]"
+        }
+      ]
+    },
+    "link_url": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "("
+        },
+        {
+          "type": "PATTERN",
+          "value": "[^)]*"
+        },
+        {
+          "type": "STRING",
+          "value": ")"
+        }
+      ]
+    },
+    "bold": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "*"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "text"
+        },
+        {
+          "type": "STRING",
+          "value": "*"
+        }
+      ]
+    },
+    "italic": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "_"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "text"
+        },
+        {
+          "type": "STRING",
+          "value": "_"
+        }
+      ]
+    },
+    "code_span": {
+      "type": "PATTERN",
+      "value": "`[^`\\n]*`"
+    },
+    "inline_math": {
+      "type": "PATTERN",
+      "value": "\\$[^$\\n]+\\$"
+    },
+    "display_math": {
+      "type": "TOKEN",
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "STRING",
+            "value": "$$"
+          },
+          {
+            "type": "PATTERN",
+            "value": "[^$]+"
+          },
+          {
+            "type": "STRING",
+            "value": "$$"
+          }
+        ]
+      }
+    },
+    "comment": {
+      "type": "PATTERN",
+      "value": "\\/\\/[^\\n]*"
+    },
+    "text": {
+      "type": "TOKEN",
+      "content": {
+        "type": "PREC",
+        "value": -1,
+        "content": {
+          "type": "PATTERN",
+          "value": "[^\\\\\\{\\}\\[\\]\\(\\)\\n\\t *_`$@#\\/]+"
+        }
+      }
+    }
+  },
+  "extras": [
+    {
+      "type": "PATTERN",
+      "value": "[ \\t\\r\\n]"
+    }
+  ],
+  "conflicts": [],
+  "precedences": [],
+  "externals": [
+    {
+      "type": "SYMBOL",
+      "name": "code_block"
+    }
+  ],
+  "inline": [],
+  "supertypes": [],
+  "reserved": {}
+}

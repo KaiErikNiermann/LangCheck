@@ -1,6 +1,6 @@
 use tree_sitter::Node;
 
-use super::ProseRange;
+use super::{ProseRange, shared};
 
 /// Commands whose arguments contain identifiers/addresses, not prose.
 /// All arguments of these commands are skipped entirely.
@@ -55,7 +55,7 @@ const SKIP_KINDS: &[&str] = &[
 pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     let mut word_ranges: Vec<(usize, usize)> = Vec::new();
     collect_prose_nodes(root, text, false, &mut word_ranges);
-    merge_ranges(&word_ranges, text)
+    shared::merge_ranges(&word_ranges, text, strip_forester_noise, collect_display_math_exclusions)
 }
 
 /// Check whether a command node is structural (non-prose arguments).
@@ -117,51 +117,6 @@ fn collect_prose_nodes(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Range merging with Forester-aware gap analysis
-// ---------------------------------------------------------------------------
-
-/// Merge adjacent text ranges into larger prose chunks.
-///
-/// Two ranges are merged when the gap between them is "benign" — containing
-/// only whitespace, inline commands, and punctuation. Breaks at paragraph
-/// boundaries (`\n\n`) and structural commands.
-fn merge_ranges(words: &[(usize, usize)], text: &str) -> Vec<ProseRange> {
-    if words.is_empty() {
-        return Vec::new();
-    }
-
-    let mut ranges = Vec::new();
-    let mut chunk_start = words[0].0;
-    let mut chunk_end = words[0].1;
-    let mut exclusions: Vec<(usize, usize)> = Vec::new();
-
-    for &(start, end) in &words[1..] {
-        let gap = &text[chunk_end..start];
-
-        if !is_bridgeable_gap(gap) {
-            ranges.push(ProseRange {
-                start_byte: chunk_start,
-                end_byte: chunk_end,
-                exclusions: std::mem::take(&mut exclusions),
-            });
-            chunk_start = start;
-        } else {
-            // Collect display math regions in the gap as exclusions
-            collect_display_math_exclusions(gap, chunk_end, &mut exclusions);
-        }
-        chunk_end = end;
-    }
-
-    ranges.push(ProseRange {
-        start_byte: chunk_start,
-        end_byte: chunk_end,
-        exclusions,
-    });
-
-    ranges
-}
-
 /// Find display math regions (`##{...}`) in a gap and record them as
 /// exclusions. Extends the exclusion to cover surrounding whitespace so the
 /// grammar checker sees spaces instead of newlines.
@@ -202,48 +157,6 @@ fn collect_display_math_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(
     }
 }
 
-/// Check if the gap between two text ranges can be bridged into one prose chunk.
-///
-/// A bridgeable gap contains only:
-/// - Whitespace (spaces, tabs, single newlines — NOT paragraph breaks `\n\n`)
-/// - Forester commands: `\em{...}`, `\strong{...}`, etc.
-/// - Escape sequences: `\{`, `\\`, etc.
-/// - Braces, brackets, parens, and punctuation
-/// - Inline math `#{...}` and display math `##{...}`
-///
-/// Non-bridgeable: paragraph breaks (`\n\n`).
-fn is_bridgeable_gap(gap: &str) -> bool {
-    if gap.contains("\n\n") || gap.contains("\r\n\r\n") {
-        return false;
-    }
-
-    let stripped = strip_forester_noise(gap);
-
-    stripped.chars().all(|c| {
-        c.is_ascii_whitespace()
-            || matches!(
-                c,
-                ',' | '.'
-                    | ';'
-                    | ':'
-                    | '!'
-                    | '?'
-                    | '('
-                    | ')'
-                    | '\''
-                    | '"'
-                    | '-'
-                    | '\u{2013}'
-                    | '\u{2014}'
-                    | '['
-                    | ']'
-                    | '{'
-                    | '}'
-                    | '~'
-            )
-    })
-}
-
 /// Strip Forester noise from a gap string: math, commands, escapes.
 /// Leaves whitespace, braces, and punctuation for subsequent validation.
 fn strip_forester_noise(gap: &str) -> String {
@@ -267,6 +180,8 @@ fn strip_forester_noise(gap: &str) -> String {
                 }
                 i += 1;
             }
+            // Replace with space to avoid false paragraph breaks
+            result.push(' ');
         // Inline math: #{...}
         } else if chars[i] == '#' && i + 1 < chars.len() && chars[i + 1] == '{' {
             i += 2;
@@ -279,6 +194,7 @@ fn strip_forester_noise(gap: &str) -> String {
                 }
                 i += 1;
             }
+            result.push(' ');
         // Command: \name followed by optional {}, [], () args
         } else if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1].is_ascii_alphanumeric()
         {

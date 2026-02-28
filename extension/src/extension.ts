@@ -153,7 +153,9 @@ export function activate(context: vscode.ExtensionContext) {
     // Update insights when active editor changes
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(updateInsightsStatusBar));
 
-    const supportedLanguages = ['markdown', 'html', 'latex', 'forester'];
+    // Canonical language IDs with built-in tree-sitter support, plus
+    // known VS Code language ID aliases that map to a canonical ID.
+    const supportedLanguages = ['markdown', 'html', 'latex', 'forester', 'tinylang', 'rst', 'sweave', 'bibtex', 'org', 'mdx', 'xhtml'];
 
     // Register Inlay Hints Provider with invalidation support
     context.subscriptions.push(vscode.languages.registerInlayHintsProvider(
@@ -422,7 +424,7 @@ export function activate(context: vscode.ExtensionContext) {
             title: vscode.l10n.t('Checking workspace...'),
             cancellable: true
         }, async (progress, token) => {
-            const files = await vscode.workspace.findFiles('**/*.{md,html,htm,tex}');
+            const files = await vscode.workspace.findFiles('**/*.{md,markdown,mdx,html,htm,xhtml,tex,latex,ltx,tree,tiny}');
             for (let i = 0; i < files.length; i++) {
                 if (token.isCancellationRequested) break;
 

@@ -12,6 +12,8 @@ tree-sitter-language = "0.1"
 tree-sitter-md = { version = "0.5", default-features = false }
 tree-sitter-html = "0.23"
 codebook-tree-sitter-latex = "0.6"
+tree-sitter-rst = "0.2"
+tree-sitter-bibtex = { git = "https://github.com/latex-lsp/tree-sitter-bibtex", branch = "master" }
 anyhow = "1.0"
 bytes = "1.0"
 harper-core = { version = "1.8.0", features = ["concurrent"] }

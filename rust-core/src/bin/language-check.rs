@@ -120,15 +120,22 @@ impl JsonDiagnostic {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    let config = Config::load(&std::env::current_dir()?).unwrap_or_else(|_| Config::default());
 
     match cli.command {
         Commands::Check { path, lang, format } => {
-            let lang = lang.unwrap_or_else(|| detect_lang(&path));
-            check_path(path, lang, &format).await?;
+            let lang = lang.map_or_else(
+                || rust_core::languages::detect_language(&path, &config),
+                |l| rust_core::languages::resolve_language_id(&l).to_string(),
+            );
+            check_path(path, lang, &format, config).await?;
         }
         Commands::Fix { path, lang } => {
-            let lang = lang.unwrap_or_else(|| detect_lang(&path));
-            fix_path(path, lang).await?;
+            let lang = lang.map_or_else(
+                || rust_core::languages::detect_language(&path, &config),
+                |l| rust_core::languages::resolve_language_id(&l).to_string(),
+            );
+            fix_path(path, lang, config).await?;
         }
         Commands::ListRules {
             filter,
@@ -145,27 +152,25 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn check_path(path: PathBuf, lang: String, format: &OutputFormat) -> Result<()> {
-    let config = Config::load(&std::env::current_dir()?).unwrap_or_else(|_| Config::default());
-    let mut orchestrator = Orchestrator::new(config);
+/// Resolve a canonical language ID to a tree-sitter Language.
+fn resolve_ts_language(lang: &str) -> tree_sitter::Language {
+    rust_core::languages::resolve_ts_language(lang)
+}
 
-    let language = match lang.as_str() {
-        "html" => tree_sitter_html::LANGUAGE.into(),
-        "latex" => codebook_tree_sitter_latex::LANGUAGE.into(),
-        "forester" => rust_core::forester_ts::LANGUAGE.into(),
-        _ => tree_sitter_md::LANGUAGE.into(),
-    };
+async fn check_path(path: PathBuf, lang: String, format: &OutputFormat, config: Config) -> Result<()> {
+    let language = resolve_ts_language(&lang);
     let mut extractor = ProseExtractor::new(language)?;
+    let mut orchestrator = Orchestrator::new(config.clone());
     let mut all_json_diagnostics: Vec<JsonDiagnostic> = Vec::new();
 
     if path.is_file() {
         check_file(&path, &mut extractor, &mut orchestrator, &lang, format, &mut all_json_diagnostics).await?;
     } else {
-        let pattern = match lang.as_str() {
-            "html" => "**/*.html",
-            "latex" => "**/*.tex",
-            "forester" => "**/*.tree",
-            _ => "**/*.md",
+        let exts = rust_core::languages::extensions_for_language(&lang, &config);
+        let pattern = if exts.is_empty() {
+            format!("**/*.{lang}")
+        } else {
+            format!("**/*.{{{}}}", exts.join(","))
         };
         let files: Vec<_> = glob::glob(&format!("{}/{}", path.to_string_lossy(), pattern))?
             .flatten()
@@ -264,17 +269,10 @@ async fn check_file(
     Ok(())
 }
 
-async fn fix_path(path: PathBuf, lang: String) -> Result<()> {
-    let config = Config::load(&std::env::current_dir()?).unwrap_or_else(|_| Config::default());
-    let mut orchestrator = Orchestrator::new(config);
-
-    let language = match lang.as_str() {
-        "html" => tree_sitter_html::LANGUAGE.into(),
-        "latex" => codebook_tree_sitter_latex::LANGUAGE.into(),
-        "forester" => rust_core::forester_ts::LANGUAGE.into(),
-        _ => tree_sitter_md::LANGUAGE.into(),
-    };
+async fn fix_path(path: PathBuf, lang: String, config: Config) -> Result<()> {
+    let language = resolve_ts_language(&lang);
     let mut extractor = ProseExtractor::new(language)?;
+    let mut orchestrator = Orchestrator::new(config);
 
     if path.is_file() {
         fix_file(&path, &mut extractor, &mut orchestrator, &lang).await?;
@@ -442,15 +440,6 @@ fn handle_config(action: ConfigAction) -> Result<()> {
         }
     }
     Ok(())
-}
-
-fn detect_lang(path: &std::path::Path) -> String {
-    match path.extension().and_then(|e| e.to_str()) {
-        Some("html" | "htm") => "html".to_string(),
-        Some("tex" | "latex") => "latex".to_string(),
-        Some("tree") => "forester".to_string(),
-        _ => "markdown".to_string(),
-    }
 }
 
 fn get_line_col(text: &str, byte_offset: usize) -> (usize, usize) {

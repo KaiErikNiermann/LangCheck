@@ -8,7 +8,16 @@
   },
   "activationEvents": [
     "onLanguage:markdown",
-    "onLanguage:forester"
+    "onLanguage:html",
+    "onLanguage:latex",
+    "onLanguage:forester",
+    "onLanguage:tinylang",
+    "onLanguage:rst",
+    "onLanguage:sweave",
+    "onLanguage:mdx",
+    "onLanguage:xhtml",
+    "onLanguage:bibtex",
+    "onLanguage:org"
   ],
   "main": "./out/extension.js",
   "l10n": "./l10n",

@@ -1,6 +1,6 @@
 use tree_sitter::Node;
 
-use super::ProseRange;
+use super::{ProseRange, shared};
 
 /// Built-in environment types that tree-sitter-latex recognises as dedicated
 /// node kinds (not `generic_environment`). Skip these entirely.
@@ -75,7 +75,7 @@ pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     let mut word_ranges: Vec<(usize, usize)> = Vec::new();
     collect_words(root, text, doc_start, false, &mut word_ranges);
 
-    merge_word_ranges(&word_ranges, text)
+    shared::merge_ranges(&word_ranges, text, strip_latex_noise, collect_display_math_exclusions)
 }
 
 /// Check whether a node kind represents a structural (non-prose) container.
@@ -182,48 +182,6 @@ fn should_skip_generic_env(node: Node, text: &str) -> bool {
 // Word-range merging with LaTeX-aware gap analysis
 // ---------------------------------------------------------------------------
 
-/// Merge word byte ranges into larger prose chunks.
-///
-/// Two adjacent words are merged when the gap between them is "benign" —
-/// containing only whitespace, inline math, and simple punctuation. This
-/// keeps sentences like "the variable $i$ is positive" as a single chunk
-/// while still breaking at block commands and paragraph breaks.
-fn merge_word_ranges(words: &[(usize, usize)], text: &str) -> Vec<ProseRange> {
-    if words.is_empty() {
-        return Vec::new();
-    }
-
-    let mut ranges = Vec::new();
-    let mut chunk_start = words[0].0;
-    let mut chunk_end = words[0].1;
-    let mut exclusions: Vec<(usize, usize)> = Vec::new();
-
-    for &(start, end) in &words[1..] {
-        let gap = &text[chunk_end..start];
-
-        if !is_bridgeable_gap(gap) {
-            ranges.push(ProseRange {
-                start_byte: chunk_start,
-                end_byte: chunk_end,
-                exclusions: std::mem::take(&mut exclusions),
-            });
-            chunk_start = start;
-        } else {
-            // Collect display math regions in the gap as exclusions
-            collect_display_math_exclusions(gap, chunk_end, &mut exclusions);
-        }
-        chunk_end = end;
-    }
-
-    ranges.push(ProseRange {
-        start_byte: chunk_start,
-        end_byte: chunk_end,
-        exclusions,
-    });
-
-    ranges
-}
-
 /// Find display math regions (`\[...\]`) in a gap and record them as
 /// exclusions (document-level byte offsets). The exclusion is extended to
 /// cover surrounding whitespace/newlines so that the grammar checker sees
@@ -262,46 +220,6 @@ fn collect_display_math_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(
     }
 }
 
-/// Check if the gap between two word ranges can be bridged (merged into one
-/// prose chunk). A bridgeable gap contains only:
-/// - Whitespace (spaces, tabs, single newlines — NOT paragraph breaks)
-/// - Math: `$...$`, `\(...\)`, `\[...\]` (display math becomes an exclusion)
-/// - LaTeX commands: `\textbf`, `\textit`, `\ref{...}`, etc.
-/// - Braces and simple punctuation: `{`, `}`, `, . ; : ! ? ( ) ' " - –`
-///
-/// Non-bridgeable gaps include paragraph breaks.
-fn is_bridgeable_gap(gap: &str) -> bool {
-    if gap.contains("\n\n") || gap.contains("\r\n\r\n") {
-        return false;
-    }
-
-    let stripped = strip_latex_noise(gap);
-
-    stripped.chars().all(|c| {
-        c.is_ascii_whitespace()
-            || matches!(
-                c,
-                ',' | '.'
-                    | ';'
-                    | ':'
-                    | '!'
-                    | '?'
-                    | '('
-                    | ')'
-                    | '\''
-                    | '"'
-                    | '-'
-                    | '\u{2013}'
-                    | '\u{2014}'
-                    | '['
-                    | ']'
-                    | '{'
-                    | '}'
-                    | '~'
-            )
-    })
-}
-
 /// Strip LaTeX noise from a gap string: math (`$...$`, `\(...\)`, `\[...\]`)
 /// and command names (`\textbf`, `\ref`, etc.). Display math content is
 /// excluded from the prose text via `ProseRange.exclusions`, so stripping
@@ -318,13 +236,14 @@ fn strip_latex_noise(gap: &str) -> String {
                 i += 1;
             }
             i += 1;
+            result.push(' ');
         } else if chars[i] == '\\'
             && i + 1 < chars.len()
             && (chars[i + 1] == '[' || chars[i + 1] == '(')
         {
-            // Strip both inline math \(...\) and display math \[...\]
-            // from gap analysis. Display math content is excluded from
-            // the prose text via ProseRange.exclusions.
+            // Replace math with a space to avoid creating false paragraph
+            // breaks (display math between newlines: \n\[...\]\n → \n \n).
+            // Display math content is excluded via ProseRange.exclusions.
             let close = if chars[i + 1] == '[' { ']' } else { ')' };
             i += 2;
             while i + 1 < chars.len() && !(chars[i] == '\\' && chars[i + 1] == close) {
@@ -333,6 +252,7 @@ fn strip_latex_noise(gap: &str) -> String {
             if i + 1 < chars.len() {
                 i += 2;
             }
+            result.push(' ');
         } else if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1].is_ascii_alphabetic() {
             let cmd_start = i + 1;
             let mut j = cmd_start;

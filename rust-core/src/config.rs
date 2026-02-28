@@ -17,6 +17,27 @@ pub struct Config {
     pub performance: PerformanceConfig,
     #[serde(default)]
     pub dictionaries: DictionaryConfig,
+    #[serde(default)]
+    pub languages: LanguageConfig,
+}
+
+/// Language extension aliasing configuration.
+///
+/// Maps canonical language IDs to additional file extensions.
+/// Built-in extensions (e.g. `.md` → markdown, `.htm` → html) are always
+/// included; entries here add to them.
+///
+/// ```yaml
+/// languages:
+///   extensions:
+///     markdown: [mdx, Rmd]
+///     latex: [sty]
+/// ```
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct LanguageConfig {
+    /// Additional file extensions per language ID (without leading dots).
+    #[serde(default)]
+    pub extensions: HashMap<String, Vec<String>>,
 }
 
 /// Performance tuning options. High Performance Mode (HPM) disables
@@ -238,6 +259,7 @@ impl Default for Config {
             auto_fix: Vec::new(),
             performance: PerformanceConfig::default(),
             dictionaries: DictionaryConfig::default(),
+            languages: LanguageConfig::default(),
         }
     }
 }

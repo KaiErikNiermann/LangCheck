@@ -1,0 +1,13 @@
+{
+  "name": "tree-sitter-tinylang",
+  "version": "0.1.0",
+  "description": "TinyLang grammar for tree-sitter (demo language for lang-check)",
+  "main": "bindings/node",
+  "keywords": ["parser", "tree-sitter", "tinylang"],
+  "tree-sitter": [
+    {
+      "scope": "source.tinylang",
+      "file-types": ["tiny"]
+    }
+  ]
+}
