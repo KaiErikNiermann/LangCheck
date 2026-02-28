@@ -239,17 +239,22 @@ export function activate(context: vscode.ExtensionContext) {
                     // Add a quickfix for each suggestion
                     if (extDiag.suggestions) {
                         for (const suggestion of extDiag.suggestions) {
+                            const insertMatch = suggestion.match(/^Insert\s+[""\u201C](.+)[""\u201D]$/);
+                            const isRemove = suggestion === '';
+                            const label = isRemove
+                                ? 'Fix: Remove text'
+                                : insertMatch && insertMatch[1]
+                                    ? `Fix: Insert "${insertMatch[1]}"`
+                                    : `Fix: "${suggestion}"`;
                             const fix = new vscode.CodeAction(
-                                `Fix: "${suggestion}"`,
+                                label,
                                 vscode.CodeActionKind.QuickFix
                             );
                             fix.edit = new vscode.WorkspaceEdit();
-                            // Handle "Insert" suggestions: `Insert ","` means insert
-                            // the quoted text, not replace with the literal string
-                            const insertMatch = suggestion.match(/^Insert\s+[""\u201C](.+)[""\u201D]$/);
                             if (insertMatch && insertMatch[1]) {
                                 fix.edit.insert(document.uri, diag.range.end, insertMatch[1]);
                             } else {
+                                // Empty string = delete the range; otherwise replace
                                 fix.edit.replace(document.uri, diag.range, suggestion);
                             }
                             fix.diagnostics = [diag];

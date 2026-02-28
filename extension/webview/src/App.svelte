@@ -274,7 +274,7 @@
             type="button"
           >
             {#if i < 10}<span class="key">{i < 9 ? i + 1 : 0}</span>{/if}
-            <span class="action-title">{suggestion}</span>
+            <span class="action-title">{suggestion === '' ? 'Remove text' : suggestion.replace(/^Insert\s+[""\u201C](.+)[""\u201D]$/, 'Insert "$1"')}</span>
           </button>
         {/each}
         {#if lowResource && current.suggestions.length > 3}
