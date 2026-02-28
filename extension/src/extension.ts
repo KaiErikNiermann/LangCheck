@@ -589,8 +589,9 @@ export function activate(context: vscode.ExtensionContext) {
                 case 'highlightRange': {
                     const editor = vscode.window.activeTextEditor;
                     if (editor) {
-                        const start = editor.document.positionAt(message.payload.startByte);
-                        const end = editor.document.positionAt(message.payload.endByte);
+                        const buf = Buffer.from(editor.document.getText(), 'utf8');
+                        const start = editor.document.positionAt(buf.subarray(0, message.payload.startByte).toString('utf8').length);
+                        const end = editor.document.positionAt(buf.subarray(0, message.payload.endByte).toString('utf8').length);
                         editor.selection = new vscode.Selection(start, end);
                         editor.revealRange(new vscode.Range(start, end));
                     }
@@ -1041,9 +1042,14 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
 
         if (response.checkProse) {
             const t2 = performance.now();
+            // Core returns UTF-8 byte offsets; positionAt expects char offsets.
+            // Pre-compute the UTF-8 buffer once so we can convert efficiently.
+            const textBuf = Buffer.from(textContent, 'utf8');
+            const byteToChar = (byteOff: number) =>
+                textBuf.subarray(0, byteOff).toString('utf8').length;
             const extendedDiagnostics: ExtendedDiagnostic[] = response.checkProse.diagnostics!.map(d => {
-                const start = document.positionAt(d.startByte as number);
-                const end = document.positionAt(d.endByte as number);
+                const start = document.positionAt(byteToChar(d.startByte as number));
+                const end = document.positionAt(byteToChar(d.endByte as number));
                 const range = new vscode.Range(start, end);
 
                 let severity = vscode.DiagnosticSeverity.Information;
