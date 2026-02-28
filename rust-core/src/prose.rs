@@ -60,13 +60,33 @@ const LATEX_SKIP_NODES: &[&str] = &[
     "displayed_equation",
 ];
 
-/// Parent node types whose `word` children are structural (env names, command
-/// args) rather than prose.
-const LATEX_STRUCTURAL_PARENTS: &[&str] = &[
-    "curly_group_text",  // \begin{name}, \end{name}
-    "brack_group",       // optional args like [H], [1]
-    "command_name",      // \section, \textbf etc.
+/// Node types that are always structural (never contain prose `word` nodes).
+const LATEX_STRUCTURAL_NODES: &[&str] = &[
+    "command_name",       // \section, \textbf etc.
+    "graphics_include",   // \includegraphics[...]{...}
+    "label_definition",   // \label{...}
+    "label_reference",    // \ref{...}
+    "citation",           // \cite{...}
+    "package_include",    // \usepackage{...}
+    "bibstyle_include",   // \bibliographystyle{...}
 ];
+
+/// Check whether a node kind represents a structural (non-prose) container.
+/// This includes all `brack_group*` variants, specialised `curly_group_*`
+/// variants (but NOT plain `curly_group` which holds prose), and explicitly
+/// listed structural node types.
+fn is_structural_node(kind: &str) -> bool {
+    // All bracket groups are structural: brack_group, brack_group_key_value, etc.
+    if kind.starts_with("brack_group") {
+        return true;
+    }
+    // Specialised curly groups are structural: curly_group_text, curly_group_path, etc.
+    // Plain `curly_group` (no suffix) holds prose content like \textbf{...}
+    if kind.starts_with("curly_group_") {
+        return true;
+    }
+    LATEX_STRUCTURAL_NODES.contains(&kind)
+}
 
 impl ProseExtractor {
     pub fn new(language: Language) -> Result<Self> {
@@ -173,7 +193,7 @@ fn collect_latex_words(
     }
 
     // Track whether we're inside a structural parent
-    let structural = in_structural || LATEX_STRUCTURAL_PARENTS.contains(&kind);
+    let structural = in_structural || is_structural_node(kind);
 
     // `word` is a leaf node — this is actual prose text (unless inside structural)
     if kind == "word" {
@@ -221,19 +241,11 @@ fn should_skip_generic_env(node: Node, text: &str) -> bool {
 
 /// Merge word byte ranges into larger prose chunks.
 ///
-/// Two adjacent words are merged when they belong to the same sentence/block.
-/// We break on:
-/// - Paragraph breaks (blank lines / double newlines)
-/// - Gaps that start new structural blocks (e.g. `\begin`, `\end`, `\section`)
-///
-/// We deliberately bridge across:
-/// - Inline math (`$...$`, `\(...\)`)
-/// - Punctuation (commas, periods between words)
-/// - Single newlines (LaTeX treats them as spaces)
-/// - Commands within prose (`\textbf{...}`, etc.)
-///
-/// This ensures the grammar checker sees complete sentences even when they
-/// contain inline math like "the variable $i$ is always positive".
+/// Two adjacent words are merged when the gap between them is "benign" —
+/// containing only whitespace, inline math, and simple punctuation. This
+/// keeps sentences like "the variable $i$ is positive" as a single chunk
+/// while still breaking at display math, block commands, and paragraph
+/// breaks.
 fn merge_word_ranges(words: &[(usize, usize)], text: &str) -> Vec<ProseRange> {
     if words.is_empty() {
         return Vec::new();
@@ -245,9 +257,8 @@ fn merge_word_ranges(words: &[(usize, usize)], text: &str) -> Vec<ProseRange> {
 
     for &(start, end) in &words[1..] {
         let gap = &text[chunk_end..start];
-        let should_break = is_paragraph_break(gap) || is_structural_break(gap);
 
-        if should_break {
+        if !is_bridgeable_gap(gap) {
             // Flush current chunk and start a new one
             ranges.push(ProseRange {
                 start_byte: chunk_start,
@@ -267,28 +278,106 @@ fn merge_word_ranges(words: &[(usize, usize)], text: &str) -> Vec<ProseRange> {
     ranges
 }
 
-/// Check if a gap contains a paragraph break (blank line).
-fn is_paragraph_break(gap: &str) -> bool {
-    gap.contains("\n\n") || gap.contains("\r\n\r\n")
+/// Check if the gap between two word ranges can be bridged (merged into one
+/// prose chunk). A bridgeable gap contains only:
+/// - Whitespace (spaces, tabs, single newlines — NOT paragraph breaks)
+/// - Math: `$...$`, `\(...\)`, `\[...\]`
+/// - LaTeX commands: `\textbf`, `\textit`, `\ref{...}`, etc.
+/// - Braces and simple punctuation: `{`, `}`, `, . ; : ! ? ( ) ' " - –`
+///
+/// Non-bridgeable gaps include paragraph breaks.
+fn is_bridgeable_gap(gap: &str) -> bool {
+    // Paragraph break — always split
+    if gap.contains("\n\n") || gap.contains("\r\n\r\n") {
+        return false;
+    }
+
+    // Strip math and LaTeX commands from the gap, then check what remains
+    let stripped = strip_latex_noise(gap);
+
+    // After stripping, everything left must be whitespace or simple punctuation
+    stripped.chars().all(|c| {
+        c.is_ascii_whitespace()
+            || matches!(c, ',' | '.' | ';' | ':' | '!' | '?' | '(' | ')' | '\'' | '"'
+                         | '-' | '\u{2013}' | '\u{2014}' | '[' | ']'
+                         | '{' | '}' | '~')
+    })
 }
 
-/// Check if a gap contains a structural LaTeX command that typically starts
-/// a new block and should break the prose chunk.
-fn is_structural_break(gap: &str) -> bool {
-    // These commands start new structural blocks
-    let structural = [
-        "\\begin{", "\\end{",
-        "\\section", "\\subsection", "\\subsubsection",
-        "\\chapter", "\\part",
-        "\\item",
-        "\\paragraph", "\\subparagraph",
-    ];
-    for cmd in &structural {
-        if gap.contains(cmd) {
-            return true;
+/// Strip LaTeX noise from a gap string: math (`$...$`, `\[...\]`, `\(...\)`)
+/// and command names (`\textbf`, `\ref`, etc.). Leaves braces, whitespace,
+/// and punctuation intact for subsequent validation.
+fn strip_latex_noise(gap: &str) -> String {
+    let mut result = String::new();
+    let chars: Vec<char> = gap.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '$' {
+            // Skip inline math until closing $
+            i += 1;
+            while i < chars.len() && chars[i] != '$' {
+                i += 1;
+            }
+            i += 1; // skip closing $
+        } else if chars[i] == '\\' && i + 1 < chars.len() && (chars[i + 1] == '[' || chars[i + 1] == '(') {
+            // Skip display math \[...\] or inline math \(...\)
+            let close = if chars[i + 1] == '[' { ']' } else { ')' };
+            i += 2;
+            while i + 1 < chars.len() && !(chars[i] == '\\' && chars[i + 1] == close) {
+                i += 1;
+            }
+            if i + 1 < chars.len() {
+                i += 2; // skip closing delimiter
+            }
+        } else if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1].is_ascii_alphabetic() {
+            // Read the command name
+            let cmd_start = i + 1;
+            let mut j = cmd_start;
+            while j < chars.len() && chars[j].is_ascii_alphabetic() {
+                j += 1;
+            }
+            let cmd: String = chars[cmd_start..j].iter().collect();
+
+            // Block commands that should NOT be bridged — leave them in the
+            // output so they cause the gap to fail validation.
+            if matches!(cmd.as_str(), "begin" | "end" | "item" | "par"
+                | "section" | "subsection" | "subsubsection" | "paragraph"
+                | "chapter" | "part") {
+                result.push(chars[i]);
+                i += 1;
+                continue;
+            }
+
+            // Skip this command: \commandname (backslash + letters)
+            i = j;
+            // Also skip optional * (e.g. \emph*)
+            if i < chars.len() && chars[i] == '*' {
+                i += 1;
+            }
+            // Skip command arguments: {content} and [content]
+            while i < chars.len() && (chars[i] == '{' || chars[i] == '[') {
+                let open = chars[i];
+                let close = if open == '{' { '}' } else { ']' };
+                let mut depth = 1;
+                i += 1;
+                while i < chars.len() && depth > 0 {
+                    if chars[i] == open { depth += 1; }
+                    else if chars[i] == close { depth -= 1; }
+                    i += 1;
+                }
+            }
+        } else if chars[i] == '\\' {
+            // Skip lone backslash (e.g. \\, \,, \;)
+            i += 1;
+            if i < chars.len() {
+                i += 1;
+            }
+        } else {
+            result.push(chars[i]);
+            i += 1;
         }
     }
-    false
+    result
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -699,4 +788,5 @@ Some text after.
 
         Ok(())
     }
+
 }
