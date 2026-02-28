@@ -117,7 +117,9 @@ fn is_chunk_end(line: &[u8]) -> bool {
     if line.is_empty() || line[0] != b'@' {
         return false;
     }
-    line[1..].iter().all(|&b| b == b' ' || b == b'\t' || b == b'\r')
+    line[1..]
+        .iter()
+        .all(|&b| b == b' ' || b == b'\t' || b == b'\r')
 }
 
 /// Extract prose ranges from a Sweave (.Rnw) document.
@@ -148,6 +150,8 @@ pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prose::ProseExtractor;
+    use anyhow::Result;
 
     #[test]
     fn test_preprocess_blanks_r_chunks() {
@@ -217,5 +221,91 @@ mod tests {
         let text = "Just regular LaTeX content.\n\\section{Hello}\nSome text.\n";
         let result = preprocess(text);
         assert_eq!(text, result, "text without R chunks should be unchanged");
+    }
+
+    fn sweave_extractor() -> Result<ProseExtractor> {
+        let language = crate::languages::resolve_ts_language("sweave");
+        ProseExtractor::new(language)
+    }
+
+    #[test]
+    fn test_sweave_basic_extraction() -> Result<()> {
+        let mut extractor = sweave_extractor()?;
+
+        let text = r"\documentclass{article}
+\begin{document}
+
+This is a paragraph in a Sweave document.
+
+<<setup, echo=FALSE>>=
+library(ggplot2)
+x <- rnorm(100)
+@
+
+Another paragraph after the R chunk.
+
+\end{document}
+";
+        let ranges = extractor.extract(text, "sweave")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted
+                .iter()
+                .any(|t| t.contains("paragraph in a Sweave")),
+            "Should extract prose text before R chunk, got: {extracted:?}"
+        );
+        assert!(
+            extracted
+                .iter()
+                .any(|t| t.contains("Another paragraph after")),
+            "Should extract prose text after R chunk, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sweave_r_chunk_excluded() -> Result<()> {
+        let mut extractor = sweave_extractor()?;
+
+        let text = r"\documentclass{article}
+\begin{document}
+
+Some prose before code.
+
+<<my-chunk, fig=TRUE>>=
+plot(1:10)
+summary(lm(y ~ x))
+@
+
+Some prose after code.
+
+\end{document}
+";
+        let ranges = extractor.extract(text, "sweave")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+
+        assert!(
+            !all_prose.contains("plot(1:10)"),
+            "R code should NOT appear in prose, got: {all_prose:?}"
+        );
+        assert!(
+            !all_prose.contains("summary(lm"),
+            "R code should NOT appear in prose, got: {all_prose:?}"
+        );
+        assert!(
+            all_prose.contains("prose before code"),
+            "Prose before R chunk should be extracted, got: {all_prose:?}"
+        );
+        assert!(
+            all_prose.contains("prose after code"),
+            "Prose after R chunk should be extracted, got: {all_prose:?}"
+        );
+
+        Ok(())
     }
 }

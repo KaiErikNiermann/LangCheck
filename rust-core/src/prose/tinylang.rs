@@ -4,13 +4,7 @@ use super::{ProseRange, shared};
 
 /// Commands whose arguments contain identifiers/metadata, not prose.
 const STRUCTURAL_COMMANDS: &[&str] = &[
-    "@author",
-    "@date",
-    "@import",
-    "@ref",
-    "@tag",
-    "@id",
-    "@class",
+    "@author", "@date", "@import", "@ref", "@tag", "@id", "@class",
 ];
 
 /// Node kinds that are never prose and whose subtrees should be skipped.
@@ -32,7 +26,12 @@ const SKIP_KINDS: &[&str] = &[
 pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     let mut word_ranges: Vec<(usize, usize)> = Vec::new();
     collect_prose_nodes(root, text, false, &mut word_ranges);
-    shared::merge_ranges(&word_ranges, text, strip_tinylang_noise, collect_math_exclusions)
+    shared::merge_ranges(
+        &word_ranges,
+        text,
+        strip_tinylang_noise,
+        collect_math_exclusions,
+    )
 }
 
 /// Check whether a command node is structural (non-prose arguments).
@@ -48,12 +47,7 @@ fn is_structural_command(node: Node, text: &str) -> bool {
 }
 
 /// Recursively collect prose leaf nodes (`text`), skipping non-prose subtrees.
-fn collect_prose_nodes(
-    node: Node,
-    text: &str,
-    skip: bool,
-    out: &mut Vec<(usize, usize)>,
-) {
+fn collect_prose_nodes(node: Node, text: &str, skip: bool, out: &mut Vec<(usize, usize)>) {
     let kind = node.kind();
 
     // Skip entire subtrees for non-prose node kinds
@@ -207,4 +201,116 @@ fn strip_tinylang_noise(gap: &str) -> String {
         }
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::prose::ProseExtractor;
+    use anyhow::Result;
+
+    #[test]
+    fn test_tinylang_basic_extraction() -> Result<()> {
+        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+        let text = "This is a simple sentence.\n";
+        let ranges = extractor.extract(text, "tinylang")?;
+        assert!(!ranges.is_empty(), "Should extract prose from plain text");
+        let prose = ranges[0].extract_text(text);
+        assert!(
+            prose.contains("simple sentence"),
+            "Prose should contain 'simple sentence', got: {:?}",
+            prose
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_tinylang_code_excluded() -> Result<()> {
+        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+        let text = "Before code.\n\n~~~\nfn main() {}\n~~~\n\nAfter code.\n";
+        let ranges = extractor.extract(text, "tinylang")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            !all_prose.contains("fn main"),
+            "Code block content should not appear in prose, got: {:?}",
+            all_prose
+        );
+        assert!(
+            all_prose.contains("Before code"),
+            "Prose before code should be extracted, got: {:?}",
+            all_prose
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_tinylang_structural_commands_excluded() -> Result<()> {
+        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+        let text = "@author{Jane Doe}\n@date{2025-01-01}\n\nSome prose text here.\n";
+        let ranges = extractor.extract(text, "tinylang")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            !all_prose.contains("Jane Doe"),
+            "Structural command args should not be in prose, got: {:?}",
+            all_prose
+        );
+        assert!(
+            all_prose.contains("prose text here"),
+            "Regular prose should be extracted, got: {:?}",
+            all_prose
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_tinylang_math_excluded() -> Result<()> {
+        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+        let text = "The formula $E = mc^2$ is famous.\n";
+        let ranges = extractor.extract(text, "tinylang")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            !all_prose.contains("mc^2"),
+            "Inline math should not be in prose, got: {:?}",
+            all_prose
+        );
+        assert!(
+            all_prose.contains("formula"),
+            "Prose around math should be extracted, got: {:?}",
+            all_prose
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_tinylang_comment_excluded() -> Result<()> {
+        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+        let text = "Visible text.\n// This is a comment\nMore text.\n";
+        let ranges = extractor.extract(text, "tinylang")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            !all_prose.contains("This is a comment"),
+            "Comments should not be in prose, got: {:?}",
+            all_prose
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_tinylang_prose_command_included() -> Result<()> {
+        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+        let text = "@title{My Great Document}\n\nSome text.\n";
+        let ranges = extractor.extract(text, "tinylang")?;
+        let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            all_prose.contains("Great Document"),
+            "Prose command args should be extracted, got: {:?}",
+            all_prose
+        );
+        Ok(())
+    }
 }

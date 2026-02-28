@@ -289,3 +289,363 @@ fn strip_forester_noise(gap: &str) -> String {
     }
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::prose::ProseExtractor;
+    use anyhow::Result;
+
+    fn forester_extractor() -> Result<ProseExtractor> {
+        let language: tree_sitter::Language = crate::forester_ts::LANGUAGE.into();
+        ProseExtractor::new(language)
+    }
+
+    #[test]
+    fn test_forester_basic_extraction() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\title{Hello World}
+\p{This is a paragraph.}
+";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted.iter().any(|t| t.contains("Hello World")),
+            "Should extract title text, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("This is a paragraph")),
+            "Should extract paragraph text, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_math_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Display math between paragraphs (separated by blank line) should
+        // not appear in prose ranges.
+        let text = "\\p{Text before math.}\n\n##{\\int_0^1 f(x) \\, dx}\n\n\\p{Text after math.}\n";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted.iter().any(|t| t.contains("Text before math")),
+            "Should extract text before math, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("Text after math")),
+            "Should extract text after math, got: {extracted:?}"
+        );
+        assert!(
+            !extracted.iter().any(|t| t.contains("\\int")),
+            "Should NOT extract display math content, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_structural_commands_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\import{trees/basics}
+\ref{tree-0001}
+\p{Some actual prose.}
+";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            !extracted.iter().any(|t| t.contains("trees/basics")),
+            "Should NOT extract import path, got: {extracted:?}"
+        );
+        assert!(
+            !extracted.iter().any(|t| t.contains("tree-0001")),
+            "Should NOT extract ref target, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("actual prose")),
+            "Should extract prose text, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_verbatim_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = "\\p{Before code.}\n```\nfn main() {}\n```\n\\p{After code.}";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            !extracted.iter().any(|t| t.contains("fn main")),
+            "Should NOT extract verbatim content, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("Before code")),
+            "Should extract text before verbatim, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("After code")),
+            "Should extract text after verbatim, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_inline_commands_bridge() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{This has \em{emphasized} words in it.}";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted.iter().any(|t| t.contains("This has")
+                && t.contains("emphasized")
+                && t.contains("words in it")),
+            "Sentence with inline command should bridge into single chunk, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_display_math_exclusion() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{We know that
+##{
+  x^2 + y^2 = z^2
+}
+which proves our claim.}";
+        let ranges = extractor.extract(text, "forester")?;
+
+        // Should bridge across display math
+        let bridged = ranges.iter().find(|r| {
+            let raw = &text[r.start_byte..r.end_byte];
+            raw.contains("know that") && raw.contains("proves our claim")
+        });
+        assert!(
+            bridged.is_some(),
+            "Should bridge across display math, got: {:?}",
+            ranges
+                .iter()
+                .map(|r| &text[r.start_byte..r.end_byte])
+                .collect::<Vec<_>>()
+        );
+
+        let range = bridged.unwrap();
+        assert!(
+            !range.exclusions.is_empty(),
+            "Should have exclusions for display math"
+        );
+
+        let clean_text = range.extract_text(text);
+        assert!(
+            !clean_text.contains("x^2"),
+            "extract_text should not contain math content, got: {:?}",
+            clean_text
+        );
+        assert!(
+            clean_text.contains("know that"),
+            "extract_text should still contain prose, got: {:?}",
+            clean_text
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_list_items_separate_scopes() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\ol{\li{Item one}\li{Item two}\li{Item three}}";
+        let ranges = extractor.extract(text, "forester")?;
+
+        // Each \li should be a separate prose range — never merged into one sentence
+        assert!(
+            ranges.len() >= 3,
+            "Each list item should be a separate prose range, got {} ranges: {:?}",
+            ranges.len(),
+            ranges
+                .iter()
+                .map(|r| &text[r.start_byte..r.end_byte])
+                .collect::<Vec<_>>()
+        );
+        // No single range should span across list items
+        assert!(
+            !ranges.iter().any(|r| {
+                let t = &text[r.start_byte..r.end_byte];
+                t.contains("one") && t.contains("two")
+            }),
+            "List items should not merge into a single range"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_inline_math_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{The value #{x + y} is positive.}";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted.iter().any(|t| t.contains("The value")),
+            "Should extract prose around inline math, got: {extracted:?}"
+        );
+
+        // The range that contains the math should have an exclusion for it
+        let range_with_math = ranges.iter().find(|r| {
+            let raw = &text[r.start_byte..r.end_byte];
+            raw.contains("value") && raw.contains("positive")
+        });
+        if let Some(range) = range_with_math {
+            let clean = range.extract_text(text);
+            assert!(
+                !clean.contains("x + y"),
+                "Inline math should be excluded from clean text, got: {:?}",
+                clean
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_block_math_multiline_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Block math with real newlines inside \p — tree-sitter parses ##{...}
+        // as display_math which is in SKIP_KINDS, so it should be excluded.
+        let text = "\\p{Consider the equation\n##{  x^2 + y^2 = z^2 }\nwhich is well known.}";
+        let ranges = extractor.extract(text, "forester")?;
+
+        // The math content should not appear in extracted prose
+        for range in &ranges {
+            let clean = range.extract_text(text);
+            assert!(
+                !clean.contains("x^2"),
+                "Block math content should not appear in clean prose, got: {:?}",
+                clean
+            );
+        }
+
+        // Surrounding prose should still be extracted
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            all_text.contains("Consider the equation"),
+            "Prose before block math should be extracted, got: {:?}",
+            all_text
+        );
+        assert!(
+            all_text.contains("well known"),
+            "Prose after block math should be extracted, got: {:?}",
+            all_text
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_unknown_macros_skipped() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{Real prose here.}
+\mymacro{macro content}
+\anothermacro[opt]{more content}
+\p{More real prose.}";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            !extracted.iter().any(|t| t.contains("macro content")),
+            "Unknown macro content should NOT be checked, got: {extracted:?}"
+        );
+        assert!(
+            !extracted.iter().any(|t| t.contains("more content")),
+            "Unknown macro with args should NOT be checked, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("Real prose")),
+            "Known commands should still extract prose, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("More real prose")),
+            "Known commands should still extract prose, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_nested_blocks_separate_scopes() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // A title and paragraph inside a subtree should be separate scopes
+        let text = r"\subtree{
+\title{My Section}
+\p{First paragraph.}
+\p{Second paragraph.}
+}";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted.iter().any(|t| t.contains("My Section")),
+            "Title inside subtree should be extracted, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("First paragraph")),
+            "Paragraph inside subtree should be extracted, got: {extracted:?}"
+        );
+        // Title and paragraphs should not merge into one range
+        assert!(
+            !ranges.iter().any(|r| {
+                let t = &text[r.start_byte..r.end_byte];
+                t.contains("My Section") && t.contains("First paragraph")
+            }),
+            "Title and paragraph should be separate scopes"
+        );
+
+        Ok(())
+    }
+}
