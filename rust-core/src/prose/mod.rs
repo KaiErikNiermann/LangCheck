@@ -62,6 +62,18 @@ impl ProseRange {
         }
         std::borrow::Cow::Owned(buf)
     }
+
+    /// Check whether a local byte range (relative to this prose range)
+    /// overlaps with any exclusion zone.
+    pub fn overlaps_exclusion(&self, local_start: u32, local_end: u32) -> bool {
+        let doc_start = self.start_byte as u32 + local_start;
+        let doc_end = self.start_byte as u32 + local_end;
+        self.exclusions.iter().any(|&(exc_start, exc_end)| {
+            let es = exc_start as u32;
+            let ee = exc_end as u32;
+            doc_start < ee && doc_end > es
+        })
+    }
 }
 
 #[cfg(test)]
@@ -565,5 +577,23 @@ the intuition here being that all elements are in sorted order.
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn test_overlaps_exclusion() {
+        let range = ProseRange {
+            start_byte: 100,
+            end_byte: 300,
+            exclusions: vec![(150, 200)],
+        };
+
+        // Diagnostic entirely inside exclusion
+        assert!(range.overlaps_exclusion(50, 100)); // local 50..100 = doc 150..200
+        // Diagnostic partially overlapping exclusion
+        assert!(range.overlaps_exclusion(40, 60));  // doc 140..160 overlaps 150..200
+        assert!(range.overlaps_exclusion(90, 110)); // doc 190..210 overlaps 150..200
+        // Diagnostic entirely outside exclusion
+        assert!(!range.overlaps_exclusion(0, 40));   // doc 100..140, before exclusion
+        assert!(!range.overlaps_exclusion(110, 130)); // doc 210..230, after exclusion
     }
 }

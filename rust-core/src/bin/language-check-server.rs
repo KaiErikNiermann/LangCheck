@@ -76,6 +76,7 @@ async fn process_file_for_indexing(
         drop(orchestrator_lock);
 
         if let Ok(mut diagnostics) = check_result {
+            diagnostics.retain(|d| !range.overlaps_exclusion(d.start_byte, d.end_byte));
             for d in &mut diagnostics {
                 d.start_byte += range.start_byte as u32;
                 d.end_byte += range.start_byte as u32;
@@ -344,6 +345,7 @@ async fn main() -> Result<()> {
                                 if let Ok(mut diagnostics) =
                                     orchestrator.check(&prose_text, &req.language_id).await
                                 {
+                                    diagnostics.retain(|d| !range.overlaps_exclusion(d.start_byte, d.end_byte));
                                     for d in &mut diagnostics {
                                         d.start_byte += range.start_byte as u32;
                                         d.end_byte += range.start_byte as u32;
