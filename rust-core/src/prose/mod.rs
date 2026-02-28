@@ -9,7 +9,10 @@ mod sweave;
 mod tinylang;
 
 use anyhow::{Result, anyhow};
+use std::path::Path;
 use tree_sitter::{Language, Parser};
+
+use crate::sls::SchemaRegistry;
 
 pub struct ProseExtractor {
     parser: Parser,
@@ -42,6 +45,32 @@ impl ProseExtractor {
             lang => query::extract(text, root, &self.language, lang),
         }
     }
+}
+
+/// Extract prose using a built-in tree-sitter extractor or an SLS fallback.
+///
+/// When the file extension matches a loaded SLS schema and that extension has
+/// no built-in tree-sitter extractor, the schema takes over. Built-in
+/// extensions always keep precedence.
+pub fn extract_with_fallback(
+    text: &str,
+    lang_id: &str,
+    path: Option<&Path>,
+    schema_registry: Option<&SchemaRegistry>,
+) -> Result<Vec<ProseRange>> {
+    if let Some(ext) = path
+        .and_then(|value| value.extension())
+        .and_then(|value| value.to_str())
+        && crate::languages::builtin_language_for_extension(ext).is_none()
+        && let Some(schema) = schema_registry.and_then(|registry| registry.find_by_extension(ext))
+    {
+        return Ok(schema.extract(text));
+    }
+
+    let canonical_lang = crate::languages::resolve_language_id(lang_id);
+    let language = crate::languages::resolve_ts_language(canonical_lang);
+    let mut extractor = ProseExtractor::new(language)?;
+    extractor.extract(text, canonical_lang)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,8 +138,16 @@ mod tests {
             .map(|r| &text[r.start_byte..r.end_byte])
             .collect();
         assert!(extracted_texts.iter().any(|t| t.contains("Header")));
-        assert!(extracted_texts.iter().any(|t| t.contains("This is a paragraph")));
-        assert!(extracted_texts.iter().any(|t| t.contains("Another paragraph")));
+        assert!(
+            extracted_texts
+                .iter()
+                .any(|t| t.contains("This is a paragraph"))
+        );
+        assert!(
+            extracted_texts
+                .iter()
+                .any(|t| t.contains("Another paragraph"))
+        );
 
         Ok(())
     }
@@ -496,14 +533,18 @@ which proves our claim.
         let ranges = extractor.extract(text, "latex")?;
 
         // The sentence should bridge across the display math
-        let bridged = ranges
-            .iter()
-            .any(|r| {
-                let raw = &text[r.start_byte..r.end_byte];
-                raw.contains("know that") && raw.contains("proves our claim")
-            });
-        assert!(bridged, "Sentence should bridge across display math, got: {:?}",
-            ranges.iter().map(|r| &text[r.start_byte..r.end_byte]).collect::<Vec<_>>());
+        let bridged = ranges.iter().any(|r| {
+            let raw = &text[r.start_byte..r.end_byte];
+            raw.contains("know that") && raw.contains("proves our claim")
+        });
+        assert!(
+            bridged,
+            "Sentence should bridge across display math, got: {:?}",
+            ranges
+                .iter()
+                .map(|r| &text[r.start_byte..r.end_byte])
+                .collect::<Vec<_>>()
+        );
 
         // But extract_text should replace the math with spaces
         let bridged_range = ranges
@@ -514,7 +555,10 @@ which proves our claim.
             })
             .expect("Should have a bridged range");
 
-        assert!(!bridged_range.exclusions.is_empty(), "Should have exclusions for display math");
+        assert!(
+            !bridged_range.exclusions.is_empty(),
+            "Should have exclusions for display math"
+        );
 
         let clean_text = bridged_range.extract_text(text);
         assert!(
@@ -603,10 +647,10 @@ the intuition here being that all elements are in sorted order.
         // Diagnostic entirely inside exclusion
         assert!(range.overlaps_exclusion(50, 100)); // local 50..100 = doc 150..200
         // Diagnostic partially overlapping exclusion
-        assert!(range.overlaps_exclusion(40, 60));  // doc 140..160 overlaps 150..200
+        assert!(range.overlaps_exclusion(40, 60)); // doc 140..160 overlaps 150..200
         assert!(range.overlaps_exclusion(90, 110)); // doc 190..210 overlaps 150..200
         // Diagnostic entirely outside exclusion
-        assert!(!range.overlaps_exclusion(0, 40));   // doc 100..140, before exclusion
+        assert!(!range.overlaps_exclusion(0, 40)); // doc 100..140, before exclusion
         assert!(!range.overlaps_exclusion(110, 130)); // doc 210..230, after exclusion
     }
 
@@ -740,9 +784,9 @@ the intuition here being that all elements are in sorted order.
             .collect();
 
         assert!(
-            extracted
-                .iter()
-                .any(|t| t.contains("This has") && t.contains("emphasized") && t.contains("words in it")),
+            extracted.iter().any(|t| t.contains("This has")
+                && t.contains("emphasized")
+                && t.contains("words in it")),
             "Sentence with inline command should bridge into single chunk, got: {extracted:?}"
         );
 
@@ -790,6 +834,177 @@ which proves our claim.}";
             clean_text.contains("know that"),
             "extract_text should still contain prose, got: {:?}",
             clean_text
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_list_items_separate_scopes() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\ol{\li{Item one}\li{Item two}\li{Item three}}";
+        let ranges = extractor.extract(text, "forester")?;
+
+        // Each \li should be a separate prose range — never merged into one sentence
+        assert!(
+            ranges.len() >= 3,
+            "Each list item should be a separate prose range, got {} ranges: {:?}",
+            ranges.len(),
+            ranges
+                .iter()
+                .map(|r| &text[r.start_byte..r.end_byte])
+                .collect::<Vec<_>>()
+        );
+        // No single range should span across list items
+        assert!(
+            !ranges.iter().any(|r| {
+                let t = &text[r.start_byte..r.end_byte];
+                t.contains("one") && t.contains("two")
+            }),
+            "List items should not merge into a single range"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_inline_math_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{The value #{x + y} is positive.}";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted.iter().any(|t| t.contains("The value")),
+            "Should extract prose around inline math, got: {extracted:?}"
+        );
+
+        // The range that contains the math should have an exclusion for it
+        let range_with_math = ranges.iter().find(|r| {
+            let raw = &text[r.start_byte..r.end_byte];
+            raw.contains("value") && raw.contains("positive")
+        });
+        if let Some(range) = range_with_math {
+            let clean = range.extract_text(text);
+            assert!(
+                !clean.contains("x + y"),
+                "Inline math should be excluded from clean text, got: {:?}",
+                clean
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_block_math_multiline_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Block math with real newlines inside \p — tree-sitter parses ##{...}
+        // as display_math which is in SKIP_KINDS, so it should be excluded.
+        let text = "\\p{Consider the equation\n##{  x^2 + y^2 = z^2 }\nwhich is well known.}";
+        let ranges = extractor.extract(text, "forester")?;
+
+        // The math content should not appear in extracted prose
+        for range in &ranges {
+            let clean = range.extract_text(text);
+            assert!(
+                !clean.contains("x^2"),
+                "Block math content should not appear in clean prose, got: {:?}",
+                clean
+            );
+        }
+
+        // Surrounding prose should still be extracted
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            all_text.contains("Consider the equation"),
+            "Prose before block math should be extracted, got: {:?}",
+            all_text
+        );
+        assert!(
+            all_text.contains("well known"),
+            "Prose after block math should be extracted, got: {:?}",
+            all_text
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_unknown_macros_skipped() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{Real prose here.}
+\mymacro{macro content}
+\anothermacro[opt]{more content}
+\p{More real prose.}";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            !extracted.iter().any(|t| t.contains("macro content")),
+            "Unknown macro content should NOT be checked, got: {extracted:?}"
+        );
+        assert!(
+            !extracted.iter().any(|t| t.contains("more content")),
+            "Unknown macro with args should NOT be checked, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("Real prose")),
+            "Known commands should still extract prose, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("More real prose")),
+            "Known commands should still extract prose, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_nested_blocks_separate_scopes() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // A title and paragraph inside a subtree should be separate scopes
+        let text = r"\subtree{
+\title{My Section}
+\p{First paragraph.}
+\p{Second paragraph.}
+}";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted.iter().any(|t| t.contains("My Section")),
+            "Title inside subtree should be extracted, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("First paragraph")),
+            "Paragraph inside subtree should be extracted, got: {extracted:?}"
+        );
+        // Title and paragraphs should not merge into one range
+        assert!(
+            !ranges.iter().any(|r| {
+                let t = &text[r.start_byte..r.end_byte];
+                t.contains("My Section") && t.contains("First paragraph")
+            }),
+            "Title and paragraph should be separate scopes"
         );
 
         Ok(())
@@ -930,7 +1145,8 @@ which proves our claim.}";
     #[test]
     fn test_rst_code_block_excluded() -> Result<()> {
         let mut extractor = rst_extractor()?;
-        let text = "Some text.\n\n.. code-block:: python\n\n   def hello():\n       pass\n\nMore text.\n";
+        let text =
+            "Some text.\n\n.. code-block:: python\n\n   def hello():\n       pass\n\nMore text.\n";
         let ranges = extractor.extract(text, "rst")?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
         assert!(
@@ -1031,11 +1247,15 @@ Another paragraph after the R chunk.
             .collect();
 
         assert!(
-            extracted.iter().any(|t| t.contains("paragraph in a Sweave")),
+            extracted
+                .iter()
+                .any(|t| t.contains("paragraph in a Sweave")),
             "Should extract prose text before R chunk, got: {extracted:?}"
         );
         assert!(
-            extracted.iter().any(|t| t.contains("Another paragraph after")),
+            extracted
+                .iter()
+                .any(|t| t.contains("Another paragraph after")),
             "Should extract prose text after R chunk, got: {extracted:?}"
         );
 
@@ -1204,7 +1424,10 @@ Some prose after code.
         assert!(
             ranges.is_empty(),
             "No prose fields present, should have no ranges, got: {:?}",
-            ranges.iter().map(|r| &text[r.start_byte..r.end_byte]).collect::<Vec<_>>()
+            ranges
+                .iter()
+                .map(|r| &text[r.start_byte..r.end_byte])
+                .collect::<Vec<_>>()
         );
 
         Ok(())
@@ -1239,7 +1462,8 @@ Some prose after code.
     #[test]
     fn test_org_code_block_excluded() -> Result<()> {
         let mut extractor = org_extractor()?;
-        let text = "Some text.\n\n#+begin_src python\ndef hello():\n    pass\n#+end_src\n\nMore text.\n";
+        let text =
+            "Some text.\n\n#+begin_src python\ndef hello():\n    pass\n#+end_src\n\nMore text.\n";
         let ranges = extractor.extract(text, "org")?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
 

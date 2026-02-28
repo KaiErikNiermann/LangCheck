@@ -37,6 +37,24 @@ const STRUCTURAL_COMMANDS: &[&str] = &[
     "\\datalog",
 ];
 
+/// Block-level commands that contain prose but create scope boundaries.
+/// Text across these boundaries is never merged into a single sentence.
+const BLOCK_COMMANDS: &[&str] = &[
+    "\\p",
+    "\\li",
+    "\\ol",
+    "\\ul",
+    "\\title",
+    "\\blockquote",
+    "\\figure",
+    "\\figcaption",
+    "\\scope",
+    "\\subtree",
+];
+
+/// Inline commands whose content bridges with surrounding prose.
+const INLINE_COMMANDS: &[&str] = &["\\em", "\\strong", "\\code"];
+
 /// Node kinds that are never prose and whose subtrees should be skipped.
 const SKIP_KINDS: &[&str] = &[
     "inline_math",
@@ -49,35 +67,41 @@ const SKIP_KINDS: &[&str] = &[
 
 /// Extract prose ranges from a Forester AST.
 ///
-/// Walks the tree collecting `text` and `escape` leaf nodes, skipping math,
-/// verbatim, comments, wiki links, and structural command arguments. Adjacent
-/// text nodes are merged into sentence-level prose chunks with gap analysis.
+/// Uses scoped collection: block-level commands (\p, \li, \ol, etc.) create
+/// prose scope boundaries that prevent sentence merging across them. Inline
+/// commands (\em, \strong) bridge with surrounding text. Unknown macros are
+/// skipped by default. Math (#{}, ##{}), verbatim, comments, and wiki links
+/// are always excluded.
 pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
-    let mut word_ranges: Vec<(usize, usize)> = Vec::new();
-    collect_prose_nodes(root, text, false, &mut word_ranges);
-    shared::merge_ranges(&word_ranges, text, strip_forester_noise, collect_display_math_exclusions)
+    let mut scopes: Vec<Vec<(usize, usize)>> = vec![vec![]];
+    collect_prose_nodes(root, text, &mut scopes);
+
+    scopes
+        .iter()
+        .filter(|s| !s.is_empty())
+        .flat_map(|scope| {
+            shared::merge_ranges(scope, text, strip_forester_noise, collect_math_exclusions)
+        })
+        .collect()
 }
 
-/// Check whether a command node is structural (non-prose arguments).
-fn is_structural_command(node: Node, text: &str) -> bool {
+/// Get the command name string from a command node.
+fn get_command_name<'a>(node: Node, text: &'a str) -> Option<&'a str> {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "command_name" {
-            let name = &text[child.start_byte()..child.end_byte()];
-            return STRUCTURAL_COMMANDS.contains(&name);
+            return Some(&text[child.start_byte()..child.end_byte()]);
         }
     }
-    false
+    None
 }
 
-/// Recursively collect prose leaf nodes (`text` and `escape`), skipping
-/// non-prose subtrees.
-fn collect_prose_nodes(
-    node: Node,
-    text: &str,
-    skip: bool,
-    out: &mut Vec<(usize, usize)>,
-) {
+/// Recursively collect prose leaf nodes into scoped segments.
+///
+/// Block-level commands push new segments to prevent cross-boundary merging.
+/// Inline commands recurse normally so their content bridges. Unknown macros
+/// are skipped entirely (not checked by default).
+fn collect_prose_nodes(node: Node, text: &str, scopes: &mut Vec<Vec<(usize, usize)>>) {
     let kind = node.kind();
 
     // Skip entire subtrees for non-prose node kinds
@@ -85,26 +109,47 @@ fn collect_prose_nodes(
         return;
     }
 
-    // For command nodes, check if structural — if so, skip all arguments
     if kind == "command" {
-        if skip || is_structural_command(node, text) {
+        let cmd_name = get_command_name(node, text);
+
+        // Structural commands: skip all arguments
+        if cmd_name.is_some_and(|n| STRUCTURAL_COMMANDS.contains(&n)) {
             return;
         }
-        // Prose command: recurse into children, skipping the command_name
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            collect_prose_nodes(child, text, false, out);
+
+        // Block-level commands: create scope boundaries
+        if cmd_name.is_some_and(|n| BLOCK_COMMANDS.contains(&n)) {
+            scopes.push(vec![]);
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                collect_prose_nodes(child, text, scopes);
+            }
+            // New scope after so subsequent siblings don't merge with this block
+            scopes.push(vec![]);
+            return;
         }
+
+        // Inline commands: recurse normally (bridges with surrounding text)
+        if cmd_name.is_some_and(|n| INLINE_COMMANDS.contains(&n)) {
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                collect_prose_nodes(child, text, scopes);
+            }
+            return;
+        }
+
+        // Unknown command/macro: skip by default (macros are predominantly
+        // non-prose; users can opt in via comment directives in the future)
         return;
     }
 
     // Leaf prose nodes
     if kind == "text" || kind == "escape" {
-        if !skip {
-            let start = node.start_byte();
-            let end = node.end_byte();
-            if start < end {
-                out.push((start, end));
+        let start = node.start_byte();
+        let end = node.end_byte();
+        if start < end {
+            if let Some(scope) = scopes.last_mut() {
+                scope.push((start, end));
             }
         }
         return;
@@ -113,26 +158,33 @@ fn collect_prose_nodes(
     // Recurse into all other nodes (groups, source_file, etc.)
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        collect_prose_nodes(child, text, skip, out);
+        collect_prose_nodes(child, text, scopes);
     }
 }
 
-/// Find display math regions (`##{...}`) in a gap and record them as
-/// exclusions. Extends the exclusion to cover surrounding whitespace so the
-/// grammar checker sees spaces instead of newlines.
-fn collect_display_math_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, usize)>) {
+/// Find inline math (`#{...}`) and display math (`##{...}`) regions in a gap
+/// and record them as exclusions. Extends exclusions to cover surrounding
+/// whitespace so the grammar checker sees clean boundaries.
+fn collect_math_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, usize)>) {
     let bytes = gap.as_bytes();
     let mut i = 0;
-    while i + 2 < bytes.len() {
-        if bytes[i] == b'#' && bytes[i + 1] == b'#' && bytes[i + 2] == b'{' {
-            // Extend backwards to include leading whitespace/newlines
+    while i < bytes.len() {
+        // Display math: ##{...}
+        let is_display =
+            i + 2 < bytes.len() && bytes[i] == b'#' && bytes[i + 1] == b'#' && bytes[i + 2] == b'{';
+        // Inline math: #{...} (but not ##{)
+        let is_inline =
+            !is_display && i + 1 < bytes.len() && bytes[i] == b'#' && bytes[i + 1] == b'{';
+
+        if is_display || is_inline {
+            // Extend backwards to include leading whitespace
             let mut exc_start = i;
             while exc_start > 0 && bytes[exc_start - 1].is_ascii_whitespace() {
                 exc_start -= 1;
             }
 
-            // Skip past the ##{ and find matching }
-            i += 3;
+            // Skip past the opener
+            i += if is_display { 3 } else { 2 };
             let mut depth = 1;
             while i < bytes.len() && depth > 0 {
                 if bytes[i] == b'{' {
@@ -143,7 +195,7 @@ fn collect_display_math_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(
                 i += 1;
             }
 
-            // Extend forwards to include trailing whitespace/newlines
+            // Extend forwards to include trailing whitespace
             let mut exc_end = i;
             while exc_end < bytes.len() && bytes[exc_end].is_ascii_whitespace() {
                 exc_end += 1;
@@ -158,18 +210,14 @@ fn collect_display_math_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(
 }
 
 /// Strip Forester noise from a gap string: math, commands, escapes.
-/// Leaves whitespace, braces, and punctuation for subsequent validation.
+/// Leaves whitespace, braces, and punctuation for bridge analysis.
 fn strip_forester_noise(gap: &str) -> String {
     let mut result = String::new();
     let chars: Vec<char> = gap.chars().collect();
     let mut i = 0;
     while i < chars.len() {
         // Display math: ##{...}
-        if chars[i] == '#'
-            && i + 2 < chars.len()
-            && chars[i + 1] == '#'
-            && chars[i + 2] == '{'
-        {
+        if chars[i] == '#' && i + 2 < chars.len() && chars[i + 1] == '#' && chars[i + 2] == '{' {
             i += 3;
             let mut depth = 1;
             while i < chars.len() && depth > 0 {
@@ -180,7 +228,6 @@ fn strip_forester_noise(gap: &str) -> String {
                 }
                 i += 1;
             }
-            // Replace with space to avoid false paragraph breaks
             result.push(' ');
         // Inline math: #{...}
         } else if chars[i] == '#' && i + 1 < chars.len() && chars[i + 1] == '{' {
@@ -196,8 +243,7 @@ fn strip_forester_noise(gap: &str) -> String {
             }
             result.push(' ');
         // Command: \name followed by optional {}, [], () args
-        } else if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1].is_ascii_alphanumeric()
-        {
+        } else if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1].is_ascii_alphanumeric() {
             i += 1;
             while i < chars.len()
                 && (chars[i].is_ascii_alphanumeric()
