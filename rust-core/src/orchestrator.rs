@@ -128,9 +128,14 @@ impl Orchestrator {
         });
 
         // Filter out diagnostics suppressed by inline ignore directives
-        let ignore_ranges = IgnoreParser::parse(text);
-        if !ignore_ranges.is_empty() {
-            all_diagnostics.retain(|d| !IgnoreParser::should_ignore(d, &ignore_ranges));
+        let directives = IgnoreParser::parse_directives(text);
+        let resolved = IgnoreParser::resolve_all(text, &directives);
+
+        if !resolved.ignore_ranges.is_empty() || !resolved.regions.is_empty() {
+            all_diagnostics.retain(|d| {
+                !IgnoreParser::should_ignore(d, &resolved.ignore_ranges)
+                    && !IgnoreParser::should_ignore_by_region(d, text, &resolved.regions)
+            });
         }
 
         Ok(all_diagnostics)
