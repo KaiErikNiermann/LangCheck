@@ -8,13 +8,11 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
-
-
 use config::Config;
 use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
 use orchestrator::Orchestrator;
-use prose::ProseExtractor;
+use rust_core::sls::SchemaRegistry;
 use rust_core::{checker::Diagnostic, config, orchestrator, prose, rules};
 use serde::Serialize;
 use std::fs;
@@ -120,22 +118,25 @@ impl JsonDiagnostic {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    let config = Config::load(&std::env::current_dir()?).unwrap_or_else(|_| Config::default());
+    let current_dir = std::env::current_dir()?;
+    let config = Config::load(&current_dir).unwrap_or_else(|_| Config::default());
 
     match cli.command {
         Commands::Check { path, lang, format } => {
+            let schema_registry = SchemaRegistry::from_workspace(&current_dir)?;
             let lang = lang.map_or_else(
                 || rust_core::languages::detect_language(&path, &config),
                 |l| rust_core::languages::resolve_language_id(&l).to_string(),
             );
-            check_path(path, lang, &format, config).await?;
+            check_path(path, lang, &format, config, &schema_registry).await?;
         }
         Commands::Fix { path, lang } => {
+            let schema_registry = SchemaRegistry::from_workspace(&current_dir)?;
             let lang = lang.map_or_else(
                 || rust_core::languages::detect_language(&path, &config),
                 |l| rust_core::languages::resolve_language_id(&l).to_string(),
             );
-            fix_path(path, lang, config).await?;
+            fix_path(path, lang, config, &schema_registry).await?;
         }
         Commands::ListRules {
             filter,
@@ -152,19 +153,26 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// Resolve a canonical language ID to a tree-sitter Language.
-fn resolve_ts_language(lang: &str) -> tree_sitter::Language {
-    rust_core::languages::resolve_ts_language(lang)
-}
-
-async fn check_path(path: PathBuf, lang: String, format: &OutputFormat, config: Config) -> Result<()> {
-    let language = resolve_ts_language(&lang);
-    let mut extractor = ProseExtractor::new(language)?;
+async fn check_path(
+    path: PathBuf,
+    lang: String,
+    format: &OutputFormat,
+    config: Config,
+    schema_registry: &SchemaRegistry,
+) -> Result<()> {
     let mut orchestrator = Orchestrator::new(config.clone());
     let mut all_json_diagnostics: Vec<JsonDiagnostic> = Vec::new();
 
     if path.is_file() {
-        check_file(&path, &mut extractor, &mut orchestrator, &lang, format, &mut all_json_diagnostics).await?;
+        check_file(
+            &path,
+            &mut orchestrator,
+            &lang,
+            format,
+            &mut all_json_diagnostics,
+            schema_registry,
+        )
+        .await?;
     } else {
         let exts = rust_core::languages::extensions_for_language(&lang, &config);
         let pattern = if exts.is_empty() {
@@ -191,9 +199,20 @@ async fn check_path(path: PathBuf, lang: String, format: &OutputFormat, config: 
 
         for p in &files {
             if let Some(ref bar) = pb {
-                bar.set_message(p.file_name().map_or_else(String::new, |n| n.to_string_lossy().to_string()));
+                bar.set_message(
+                    p.file_name()
+                        .map_or_else(String::new, |n| n.to_string_lossy().to_string()),
+                );
             }
-            check_file(p, &mut extractor, &mut orchestrator, &lang, format, &mut all_json_diagnostics).await?;
+            check_file(
+                p,
+                &mut orchestrator,
+                &lang,
+                format,
+                &mut all_json_diagnostics,
+                schema_registry,
+            )
+            .await?;
             if let Some(ref bar) = pb {
                 bar.inc(1);
             }
@@ -212,11 +231,11 @@ async fn check_path(path: PathBuf, lang: String, format: &OutputFormat, config: 
 
 async fn check_file(
     path: &PathBuf,
-    extractor: &mut ProseExtractor,
     orchestrator: &mut Orchestrator,
     lang: &str,
     format: &OutputFormat,
     json_diagnostics: &mut Vec<JsonDiagnostic>,
+    schema_registry: &SchemaRegistry,
 ) -> Result<()> {
     let text = fs::read_to_string(path)?;
     let file_str = path.to_string_lossy();
@@ -225,7 +244,8 @@ async fn check_file(
         println!("Checking {}...", style(&*file_str).cyan());
     }
 
-    let ranges = extractor.extract(&text, lang)?;
+    let ranges =
+        prose::extract_with_fallback(&text, lang, Some(path.as_path()), Some(schema_registry))?;
     let mut found_issues = 0;
 
     for range in ranges {
@@ -255,7 +275,10 @@ async fn check_file(
                 }
                 OutputFormat::Json => {
                     json_diagnostics.push(JsonDiagnostic::from_diagnostic(
-                        &d, &file_str, &text, byte_offset,
+                        &d,
+                        &file_str,
+                        &text,
+                        byte_offset,
                     ));
                 }
             }
@@ -269,13 +292,16 @@ async fn check_file(
     Ok(())
 }
 
-async fn fix_path(path: PathBuf, lang: String, config: Config) -> Result<()> {
-    let language = resolve_ts_language(&lang);
-    let mut extractor = ProseExtractor::new(language)?;
+async fn fix_path(
+    path: PathBuf,
+    lang: String,
+    config: Config,
+    schema_registry: &SchemaRegistry,
+) -> Result<()> {
     let mut orchestrator = Orchestrator::new(config);
 
     if path.is_file() {
-        fix_file(&path, &mut extractor, &mut orchestrator, &lang).await?;
+        fix_file(&path, &mut orchestrator, &lang, schema_registry).await?;
     }
 
     Ok(())
@@ -283,14 +309,15 @@ async fn fix_path(path: PathBuf, lang: String, config: Config) -> Result<()> {
 
 async fn fix_file(
     path: &PathBuf,
-    extractor: &mut ProseExtractor,
     orchestrator: &mut Orchestrator,
     lang: &str,
+    schema_registry: &SchemaRegistry,
 ) -> Result<()> {
     let mut text = fs::read_to_string(path)?;
     println!("Fixing {}...", style(path.to_string_lossy()).cyan());
 
-    let ranges = extractor.extract(&text, lang)?;
+    let ranges =
+        prose::extract_with_fallback(&text, lang, Some(path.as_path()), Some(schema_registry))?;
     let mut total_fixes = 0;
 
     let mut all_diagnostics = Vec::new();
@@ -319,7 +346,9 @@ async fn fix_file(
 
         // Context-aware validation: verify the fix range is still within a prose range
         // (guards against offset drift from prior replacements in this pass)
-        let in_prose = ranges.iter().any(|r| start >= r.start_byte && end <= r.end_byte);
+        let in_prose = ranges
+            .iter()
+            .any(|r| start >= r.start_byte && end <= r.end_byte);
         if !in_prose {
             skipped += 1;
             continue;
@@ -399,9 +428,9 @@ fn list_rules(filter: Option<&str>, provider: Option<&str>, format: &OutputForma
         OutputFormat::Json => {
             let json: Vec<_> = mappings
                 .iter()
-                .map(|(p, n, u)| {
-                    serde_json::json!({"provider": p, "native_id": n, "unified_id": u})
-                })
+                .map(
+                    |(p, n, u)| serde_json::json!({"provider": p, "native_id": n, "unified_id": u}),
+                )
                 .collect();
             println!("{}", serde_json::to_string_pretty(&json).unwrap());
         }

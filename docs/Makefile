@@ -17,7 +17,7 @@ html:
 # Update i18n translation files
 gettext:
 	@$(SPHINXBUILD) -M gettext "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
-	sphinx-intl update -p "$(BUILDDIR)/gettext" -l de -l fr -l es
+	sphinx-intl update -p "$(BUILDDIR)/gettext" -l fr -l es -l ja
 
 # Build with live reload (requires sphinx-autobuild)
 livehtml:

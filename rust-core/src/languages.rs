@@ -26,13 +26,22 @@ const BUILTIN_EXTENSIONS: &[(&str, &str)] = &[
 /// Language ID aliases: VS Code may send these as `language_id`,
 /// and we resolve them to a canonical ID that has a tree-sitter grammar
 /// and prose extractor.
-const LANGUAGE_ID_ALIASES: &[(&str, &str)] = &[
-    ("mdx", "markdown"),
-    ("xhtml", "html"),
-];
+const LANGUAGE_ID_ALIASES: &[(&str, &str)] = &[("mdx", "markdown"), ("xhtml", "html")];
 
 /// The set of canonical language IDs with built-in tree-sitter support.
-pub const SUPPORTED_LANGUAGE_IDS: &[&str] = &["markdown", "html", "latex", "forester", "tinylang", "rst", "sweave", "bibtex", "org"];
+pub const SUPPORTED_LANGUAGE_IDS: &[&str] = &[
+    "markdown", "html", "latex", "forester", "tinylang", "rst", "sweave", "bibtex", "org",
+];
+
+/// Look up the built-in canonical language ID for a file extension.
+#[must_use]
+pub fn builtin_language_for_extension(ext: &str) -> Option<&'static str> {
+    BUILTIN_EXTENSIONS
+        .iter()
+        .find_map(|&(builtin_ext, lang_id)| {
+            builtin_ext.eq_ignore_ascii_case(ext).then_some(lang_id)
+        })
+}
 
 /// Detect the canonical language ID for a file path based on its extension.
 ///
@@ -52,10 +61,8 @@ pub fn detect_language(path: &std::path::Path, config: &Config) -> String {
     }
 
     // Built-in mappings
-    for &(builtin_ext, lang_id) in BUILTIN_EXTENSIONS {
-        if builtin_ext.eq_ignore_ascii_case(ext) {
-            return lang_id.to_string();
-        }
+    if let Some(lang_id) = builtin_language_for_extension(ext) {
+        return lang_id.to_string();
     }
 
     "markdown".to_string()
@@ -180,6 +187,12 @@ mod tests {
     }
 
     #[test]
+    fn builtin_language_for_extension_matches_case_insensitively() {
+        assert_eq!(builtin_language_for_extension("HTML"), Some("html"));
+        assert_eq!(builtin_language_for_extension("unknown"), None);
+    }
+
+    #[test]
     fn detect_builtin_html_variants() {
         let config = default_config();
         assert_eq!(detect_language(Path::new("page.html"), &config), "html");
@@ -214,10 +227,7 @@ mod tests {
             .languages
             .extensions
             .insert("markdown".to_string(), vec!["mdx".to_string()]);
-        assert_eq!(
-            detect_language(Path::new("page.mdx"), &config),
-            "markdown"
-        );
+        assert_eq!(detect_language(Path::new("page.mdx"), &config), "markdown");
     }
 
     #[test]
@@ -274,10 +284,26 @@ mod tests {
     fn all_file_patterns_includes_builtins() {
         let config = default_config();
         let patterns = all_file_patterns(&config);
-        assert!(patterns.iter().any(|(p, l)| p == "**/*.md" && l == "markdown"));
-        assert!(patterns.iter().any(|(p, l)| p == "**/*.html" && l == "html"));
-        assert!(patterns.iter().any(|(p, l)| p == "**/*.tex" && l == "latex"));
-        assert!(patterns.iter().any(|(p, l)| p == "**/*.tree" && l == "forester"));
+        assert!(
+            patterns
+                .iter()
+                .any(|(p, l)| p == "**/*.md" && l == "markdown")
+        );
+        assert!(
+            patterns
+                .iter()
+                .any(|(p, l)| p == "**/*.html" && l == "html")
+        );
+        assert!(
+            patterns
+                .iter()
+                .any(|(p, l)| p == "**/*.tex" && l == "latex")
+        );
+        assert!(
+            patterns
+                .iter()
+                .any(|(p, l)| p == "**/*.tree" && l == "forester")
+        );
     }
 
     #[test]
@@ -288,7 +314,11 @@ mod tests {
             .extensions
             .insert("markdown".to_string(), vec!["mdx".to_string()]);
         let patterns = all_file_patterns(&config);
-        assert!(patterns.iter().any(|(p, l)| p == "**/*.mdx" && l == "markdown"));
+        assert!(
+            patterns
+                .iter()
+                .any(|(p, l)| p == "**/*.mdx" && l == "markdown")
+        );
     }
 
     #[test]
@@ -310,10 +340,7 @@ languages:
       - sty
 "#;
         let config: Config = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(
-            detect_language(Path::new("page.mdx"), &config),
-            "markdown"
-        );
+        assert_eq!(detect_language(Path::new("page.mdx"), &config), "markdown");
         assert_eq!(
             detect_language(Path::new("analysis.Rmd"), &config),
             "markdown"
@@ -324,8 +351,14 @@ languages:
     #[test]
     fn detect_builtin_sweave() {
         let config = default_config();
-        assert_eq!(detect_language(Path::new("analysis.Rnw"), &config), "sweave");
-        assert_eq!(detect_language(Path::new("analysis.rnw"), &config), "sweave");
+        assert_eq!(
+            detect_language(Path::new("analysis.Rnw"), &config),
+            "sweave"
+        );
+        assert_eq!(
+            detect_language(Path::new("analysis.rnw"), &config),
+            "sweave"
+        );
     }
 
     #[test]

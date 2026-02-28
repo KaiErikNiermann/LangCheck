@@ -15,7 +15,7 @@ On first activation, the extension will prompt you to download the core binary f
 
 ### Pre-built binaries
 
-Download the latest release for your platform from [GitHub Releases](https://github.com/gemini/lang-check/releases).
+Download the latest release for your platform from [GitHub Releases](https://github.com/KaiErikNiermann/lang-check/releases).
 
 Available targets:
 - `x86_64-unknown-linux-gnu` — Linux x86_64
@@ -27,7 +27,7 @@ Available targets:
 ### From source
 
 ```bash
-git clone https://github.com/gemini/lang-check.git
+git clone https://github.com/KaiErikNiermann/lang-check.git
 cd lang-check/rust-core
 cargo build --release
 ```

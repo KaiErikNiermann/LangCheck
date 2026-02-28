@@ -51,10 +51,7 @@ impl FeedbackTracker {
 
     /// Record that a diagnostic was shown to the user.
     pub fn record_shown(&mut self, rule_id: &str) {
-        self.rules
-            .entry(rule_id.to_string())
-            .or_default()
-            .shown += 1;
+        self.rules.entry(rule_id.to_string()).or_default().shown += 1;
     }
 
     /// Record that the user dismissed a diagnostic.
@@ -92,7 +89,11 @@ impl FeedbackTracker {
             .collect();
 
         // Sort by dismiss rate descending
-        suggestions.sort_by(|a, b| b.dismiss_rate.partial_cmp(&a.dismiss_rate).unwrap_or(std::cmp::Ordering::Equal));
+        suggestions.sort_by(|a, b| {
+            b.dismiss_rate
+                .partial_cmp(&a.dismiss_rate)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         suggestions
     }
 

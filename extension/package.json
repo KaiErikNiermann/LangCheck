@@ -2,7 +2,7 @@
   "name": "extension",
   "version": "1.0.0",
   "description": "",
-  "publisher": "gemini",
+  "publisher": "KaiErikNiermann",
   "engines": {
     "vscode": "^1.90.0"
   },

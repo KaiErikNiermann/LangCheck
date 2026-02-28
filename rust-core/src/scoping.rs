@@ -53,9 +53,7 @@ impl ScopeParser {
                     .rfind('\n')
                     .map_or(*next_start, |nl_pos| {
                         // Find the start of the marker line
-                        text[..nl_pos]
-                            .rfind('\n')
-                            .map_or(0, |prev_nl| prev_nl + 1)
+                        text[..nl_pos].rfind('\n').map_or(0, |prev_nl| prev_nl + 1)
                     })
             });
 
@@ -200,7 +198,10 @@ Deutscher Absatz.
         let regions = ScopeParser::parse(text);
         // "Bonjour" starts somewhere after the marker
         let bonjour_offset = text.find("Bonjour").unwrap();
-        assert_eq!(ScopeParser::language_at(&regions, bonjour_offset), Some("fr"));
+        assert_eq!(
+            ScopeParser::language_at(&regions, bonjour_offset),
+            Some("fr")
+        );
         assert_eq!(ScopeParser::language_at(&regions, 0), None);
     }
 

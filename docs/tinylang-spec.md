@@ -114,7 +114,7 @@ is merged into a single prose range for checking.
 
 ## Example Document
 
-```tinylang
+```text
 @title{A Quick Demo}
 @author{Jane Doe}
 @date{2025-01-01}

@@ -153,8 +153,7 @@ impl DocumentStore {
 
     /// Open (or replace) a document in the store.
     pub fn open(&mut self, uri: String, text: &str, language_id: String) {
-        self.documents
-            .insert(uri, Document::new(text, language_id));
+        self.documents.insert(uri, Document::new(text, language_id));
     }
 
     /// Close a document, removing it from the store.
@@ -283,7 +282,11 @@ mod tests {
         let mut store = DocumentStore::new();
         assert!(store.is_empty());
 
-        store.open("file:///test.md".to_string(), "Hello", "markdown".to_string());
+        store.open(
+            "file:///test.md".to_string(),
+            "Hello",
+            "markdown".to_string(),
+        );
         assert_eq!(store.len(), 1);
         assert!(!store.is_empty());
 
@@ -293,7 +296,10 @@ mod tests {
         // Apply edit through mutable reference
         let doc_mut = store.get_mut("file:///test.md").unwrap();
         doc_mut.apply_edit(5, 5, ", world!");
-        assert_eq!(store.get("file:///test.md").unwrap().text(), "Hello, world!");
+        assert_eq!(
+            store.get("file:///test.md").unwrap().text(),
+            "Hello, world!"
+        );
 
         // Close document
         let closed = store.close("file:///test.md");

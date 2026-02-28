@@ -4,5 +4,4 @@ unsafe extern "C" {
     fn tree_sitter_tinylang() -> *const ();
 }
 
-pub const LANGUAGE: LanguageFn =
-    unsafe { LanguageFn::from_raw(tree_sitter_tinylang) };
+pub const LANGUAGE: LanguageFn = unsafe { LanguageFn::from_raw(tree_sitter_tinylang) };

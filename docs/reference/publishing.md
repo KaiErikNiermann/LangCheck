@@ -24,25 +24,25 @@ cargo publish
 ```ruby
 class LanguageCheck < Formula
   desc "Fast multi-engine prose linter for Markdown, HTML, and LaTeX"
-  homepage "https://github.com/gemini/lang-check"
+  homepage "https://github.com/KaiErikNiermann/lang-check"
   version "0.1.0"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/gemini/lang-check/releases/download/v0.1.0/language-check-server-aarch64-apple-darwin.tar.gz"
+      url "https://github.com/KaiErikNiermann/lang-check/releases/download/v0.1.0/language-check-server-aarch64-apple-darwin.tar.gz"
       sha256 "PLACEHOLDER"
     else
-      url "https://github.com/gemini/lang-check/releases/download/v0.1.0/language-check-server-x86_64-apple-darwin.tar.gz"
+      url "https://github.com/KaiErikNiermann/lang-check/releases/download/v0.1.0/language-check-server-x86_64-apple-darwin.tar.gz"
       sha256 "PLACEHOLDER"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/gemini/lang-check/releases/download/v0.1.0/language-check-server-aarch64-unknown-linux-gnu.tar.gz"
+      url "https://github.com/KaiErikNiermann/lang-check/releases/download/v0.1.0/language-check-server-aarch64-unknown-linux-gnu.tar.gz"
       sha256 "PLACEHOLDER"
     else
-      url "https://github.com/gemini/lang-check/releases/download/v0.1.0/language-check-server-x86_64-unknown-linux-gnu.tar.gz"
+      url "https://github.com/KaiErikNiermann/lang-check/releases/download/v0.1.0/language-check-server-x86_64-unknown-linux-gnu.tar.gz"
       sha256 "PLACEHOLDER"
     end
   end
@@ -61,28 +61,28 @@ end
 
 ```bash
 # Create a tap repository: homebrew-lang-check
-brew tap gemini/lang-check
-brew install gemini/lang-check/language-check
+brew tap KaiErikNiermann/lang-check
+brew install KaiErikNiermann/lang-check/language-check
 ```
 
 ## winget (Windows)
 
 ### Manifest
 
-Create `manifests/g/gemini/language-check/0.1.0/` in the [winget-pkgs](https://github.com/microsoft/winget-pkgs) repository:
+Create `manifests/g/KaiErikNiermann/language-check/0.1.0/` in the [winget-pkgs](https://github.com/microsoft/winget-pkgs) repository:
 
-**gemini.language-check.yaml:**
+**KaiErikNiermann.language-check.yaml:**
 ```yaml
-PackageIdentifier: gemini.language-check
+PackageIdentifier: KaiErikNiermann.language-check
 PackageVersion: 0.1.0
 PackageName: Language Check
-Publisher: Gemini
+Publisher: KaiErikNiermann
 License: ISC
 ShortDescription: Fast multi-engine prose linter
 InstallerType: portable
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/gemini/lang-check/releases/download/v0.1.0/language-check-server-x86_64-pc-windows-msvc.exe
+    InstallerUrl: https://github.com/KaiErikNiermann/lang-check/releases/download/v0.1.0/language-check-server-x86_64-pc-windows-msvc.exe
     InstallerSha256: PLACEHOLDER
 ManifestType: singleton
 ManifestVersion: 1.6.0
@@ -95,13 +95,13 @@ Submit via PR to `microsoft/winget-pkgs`.
 ### PKGBUILD
 
 ```bash
-# Maintainer: Gemini
+# Maintainer: KaiErikNiermann
 pkgname=language-check-bin
 pkgver=0.1.0
 pkgrel=1
 pkgdesc="Fast multi-engine prose linter for Markdown, HTML, and LaTeX"
 arch=('x86_64' 'aarch64')
-url="https://github.com/gemini/lang-check"
+url="https://github.com/KaiErikNiermann/lang-check"
 license=('ISC')
 provides=('language-check')
 
@@ -142,7 +142,7 @@ Add to `Cargo.toml`:
 ```toml
 [package.metadata.deb]
 name = "language-check"
-maintainer = "Gemini <noreply@gemini.dev>"
+maintainer = "KaiErikNiermann <noreply@KaiErikNiermann.dev>"
 depends = "$auto"
 section = "text"
 priority = "optional"

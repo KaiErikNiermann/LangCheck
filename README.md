@@ -19,7 +19,7 @@ A fast, extensible grammar and style checker for Markdown, HTML, and LaTeX. Ship
 
 ### VS Code Extension
 
-1. Install the extension from the VS Code marketplace (publisher: `gemini`)
+1. Install the extension from the VS Code marketplace (publisher: `KaiErikNiermann`)
 2. Open a Markdown, HTML, or LaTeX file — checking starts automatically on save
 3. Press `Alt+F` to open the SpeedFix panel
 

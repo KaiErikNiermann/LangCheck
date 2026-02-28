@@ -1,0 +1,96 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-28 17:50+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../../../advanced/api.md:1
+msgid "Extension API"
+msgstr ""
+
+#: ../../../advanced/api.md:3
+msgid ""
+"Language Check exposes a public API for other VS Code extensions to "
+"consume."
+msgstr ""
+
+#: ../../../advanced/api.md:5
+msgid "Accessing the API"
+msgstr ""
+
+#: ../../../advanced/api.md:15
+msgid "API Methods"
+msgstr ""
+
+#: ../../../advanced/api.md:17
+msgid "`checkDocument(uri: Uri): Promise<Diagnostic[]>`"
+msgstr ""
+
+#: ../../../advanced/api.md:19
+msgid ""
+"Check a document and return diagnostics without displaying them in the "
+"editor."
+msgstr ""
+
+#: ../../../advanced/api.md:28
+#, python-brace-format
+msgid ""
+"`registerIgnoreRanges(uri: Uri, ranges: Array<{start: number, end: "
+"number}>): void`"
+msgstr ""
+
+#: ../../../advanced/api.md:30
+msgid ""
+"Register byte ranges to ignore during checking. Useful for extensions "
+"that manage their own regions (e.g., code blocks, front matter)."
+msgstr ""
+
+#: ../../../advanced/api.md:32
+msgid "`clearIgnoreRanges(uri: Uri): void`"
+msgstr ""
+
+#: ../../../advanced/api.md:34
+msgid "Remove previously registered ignore ranges for a document."
+msgstr ""
+
+#: ../../../advanced/api.md:36
+msgid "`registerLanguageQuery(languageId: string, query: string): void`"
+msgstr ""
+
+#: ../../../advanced/api.md:38
+msgid ""
+"Register a custom tree-sitter query for extracting prose from a language."
+" This allows other extensions to add prose-checking support for custom "
+"file types."
+msgstr ""
+
+#: ../../../advanced/api.md:40
+msgid "`registerExternalProvider(provider: ExternalProviderConfig): void`"
+msgstr ""
+
+#: ../../../advanced/api.md:42
+msgid ""
+"Programmatically register an external checker provider at runtime, "
+"without requiring config file changes."
+msgstr ""
+
+#: ../../../advanced/api.md:44
+msgid "Diagnostic Interface"
+msgstr ""
+

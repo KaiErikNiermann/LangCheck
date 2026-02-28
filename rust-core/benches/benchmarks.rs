@@ -31,7 +31,8 @@ fn prose_extraction_long_markdown(bencher: divan::Bencher) {
 
 #[divan::bench]
 fn prose_extraction_html(bencher: divan::Bencher) {
-    let text = "<html><body><p>Hello world.</p><p>Another paragraph with some text.</p></body></html>";
+    let text =
+        "<html><body><p>Hello world.</p><p>Another paragraph with some text.</p></body></html>";
     bencher
         .with_inputs(|| ProseExtractor::new(tree_sitter_html::LANGUAGE.into()).unwrap())
         .bench_local_refs(|ext| ext.extract(text, "html").unwrap());
@@ -79,9 +80,7 @@ fn harper_check_paragraph(bencher: divan::Bencher) {
                 Everything seemed perfect in every way.";
     bencher
         .with_inputs(HarperEngine::new)
-        .bench_local_refs(|engine| {
-            rt.block_on(engine.check(text, "en-US")).unwrap()
-        });
+        .bench_local_refs(|engine| rt.block_on(engine.check(text, "en-US")).unwrap());
 }
 
 // ── Rule normalization benchmarks ────────────────────────────────────

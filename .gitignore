@@ -13,7 +13,16 @@ extension/package-lock.json
 # Protobuf
 /proto/gen/
 
+# Sphinx docs
+docs/_build/
+*.mo
+
 # Misc
 .DS_Store
 *.log
 .vscode/
+refs/
+test.md
+test.txt
+.serena/
+plans/

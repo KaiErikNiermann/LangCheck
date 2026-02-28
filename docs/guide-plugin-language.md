@@ -74,7 +74,7 @@ rust-core/tree-sitter-tinylang/
 
 Here is TinyLang's complete grammar:
 
-```js
+```text
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 

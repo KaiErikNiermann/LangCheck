@@ -17,7 +17,7 @@
 
 **Solutions:**
 1. Click **Download** when prompted to auto-download the binary.
-2. Or download manually from [GitHub Releases](https://github.com/gemini/lang-check/releases).
+2. Or download manually from [GitHub Releases](https://github.com/KaiErikNiermann/lang-check/releases).
 3. Set a custom path: `languageCheck.core.binaryPath` in VS Code settings.
 
 ### LanguageTool connection errors

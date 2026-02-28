@@ -6,7 +6,7 @@ import type { LanguageClient } from './client';
  *
  * Other extensions can access this via:
  * ```ts
- * const ext = vscode.extensions.getExtension('gemini.extension');
+ * const ext = vscode.extensions.getExtension('KaiErikNiermann.extension');
  * const api: LanguageCheckAPI = ext?.exports;
  * ```
  */

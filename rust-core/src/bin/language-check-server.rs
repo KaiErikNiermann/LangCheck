@@ -16,8 +16,8 @@ use glob::glob;
 use hashing::{DiagnosticFingerprint, IgnoreStore};
 use insights::ProseInsights;
 use orchestrator::Orchestrator;
-use prose::ProseExtractor;
 use prost::Message;
+use rust_core::sls::SchemaRegistry;
 use rust_core::{checker, config, dictionary, hashing, insights, orchestrator, prose, workspace};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -26,11 +26,6 @@ use tokio::fs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Mutex, Notify};
 use workspace::WorkspaceIndex;
-
-/// Resolve a canonical language ID to a tree-sitter Language.
-fn resolve_ts_language(lang: &str) -> tree_sitter::Language {
-    rust_core::languages::resolve_ts_language(lang)
-}
 
 /// Slice a `&str` at byte offsets, snapping to the nearest char boundaries.
 fn safe_slice(s: &str, start: usize, end: usize) -> &str {
@@ -49,9 +44,9 @@ async fn process_file_for_indexing(
     file_path: PathBuf,
     orchestrator_arc: Arc<Mutex<Orchestrator>>,
     ignore_store_arc: Arc<Mutex<IgnoreStore>>,
+    schema_registry_arc: Arc<Mutex<SchemaRegistry>>,
     workspace_index_arc: Arc<Mutex<Option<WorkspaceIndex>>>,
     lang_id: String,
-    ts_lang: tree_sitter::Language,
 ) -> Result<()> {
     if !file_path.is_file() {
         return Ok(());
@@ -67,9 +62,15 @@ async fn process_file_for_indexing(
         return Ok(());
     }
 
-    let mut extractor = ProseExtractor::new(ts_lang)?;
-
-    let ranges = extractor.extract(&text, &lang_id)?;
+    let ranges = {
+        let schema_registry = schema_registry_arc.lock().await;
+        prose::extract_with_fallback(
+            &text,
+            &lang_id,
+            Some(file_path.as_path()),
+            Some(&schema_registry),
+        )?
+    };
     let mut all_diagnostics = Vec::new();
 
     // Acquire/release locks per-range to avoid starving foreground requests
@@ -131,6 +132,8 @@ async fn main() -> Result<()> {
         Arc::new(Mutex::new(Orchestrator::new(Config::default())));
     let ignore_store_arc: Arc<Mutex<IgnoreStore>> = Arc::new(Mutex::new(IgnoreStore::new()));
     let dictionary_arc: Arc<Mutex<Dictionary>> = Arc::new(Mutex::new(Dictionary::new()));
+    let schema_registry_arc: Arc<Mutex<SchemaRegistry>> =
+        Arc::new(Mutex::new(SchemaRegistry::new()));
     let workspace_index_arc: Arc<Mutex<Option<WorkspaceIndex>>> = Arc::new(Mutex::new(None));
     let indexing_notify = Arc::new(Notify::new());
 
@@ -138,6 +141,7 @@ async fn main() -> Result<()> {
     let indexing_handle = {
         let orchestrator_arc = orchestrator_arc.clone();
         let ignore_store_arc = ignore_store_arc.clone();
+        let schema_registry_arc = schema_registry_arc.clone();
         let workspace_index_arc = workspace_index_arc.clone();
         let indexing_notify = indexing_notify.clone();
 
@@ -174,16 +178,11 @@ async fn main() -> Result<()> {
                     };
 
                     let mut tasks = Vec::new();
-
-                    let file_patterns =
-                        rust_core::languages::all_file_patterns(&config);
+                    let mut file_patterns = rust_core::languages::all_file_patterns(&config);
+                    file_patterns.extend(schema_registry_arc.lock().await.fallback_file_patterns());
 
                     for (pattern_suffix, lang) in &file_patterns {
-                        let ts_lang = resolve_ts_language(
-                            rust_core::languages::resolve_language_id(lang),
-                        );
-                        let full_pattern =
-                            format!("{}/{}", root.to_string_lossy(), pattern_suffix);
+                        let full_pattern = format!("{}/{}", root.to_string_lossy(), pattern_suffix);
                         if let Ok(entries) = glob(&full_pattern) {
                             for path in entries.flatten() {
                                 // Skip files matching exclude patterns
@@ -198,6 +197,7 @@ async fn main() -> Result<()> {
 
                                 let task_orchestrator = orchestrator_arc.clone();
                                 let task_ignore_store = ignore_store_arc.clone();
+                                let task_schema_registry = schema_registry_arc.clone();
                                 let task_workspace_index = workspace_index_arc.clone();
                                 let lang_id = lang.clone();
 
@@ -205,9 +205,9 @@ async fn main() -> Result<()> {
                                     path,
                                     task_orchestrator,
                                     task_ignore_store,
+                                    task_schema_registry,
                                     task_workspace_index,
                                     lang_id,
-                                    ts_lang.clone(),
                                 )));
                             }
                         }
@@ -321,95 +321,108 @@ async fn main() -> Result<()> {
                     }
                 }
 
-                match WorkspaceIndex::new(&root_path) {
-                    Ok(index) => {
-                        let mut idx_lock = workspace_index_arc.lock().await;
-                        *idx_lock = Some(index);
-                        indexing_notify.notify_one();
-                        Some(response::Payload::Ok(checker::OkResponse {}))
+                match SchemaRegistry::from_workspace(&root_path) {
+                    Ok(schema_registry) => {
+                        eprintln!("Loaded {} SLS schema(s)", schema_registry.len());
+                        *schema_registry_arc.lock().await = schema_registry;
+
+                        match WorkspaceIndex::new(&root_path) {
+                            Ok(index) => {
+                                let mut idx_lock = workspace_index_arc.lock().await;
+                                *idx_lock = Some(index);
+                                indexing_notify.notify_one();
+                                Some(response::Payload::Ok(checker::OkResponse {}))
+                            }
+                            Err(e) => Some(response::Payload::Error(ErrorResponse {
+                                message: e.to_string(),
+                            })),
+                        }
                     }
                     Err(e) => Some(response::Payload::Error(ErrorResponse {
-                        message: e.to_string(),
+                        message: format!("Failed to load SLS schemas: {e}"),
                     })),
                 }
             }
             Some(checker::request::Payload::CheckProse(req)) => {
-                let canonical_lang =
-                    rust_core::languages::resolve_language_id(&req.language_id);
-                let ts_lang = resolve_ts_language(canonical_lang);
+                let canonical_lang = rust_core::languages::resolve_language_id(&req.language_id);
+                let file_path = req.file_path.as_deref().map(Path::new);
+                let extraction = {
+                    let schema_registry = schema_registry_arc.lock().await;
+                    prose::extract_with_fallback(
+                        &req.text,
+                        canonical_lang,
+                        file_path,
+                        Some(&schema_registry),
+                    )
+                };
 
-                match ProseExtractor::new(ts_lang) {
-                    Ok(mut extractor) => match extractor.extract(&req.text, canonical_lang) {
-                        Ok(ranges) => {
-                            let mut all_diagnostics = Vec::new();
-                            let mut orchestrator = orchestrator_arc.lock().await;
-                            let ignore_store = ignore_store_arc.lock().await;
-                            let dict = dictionary_arc.lock().await;
-                            for range in ranges {
-                                let prose_text = range.extract_text(&req.text);
-                                if let Ok(mut diagnostics) =
-                                    orchestrator.check(&prose_text, &req.language_id).await
-                                {
-                                    diagnostics.retain(|d| !range.overlaps_exclusion(d.start_byte, d.end_byte));
-                                    for d in &mut diagnostics {
-                                        d.start_byte += range.start_byte as u32;
-                                        d.end_byte += range.start_byte as u32;
+                match extraction {
+                    Ok(ranges) => {
+                        let mut all_diagnostics = Vec::new();
+                        let mut orchestrator = orchestrator_arc.lock().await;
+                        let ignore_store = ignore_store_arc.lock().await;
+                        let dict = dictionary_arc.lock().await;
+                        for range in ranges {
+                            let prose_text = range.extract_text(&req.text);
+                            if let Ok(mut diagnostics) =
+                                orchestrator.check(&prose_text, &req.language_id).await
+                            {
+                                diagnostics.retain(|d| {
+                                    !range.overlaps_exclusion(d.start_byte, d.end_byte)
+                                });
+                                for d in &mut diagnostics {
+                                    d.start_byte += range.start_byte as u32;
+                                    d.end_byte += range.start_byte as u32;
+                                }
+
+                                diagnostics.retain(|d| {
+                                    let fingerprint = DiagnosticFingerprint::new(
+                                        &d.message,
+                                        &req.text,
+                                        d.start_byte as usize,
+                                        d.end_byte as usize,
+                                    );
+                                    if ignore_store.is_ignored(&fingerprint) {
+                                        return false;
                                     }
-
-                                    diagnostics.retain(|d| {
-                                        let fingerprint = DiagnosticFingerprint::new(
-                                            &d.message,
+                                    // Skip spelling diagnostics for dictionary words
+                                    if d.unified_id.starts_with("spelling.") {
+                                        let word = safe_slice(
                                             &req.text,
                                             d.start_byte as usize,
                                             d.end_byte as usize,
                                         );
-                                        if ignore_store.is_ignored(&fingerprint) {
+                                        if dict.contains(word) {
                                             return false;
                                         }
-                                        // Skip spelling diagnostics for dictionary words
-                                        if d.unified_id.starts_with("spelling.") {
-                                            let word = safe_slice(
-                                                &req.text,
-                                                d.start_byte as usize,
-                                                d.end_byte as usize,
-                                            );
-                                            if dict.contains(word) {
-                                                return false;
-                                            }
-                                        }
-                                        true
-                                    });
+                                    }
+                                    true
+                                });
 
-                                    all_diagnostics.extend(diagnostics);
-                                }
+                                all_diagnostics.extend(diagnostics);
                             }
-
-                            // Store diagnostics and insights in workspace index (non-fatal)
-                            if let Some(idx) = &*workspace_index_arc.lock().await
-                                && let Some(file_path) = req.file_path.clone()
-                            {
-                                let insights = ProseInsights::analyze(&req.text);
-                                idx.update_diagnostics(&file_path, &all_diagnostics)
-                                    .unwrap_or_else(|e| {
-                                        eprintln!(
-                                            "Error updating diagnostics for {file_path}: {e}"
-                                        );
-                                    });
-                                idx.update_insights(&file_path, &insights)
-                                    .unwrap_or_else(|e| {
-                                        eprintln!("Error updating insights for {file_path}: {e}");
-                                    });
-                            }
-                            Some(response::Payload::CheckProse(CheckResponse {
-                                diagnostics: all_diagnostics,
-                            }))
                         }
-                        Err(e) => Some(response::Payload::Error(ErrorResponse {
-                            message: format!("Extraction error: {e}"),
-                        })),
-                    },
+
+                        // Store diagnostics and insights in workspace index (non-fatal)
+                        if let Some(idx) = &*workspace_index_arc.lock().await
+                            && let Some(file_path) = req.file_path.clone()
+                        {
+                            let insights = ProseInsights::analyze(&req.text);
+                            idx.update_diagnostics(&file_path, &all_diagnostics)
+                                .unwrap_or_else(|e| {
+                                    eprintln!("Error updating diagnostics for {file_path}: {e}");
+                                });
+                            idx.update_insights(&file_path, &insights)
+                                .unwrap_or_else(|e| {
+                                    eprintln!("Error updating insights for {file_path}: {e}");
+                                });
+                        }
+                        Some(response::Payload::CheckProse(CheckResponse {
+                            diagnostics: all_diagnostics,
+                        }))
+                    }
                     Err(e) => Some(response::Payload::Error(ErrorResponse {
-                        message: format!("Failed to create prose extractor: {e}"),
+                        message: format!("Extraction error: {e}"),
                     })),
                 }
             }

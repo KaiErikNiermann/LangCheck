@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as os from 'os';
 
-const GITHUB_REPO = 'gemini/lang-check';
+const GITHUB_REPO = 'KaiErikNiermann/lang-check';
 const BINARY_NAME = 'language-check-server';
 
 interface ReleaseAsset {

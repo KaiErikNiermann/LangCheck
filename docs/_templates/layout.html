@@ -1,0 +1,8 @@
+{# docs/_templates/layout.html #}
+{% extends "!layout.html" %}
+
+{% block sidebartitle %}
+  {{ super() }}
+  {# Custom language switcher #}
+  {%- include "selectlang.html" %}
+{% endblock %}

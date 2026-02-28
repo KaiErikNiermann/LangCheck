@@ -466,8 +466,7 @@ mod tests {
             ],
             ..Config::default()
         };
-        let (result, count) =
-            config.apply_auto_fixes("Please recieve the seperate package.");
+        let (result, count) = config.apply_auto_fixes("Please recieve the seperate package.");
         assert_eq!(result, "Please receive the separate package.");
         assert_eq!(count, 2);
     }

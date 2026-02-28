@@ -1,0 +1,192 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-28 17:50+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: ja\n"
+"Language-Team: ja <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../../../advanced/providers.md:1
+msgid "Custom Providers"
+msgstr ""
+
+#: ../../../advanced/providers.md:3
+msgid ""
+"Language Check supports external checker binaries that communicate via "
+"stdin/stdout JSON."
+msgstr ""
+
+#: ../../../advanced/providers.md:5
+msgid "Configuration"
+msgstr ""
+
+#: ../../../advanced/providers.md:7
+msgid "Register external providers in `.languagecheck.yaml`:"
+msgstr ""
+
+#: ../../../advanced/providers.md:20
+msgid "Protocol"
+msgstr ""
+
+#: ../../../advanced/providers.md:22
+msgid "Request (stdin)"
+msgstr ""
+
+#: ../../../advanced/providers.md:24
+msgid "The provider receives a JSON object on stdin:"
+msgstr ""
+
+#: ../../../advanced/providers.md:33
+msgid "Response (stdout)"
+msgstr ""
+
+#: ../../../advanced/providers.md:35
+msgid "The provider must return a JSON array of diagnostics on stdout:"
+msgstr ""
+
+#: ../../../advanced/providers.md:51
+msgid "Diagnostic Fields"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "Field"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "Type"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "Required"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "Description"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "`start_byte`"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "`number`"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "Yes"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "Start byte offset (UTF-8)"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "`end_byte`"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "End byte offset (UTF-8)"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "`message`"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "`string`"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "Human-readable description"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "`suggestions`"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "`string[]`"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "No"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "Replacement suggestions (default: `[]`)"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "`rule_id`"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "Rule identifier (default: provider name)"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "`severity`"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "1=Error, 2=Warning, 3=Info, 4=Hint"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "`confidence`"
+msgstr ""
+
+#: ../../../advanced/providers.md
+msgid "0.0–1.0 confidence score (default: 0.7)"
+msgstr ""
+
+#: ../../../advanced/providers.md:63
+msgid ""
+"Rule IDs are automatically prefixed with `external.<provider-name>.` for "
+"namespacing."
+msgstr ""
+
+#: ../../../advanced/providers.md:65
+msgid "Error Handling"
+msgstr ""
+
+#: ../../../advanced/providers.md:67
+msgid "If the binary is not found, the provider is silently skipped."
+msgstr ""
+
+#: ../../../advanced/providers.md:68
+msgid ""
+"If the binary exits non-zero, the error is logged and no diagnostics are "
+"returned."
+msgstr ""
+
+#: ../../../advanced/providers.md:69
+msgid ""
+"If the output is not valid JSON, the error is logged and no diagnostics "
+"are returned."
+msgstr ""
+
+#: ../../../advanced/providers.md:71
+msgid "High Performance Mode"
+msgstr ""
+
+#: ../../../advanced/providers.md:73
+msgid ""
+"External providers are skipped when `performance.high_performance_mode` "
+"is enabled."
+msgstr ""
+

@@ -1,8 +1,12 @@
 use anyhow::Result;
 use regex::Regex;
 use serde::Deserialize;
+use std::collections::BTreeSet;
+use std::path::Path;
 
 use crate::prose::ProseRange;
+
+pub const DEFAULT_SCHEMA_DIR: &str = ".langcheck/schemas";
 
 /// A Simplified Language Schema definition, loaded from YAML.
 ///
@@ -70,12 +74,7 @@ impl CompiledSchema {
         let skip_blocks: Result<Vec<_>> = schema
             .skip_blocks
             .iter()
-            .map(|b| {
-                Ok((
-                    Regex::new(&b.start)?,
-                    Regex::new(&b.end)?,
-                ))
-            })
+            .map(|b| Ok((Regex::new(&b.start)?, Regex::new(&b.end)?)))
             .collect();
 
         Ok(Self {
@@ -107,7 +106,10 @@ impl CompiledSchema {
             offset = line_end + 1; // +1 for newline
 
             // Skip if inside a skip block
-            if skip_regions.iter().any(|(s, e)| line_start >= *s && line_start < *e) {
+            if skip_regions
+                .iter()
+                .any(|(s, e)| line_start >= *s && line_start < *e)
+            {
                 continue;
             }
 
@@ -140,11 +142,14 @@ impl CompiledSchema {
         let mut regions = Vec::new();
 
         for (start_re, end_re) in &self.skip_blocks {
-            let lines: Vec<(usize, &str)> = text.split('\n').scan(0usize, |offset, line| {
-                let start = *offset;
-                *offset += line.len() + 1;
-                Some((start, line))
-            }).collect();
+            let lines: Vec<(usize, &str)> = text
+                .split('\n')
+                .scan(0usize, |offset, line| {
+                    let start = *offset;
+                    *offset += line.len() + 1;
+                    Some((start, line))
+                })
+                .collect();
 
             let mut i = 0;
             while i < lines.len() {
@@ -155,10 +160,14 @@ impl CompiledSchema {
                     for &(_, inner_line) in &lines[i + 1..] {
                         if end_re.is_match(inner_line) {
                             // End includes the closing delimiter line
-                            let inner_end = inner_line.as_ptr() as usize - text.as_ptr() as usize + inner_line.len();
+                            let inner_end = inner_line.as_ptr() as usize - text.as_ptr() as usize
+                                + inner_line.len();
                             block_end = inner_end;
                             // Skip past the end delimiter
-                            i = lines.iter().position(|&(s, _)| s >= block_end).unwrap_or(lines.len());
+                            i = lines
+                                .iter()
+                                .position(|&(s, _)| s >= block_end)
+                                .unwrap_or(lines.len());
                             break;
                         }
                     }
@@ -251,6 +260,13 @@ impl SchemaRegistry {
         Ok(count)
     }
 
+    /// Load all workspace schemas from the default config directory.
+    pub fn from_workspace(workspace_root: &Path) -> Result<Self> {
+        let mut registry = Self::new();
+        registry.load_dir(&workspace_root.join(DEFAULT_SCHEMA_DIR))?;
+        Ok(registry)
+    }
+
     /// Find a compiled schema by file extension.
     #[must_use]
     pub fn find_by_extension(&self, ext: &str) -> Option<&CompiledSchema> {
@@ -269,6 +285,22 @@ impl SchemaRegistry {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.schemas.is_empty()
+    }
+
+    /// Glob patterns for extensions handled only by SLS, preserving built-in precedence.
+    #[must_use]
+    pub fn fallback_file_patterns(&self) -> Vec<(String, String)> {
+        let mut patterns = BTreeSet::new();
+
+        for schema in &self.schemas {
+            for ext in &schema.extensions {
+                if crate::languages::builtin_language_for_extension(ext).is_none() {
+                    patterns.insert((format!("**/*.{ext}"), schema.name.clone()));
+                }
+            }
+        }
+
+        patterns.into_iter().collect()
     }
 }
 
@@ -320,7 +352,10 @@ skip_blocks: []
         let text = "Title\n=====\n\nThis is a paragraph.\n\n.. note::\n\n   This is a directive.\n\nAnother paragraph here.";
         let ranges = compiled.extract(text);
 
-        let extracted: Vec<&str> = ranges.iter().map(|r| &text[r.start_byte..r.end_byte]).collect();
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
         assert!(extracted.iter().any(|t| t.contains("This is a paragraph")));
         assert!(extracted.iter().any(|t| t.contains("Another paragraph")));
         // Directive content should be excluded via skip pattern
@@ -356,7 +391,10 @@ skip_blocks:
         let text = "Prose line one\n```\ncode here\nmore code\n```\nProse line two";
         let ranges = compiled.extract(text);
 
-        let extracted: Vec<&str> = ranges.iter().map(|r| &text[r.start_byte..r.end_byte]).collect();
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
         assert!(extracted.iter().any(|t| t.contains("Prose line one")));
         assert!(extracted.iter().any(|t| t.contains("Prose line two")));
         assert!(!extracted.iter().any(|t| t.contains("code here")));
@@ -415,5 +453,36 @@ prose_patterns:
 "#;
         let schema: LanguageSchema = serde_yaml::from_str(yaml).unwrap();
         assert!(CompiledSchema::compile(&schema).is_err());
+    }
+
+    #[test]
+    fn fallback_file_patterns_skip_builtins() {
+        let mut registry = SchemaRegistry::new();
+        registry.load_yaml(RST_SCHEMA).unwrap();
+        registry
+            .load_yaml(
+                r#"
+name: asciidoc
+extensions: [adoc, asciidoc]
+prose_patterns: []
+skip_patterns: []
+skip_blocks: []
+"#,
+            )
+            .unwrap();
+
+        let patterns = registry.fallback_file_patterns();
+
+        assert!(!patterns.iter().any(|(pattern, _)| pattern == "**/*.rst"));
+        assert!(
+            patterns
+                .iter()
+                .any(|(pattern, lang)| pattern == "**/*.adoc" && lang == "asciidoc")
+        );
+        assert!(
+            patterns
+                .iter()
+                .any(|(pattern, lang)| pattern == "**/*.asciidoc" && lang == "asciidoc")
+        );
     }
 }

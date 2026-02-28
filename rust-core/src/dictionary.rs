@@ -78,9 +78,8 @@ impl Dictionary {
             );
         }
 
-        let content = std::fs::read_to_string(&resolved).map_err(|e| {
-            anyhow::anyhow!("Cannot read wordlist {}: {e}", resolved.display())
-        })?;
+        let content = std::fs::read_to_string(&resolved)
+            .map_err(|e| anyhow::anyhow!("Cannot read wordlist {}: {e}", resolved.display()))?;
         parse_wordlist_into(&content, &mut self.words);
         Ok(())
     }
@@ -149,24 +148,20 @@ fn parse_wordlist_into(content: &str, set: &mut HashSet<String>) {
 pub mod bundled {
     /// Software development terms, tools, acronyms, and compound words.
     /// Sources: cspell-dicts (software-terms, cpp). License: MIT.
-    pub const SOFTWARE_TERMS: &str =
-        include_str!("../dictionaries/bundled/software-terms.txt");
+    pub const SOFTWARE_TERMS: &str = include_str!("../dictionaries/bundled/software-terms.txt");
 
     /// TypeScript and JavaScript keywords, builtins, and API terms.
     /// Source: cspell-dicts (typescript). License: MIT.
-    pub const TYPESCRIPT: &str =
-        include_str!("../dictionaries/bundled/typescript.txt");
+    pub const TYPESCRIPT: &str = include_str!("../dictionaries/bundled/typescript.txt");
 
     /// Well-known company and brand names.
     /// Source: cspell-dicts (companies). License: MIT.
-    pub const COMPANIES: &str =
-        include_str!("../dictionaries/bundled/companies.txt");
+    pub const COMPANIES: &str = include_str!("../dictionaries/bundled/companies.txt");
 
     /// Computing jargon, hardware terms, and domain-specific vocabulary.
     /// Sources: hunspell-jargon (MIT), `SpellCheckDic` (MIT),
     ///          autoware-spell-check-dict (Apache-2.0).
-    pub const JARGON: &str =
-        include_str!("../dictionaries/bundled/jargon.txt");
+    pub const JARGON: &str = include_str!("../dictionaries/bundled/jargon.txt");
 
     /// All bundled wordlists for convenient iteration.
     pub const ALL: &[&str] = &[SOFTWARE_TERMS, TYPESCRIPT, COMPANIES, JARGON];
@@ -266,9 +261,18 @@ mod tests {
         );
 
         // Spot-check some well-known terms from each category
-        assert!(dict.contains("kubernetes"), "software-terms should include kubernetes");
-        assert!(dict.contains("webpack"), "software-terms should include webpack");
-        assert!(dict.contains("instanceof"), "typescript should include instanceof");
+        assert!(
+            dict.contains("kubernetes"),
+            "software-terms should include kubernetes"
+        );
+        assert!(
+            dict.contains("webpack"),
+            "software-terms should include webpack"
+        );
+        assert!(
+            dict.contains("instanceof"),
+            "typescript should include instanceof"
+        );
         assert!(dict.contains("stdout"), "jargon should include stdout");
     }
 
@@ -313,7 +317,8 @@ mod tests {
         std::fs::write(dir.join("terms.txt"), "myterm\n").unwrap();
 
         let mut dict = Dictionary::new();
-        dict.load_wordlist_file(Path::new("terms.txt"), &dir).unwrap();
+        dict.load_wordlist_file(Path::new("terms.txt"), &dir)
+            .unwrap();
 
         assert!(dict.contains("myterm"));
 

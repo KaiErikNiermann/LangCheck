@@ -5,7 +5,7 @@ Language Check exposes a public API for other VS Code extensions to consume.
 ## Accessing the API
 
 ```typescript
-const langCheck = vscode.extensions.getExtension('gemini.extension');
+const langCheck = vscode.extensions.getExtension('KaiErikNiermann.extension');
 if (langCheck) {
     const api = await langCheck.activate();
     // Use the API...

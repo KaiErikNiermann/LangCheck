@@ -109,7 +109,8 @@ mod tests {
 
     #[test]
     fn detect_english() {
-        let result = detect("The quick brown fox jumped over the lazy dog. It was a beautiful day.");
+        let result =
+            detect("The quick brown fox jumped over the lazy dog. It was a beautiful day.");
         assert!(result.is_some());
         let d = result.unwrap();
         assert_eq!(d.tag, "en");
@@ -118,7 +119,8 @@ mod tests {
 
     #[test]
     fn detect_french() {
-        let result = detect("Bonjour le monde. Comment allez-vous aujourd'hui? C'est une belle journée.");
+        let result =
+            detect("Bonjour le monde. Comment allez-vous aujourd'hui? C'est une belle journée.");
         assert!(result.is_some());
         let d = result.unwrap();
         assert_eq!(d.tag, "fr");
@@ -126,7 +128,9 @@ mod tests {
 
     #[test]
     fn detect_german() {
-        let result = detect("Die schnelle braune Fuchs springt über den faulen Hund. Es war ein schöner Tag.");
+        let result = detect(
+            "Die schnelle braune Fuchs springt über den faulen Hund. Es war ein schöner Tag.",
+        );
         assert!(result.is_some());
         let d = result.unwrap();
         assert_eq!(d.tag, "de");
@@ -134,7 +138,8 @@ mod tests {
 
     #[test]
     fn detect_spanish() {
-        let result = detect("El rápido zorro marrón salta sobre el perro perezoso. Fue un día hermoso.");
+        let result =
+            detect("El rápido zorro marrón salta sobre el perro perezoso. Fue un día hermoso.");
         assert!(result.is_some());
         let d = result.unwrap();
         assert_eq!(d.tag, "es");
