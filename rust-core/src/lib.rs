@@ -13,6 +13,7 @@ pub mod checker {
 pub mod cache;
 pub mod config;
 pub mod detection;
+pub mod forester_ts;
 pub mod dictionary;
 pub mod document;
 pub mod engines;

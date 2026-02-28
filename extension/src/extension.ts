@@ -153,7 +153,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Update insights when active editor changes
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(updateInsightsStatusBar));
 
-    const supportedLanguages = ['markdown', 'html', 'latex'];
+    const supportedLanguages = ['markdown', 'html', 'latex', 'forester'];
 
     // Register Inlay Hints Provider with invalidation support
     context.subscriptions.push(vscode.languages.registerInlayHintsProvider(

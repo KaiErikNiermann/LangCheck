@@ -1,3 +1,4 @@
+mod forester;
 mod latex;
 mod query;
 
@@ -26,6 +27,7 @@ impl ProseExtractor {
 
         match lang_id {
             "latex" => Ok(latex::extract(text, root)),
+            "forester" => Ok(forester::extract(text, root)),
             lang => query::extract(text, root, &self.language, lang),
         }
     }
@@ -595,5 +597,190 @@ the intuition here being that all elements are in sorted order.
         // Diagnostic entirely outside exclusion
         assert!(!range.overlaps_exclusion(0, 40));   // doc 100..140, before exclusion
         assert!(!range.overlaps_exclusion(110, 130)); // doc 210..230, after exclusion
+    }
+
+    // ── Forester tests ──
+
+    fn forester_extractor() -> Result<ProseExtractor> {
+        let language: tree_sitter::Language = crate::forester_ts::LANGUAGE.into();
+        ProseExtractor::new(language)
+    }
+
+    #[test]
+    fn test_forester_basic_extraction() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\title{Hello World}
+\p{This is a paragraph.}
+";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted.iter().any(|t| t.contains("Hello World")),
+            "Should extract title text, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("This is a paragraph")),
+            "Should extract paragraph text, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_math_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Display math between paragraphs (separated by blank line) should
+        // not appear in prose ranges.
+        let text = "\\p{Text before math.}\n\n##{\\int_0^1 f(x) \\, dx}\n\n\\p{Text after math.}\n";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted.iter().any(|t| t.contains("Text before math")),
+            "Should extract text before math, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("Text after math")),
+            "Should extract text after math, got: {extracted:?}"
+        );
+        assert!(
+            !extracted.iter().any(|t| t.contains("\\int")),
+            "Should NOT extract display math content, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_structural_commands_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\import{trees/basics}
+\ref{tree-0001}
+\p{Some actual prose.}
+";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            !extracted.iter().any(|t| t.contains("trees/basics")),
+            "Should NOT extract import path, got: {extracted:?}"
+        );
+        assert!(
+            !extracted.iter().any(|t| t.contains("tree-0001")),
+            "Should NOT extract ref target, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("actual prose")),
+            "Should extract prose text, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_verbatim_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = "\\p{Before code.}\n```\nfn main() {}\n```\n\\p{After code.}";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            !extracted.iter().any(|t| t.contains("fn main")),
+            "Should NOT extract verbatim content, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("Before code")),
+            "Should extract text before verbatim, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("After code")),
+            "Should extract text after verbatim, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_inline_commands_bridge() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{This has \em{emphasized} words in it.}";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted
+                .iter()
+                .any(|t| t.contains("This has") && t.contains("emphasized") && t.contains("words in it")),
+            "Sentence with inline command should bridge into single chunk, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_display_math_exclusion() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{We know that
+##{
+  x^2 + y^2 = z^2
+}
+which proves our claim.}";
+        let ranges = extractor.extract(text, "forester")?;
+
+        // Should bridge across display math
+        let bridged = ranges.iter().find(|r| {
+            let raw = &text[r.start_byte..r.end_byte];
+            raw.contains("know that") && raw.contains("proves our claim")
+        });
+        assert!(
+            bridged.is_some(),
+            "Should bridge across display math, got: {:?}",
+            ranges
+                .iter()
+                .map(|r| &text[r.start_byte..r.end_byte])
+                .collect::<Vec<_>>()
+        );
+
+        let range = bridged.unwrap();
+        assert!(
+            !range.exclusions.is_empty(),
+            "Should have exclusions for display math"
+        );
+
+        let clean_text = range.extract_text(text);
+        assert!(
+            !clean_text.contains("x^2"),
+            "extract_text should not contain math content, got: {:?}",
+            clean_text
+        );
+        assert!(
+            clean_text.contains("know that"),
+            "extract_text should still contain prose, got: {:?}",
+            clean_text
+        );
+
+        Ok(())
     }
 }

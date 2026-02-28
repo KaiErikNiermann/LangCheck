@@ -152,6 +152,7 @@ async fn check_path(path: PathBuf, lang: String, format: &OutputFormat) -> Resul
     let language = match lang.as_str() {
         "html" => tree_sitter_html::LANGUAGE.into(),
         "latex" => codebook_tree_sitter_latex::LANGUAGE.into(),
+        "forester" => rust_core::forester_ts::LANGUAGE.into(),
         _ => tree_sitter_md::LANGUAGE.into(),
     };
     let mut extractor = ProseExtractor::new(language)?;
@@ -163,6 +164,7 @@ async fn check_path(path: PathBuf, lang: String, format: &OutputFormat) -> Resul
         let pattern = match lang.as_str() {
             "html" => "**/*.html",
             "latex" => "**/*.tex",
+            "forester" => "**/*.tree",
             _ => "**/*.md",
         };
         let files: Vec<_> = glob::glob(&format!("{}/{}", path.to_string_lossy(), pattern))?
@@ -269,6 +271,7 @@ async fn fix_path(path: PathBuf, lang: String) -> Result<()> {
     let language = match lang.as_str() {
         "html" => tree_sitter_html::LANGUAGE.into(),
         "latex" => codebook_tree_sitter_latex::LANGUAGE.into(),
+        "forester" => rust_core::forester_ts::LANGUAGE.into(),
         _ => tree_sitter_md::LANGUAGE.into(),
     };
     let mut extractor = ProseExtractor::new(language)?;
@@ -445,6 +448,7 @@ fn detect_lang(path: &std::path::Path) -> String {
     match path.extension().and_then(|e| e.to_str()) {
         Some("html" | "htm") => "html".to_string(),
         Some("tex" | "latex") => "latex".to_string(),
+        Some("tree") => "forester".to_string(),
         _ => "markdown".to_string(),
     }
 }

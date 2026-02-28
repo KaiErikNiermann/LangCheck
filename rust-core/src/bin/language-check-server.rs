@@ -176,6 +176,7 @@ async fn main() -> Result<()> {
                         ("**/*.html", "html", tree_sitter_html::LANGUAGE),
                         ("**/*.htm", "html", tree_sitter_html::LANGUAGE),
                         ("**/*.tex", "latex", codebook_tree_sitter_latex::LANGUAGE),
+                        ("**/*.tree", "forester", rust_core::forester_ts::LANGUAGE),
                     ];
 
                     for &(pattern_suffix, lang, ts_lang_fn) in file_types {
@@ -330,6 +331,7 @@ async fn main() -> Result<()> {
                 let ts_lang: tree_sitter::Language = match req.language_id.as_str() {
                     "html" => tree_sitter_html::LANGUAGE.into(),
                     "latex" => codebook_tree_sitter_latex::LANGUAGE.into(),
+                    "forester" => rust_core::forester_ts::LANGUAGE.into(),
                     _ => tree_sitter_md::LANGUAGE.into(),
                 };
 
@@ -416,6 +418,7 @@ async fn main() -> Result<()> {
                         "markdown".to_string(),
                         "html".to_string(),
                         "latex".to_string(),
+                        "forester".to_string(),
                     ],
                 }))
             }

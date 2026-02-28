@@ -1,0 +1,15 @@
+{
+  "name": "tree-sitter-forester",
+  "version": "0.1.0",
+  "private": true,
+  "main": "grammar.js",
+  "dependencies": {
+    "tree-sitter-cli": "^0.25.0"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.forester",
+      "file-types": ["tree"]
+    }
+  ]
+}
