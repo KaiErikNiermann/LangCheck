@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "publisher": "KaiErikNiermann",
+  "icon": "icon.png",
   "engines": {
     "vscode": "^1.90.0"
   },
