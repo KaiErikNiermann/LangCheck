@@ -8,7 +8,7 @@ import { binaryExists, downloadBinary } from './downloader';
 import type { LanguageCheckDiagnostic } from './api';
 import type { SpeedFixDiagnostic, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorASTNode, InspectorDiagnosticSummary, InspectorCheckInfo } from './events';
 
-const GITHUB_REPO = 'gemini/lang-check';
+const GITHUB_REPO = 'KaiErikNiermann/lang-check';
 
 let client: LanguageClient | null = null;
 let traceLogger: TraceLogger | null = null;
@@ -47,7 +47,7 @@ export function activate(context: vscode.ExtensionContext) {
             if (selection === vscode.l10n.t('Open Walkthrough')) {
                 vscode.commands.executeCommand(
                     'workbench.action.openWalkthrough',
-                    'gemini.extension#language-check.welcome',
+                    'KaiErikNiermann.extension#language-check.welcome',
                     false
                 );
             }
@@ -166,26 +166,52 @@ export function activate(context: vscode.ExtensionContext) {
                 const diagnostics = diagnosticsMap.get(document.uri.toString());
                 if (!diagnostics) return [];
 
-                const hints: vscode.InlayHint[] = [];
+                // Group diagnostics by position to avoid stacking hints
+                const byPosition = new Map<string, typeof diagnostics>();
                 for (const d of diagnostics) {
                     if (d.confidence && d.confidence >= 0.8 && d.suggestions && d.suggestions.length > 0) {
-                        const hint = new vscode.InlayHint(
-                            d.range.end,
-                            [
-                                {
-                                    value: ` → ${d.suggestions[0]}`,
-                                    command: {
-                                        command: 'language-check.applyFix',
-                                        title: 'Apply Fix',
-                                        arguments: [`diag-${diagnostics.indexOf(d)}`, d.suggestions[0]]
-                                    }
-                                }
-                            ],
-                            vscode.InlayHintKind.Type
-                        );
-                        hint.tooltip = `Accept suggestion: ${d.suggestions[0]}`;
-                        hints.push(hint);
+                        const key = `${d.range.end.line}:${d.range.end.character}`;
+                        const group = byPosition.get(key);
+                        if (group) {
+                            group.push(d);
+                        } else {
+                            byPosition.set(key, [d]);
+                        }
                     }
+                }
+
+                const hints: vscode.InlayHint[] = [];
+                for (const group of byPosition.values()) {
+                    if (group.length === 0) continue;
+                    const first = group[0]!;
+                    const firstIdx = diagnostics.indexOf(first);
+                    let label: string;
+                    let tooltip: string;
+                    if (group.length === 1) {
+                        label = ` → ${first.suggestions![0]}`;
+                        tooltip = `Accept suggestion: ${first.suggestions![0]}`;
+                    } else {
+                        label = ` → ${first.suggestions![0]} (+${group.length - 1} more)`;
+                        tooltip = group
+                            .map((d, i) => `${i + 1}. ${d.message}: ${d.suggestions![0]}`)
+                            .join('\n');
+                    }
+                    const hint = new vscode.InlayHint(
+                        first.range.end,
+                        [
+                            {
+                                value: label,
+                                command: {
+                                    command: 'language-check.applyFix',
+                                    title: 'Apply Fix',
+                                    arguments: [`diag-${firstIdx}`, first.suggestions![0]]
+                                }
+                            }
+                        ],
+                        vscode.InlayHintKind.Type
+                    );
+                    hint.tooltip = tooltip;
+                    hints.push(hint);
                 }
                 return hints;
             }
