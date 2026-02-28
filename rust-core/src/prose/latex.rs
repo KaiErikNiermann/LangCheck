@@ -225,13 +225,21 @@ fn merge_word_ranges(words: &[(usize, usize)], text: &str) -> Vec<ProseRange> {
 }
 
 /// Find display math regions (`\[...\]`) in a gap and record them as
-/// exclusions (document-level byte offsets).
+/// exclusions (document-level byte offsets). The exclusion is extended to
+/// cover surrounding whitespace/newlines so that the grammar checker sees
+/// flat spaces instead of newlines that could trigger false capitalization
+/// warnings.
 fn collect_display_math_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, usize)>) {
     let bytes = gap.as_bytes();
     let mut i = 0;
     while i + 1 < bytes.len() {
         if bytes[i] == b'\\' && bytes[i + 1] == b'[' {
-            let math_start = gap_offset + i;
+            // Extend backwards to include leading whitespace/newlines
+            let mut exc_start = i;
+            while exc_start > 0 && bytes[exc_start - 1].is_ascii_whitespace() {
+                exc_start -= 1;
+            }
+
             i += 2;
             while i + 1 < bytes.len() && !(bytes[i] == b'\\' && bytes[i + 1] == b']') {
                 i += 1;
@@ -239,8 +247,15 @@ fn collect_display_math_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(
             if i + 1 < bytes.len() {
                 i += 2; // skip \]
             }
-            let math_end = gap_offset + i;
-            out.push((math_start, math_end));
+
+            // Extend forwards to include trailing whitespace/newlines
+            let mut exc_end = i;
+            while exc_end < bytes.len() && bytes[exc_end].is_ascii_whitespace() {
+                exc_end += 1;
+            }
+
+            out.push((gap_offset + exc_start, gap_offset + exc_end));
+            i = exc_end;
         } else {
             i += 1;
         }

@@ -502,6 +502,67 @@ which proves our claim.
             "extract_text should still contain prose, got: {:?}",
             clean_text
         );
+        // Newlines around display math should also be blanked so that
+        // "which" after \] doesn't look like a new sentence start
+        assert!(
+            !clean_text.contains('\n'),
+            "extract_text should blank newlines around display math, got: {:?}",
+            clean_text
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_latex_display_math_no_false_capitalization() -> Result<()> {
+        let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+
+        // Reproduces the user's exact pattern: display math followed by
+        // lowercase continuation that should NOT be flagged for capitalization.
+        let text = r"\documentclass{article}
+\begin{document}
+
+Thus, our invariant for the inner loop is:
+\[
+  \forall p, q.\ 0 \leq p < q
+\]
+the intuition here being that all elements are in sorted order.
+
+\end{document}
+";
+        let ranges = extractor.extract(text, "latex")?;
+
+        // Should bridge across \[...\] into one chunk
+        let bridged = ranges.iter().find(|r| {
+            let raw = &text[r.start_byte..r.end_byte];
+            raw.contains("invariant") && raw.contains("intuition")
+        });
+        assert!(
+            bridged.is_some(),
+            "Should bridge across display math, got: {:?}",
+            ranges
+                .iter()
+                .map(|r| &text[r.start_byte..r.end_byte])
+                .collect::<Vec<_>>()
+        );
+
+        let range = bridged.unwrap();
+        let clean = range.extract_text(text);
+
+        // The clean text should flow as "is:  the intuition" (with spaces
+        // replacing the math), not "is:\n...\nthe" which would trigger
+        // capitalization warnings.
+        assert!(
+            clean.contains("is:") && clean.contains("the intuition"),
+            "Prose should flow continuously, got: {:?}",
+            clean
+        );
+        assert!(
+            !clean.contains("\\forall"),
+            "Math commands should be blanked, got: {:?}",
+            clean
+        );
 
         Ok(())
     }
