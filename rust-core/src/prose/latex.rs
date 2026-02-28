@@ -221,11 +221,11 @@ fn merge_word_ranges(words: &[(usize, usize)], text: &str) -> Vec<ProseRange> {
 /// Check if the gap between two word ranges can be bridged (merged into one
 /// prose chunk). A bridgeable gap contains only:
 /// - Whitespace (spaces, tabs, single newlines — NOT paragraph breaks)
-/// - Math: `$...$`, `\(...\)`, `\[...\]`
+/// - Inline math: `$...$`, `\(...\)`
 /// - LaTeX commands: `\textbf`, `\textit`, `\ref{...}`, etc.
 /// - Braces and simple punctuation: `{`, `}`, `, . ; : ! ? ( ) ' " - –`
 ///
-/// Non-bridgeable gaps include paragraph breaks.
+/// Non-bridgeable gaps include paragraph breaks and display math (`\[...\]`).
 fn is_bridgeable_gap(gap: &str) -> bool {
     if gap.contains("\n\n") || gap.contains("\r\n\r\n") {
         return false;
@@ -258,9 +258,11 @@ fn is_bridgeable_gap(gap: &str) -> bool {
     })
 }
 
-/// Strip LaTeX noise from a gap string: math (`$...$`, `\[...\]`, `\(...\)`)
-/// and command names (`\textbf`, `\ref`, etc.). Leaves braces, whitespace,
-/// and punctuation intact for subsequent validation.
+/// Strip LaTeX noise from a gap string: inline math (`$...$`, `\(...\)`)
+/// and command names (`\textbf`, `\ref`, etc.). Display math (`\[...\]`)
+/// is NOT stripped — it contains text that would cause false positives if
+/// included in prose ranges. Leaves braces, whitespace, and punctuation
+/// intact for subsequent validation.
 fn strip_latex_noise(gap: &str) -> String {
     let mut result = String::new();
     let chars: Vec<char> = gap.chars().collect();
@@ -272,13 +274,12 @@ fn strip_latex_noise(gap: &str) -> String {
                 i += 1;
             }
             i += 1;
-        } else if chars[i] == '\\'
-            && i + 1 < chars.len()
-            && (chars[i + 1] == '[' || chars[i + 1] == '(')
-        {
-            let close = if chars[i + 1] == '[' { ']' } else { ')' };
+        } else if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1] == '(' {
+            // Strip inline math \(...\) — but NOT display math \[...\] which
+            // contains text that would cause false positives if included in
+            // the prose range.
             i += 2;
-            while i + 1 < chars.len() && !(chars[i] == '\\' && chars[i + 1] == close) {
+            while i + 1 < chars.len() && !(chars[i] == '\\' && chars[i + 1] == ')') {
                 i += 1;
             }
             if i + 1 < chars.len() {
