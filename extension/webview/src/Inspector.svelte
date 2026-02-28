@@ -1,28 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
-  interface ASTNode {
+  interface Exclusion {
+    startChar: number;
+    endChar: number;
     kind: string;
-    startByte: number;
-    endByte: number;
-    startLine: number;
-    startCol: number;
-    endLine: number;
-    endCol: number;
-    children: ASTNode[];
+    text: string;
   }
 
   interface ProseRange {
     startByte: number;
     endByte: number;
     text: string;
-  }
-
-  interface IgnoreRange {
-    startByte: number;
-    endByte: number;
-    ruleIds: string[];
-    kind: string;
+    cleanText: string;
+    exclusions: Exclusion[];
   }
 
   interface LatencyStage {
@@ -45,19 +36,16 @@
     diagnosticCount: number;
   }
 
-  type Tab = 'ast' | 'prose' | 'latency' | 'diagnostics';
+  type Tab = 'extraction' | 'cleantext' | 'latency' | 'diagnostics';
 
-  let ast: ASTNode | null = $state(null);
   let proseRanges: ProseRange[] = $state([]);
-  let ignoreRanges: IgnoreRange[] = $state([]);
   let latencyStages: LatencyStage[] = $state([]);
   let diagnosticSummary: DiagnosticSummary | null = $state(null);
   let checkInfo: CheckInfo | null = $state(null);
-  let activeTab: Tab = $state('ast');
-  let expandedNodes = $state(new Set<string>());
-  let hoveredNode: ASTNode | null = $state(null);
-  let selectedNode: ASTNode | null = $state(null);
+  let activeTab: Tab = $state('extraction');
   let fileName: string = $state('');
+  let languageId: string = $state('');
+  let selectedRangeIdx: number | null = $state(null);
 
   const vscode = (window as any).acquireVsCodeApi();
 
@@ -65,14 +53,11 @@
     window.addEventListener('message', event => {
       const message = event.data;
       switch (message.type) {
-        case 'setAST':
-          ast = message.payload.ast;
-          fileName = message.payload.fileName ?? '';
-          if (ast) expandedNodes.add(nodeKey(ast, '0'));
-          break;
-        case 'setProseRanges':
+        case 'setExtraction':
           proseRanges = message.payload.prose ?? [];
-          ignoreRanges = message.payload.ignores ?? [];
+          fileName = message.payload.fileName ?? '';
+          languageId = message.payload.languageId ?? '';
+          selectedRangeIdx = null;
           break;
         case 'setLatency':
           latencyStages = message.payload.stages ?? [];
@@ -89,25 +74,34 @@
     vscode.postMessage({ type: 'inspectorReady' });
   });
 
-  function nodeKey(node: ASTNode, path: string): string {
-    return `${path}:${node.kind}:${node.startByte}`;
-  }
-
-  function toggleNode(key: string) {
-    if (expandedNodes.has(key)) {
-      expandedNodes.delete(key);
-    } else {
-      expandedNodes.add(key);
-    }
-    expandedNodes = new Set(expandedNodes);
-  }
-
-  function selectAndHighlight(node: ASTNode) {
-    selectedNode = node;
+  function highlightRange(range: ProseRange, idx: number) {
+    selectedRangeIdx = idx;
     vscode.postMessage({
       type: 'highlightRange',
-      payload: { startByte: node.startByte, endByte: node.endByte }
+      payload: { startByte: range.startByte, endByte: range.endByte }
     });
+  }
+
+  function exclusionKindColor(kind: string): string {
+    switch (kind) {
+      case 'inline_math': return 'rgba(80, 140, 255, 0.2)';
+      case 'display_math': return 'rgba(80, 140, 255, 0.3)';
+      case 'command': return 'rgba(160, 100, 220, 0.25)';
+      case 'escape': return 'rgba(220, 200, 60, 0.2)';
+      case 'comment': return 'rgba(80, 180, 80, 0.2)';
+      default: return 'rgba(128, 128, 128, 0.2)';
+    }
+  }
+
+  function exclusionKindBadgeColor(kind: string): string {
+    switch (kind) {
+      case 'inline_math':
+      case 'display_math': return '#6ca4f8';
+      case 'command': return '#c080e0';
+      case 'escape': return '#d0c050';
+      case 'comment': return '#6ece6e';
+      default: return '#aaa';
+    }
   }
 
   function formatBytes(bytes: number): string {
@@ -133,7 +127,6 @@
     return Math.max(2, (ms / total) * 100);
   }
 
-  // Color for latency bars — hot path highlighting
   function stageColor(ms: number, total: number): string {
     if (total === 0) return 'var(--vscode-textLink-foreground)';
     const ratio = ms / total;
@@ -142,7 +135,6 @@
     return 'var(--vscode-textLink-foreground, #48f)';
   }
 
-  // Badge color for severity
   function severityColor(sev: string): string {
     switch (sev) {
       case 'error': return 'var(--vscode-editorError-foreground, #f44)';
@@ -152,29 +144,36 @@
     }
   }
 
-  // Node kind badge colors
-  function kindColor(kind: string): string {
-    switch (kind) {
-      case 'document': return '#888';
-      case 'heading': return '#d7ba7d';
-      case 'paragraph': return '#9cdcfe';
-      case 'code_fence': return '#ce9178';
-      case 'list_item': return '#c586c0';
-      case 'block_quote': return '#6a9955';
-      case 'blank_line': return '#555';
-      default: return '#ddd';
+  /** Build HTML segments for range text with exclusion zones highlighted. */
+  function renderSegments(range: ProseRange): { text: string; isExclusion: boolean; kind: string }[] {
+    if (range.exclusions.length === 0) {
+      return [{ text: range.text, isExclusion: false, kind: '' }];
     }
+    const sorted = [...range.exclusions].sort((a, b) => a.startChar - b.startChar);
+    const segments: { text: string; isExclusion: boolean; kind: string }[] = [];
+    let pos = 0;
+    for (const exc of sorted) {
+      if (exc.startChar > pos) {
+        segments.push({ text: range.text.substring(pos, exc.startChar), isExclusion: false, kind: '' });
+      }
+      segments.push({ text: range.text.substring(exc.startChar, exc.endChar), isExclusion: true, kind: exc.kind });
+      pos = exc.endChar;
+    }
+    if (pos < range.text.length) {
+      segments.push({ text: range.text.substring(pos), isExclusion: false, kind: '' });
+    }
+    return segments;
   }
 </script>
 
 <main class="panel-root">
   <!-- Tab bar -->
   <nav class="tab-bar">
-    <button class="tab" class:active={activeTab === 'ast'} onclick={() => activeTab = 'ast'}>
-      AST
+    <button class="tab" class:active={activeTab === 'extraction'} onclick={() => activeTab = 'extraction'}>
+      Extraction
     </button>
-    <button class="tab" class:active={activeTab === 'prose'} onclick={() => activeTab = 'prose'}>
-      Prose
+    <button class="tab" class:active={activeTab === 'cleantext'} onclick={() => activeTab = 'cleantext'}>
+      Clean Text
     </button>
     <button class="tab" class:active={activeTab === 'latency'} onclick={() => activeTab = 'latency'}>
       Timing
@@ -189,101 +188,71 @@
 
   <!-- Content -->
   <div class="content">
-    {#if activeTab === 'ast'}
-      <!-- AST Visualizer -->
-      {#if ast}
-        <div class="tree" role="tree">
-          {#snippet treeNode(node: ASTNode, path: string, depth: number)}
-            {@const key = nodeKey(node, path)}
-            {@const expanded = expandedNodes.has(key)}
-            {@const hasChildren = node.children && node.children.length > 0}
-            {@const isProse = proseRanges.some(r => r.startByte <= node.startByte && r.endByte >= node.endByte)}
-            {@const isIgnored = ignoreRanges.some(r => r.startByte <= node.startByte && r.endByte >= node.endByte)}
-            {@const isSelected = selectedNode === node}
-            <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-            <div
-              class="tree-row"
-              class:tree-row-selected={isSelected}
-              class:tree-row-hovered={hoveredNode === node}
-              role="treeitem"
-              aria-selected={isSelected}
-              aria-expanded={hasChildren ? expanded : undefined}
-              style="padding-left: {depth * 20 + 8}px"
-              onmouseenter={() => hoveredNode = node}
-              onmouseleave={() => hoveredNode = null}
-              onclick={() => { if (hasChildren) toggleNode(key); selectAndHighlight(node); }}
-              onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { if (hasChildren) toggleNode(key); selectAndHighlight(node); } }}
-              tabindex="0"
-            >
-              <!-- Indentation guides -->
-              {#each Array(depth) as _, d}
-                <span class="indent-guide" style="left: {d * 20 + 14}px"></span>
-              {/each}
-
-              {#if hasChildren}
-                <span class="chevron">{expanded ? '\u25BE' : '\u25B8'}</span>
-              {:else}
-                <span class="chevron-spacer"></span>
-              {/if}
-              <span class="node-kind" style="color: {kindColor(node.kind)}">{node.kind}</span>
-              <span class="node-range">[{node.startLine}:{node.startCol}..{node.endLine}:{node.endCol}]</span>
-              {#if isProse && !isIgnored}
-                <span class="badge badge-prose">prose</span>
-              {/if}
-              {#if isIgnored}
-                <span class="badge badge-ignored">ignored</span>
-              {/if}
-            </div>
-            {#if expanded && hasChildren}
-              {#each node.children as child, i}
-                {@render treeNode(child, `${path}.${i}`, depth + 1)}
-              {/each}
-            {/if}
-          {/snippet}
-          {@render treeNode(ast, '0', 0)}
-        </div>
-      {:else}
-        <div class="empty-state">Open a document to view its syntax tree.</div>
-      {/if}
-
-    {:else if activeTab === 'prose'}
-      <!-- Prose Extraction -->
-      {#if proseRanges.length > 0 || ignoreRanges.length > 0}
+    {#if activeTab === 'extraction'}
+      <!-- Extraction Visualizer -->
+      {#if proseRanges.length > 0}
         <div class="section-list">
           <div class="section-header">
-            <span class="section-title">Extracted Prose Ranges</span>
-            <span class="section-count">{proseRanges.length}</span>
+            <span class="section-title">{languageId} extraction</span>
+            <span class="section-count">{proseRanges.length} ranges</span>
           </div>
           {#each proseRanges as range, i}
-            <div class="prose-card">
+            <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+            <div
+              class="prose-card"
+              class:prose-card-selected={selectedRangeIdx === i}
+              onclick={() => highlightRange(range, i)}
+            >
               <div class="prose-card-header">
+                <span class="prose-label">
+                  Range {i + 1}
+                  {#if range.exclusions.length > 0}
+                    <span class="exclusion-count-badge">{range.exclusions.length} excl.</span>
+                  {/if}
+                </span>
+                <span class="prose-bytes">bytes {range.startByte}..{range.endByte}</span>
+              </div>
+              <pre class="prose-text">{#each renderSegments(range) as seg}{#if seg.isExclusion}<span class="exc-highlight" style="background: {exclusionKindColor(seg.kind)}" title="{seg.kind}">{seg.text}</span>{:else}{seg.text}{/if}{/each}</pre>
+              {#if range.exclusions.length > 0}
+                <div class="exclusion-list">
+                  {#each range.exclusions as exc}
+                    <div class="exclusion-item">
+                      <span class="exc-kind-badge" style="color: {exclusionKindBadgeColor(exc.kind)}">{exc.kind}</span>
+                      <code class="exc-text">{exc.text.length > 60 ? exc.text.substring(0, 57) + '...' : exc.text}</code>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <div class="empty-state">Run a check to view extraction data.</div>
+      {/if}
+
+    {:else if activeTab === 'cleantext'}
+      <!-- Clean Text (what the checker receives) -->
+      {#if proseRanges.length > 0}
+        <div class="section-list">
+          <div class="section-header">
+            <span class="section-title">Checker input</span>
+            <span class="section-count">{proseRanges.length} ranges</span>
+          </div>
+          {#each proseRanges as range, i}
+            <div class="clean-text-block">
+              <div class="clean-text-header">
                 <span class="prose-label">Range {i + 1}</span>
                 <span class="prose-bytes">bytes {range.startByte}..{range.endByte}</span>
               </div>
-              <pre class="prose-text">{range.text}</pre>
+              <pre class="prose-text clean-text">{range.cleanText}</pre>
             </div>
+            {#if i < proseRanges.length - 1}
+              <div class="range-separator"></div>
+            {/if}
           {/each}
-
-          {#if ignoreRanges.length > 0}
-            <div class="section-header" style="margin-top: 16px">
-              <span class="section-title">Ignore Directives</span>
-              <span class="section-count">{ignoreRanges.length}</span>
-            </div>
-            {#each ignoreRanges as range, i}
-              <div class="ignore-card">
-                <div class="prose-card-header">
-                  <span class="ignore-kind">{range.kind}</span>
-                  <span class="prose-bytes">bytes {range.startByte}..{range.endByte}</span>
-                </div>
-                {#if range.ruleIds.length > 0}
-                  <div class="ignore-rules">Rules: {range.ruleIds.join(', ')}</div>
-                {/if}
-              </div>
-            {/each}
-          {/if}
         </div>
       {:else}
-        <div class="empty-state">No prose ranges extracted yet.</div>
+        <div class="empty-state">Run a check to view clean text.</div>
       {/if}
 
     {:else if activeTab === 'latency'}
@@ -298,7 +267,7 @@
 
           <!-- Flamechart-style stacked bar -->
           <div class="flamechart">
-            {#each latencyStages as stage, i}
+            {#each latencyStages as stage}
               {@const w = barWidth(stage.durationMs)}
               <div
                 class="flame-segment"
@@ -353,12 +322,20 @@
                 <span class="check-info-value">{checkInfo.languageId}</span>
               </div>
               <div class="check-info-row">
+                <span class="check-info-label">Prose ranges</span>
+                <span class="check-info-value">{checkInfo.proseRangeCount}</span>
+              </div>
+              <div class="check-info-row">
+                <span class="check-info-label">Prose bytes</span>
+                <span class="check-info-value">{formatBytes(checkInfo.totalProseBytes)}</span>
+              </div>
+              <div class="check-info-row">
                 <span class="check-info-label">Issues found</span>
                 <span class="check-info-value">{checkInfo.diagnosticCount}</span>
               </div>
               <div class="check-info-row">
                 <span class="check-info-label">Throughput</span>
-                <span class="check-info-value">{total > 0 ? formatBytes(Math.round(checkInfo.fileSize / (total / 1000))) + '/s' : '—'}</span>
+                <span class="check-info-value">{total > 0 ? formatBytes(Math.round(checkInfo.fileSize / (total / 1000))) + '/s' : '\u2014'}</span>
               </div>
             </div>
           {/if}
@@ -431,7 +408,7 @@
     overflow: hidden;
   }
 
-  /* ── Tab bar ── */
+  /* -- Tab bar -- */
   .tab-bar {
     display: flex;
     align-items: stretch;
@@ -476,94 +453,14 @@
     white-space: nowrap;
   }
 
-  /* ── Content ── */
+  /* -- Content -- */
   .content {
     flex: 1;
     overflow-y: auto;
     padding: 0;
   }
 
-  /* ── AST Tree ── */
-  .tree {
-    font-family: var(--vscode-editor-font-family, monospace);
-    font-size: 12px;
-    line-height: 1.6;
-    padding: 4px 0;
-  }
-
-  .tree-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding-top: 1px;
-    padding-bottom: 1px;
-    padding-right: 12px;
-    cursor: pointer;
-    position: relative;
-    white-space: nowrap;
-  }
-
-  .tree-row:hover, .tree-row-hovered {
-    background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.1));
-  }
-
-  .tree-row-selected {
-    background: var(--vscode-list-activeSelectionBackground, rgba(0,100,200,0.3)) !important;
-    color: var(--vscode-list-activeSelectionForeground, var(--vscode-editor-foreground));
-  }
-
-  .indent-guide {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background: var(--vscode-tree-indentGuidesStroke, rgba(128,128,128,0.2));
-  }
-
-  .chevron {
-    width: 16px;
-    text-align: center;
-    flex-shrink: 0;
-    opacity: 0.6;
-    font-size: 10px;
-  }
-
-  .chevron-spacer {
-    width: 16px;
-    flex-shrink: 0;
-  }
-
-  .node-kind {
-    font-weight: 600;
-  }
-
-  .node-range {
-    opacity: 0.35;
-    font-size: 11px;
-    margin-left: 4px;
-  }
-
-  .badge {
-    font-size: 9px;
-    padding: 0 5px;
-    border-radius: 3px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    margin-left: 4px;
-  }
-
-  .badge-prose {
-    background: rgba(0, 150, 0, 0.25);
-    color: #6ece6e;
-  }
-
-  .badge-ignored {
-    background: rgba(180, 150, 0, 0.25);
-    color: #e0c050;
-  }
-
-  /* ── Prose Extraction ── */
+  /* -- Shared section styles -- */
   .section-list {
     padding: 12px 16px;
     display: flex;
@@ -599,11 +496,23 @@
     opacity: 0.6;
   }
 
+  /* -- Prose / Extraction cards -- */
   .prose-card {
     background: var(--vscode-textCodeBlock-background, rgba(128,128,128,0.08));
     border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.15));
     border-radius: 6px;
     padding: 10px 12px;
+    cursor: pointer;
+    transition: border-color 0.1s;
+  }
+
+  .prose-card:hover {
+    border-color: var(--vscode-focusBorder, rgba(128,128,128,0.4));
+  }
+
+  .prose-card-selected {
+    border-color: var(--vscode-focusBorder, var(--vscode-textLink-foreground)) !important;
+    background: var(--vscode-list-activeSelectionBackground, rgba(0,100,200,0.1));
   }
 
   .prose-card-header {
@@ -616,6 +525,9 @@
   .prose-label {
     font-size: 11px;
     opacity: 0.5;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .prose-bytes {
@@ -634,25 +546,79 @@
     opacity: 0.8;
   }
 
-  .ignore-card {
-    background: rgba(180, 150, 0, 0.06);
-    border: 1px solid rgba(180, 150, 0, 0.2);
+  .exclusion-count-badge {
+    font-size: 9px;
+    padding: 0 5px;
+    border-radius: 3px;
+    background: rgba(128, 128, 128, 0.2);
+    color: var(--vscode-editor-foreground);
+    opacity: 0.7;
+  }
+
+  .exc-highlight {
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+
+  .exclusion-list {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.15));
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .exclusion-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+  }
+
+  .exc-kind-badge {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    min-width: 70px;
+  }
+
+  .exc-text {
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 11px;
+    opacity: 0.5;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* -- Clean Text tab -- */
+  .clean-text-block {
+    background: var(--vscode-textCodeBlock-background, rgba(128,128,128,0.08));
+    border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.15));
     border-radius: 6px;
     padding: 10px 12px;
   }
 
-  .ignore-kind {
-    font-size: 11px;
-    color: #e0c050;
+  .clean-text-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
   }
 
-  .ignore-rules {
-    font-size: 11px;
-    opacity: 0.5;
-    margin-top: 4px;
+  .clean-text {
+    opacity: 0.7;
   }
 
-  /* ── Latency / Flamechart ── */
+  .range-separator {
+    height: 1px;
+    background: var(--vscode-panel-border, rgba(128,128,128,0.15));
+    margin: 2px 0;
+  }
+
+  /* -- Latency / Flamechart -- */
   .flamechart {
     display: flex;
     height: 24px;
@@ -731,7 +697,7 @@
     font-family: var(--vscode-editor-font-family, monospace);
   }
 
-  /* ── Check Info ── */
+  /* -- Check Info -- */
   .check-info-grid {
     display: grid;
     grid-template-columns: auto 1fr;
@@ -755,7 +721,7 @@
     text-align: right;
   }
 
-  /* ── Diagnostics ── */
+  /* -- Diagnostics -- */
   .diag-grid {
     display: flex;
     gap: 8px;
@@ -830,7 +796,7 @@
     text-align: right;
   }
 
-  /* ── Empty state ── */
+  /* -- Empty state -- */
   .empty-state {
     flex: 1;
     display: flex;

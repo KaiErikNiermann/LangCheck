@@ -849,6 +849,9 @@ export namespace languagecheck {
 
         /** CheckResponse diagnostics */
         diagnostics?: (languagecheck.IDiagnostic[]|null);
+
+        /** CheckResponse extraction */
+        extraction?: (languagecheck.IExtractionInfo|null);
     }
 
     /** Represents a CheckResponse. */
@@ -862,6 +865,9 @@ export namespace languagecheck {
 
         /** CheckResponse diagnostics. */
         public diagnostics: languagecheck.IDiagnostic[];
+
+        /** CheckResponse extraction. */
+        public extraction?: (languagecheck.IExtractionInfo|null);
 
         /**
          * Creates a new CheckResponse instance using the specified properties.
@@ -935,6 +941,315 @@ export namespace languagecheck {
 
         /**
          * Gets the default type url for CheckResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of an ExtractionExclusion. */
+    interface IExtractionExclusion {
+
+        /** ExtractionExclusion startByte */
+        startByte?: (number|null);
+
+        /** ExtractionExclusion endByte */
+        endByte?: (number|null);
+    }
+
+    /** Represents an ExtractionExclusion. */
+    class ExtractionExclusion implements IExtractionExclusion {
+
+        /**
+         * Constructs a new ExtractionExclusion.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: languagecheck.IExtractionExclusion);
+
+        /** ExtractionExclusion startByte. */
+        public startByte: number;
+
+        /** ExtractionExclusion endByte. */
+        public endByte: number;
+
+        /**
+         * Creates a new ExtractionExclusion instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ExtractionExclusion instance
+         */
+        public static create(properties?: languagecheck.IExtractionExclusion): languagecheck.ExtractionExclusion;
+
+        /**
+         * Encodes the specified ExtractionExclusion message. Does not implicitly {@link languagecheck.ExtractionExclusion.verify|verify} messages.
+         * @param message ExtractionExclusion message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: languagecheck.IExtractionExclusion, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ExtractionExclusion message, length delimited. Does not implicitly {@link languagecheck.ExtractionExclusion.verify|verify} messages.
+         * @param message ExtractionExclusion message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: languagecheck.IExtractionExclusion, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an ExtractionExclusion message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ExtractionExclusion
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): languagecheck.ExtractionExclusion;
+
+        /**
+         * Decodes an ExtractionExclusion message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ExtractionExclusion
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): languagecheck.ExtractionExclusion;
+
+        /**
+         * Verifies an ExtractionExclusion message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an ExtractionExclusion message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ExtractionExclusion
+         */
+        public static fromObject(object: { [k: string]: any }): languagecheck.ExtractionExclusion;
+
+        /**
+         * Creates a plain object from an ExtractionExclusion message. Also converts values to other types if specified.
+         * @param message ExtractionExclusion
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: languagecheck.ExtractionExclusion, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ExtractionExclusion to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ExtractionExclusion
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of an ExtractionProseRange. */
+    interface IExtractionProseRange {
+
+        /** ExtractionProseRange startByte */
+        startByte?: (number|null);
+
+        /** ExtractionProseRange endByte */
+        endByte?: (number|null);
+
+        /** ExtractionProseRange exclusions */
+        exclusions?: (languagecheck.IExtractionExclusion[]|null);
+    }
+
+    /** Represents an ExtractionProseRange. */
+    class ExtractionProseRange implements IExtractionProseRange {
+
+        /**
+         * Constructs a new ExtractionProseRange.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: languagecheck.IExtractionProseRange);
+
+        /** ExtractionProseRange startByte. */
+        public startByte: number;
+
+        /** ExtractionProseRange endByte. */
+        public endByte: number;
+
+        /** ExtractionProseRange exclusions. */
+        public exclusions: languagecheck.IExtractionExclusion[];
+
+        /**
+         * Creates a new ExtractionProseRange instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ExtractionProseRange instance
+         */
+        public static create(properties?: languagecheck.IExtractionProseRange): languagecheck.ExtractionProseRange;
+
+        /**
+         * Encodes the specified ExtractionProseRange message. Does not implicitly {@link languagecheck.ExtractionProseRange.verify|verify} messages.
+         * @param message ExtractionProseRange message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: languagecheck.IExtractionProseRange, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ExtractionProseRange message, length delimited. Does not implicitly {@link languagecheck.ExtractionProseRange.verify|verify} messages.
+         * @param message ExtractionProseRange message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: languagecheck.IExtractionProseRange, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an ExtractionProseRange message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ExtractionProseRange
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): languagecheck.ExtractionProseRange;
+
+        /**
+         * Decodes an ExtractionProseRange message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ExtractionProseRange
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): languagecheck.ExtractionProseRange;
+
+        /**
+         * Verifies an ExtractionProseRange message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an ExtractionProseRange message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ExtractionProseRange
+         */
+        public static fromObject(object: { [k: string]: any }): languagecheck.ExtractionProseRange;
+
+        /**
+         * Creates a plain object from an ExtractionProseRange message. Also converts values to other types if specified.
+         * @param message ExtractionProseRange
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: languagecheck.ExtractionProseRange, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ExtractionProseRange to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ExtractionProseRange
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of an ExtractionInfo. */
+    interface IExtractionInfo {
+
+        /** ExtractionInfo proseRanges */
+        proseRanges?: (languagecheck.IExtractionProseRange[]|null);
+    }
+
+    /** Represents an ExtractionInfo. */
+    class ExtractionInfo implements IExtractionInfo {
+
+        /**
+         * Constructs a new ExtractionInfo.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: languagecheck.IExtractionInfo);
+
+        /** ExtractionInfo proseRanges. */
+        public proseRanges: languagecheck.IExtractionProseRange[];
+
+        /**
+         * Creates a new ExtractionInfo instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ExtractionInfo instance
+         */
+        public static create(properties?: languagecheck.IExtractionInfo): languagecheck.ExtractionInfo;
+
+        /**
+         * Encodes the specified ExtractionInfo message. Does not implicitly {@link languagecheck.ExtractionInfo.verify|verify} messages.
+         * @param message ExtractionInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: languagecheck.IExtractionInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ExtractionInfo message, length delimited. Does not implicitly {@link languagecheck.ExtractionInfo.verify|verify} messages.
+         * @param message ExtractionInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: languagecheck.IExtractionInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an ExtractionInfo message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ExtractionInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): languagecheck.ExtractionInfo;
+
+        /**
+         * Decodes an ExtractionInfo message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ExtractionInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): languagecheck.ExtractionInfo;
+
+        /**
+         * Verifies an ExtractionInfo message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an ExtractionInfo message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ExtractionInfo
+         */
+        public static fromObject(object: { [k: string]: any }): languagecheck.ExtractionInfo;
+
+        /**
+         * Creates a plain object from an ExtractionInfo message. Also converts values to other types if specified.
+         * @param message ExtractionInfo
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: languagecheck.ExtractionInfo, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ExtractionInfo to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ExtractionInfo
          * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
          * @returns The default type url
          */

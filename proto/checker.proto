@@ -57,6 +57,22 @@ message CheckRequest {
 
 message CheckResponse {
   repeated Diagnostic diagnostics = 1;
+  ExtractionInfo extraction = 2;
+}
+
+message ExtractionExclusion {
+  uint32 start_byte = 1;
+  uint32 end_byte = 2;
+}
+
+message ExtractionProseRange {
+  uint32 start_byte = 1;
+  uint32 end_byte = 2;
+  repeated ExtractionExclusion exclusions = 3;
+}
+
+message ExtractionInfo {
+  repeated ExtractionProseRange prose_ranges = 1;
 }
 
 message Diagnostic {

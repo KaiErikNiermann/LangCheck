@@ -35,28 +35,19 @@ export type WebviewToExtensionMessage =
 
 // ── Inspector ──
 
-export interface InspectorASTNode {
+export interface InspectorExclusion {
+    startChar: number;
+    endChar: number;
     kind: string;
-    startByte: number;
-    endByte: number;
-    startLine: number;
-    startCol: number;
-    endLine: number;
-    endCol: number;
-    children: InspectorASTNode[];
+    text: string;
 }
 
 export interface InspectorProseRange {
     startByte: number;
     endByte: number;
     text: string;
-}
-
-export interface InspectorIgnoreRange {
-    startByte: number;
-    endByte: number;
-    ruleIds: string[];
-    kind: string;
+    cleanText: string;
+    exclusions: InspectorExclusion[];
 }
 
 export interface InspectorLatencyStage {
@@ -81,8 +72,7 @@ export interface InspectorCheckInfo {
 
 // Messages from extension → Inspector webview
 export type ExtensionToInspectorMessage =
-    | { type: 'setAST'; payload: { ast: InspectorASTNode; fileName: string } }
-    | { type: 'setProseRanges'; payload: { prose: InspectorProseRange[]; ignores: InspectorIgnoreRange[] } }
+    | { type: 'setExtraction'; payload: { prose: InspectorProseRange[]; fileName: string; languageId: string } }
     | { type: 'setLatency'; payload: { stages: InspectorLatencyStage[] } }
     | { type: 'setDiagnosticSummary'; payload: InspectorDiagnosticSummary }
     | { type: 'setCheckInfo'; payload: InspectorCheckInfo };

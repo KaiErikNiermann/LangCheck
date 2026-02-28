@@ -9,7 +9,10 @@
 
 use anyhow::Result;
 use bytes::{Buf, BytesMut};
-use checker::{CheckResponse, ErrorResponse, MetadataResponse, Request, Response, response};
+use checker::{
+    CheckResponse, ErrorResponse, ExtractionExclusion, ExtractionInfo, ExtractionProseRange,
+    MetadataResponse, Request, Response, response,
+};
 use config::Config;
 use dictionary::Dictionary;
 use glob::glob;
@@ -358,6 +361,24 @@ async fn main() -> Result<()> {
 
                 match extraction {
                     Ok(ranges) => {
+                        let extraction_info = ExtractionInfo {
+                            prose_ranges: ranges
+                                .iter()
+                                .map(|r| ExtractionProseRange {
+                                    start_byte: r.start_byte as u32,
+                                    end_byte: r.end_byte as u32,
+                                    exclusions: r
+                                        .exclusions
+                                        .iter()
+                                        .map(|&(s, e)| ExtractionExclusion {
+                                            start_byte: s as u32,
+                                            end_byte: e as u32,
+                                        })
+                                        .collect(),
+                                })
+                                .collect(),
+                        };
+
                         let mut all_diagnostics = Vec::new();
                         let mut orchestrator = orchestrator_arc.lock().await;
                         let ignore_store = ignore_store_arc.lock().await;
@@ -419,6 +440,7 @@ async fn main() -> Result<()> {
                         }
                         Some(response::Payload::CheckProse(CheckResponse {
                             diagnostics: all_diagnostics,
+                            extraction: Some(extraction_info),
                         }))
                     }
                     Err(e) => Some(response::Payload::Error(ErrorResponse {

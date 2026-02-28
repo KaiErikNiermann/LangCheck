@@ -2115,6 +2115,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck
          * @interface ICheckResponse
          * @property {Array.<languagecheck.IDiagnostic>|null} [diagnostics] CheckResponse diagnostics
+         * @property {languagecheck.IExtractionInfo|null} [extraction] CheckResponse extraction
          */
 
         /**
@@ -2140,6 +2141,14 @@ $root.languagecheck = (function() {
          * @instance
          */
         CheckResponse.prototype.diagnostics = $util.emptyArray;
+
+        /**
+         * CheckResponse extraction.
+         * @member {languagecheck.IExtractionInfo|null|undefined} extraction
+         * @memberof languagecheck.CheckResponse
+         * @instance
+         */
+        CheckResponse.prototype.extraction = null;
 
         /**
          * Creates a new CheckResponse instance using the specified properties.
@@ -2168,6 +2177,8 @@ $root.languagecheck = (function() {
             if (message.diagnostics != null && message.diagnostics.length)
                 for (var i = 0; i < message.diagnostics.length; ++i)
                     $root.languagecheck.Diagnostic.encode(message.diagnostics[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            if (message.extraction != null && Object.hasOwnProperty.call(message, "extraction"))
+                $root.languagecheck.ExtractionInfo.encode(message.extraction, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
             return writer;
         };
 
@@ -2208,6 +2219,10 @@ $root.languagecheck = (function() {
                         if (!(message.diagnostics && message.diagnostics.length))
                             message.diagnostics = [];
                         message.diagnostics.push($root.languagecheck.Diagnostic.decode(reader, reader.uint32()));
+                        break;
+                    }
+                case 2: {
+                        message.extraction = $root.languagecheck.ExtractionInfo.decode(reader, reader.uint32());
                         break;
                     }
                 default:
@@ -2254,6 +2269,11 @@ $root.languagecheck = (function() {
                         return "diagnostics." + error;
                 }
             }
+            if (message.extraction != null && message.hasOwnProperty("extraction")) {
+                var error = $root.languagecheck.ExtractionInfo.verify(message.extraction);
+                if (error)
+                    return "extraction." + error;
+            }
             return null;
         };
 
@@ -2279,6 +2299,11 @@ $root.languagecheck = (function() {
                     message.diagnostics[i] = $root.languagecheck.Diagnostic.fromObject(object.diagnostics[i]);
                 }
             }
+            if (object.extraction != null) {
+                if (typeof object.extraction !== "object")
+                    throw TypeError(".languagecheck.CheckResponse.extraction: object expected");
+                message.extraction = $root.languagecheck.ExtractionInfo.fromObject(object.extraction);
+            }
             return message;
         };
 
@@ -2297,11 +2322,15 @@ $root.languagecheck = (function() {
             var object = {};
             if (options.arrays || options.defaults)
                 object.diagnostics = [];
+            if (options.defaults)
+                object.extraction = null;
             if (message.diagnostics && message.diagnostics.length) {
                 object.diagnostics = [];
                 for (var j = 0; j < message.diagnostics.length; ++j)
                     object.diagnostics[j] = $root.languagecheck.Diagnostic.toObject(message.diagnostics[j], options);
             }
+            if (message.extraction != null && message.hasOwnProperty("extraction"))
+                object.extraction = $root.languagecheck.ExtractionInfo.toObject(message.extraction, options);
             return object;
         };
 
@@ -2332,6 +2361,735 @@ $root.languagecheck = (function() {
         };
 
         return CheckResponse;
+    })();
+
+    languagecheck.ExtractionExclusion = (function() {
+
+        /**
+         * Properties of an ExtractionExclusion.
+         * @memberof languagecheck
+         * @interface IExtractionExclusion
+         * @property {number|null} [startByte] ExtractionExclusion startByte
+         * @property {number|null} [endByte] ExtractionExclusion endByte
+         */
+
+        /**
+         * Constructs a new ExtractionExclusion.
+         * @memberof languagecheck
+         * @classdesc Represents an ExtractionExclusion.
+         * @implements IExtractionExclusion
+         * @constructor
+         * @param {languagecheck.IExtractionExclusion=} [properties] Properties to set
+         */
+        function ExtractionExclusion(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ExtractionExclusion startByte.
+         * @member {number} startByte
+         * @memberof languagecheck.ExtractionExclusion
+         * @instance
+         */
+        ExtractionExclusion.prototype.startByte = 0;
+
+        /**
+         * ExtractionExclusion endByte.
+         * @member {number} endByte
+         * @memberof languagecheck.ExtractionExclusion
+         * @instance
+         */
+        ExtractionExclusion.prototype.endByte = 0;
+
+        /**
+         * Creates a new ExtractionExclusion instance using the specified properties.
+         * @function create
+         * @memberof languagecheck.ExtractionExclusion
+         * @static
+         * @param {languagecheck.IExtractionExclusion=} [properties] Properties to set
+         * @returns {languagecheck.ExtractionExclusion} ExtractionExclusion instance
+         */
+        ExtractionExclusion.create = function create(properties) {
+            return new ExtractionExclusion(properties);
+        };
+
+        /**
+         * Encodes the specified ExtractionExclusion message. Does not implicitly {@link languagecheck.ExtractionExclusion.verify|verify} messages.
+         * @function encode
+         * @memberof languagecheck.ExtractionExclusion
+         * @static
+         * @param {languagecheck.IExtractionExclusion} message ExtractionExclusion message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ExtractionExclusion.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.startByte != null && Object.hasOwnProperty.call(message, "startByte"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.startByte);
+            if (message.endByte != null && Object.hasOwnProperty.call(message, "endByte"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint32(message.endByte);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ExtractionExclusion message, length delimited. Does not implicitly {@link languagecheck.ExtractionExclusion.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof languagecheck.ExtractionExclusion
+         * @static
+         * @param {languagecheck.IExtractionExclusion} message ExtractionExclusion message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ExtractionExclusion.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an ExtractionExclusion message from the specified reader or buffer.
+         * @function decode
+         * @memberof languagecheck.ExtractionExclusion
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {languagecheck.ExtractionExclusion} ExtractionExclusion
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ExtractionExclusion.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.ExtractionExclusion();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.startByte = reader.uint32();
+                        break;
+                    }
+                case 2: {
+                        message.endByte = reader.uint32();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an ExtractionExclusion message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof languagecheck.ExtractionExclusion
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {languagecheck.ExtractionExclusion} ExtractionExclusion
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ExtractionExclusion.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an ExtractionExclusion message.
+         * @function verify
+         * @memberof languagecheck.ExtractionExclusion
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ExtractionExclusion.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.startByte != null && message.hasOwnProperty("startByte"))
+                if (!$util.isInteger(message.startByte))
+                    return "startByte: integer expected";
+            if (message.endByte != null && message.hasOwnProperty("endByte"))
+                if (!$util.isInteger(message.endByte))
+                    return "endByte: integer expected";
+            return null;
+        };
+
+        /**
+         * Creates an ExtractionExclusion message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof languagecheck.ExtractionExclusion
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {languagecheck.ExtractionExclusion} ExtractionExclusion
+         */
+        ExtractionExclusion.fromObject = function fromObject(object) {
+            if (object instanceof $root.languagecheck.ExtractionExclusion)
+                return object;
+            var message = new $root.languagecheck.ExtractionExclusion();
+            if (object.startByte != null)
+                message.startByte = object.startByte >>> 0;
+            if (object.endByte != null)
+                message.endByte = object.endByte >>> 0;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an ExtractionExclusion message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof languagecheck.ExtractionExclusion
+         * @static
+         * @param {languagecheck.ExtractionExclusion} message ExtractionExclusion
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ExtractionExclusion.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.startByte = 0;
+                object.endByte = 0;
+            }
+            if (message.startByte != null && message.hasOwnProperty("startByte"))
+                object.startByte = message.startByte;
+            if (message.endByte != null && message.hasOwnProperty("endByte"))
+                object.endByte = message.endByte;
+            return object;
+        };
+
+        /**
+         * Converts this ExtractionExclusion to JSON.
+         * @function toJSON
+         * @memberof languagecheck.ExtractionExclusion
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ExtractionExclusion.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for ExtractionExclusion
+         * @function getTypeUrl
+         * @memberof languagecheck.ExtractionExclusion
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ExtractionExclusion.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/languagecheck.ExtractionExclusion";
+        };
+
+        return ExtractionExclusion;
+    })();
+
+    languagecheck.ExtractionProseRange = (function() {
+
+        /**
+         * Properties of an ExtractionProseRange.
+         * @memberof languagecheck
+         * @interface IExtractionProseRange
+         * @property {number|null} [startByte] ExtractionProseRange startByte
+         * @property {number|null} [endByte] ExtractionProseRange endByte
+         * @property {Array.<languagecheck.IExtractionExclusion>|null} [exclusions] ExtractionProseRange exclusions
+         */
+
+        /**
+         * Constructs a new ExtractionProseRange.
+         * @memberof languagecheck
+         * @classdesc Represents an ExtractionProseRange.
+         * @implements IExtractionProseRange
+         * @constructor
+         * @param {languagecheck.IExtractionProseRange=} [properties] Properties to set
+         */
+        function ExtractionProseRange(properties) {
+            this.exclusions = [];
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ExtractionProseRange startByte.
+         * @member {number} startByte
+         * @memberof languagecheck.ExtractionProseRange
+         * @instance
+         */
+        ExtractionProseRange.prototype.startByte = 0;
+
+        /**
+         * ExtractionProseRange endByte.
+         * @member {number} endByte
+         * @memberof languagecheck.ExtractionProseRange
+         * @instance
+         */
+        ExtractionProseRange.prototype.endByte = 0;
+
+        /**
+         * ExtractionProseRange exclusions.
+         * @member {Array.<languagecheck.IExtractionExclusion>} exclusions
+         * @memberof languagecheck.ExtractionProseRange
+         * @instance
+         */
+        ExtractionProseRange.prototype.exclusions = $util.emptyArray;
+
+        /**
+         * Creates a new ExtractionProseRange instance using the specified properties.
+         * @function create
+         * @memberof languagecheck.ExtractionProseRange
+         * @static
+         * @param {languagecheck.IExtractionProseRange=} [properties] Properties to set
+         * @returns {languagecheck.ExtractionProseRange} ExtractionProseRange instance
+         */
+        ExtractionProseRange.create = function create(properties) {
+            return new ExtractionProseRange(properties);
+        };
+
+        /**
+         * Encodes the specified ExtractionProseRange message. Does not implicitly {@link languagecheck.ExtractionProseRange.verify|verify} messages.
+         * @function encode
+         * @memberof languagecheck.ExtractionProseRange
+         * @static
+         * @param {languagecheck.IExtractionProseRange} message ExtractionProseRange message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ExtractionProseRange.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.startByte != null && Object.hasOwnProperty.call(message, "startByte"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.startByte);
+            if (message.endByte != null && Object.hasOwnProperty.call(message, "endByte"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint32(message.endByte);
+            if (message.exclusions != null && message.exclusions.length)
+                for (var i = 0; i < message.exclusions.length; ++i)
+                    $root.languagecheck.ExtractionExclusion.encode(message.exclusions[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ExtractionProseRange message, length delimited. Does not implicitly {@link languagecheck.ExtractionProseRange.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof languagecheck.ExtractionProseRange
+         * @static
+         * @param {languagecheck.IExtractionProseRange} message ExtractionProseRange message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ExtractionProseRange.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an ExtractionProseRange message from the specified reader or buffer.
+         * @function decode
+         * @memberof languagecheck.ExtractionProseRange
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {languagecheck.ExtractionProseRange} ExtractionProseRange
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ExtractionProseRange.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.ExtractionProseRange();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.startByte = reader.uint32();
+                        break;
+                    }
+                case 2: {
+                        message.endByte = reader.uint32();
+                        break;
+                    }
+                case 3: {
+                        if (!(message.exclusions && message.exclusions.length))
+                            message.exclusions = [];
+                        message.exclusions.push($root.languagecheck.ExtractionExclusion.decode(reader, reader.uint32()));
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an ExtractionProseRange message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof languagecheck.ExtractionProseRange
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {languagecheck.ExtractionProseRange} ExtractionProseRange
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ExtractionProseRange.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an ExtractionProseRange message.
+         * @function verify
+         * @memberof languagecheck.ExtractionProseRange
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ExtractionProseRange.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.startByte != null && message.hasOwnProperty("startByte"))
+                if (!$util.isInteger(message.startByte))
+                    return "startByte: integer expected";
+            if (message.endByte != null && message.hasOwnProperty("endByte"))
+                if (!$util.isInteger(message.endByte))
+                    return "endByte: integer expected";
+            if (message.exclusions != null && message.hasOwnProperty("exclusions")) {
+                if (!Array.isArray(message.exclusions))
+                    return "exclusions: array expected";
+                for (var i = 0; i < message.exclusions.length; ++i) {
+                    var error = $root.languagecheck.ExtractionExclusion.verify(message.exclusions[i]);
+                    if (error)
+                        return "exclusions." + error;
+                }
+            }
+            return null;
+        };
+
+        /**
+         * Creates an ExtractionProseRange message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof languagecheck.ExtractionProseRange
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {languagecheck.ExtractionProseRange} ExtractionProseRange
+         */
+        ExtractionProseRange.fromObject = function fromObject(object) {
+            if (object instanceof $root.languagecheck.ExtractionProseRange)
+                return object;
+            var message = new $root.languagecheck.ExtractionProseRange();
+            if (object.startByte != null)
+                message.startByte = object.startByte >>> 0;
+            if (object.endByte != null)
+                message.endByte = object.endByte >>> 0;
+            if (object.exclusions) {
+                if (!Array.isArray(object.exclusions))
+                    throw TypeError(".languagecheck.ExtractionProseRange.exclusions: array expected");
+                message.exclusions = [];
+                for (var i = 0; i < object.exclusions.length; ++i) {
+                    if (typeof object.exclusions[i] !== "object")
+                        throw TypeError(".languagecheck.ExtractionProseRange.exclusions: object expected");
+                    message.exclusions[i] = $root.languagecheck.ExtractionExclusion.fromObject(object.exclusions[i]);
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an ExtractionProseRange message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof languagecheck.ExtractionProseRange
+         * @static
+         * @param {languagecheck.ExtractionProseRange} message ExtractionProseRange
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ExtractionProseRange.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.arrays || options.defaults)
+                object.exclusions = [];
+            if (options.defaults) {
+                object.startByte = 0;
+                object.endByte = 0;
+            }
+            if (message.startByte != null && message.hasOwnProperty("startByte"))
+                object.startByte = message.startByte;
+            if (message.endByte != null && message.hasOwnProperty("endByte"))
+                object.endByte = message.endByte;
+            if (message.exclusions && message.exclusions.length) {
+                object.exclusions = [];
+                for (var j = 0; j < message.exclusions.length; ++j)
+                    object.exclusions[j] = $root.languagecheck.ExtractionExclusion.toObject(message.exclusions[j], options);
+            }
+            return object;
+        };
+
+        /**
+         * Converts this ExtractionProseRange to JSON.
+         * @function toJSON
+         * @memberof languagecheck.ExtractionProseRange
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ExtractionProseRange.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for ExtractionProseRange
+         * @function getTypeUrl
+         * @memberof languagecheck.ExtractionProseRange
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ExtractionProseRange.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/languagecheck.ExtractionProseRange";
+        };
+
+        return ExtractionProseRange;
+    })();
+
+    languagecheck.ExtractionInfo = (function() {
+
+        /**
+         * Properties of an ExtractionInfo.
+         * @memberof languagecheck
+         * @interface IExtractionInfo
+         * @property {Array.<languagecheck.IExtractionProseRange>|null} [proseRanges] ExtractionInfo proseRanges
+         */
+
+        /**
+         * Constructs a new ExtractionInfo.
+         * @memberof languagecheck
+         * @classdesc Represents an ExtractionInfo.
+         * @implements IExtractionInfo
+         * @constructor
+         * @param {languagecheck.IExtractionInfo=} [properties] Properties to set
+         */
+        function ExtractionInfo(properties) {
+            this.proseRanges = [];
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ExtractionInfo proseRanges.
+         * @member {Array.<languagecheck.IExtractionProseRange>} proseRanges
+         * @memberof languagecheck.ExtractionInfo
+         * @instance
+         */
+        ExtractionInfo.prototype.proseRanges = $util.emptyArray;
+
+        /**
+         * Creates a new ExtractionInfo instance using the specified properties.
+         * @function create
+         * @memberof languagecheck.ExtractionInfo
+         * @static
+         * @param {languagecheck.IExtractionInfo=} [properties] Properties to set
+         * @returns {languagecheck.ExtractionInfo} ExtractionInfo instance
+         */
+        ExtractionInfo.create = function create(properties) {
+            return new ExtractionInfo(properties);
+        };
+
+        /**
+         * Encodes the specified ExtractionInfo message. Does not implicitly {@link languagecheck.ExtractionInfo.verify|verify} messages.
+         * @function encode
+         * @memberof languagecheck.ExtractionInfo
+         * @static
+         * @param {languagecheck.IExtractionInfo} message ExtractionInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ExtractionInfo.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.proseRanges != null && message.proseRanges.length)
+                for (var i = 0; i < message.proseRanges.length; ++i)
+                    $root.languagecheck.ExtractionProseRange.encode(message.proseRanges[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ExtractionInfo message, length delimited. Does not implicitly {@link languagecheck.ExtractionInfo.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof languagecheck.ExtractionInfo
+         * @static
+         * @param {languagecheck.IExtractionInfo} message ExtractionInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ExtractionInfo.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an ExtractionInfo message from the specified reader or buffer.
+         * @function decode
+         * @memberof languagecheck.ExtractionInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {languagecheck.ExtractionInfo} ExtractionInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ExtractionInfo.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.ExtractionInfo();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        if (!(message.proseRanges && message.proseRanges.length))
+                            message.proseRanges = [];
+                        message.proseRanges.push($root.languagecheck.ExtractionProseRange.decode(reader, reader.uint32()));
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an ExtractionInfo message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof languagecheck.ExtractionInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {languagecheck.ExtractionInfo} ExtractionInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ExtractionInfo.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an ExtractionInfo message.
+         * @function verify
+         * @memberof languagecheck.ExtractionInfo
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ExtractionInfo.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.proseRanges != null && message.hasOwnProperty("proseRanges")) {
+                if (!Array.isArray(message.proseRanges))
+                    return "proseRanges: array expected";
+                for (var i = 0; i < message.proseRanges.length; ++i) {
+                    var error = $root.languagecheck.ExtractionProseRange.verify(message.proseRanges[i]);
+                    if (error)
+                        return "proseRanges." + error;
+                }
+            }
+            return null;
+        };
+
+        /**
+         * Creates an ExtractionInfo message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof languagecheck.ExtractionInfo
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {languagecheck.ExtractionInfo} ExtractionInfo
+         */
+        ExtractionInfo.fromObject = function fromObject(object) {
+            if (object instanceof $root.languagecheck.ExtractionInfo)
+                return object;
+            var message = new $root.languagecheck.ExtractionInfo();
+            if (object.proseRanges) {
+                if (!Array.isArray(object.proseRanges))
+                    throw TypeError(".languagecheck.ExtractionInfo.proseRanges: array expected");
+                message.proseRanges = [];
+                for (var i = 0; i < object.proseRanges.length; ++i) {
+                    if (typeof object.proseRanges[i] !== "object")
+                        throw TypeError(".languagecheck.ExtractionInfo.proseRanges: object expected");
+                    message.proseRanges[i] = $root.languagecheck.ExtractionProseRange.fromObject(object.proseRanges[i]);
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an ExtractionInfo message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof languagecheck.ExtractionInfo
+         * @static
+         * @param {languagecheck.ExtractionInfo} message ExtractionInfo
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ExtractionInfo.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.arrays || options.defaults)
+                object.proseRanges = [];
+            if (message.proseRanges && message.proseRanges.length) {
+                object.proseRanges = [];
+                for (var j = 0; j < message.proseRanges.length; ++j)
+                    object.proseRanges[j] = $root.languagecheck.ExtractionProseRange.toObject(message.proseRanges[j], options);
+            }
+            return object;
+        };
+
+        /**
+         * Converts this ExtractionInfo to JSON.
+         * @function toJSON
+         * @memberof languagecheck.ExtractionInfo
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ExtractionInfo.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for ExtractionInfo
+         * @function getTypeUrl
+         * @memberof languagecheck.ExtractionInfo
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ExtractionInfo.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/languagecheck.ExtractionInfo";
+        };
+
+        return ExtractionInfo;
     })();
 
     languagecheck.Diagnostic = (function() {

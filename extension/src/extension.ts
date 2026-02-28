@@ -6,7 +6,7 @@ import { TraceLogger } from './trace';
 import { createAPI } from './api';
 import { binaryExists, downloadBinary } from './downloader';
 import type { LanguageCheckDiagnostic } from './api';
-import type { SpeedFixDiagnostic, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorASTNode, InspectorDiagnosticSummary, InspectorCheckInfo } from './events';
+import type { SpeedFixDiagnostic, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo } from './events';
 
 const GITHUB_REPO = 'KaiErikNiermann/lang-check';
 
@@ -31,6 +31,9 @@ let isChecking = false;
 // Last check timing (real benchmark data for inspector)
 let lastCheckTimings: { name: string; durationMs: number }[] = [];
 let lastCheckInfo: InspectorCheckInfo | null = null;
+
+// Cached extraction data per document URI (from real Rust core response)
+const extractionCache = new Map<string, { prose: InspectorProseRange[]; languageId: string }>();
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Language Check extension activated');
@@ -792,56 +795,18 @@ async function updateInspectorData() {
     if (!editor) return;
 
     const document = editor.document;
-    const text = document.getText();
+    const uri = document.uri.toString();
     const fileName = path.basename(document.uri.fsPath);
-    const lines = text.split('\n');
 
-    const children: InspectorASTNode[] = lines.map((line, i) => {
-        const startByte = new TextEncoder().encode(lines.slice(0, i).join('\n') + (i > 0 ? '\n' : '')).length;
-        const lineBytes = new TextEncoder().encode(line).length;
-        return {
-            kind: line.trim().startsWith('#') ? 'heading' :
-                  line.trim().startsWith('```') ? 'code_fence' :
-                  line.trim().startsWith('- ') || line.trim().startsWith('* ') ? 'list_item' :
-                  line.trim().startsWith('> ') ? 'block_quote' :
-                  line.trim() === '' ? 'blank_line' : 'paragraph',
-            startByte,
-            endByte: startByte + lineBytes,
-            startLine: i,
-            startCol: 0,
-            endLine: i,
-            endCol: line.length,
-            children: [],
-        };
-    });
-
-    const rootNode: InspectorASTNode = {
-        kind: 'document',
-        startByte: 0,
-        endByte: new TextEncoder().encode(text).length,
-        startLine: 0,
-        startCol: 0,
-        endLine: lines.length - 1,
-        endCol: lines[lines.length - 1]?.length ?? 0,
-        children,
-    };
-
+    // Send real extraction data from cache
+    const cached = extractionCache.get(uri);
     inspectorPanel.webview.postMessage({
-        type: 'setAST',
-        payload: { ast: rootNode, fileName },
-    });
-
-    const proseRanges = children
-        .filter(n => n.kind === 'paragraph' || n.kind === 'heading' || n.kind === 'list_item' || n.kind === 'block_quote')
-        .map(n => ({
-            startByte: n.startByte,
-            endByte: n.endByte,
-            text: text.substring(n.startByte, n.endByte),
-        }));
-
-    inspectorPanel.webview.postMessage({
-        type: 'setProseRanges',
-        payload: { prose: proseRanges, ignores: [] },
+        type: 'setExtraction',
+        payload: {
+            prose: cached?.prose ?? [],
+            fileName,
+            languageId: cached?.languageId ?? document.languageId,
+        },
     });
 
     // Send real benchmark timings if available
@@ -861,7 +826,7 @@ async function updateInspectorData() {
     }
 
     // Send diagnostic summary
-    const diags = diagnosticsMap.get(document.uri.toString());
+    const diags = diagnosticsMap.get(uri);
     if (diags && diags.length > 0) {
         const byRule = new Map<string, number>();
         const bySeverity = new Map<string, number>();
@@ -1083,14 +1048,64 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
 
             updateInsightsStatusBar(vscode.window.activeTextEditor);
 
+            // Cache extraction data from real Rust core response
+            const protoRanges = response.checkProse.extraction?.proseRanges ?? [];
+            const inspectorRanges: InspectorProseRange[] = protoRanges.map(pr => {
+                const startByte = pr.startByte as number;
+                const endByte = pr.endByte as number;
+                const rawText = textContent.substring(
+                    byteToChar(startByte),
+                    byteToChar(endByte),
+                );
+
+                const exclusions: InspectorExclusion[] = (pr.exclusions ?? []).map(exc => {
+                    const excStartByte = exc.startByte as number;
+                    const excEndByte = exc.endByte as number;
+                    // Convert document-level byte offsets to char offsets within the range text
+                    const excStartChar = byteToChar(excStartByte) - byteToChar(startByte);
+                    const excEndChar = byteToChar(excEndByte) - byteToChar(startByte);
+                    const excText = rawText.substring(excStartChar, excEndChar);
+
+                    // Infer exclusion kind heuristically from content
+                    let kind = 'unknown';
+                    if (excText.startsWith('##{') || excText.startsWith('\\[')) kind = 'display_math';
+                    else if (excText.startsWith('#{') || excText.startsWith('$')) kind = 'inline_math';
+                    else if (excText.startsWith('\\') && excText.length > 1 && /^\\[a-zA-Z]/.test(excText)) kind = 'command';
+                    else if (excText.startsWith('\\')) kind = 'escape';
+                    else if (excText.startsWith('%')) kind = 'comment';
+
+                    return { startChar: excStartChar, endChar: excEndChar, kind, text: excText };
+                });
+
+                // Build clean text: replace exclusion zones with spaces
+                let cleanText = rawText;
+                if (exclusions.length > 0) {
+                    const chars = [...cleanText];
+                    for (const exc of exclusions) {
+                        for (let i = exc.startChar; i < exc.endChar && i < chars.length; i++) {
+                            chars[i] = ' ';
+                        }
+                    }
+                    cleanText = chars.join('');
+                }
+
+                return { startByte, endByte, text: rawText, cleanText, exclusions };
+            });
+
+            extractionCache.set(document.uri.toString(), {
+                prose: inspectorRanges,
+                languageId: document.languageId,
+            });
+
             // Store timings and check info for inspector
             lastCheckTimings = timings;
+            const totalProseBytes = inspectorRanges.reduce((sum, r) => sum + (r.endByte - r.startByte), 0);
             lastCheckInfo = {
                 fileName: path.basename(document.uri.fsPath),
                 fileSize: new TextEncoder().encode(textContent).length,
                 languageId: document.languageId,
-                proseRangeCount: 0,  // not available from protobuf response
-                totalProseBytes: 0,
+                proseRangeCount: inspectorRanges.length,
+                totalProseBytes,
                 diagnosticCount: extendedDiagnostics.length,
             };
             // Update inspector if open
