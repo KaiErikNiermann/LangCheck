@@ -139,17 +139,18 @@ TODO: but this line is still checked.
 
 #### Type Override (`type:FORMAT`)
 
-```{note}
-The `type:` option is parsed but **not yet implemented**. Using it will
-print a warning. A future release will support re-parsing regions with a
-different tree-sitter grammar.
-```
+Re-parse the region using a different tree-sitter grammar. The content
+inside the region is extracted as if it were a standalone document of the
+specified format:
 
 ```markdown
 <!-- lang-check-begin type:latex -->
-This region would use LaTeX parsing rules.
+\emph{This region} uses \textbf{LaTeX} parsing rules.
 <!-- lang-check-end -->
 ```
+
+The format must be a supported language ID (e.g. `latex`, `html`, `rst`,
+`org`). Unknown formats are skipped with a warning.
 
 ### Combining Options
 

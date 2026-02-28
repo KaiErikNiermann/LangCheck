@@ -9,8 +9,11 @@ mod sweave;
 mod tinylang;
 
 use anyhow::{Result, anyhow};
+use std::ops::Range;
 use std::path::Path;
 use tree_sitter::{Language, Parser};
+
+use crate::ignore_rules::{DirectiveRegion, IgnoreParser};
 
 use crate::sls::SchemaRegistry;
 
@@ -70,7 +73,73 @@ pub fn extract_with_fallback(
     let canonical_lang = crate::languages::resolve_language_id(lang_id);
     let language = crate::languages::resolve_ts_language(canonical_lang);
     let mut extractor = ProseExtractor::new(language)?;
-    extractor.extract(text, canonical_lang)
+    let mut ranges = extractor.extract(text, canonical_lang)?;
+
+    let directives = IgnoreParser::parse_directives(text);
+    let resolved = IgnoreParser::resolve_all(text, &directives);
+    let type_regions: Vec<_> = resolved
+        .regions
+        .iter()
+        .filter(|r| r.options.doc_type.is_some())
+        .collect();
+    if !type_regions.is_empty() {
+        ranges = apply_type_overrides(text, ranges, &type_regions)?;
+    }
+
+    Ok(ranges)
+}
+
+/// Re-extract prose for regions tagged with `type:FORMAT`.
+///
+/// For each type-override region, slices the document text, runs the specified
+/// format's extractor, and rebases the resulting ranges to document-level
+/// offsets. Base ranges whose `start_byte` falls inside a type-override region
+/// are removed and replaced with the re-extracted ranges.
+fn apply_type_overrides(
+    text: &str,
+    base_ranges: Vec<ProseRange>,
+    type_regions: &[&DirectiveRegion],
+) -> Result<Vec<ProseRange>> {
+    let override_spans: Vec<&Range<usize>> =
+        type_regions.iter().map(|r| &r.byte_range).collect();
+
+    // Keep base ranges that don't start inside any type-override region.
+    let mut result: Vec<ProseRange> = base_ranges
+        .into_iter()
+        .filter(|r| !override_spans.iter().any(|span| span.contains(&r.start_byte)))
+        .collect();
+
+    for region in type_regions {
+        let doc_type = region.options.doc_type.as_deref().unwrap();
+        let canonical = crate::languages::resolve_language_id(doc_type);
+
+        if !crate::languages::SUPPORTED_LANGUAGE_IDS.contains(&canonical) {
+            eprintln!(
+                "lang-check: `type:{doc_type}` is not a supported language; skipping region"
+            );
+            continue;
+        }
+
+        let slice = &text[region.byte_range.clone()];
+        let ts_lang = crate::languages::resolve_ts_language(canonical);
+        let mut ext = ProseExtractor::new(ts_lang)?;
+        let sub_ranges = ext.extract(slice, canonical)?;
+
+        let offset = region.byte_range.start;
+        for mut r in sub_ranges {
+            r.start_byte += offset;
+            r.end_byte += offset;
+            r.exclusions = r
+                .exclusions
+                .into_iter()
+                .map(|(s, e)| (s + offset, e + offset))
+                .collect();
+            result.push(r);
+        }
+    }
+
+    result.sort_by_key(|r| r.start_byte);
+    Ok(result)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -168,5 +237,104 @@ mod tests {
         // Diagnostic entirely outside exclusion
         assert!(!range.overlaps_exclusion(0, 40)); // doc 100..140, before exclusion
         assert!(!range.overlaps_exclusion(110, 130)); // doc 210..230, after exclusion
+    }
+
+    #[test]
+    fn type_override_latex_in_markdown() -> Result<()> {
+        let text = "\
+# Title
+
+Some intro text.
+
+<!-- lang-check-begin type:latex -->
+\\emph{Hello} world and \\textbf{bold} text.
+<!-- lang-check-end -->
+
+Final paragraph.";
+
+        let ranges = extract_with_fallback(text, "markdown", None, None)?;
+
+        let texts: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        // Surrounding markdown prose is preserved.
+        assert!(texts.iter().any(|t| t.contains("Title")));
+        assert!(texts.iter().any(|t| t.contains("intro text")));
+        assert!(texts.iter().any(|t| t.contains("Final paragraph")));
+
+        // The LaTeX region was re-extracted: the prose content from
+        // \emph{Hello} and \textbf{bold} should appear in ranges.
+        assert!(
+            texts.iter().any(|t| t.contains("Hello")),
+            "expected LaTeX extractor to produce range containing 'Hello', got: {texts:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn type_override_unknown_skipped() -> Result<()> {
+        let text = "\
+# Title
+
+<!-- lang-check-begin type:foobar -->
+Some content here.
+<!-- lang-check-end -->
+
+Trailing text.";
+
+        let ranges = extract_with_fallback(text, "markdown", None, None)?;
+
+        let texts: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        // Surrounding ranges preserved.
+        assert!(texts.iter().any(|t| t.contains("Title")));
+        assert!(texts.iter().any(|t| t.contains("Trailing text")));
+
+        // The unknown-type region's base ranges were filtered out, and no
+        // re-extraction happened, so "Some content" should be absent.
+        assert!(
+            !texts.iter().any(|t| t.contains("Some content")),
+            "expected unknown type region to be skipped, got: {texts:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn type_override_preserves_surrounding() -> Result<()> {
+        let text = "\
+First paragraph before.
+
+<!-- lang-check-begin type:latex -->
+\\section{Test}
+Some LaTeX prose.
+<!-- lang-check-end -->
+
+Last paragraph after.";
+
+        let ranges = extract_with_fallback(text, "markdown", None, None)?;
+
+        let texts: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        // Both surrounding paragraphs must be present and unmodified.
+        assert!(
+            texts.iter().any(|t| t.contains("First paragraph before")),
+            "pre-region range missing: {texts:?}"
+        );
+        assert!(
+            texts.iter().any(|t| t.contains("Last paragraph after")),
+            "post-region range missing: {texts:?}"
+        );
+
+        Ok(())
     }
 }

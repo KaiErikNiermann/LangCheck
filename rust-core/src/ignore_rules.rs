@@ -214,12 +214,6 @@ impl IgnoreParser {
                         .clone()
                         .unwrap_or_default();
 
-                    if opts.doc_type.is_some() {
-                        eprintln!(
-                            "lang-check: `type:` directive is not yet implemented; ignoring"
-                        );
-                    }
-
                     if let Some(n) = opts.line_count {
                         // Auto-closing: scope covers N lines after the directive
                         let start = next_line_start(text, directive.line_end);
