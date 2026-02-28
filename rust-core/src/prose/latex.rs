@@ -35,6 +35,10 @@ const SKIP_GENERIC_ENVS: &[&str] = &[
     "flalign",
     "flalign*",
     "split",
+    "mathpar",
+    "mathpar*",
+    "IEEEeqnarray",
+    "IEEEeqnarray*",
     "tikzpicture",
     "pgfpicture",
     "forest",
@@ -64,6 +68,46 @@ const STRUCTURAL_NODES: &[&str] = &[
     "bibstyle_include",
 ];
 
+/// Generic command names (the `\name` in `\name{...}`) whose arguments are
+/// non-prose and should be skipped entirely. When `collect_words` encounters
+/// a `generic_command` whose command name matches, the entire subtree is
+/// dropped.
+const SKIP_GENERIC_COMMANDS: &[&str] = &[
+    "thispagestyle",
+    "pagestyle",
+    "bibliographystyle",
+    "bibliography",
+    "setcounter",
+    "addtocounter",
+    "setlength",
+    "addtolength",
+    "newcommand",
+    "renewcommand",
+    "newenvironment",
+    "renewenvironment",
+    "DeclareMathOperator",
+    "definecolor",
+    "hypersetup",
+    "geometry",
+    "input",
+    "include",
+    "hfill",
+    "vfill",
+    "hspace",
+    "vspace",
+    "smallskip",
+    "medskip",
+    "bigskip",
+    "hrule",
+    "vrule",
+    "newpage",
+    "clearpage",
+    "maketitle",
+    "tableofcontents",
+    "listoffigures",
+    "listoftables",
+];
+
 /// Extract prose ranges from a LaTeX AST.
 ///
 /// Walks the tree collecting `word` leaf nodes, skipping preamble, math,
@@ -79,7 +123,7 @@ pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
         &word_ranges,
         text,
         strip_latex_noise,
-        collect_display_math_exclusions,
+        collect_gap_exclusions,
     )
 }
 
@@ -140,6 +184,10 @@ fn collect_words(
         return;
     }
 
+    if kind == "generic_command" && should_skip_generic_command(node, text) {
+        return;
+    }
+
     let structural = in_structural || is_structural_node(kind);
 
     if kind == "word" {
@@ -163,20 +211,37 @@ fn collect_words(
 fn should_skip_generic_env(node: Node, text: &str) -> bool {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        if child.kind() == "begin" {
-            let mut inner = child.walk();
-            for bc in child.children(&mut inner) {
-                if bc.kind() == "curly_group_text" {
-                    let mut name_cursor = bc.walk();
-                    for name_child in bc.children(&mut name_cursor) {
-                        if name_child.kind() == "text" {
-                            let env_name = &text[name_child.start_byte()..name_child.end_byte()];
-                            return SKIP_GENERIC_ENVS.contains(&env_name.trim());
-                        }
-                    }
-                }
+        if child.kind() != "begin" {
+            continue;
+        }
+        let mut inner = child.walk();
+        for bc in child.children(&mut inner) {
+            if bc.kind() != "curly_group_text" {
+                continue;
             }
-            break;
+            let mut name_cursor = bc.walk();
+            for name_child in bc.children(&mut name_cursor) {
+                if name_child.kind() != "text" {
+                    continue;
+                }
+                let env_name = &text[name_child.start_byte()..name_child.end_byte()];
+                return SKIP_GENERIC_ENVS.contains(&env_name.trim());
+            }
+        }
+        break;
+    }
+    false
+}
+
+/// Check if a `generic_command` node should be skipped based on its command name.
+fn should_skip_generic_command(node: Node, text: &str) -> bool {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "command_name" {
+            // command_name text is e.g. `\thispagestyle` — strip leading `\`
+            let raw = &text[child.start_byte()..child.end_byte()];
+            let name = raw.strip_prefix('\\').unwrap_or(raw);
+            return SKIP_GENERIC_COMMANDS.contains(&name);
         }
     }
     false
@@ -186,41 +251,118 @@ fn should_skip_generic_env(node: Node, text: &str) -> bool {
 // Word-range merging with LaTeX-aware gap analysis
 // ---------------------------------------------------------------------------
 
-/// Find display math regions (`\[...\]`) in a gap and record them as
-/// exclusions (document-level byte offsets). The exclusion is extended to
-/// cover surrounding whitespace/newlines so that the grammar checker sees
-/// flat spaces instead of newlines that could trigger false capitalization
-/// warnings.
-fn collect_display_math_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, usize)>) {
+/// Walk a gap string and record every LaTeX noise region as an exclusion
+/// (document-level byte offsets).  This mirrors the logic in
+/// `strip_latex_noise` so that everything the gap-stripper removes is also
+/// blanked with spaces in the text the checker receives.
+///
+/// Covered: inline math (`$...$`), display math (`\[...\]`), inline math
+/// (`\(...\)`), command names with their arguments (`\textsc{...}`), and
+/// escape sequences (`\\`, `\,`, etc.).  Display math exclusions are
+/// extended to cover surrounding whitespace so that the grammar checker
+/// doesn't see false paragraph breaks.
+fn collect_gap_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, usize)>) {
     let bytes = gap.as_bytes();
+    let len = bytes.len();
     let mut i = 0;
-    while i + 1 < bytes.len() {
-        if bytes[i] == b'\\' && bytes[i + 1] == b'[' {
-            // Extend backwards to include leading whitespace/newlines
+
+    while i < len {
+        // --- inline math: $...$ ---
+        if bytes[i] == b'$' {
+            let start = i;
+            i += 1;
+            while i < len && bytes[i] != b'$' {
+                i += 1;
+            }
+            if i < len {
+                i += 1; // closing $
+            }
+            out.push((gap_offset + start, gap_offset + i));
+            continue;
+        }
+
+        // --- display math \[...\] (with whitespace absorption) ---
+        if i + 1 < len && bytes[i] == b'\\' && bytes[i + 1] == b'[' {
             let mut exc_start = i;
             while exc_start > 0 && bytes[exc_start - 1].is_ascii_whitespace() {
                 exc_start -= 1;
             }
-
             i += 2;
-            while i + 1 < bytes.len() && !(bytes[i] == b'\\' && bytes[i + 1] == b']') {
+            while i + 1 < len && !(bytes[i] == b'\\' && bytes[i + 1] == b']') {
                 i += 1;
             }
-            if i + 1 < bytes.len() {
-                i += 2; // skip \]
+            if i + 1 < len {
+                i += 2;
             }
-
-            // Extend forwards to include trailing whitespace/newlines
             let mut exc_end = i;
-            while exc_end < bytes.len() && bytes[exc_end].is_ascii_whitespace() {
+            while exc_end < len && bytes[exc_end].is_ascii_whitespace() {
                 exc_end += 1;
             }
-
             out.push((gap_offset + exc_start, gap_offset + exc_end));
             i = exc_end;
-        } else {
-            i += 1;
+            continue;
         }
+
+        // --- inline math \(...\) ---
+        if i + 1 < len && bytes[i] == b'\\' && bytes[i + 1] == b'(' {
+            let start = i;
+            i += 2;
+            while i + 1 < len && !(bytes[i] == b'\\' && bytes[i + 1] == b')') {
+                i += 1;
+            }
+            if i + 1 < len {
+                i += 2;
+            }
+            out.push((gap_offset + start, gap_offset + i));
+            continue;
+        }
+
+        // --- command: \name[...]{...} ---
+        if i + 1 < len && bytes[i] == b'\\' && bytes[i + 1].is_ascii_alphabetic() {
+            let start = i;
+            i += 1;
+            while i < len && bytes[i].is_ascii_alphabetic() {
+                i += 1;
+            }
+            if i < len && bytes[i] == b'*' {
+                i += 1;
+            }
+            // Skip command arguments: {content} and [content]
+            while i < len && (bytes[i] == b'{' || bytes[i] == b'[') {
+                let open = bytes[i];
+                let close = if open == b'{' { b'}' } else { b']' };
+                let mut depth: u32 = 1;
+                i += 1;
+                while i < len && depth > 0 {
+                    if bytes[i] == open {
+                        depth += 1;
+                    } else if bytes[i] == close {
+                        depth -= 1;
+                    }
+                    i += 1;
+                }
+            }
+            out.push((gap_offset + start, gap_offset + i));
+            continue;
+        }
+
+        // --- escape sequence: \\ , \, , \; , etc. ---
+        if i + 1 < len && bytes[i] == b'\\' {
+            let start = i;
+            i += 2;
+            out.push((gap_offset + start, gap_offset + i));
+            continue;
+        }
+
+        // --- bare braces (unmatched closing brace from a command whose
+        // opening was in a previous gap, or stray opening brace) ---
+        if bytes[i] == b'{' || bytes[i] == b'}' {
+            out.push((gap_offset + i, gap_offset + i + 1));
+            i += 1;
+            continue;
+        }
+
+        i += 1;
     }
 }
 
@@ -265,7 +407,8 @@ fn strip_latex_noise(gap: &str) -> String {
             }
             let cmd: String = chars[cmd_start..j].iter().collect();
 
-            // Block commands should NOT be bridged — leave them to fail validation.
+            // Block/layout commands should NOT be bridged — leave them to
+            // fail validation so adjacent ranges stay separate.
             if matches!(
                 cmd.as_str(),
                 "begin"
@@ -278,6 +421,11 @@ fn strip_latex_noise(gap: &str) -> String {
                     | "paragraph"
                     | "chapter"
                     | "part"
+                    | "hfill"
+                    | "vfill"
+                    | "newline"
+                    | "linebreak"
+                    | "noindent"
             ) {
                 result.push(chars[i]);
                 i += 1;
@@ -800,6 +948,247 @@ the intuition here being that all elements are in sorted order.
             !clean.contains("\\forall"),
             "Math commands should be blanked, got: {:?}",
             clean
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_latex_mathpar_skipped() -> Result<()> {
+        let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+
+        let text = r"\documentclass{article}
+\begin{document}
+
+We define the rules as follows
+\begin{mathpar}
+    \inferrule
+    { }
+    {\Gamma \vdash n : \text{num}} \quad \text{T-Num}
+
+    \inferrule
+    {\Gamma (x) = \tau}
+    {\Gamma \vdash x : \tau} \quad \text{T-Var}
+\end{mathpar}
+
+The proof is complete.
+
+\end{document}
+";
+        let ranges = extractor.extract(text, "latex")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted.iter().any(|t| t.contains("define the rules")),
+            "Should extract prose before mathpar, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("proof is complete")),
+            "Should extract prose after mathpar, got: {extracted:?}"
+        );
+        assert!(
+            !extracted.iter().any(|t| t.contains("T-Num")),
+            "Should NOT extract inference rule labels, got: {extracted:?}"
+        );
+        assert!(
+            !extracted.iter().any(|t| t.contains("T-Var")),
+            "Should NOT extract inference rule labels, got: {extracted:?}"
+        );
+        // Single-letter fragments from \text{} inside math should not appear
+        assert!(
+            !extracted.iter().any(|t| *t == "x" || *t == "n"),
+            "Should NOT extract single variable names from mathpar, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_latex_thispagestyle_skipped() -> Result<()> {
+        let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+
+        let text = r"\documentclass{article}
+\begin{document}
+\thispagestyle{empty}
+
+Hello world.
+
+\end{document}
+";
+        let ranges = extractor.extract(text, "latex")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            !extracted.iter().any(|t| t.contains("empty")),
+            "Should NOT extract thispagestyle argument, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("Hello world")),
+            "Should extract body prose, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_latex_hfill_breaks_ranges() -> Result<()> {
+        let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+
+        let text = r"\documentclass{article}
+\begin{document}
+
+{\scshape LV } \hfill {\scshape \large Assignment 1} \hfill {\scshape \today}
+
+Some real prose here.
+
+\end{document}
+";
+        let ranges = extractor.extract(text, "latex")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        // \hfill should break merging — LV and Assignment 1 should not be in the same range
+        assert!(
+            !extracted.iter().any(|t| t.contains("LV") && t.contains("Assignment")),
+            "\\hfill should break ranges, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("real prose")),
+            "Should extract body prose, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_latex_inline_math_excluded_from_text() -> Result<()> {
+        let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+
+        let text = r"\documentclass{article}
+\begin{document}
+
+The value $x + 1$ is positive and $y - 2$ is negative.
+
+\end{document}
+";
+        let ranges = extractor.extract(text, "latex")?;
+
+        let range = ranges
+            .iter()
+            .find(|r| {
+                let raw = &text[r.start_byte..r.end_byte];
+                raw.contains("value") && raw.contains("positive")
+            })
+            .expect("Should have a range containing the sentence");
+
+        let clean = range.extract_text(text);
+        assert!(
+            !clean.contains("x + 1"),
+            "extract_text should not contain inline math, got: {clean:?}"
+        );
+        assert!(
+            !clean.contains("y - 2"),
+            "extract_text should not contain second inline math, got: {clean:?}"
+        );
+        assert!(
+            clean.contains("value"),
+            "extract_text should preserve prose, got: {clean:?}"
+        );
+        assert!(
+            clean.contains("positive"),
+            "extract_text should preserve prose after math, got: {clean:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_latex_paren_math_excluded_from_text() -> Result<()> {
+        let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+
+        let text = r"\documentclass{article}
+\begin{document}
+
+We define \(f(x) = x^2\) for all reals.
+
+\end{document}
+";
+        let ranges = extractor.extract(text, "latex")?;
+
+        let range = ranges
+            .iter()
+            .find(|r| {
+                let raw = &text[r.start_byte..r.end_byte];
+                raw.contains("define") && raw.contains("reals")
+            })
+            .expect("Should have a range containing the sentence");
+
+        let clean = range.extract_text(text);
+        assert!(
+            !clean.contains("f(x)"),
+            "extract_text should not contain \\(...\\) math, got: {clean:?}"
+        );
+        assert!(
+            clean.contains("define"),
+            "extract_text should preserve prose, got: {clean:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_latex_command_excluded_from_text() -> Result<()> {
+        let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+
+        let text = r"\documentclass{article}
+\begin{document}
+
+The \textsc{Foo} method solves \textbf{bar} problems.
+
+\end{document}
+";
+        let ranges = extractor.extract(text, "latex")?;
+
+        let range = ranges
+            .iter()
+            .find(|r| {
+                let raw = &text[r.start_byte..r.end_byte];
+                raw.contains("method") && raw.contains("solves")
+            })
+            .expect("Should have a range containing the sentence");
+
+        let clean = range.extract_text(text);
+        assert!(
+            !clean.contains("\\textsc"),
+            "extract_text should not contain \\textsc command, got: {clean:?}"
+        );
+        assert!(
+            !clean.contains("\\textbf"),
+            "extract_text should not contain \\textbf command, got: {clean:?}"
+        );
+        // The word content inside the braces is also excluded (command + args),
+        // so Foo and bar should be blanked too
+        assert!(
+            clean.contains("method"),
+            "extract_text should preserve surrounding prose, got: {clean:?}"
+        );
+        assert!(
+            clean.contains("solves"),
+            "extract_text should preserve surrounding prose, got: {clean:?}"
         );
 
         Ok(())
