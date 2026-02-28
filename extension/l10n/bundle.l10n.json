@@ -30,5 +30,7 @@
   "Checking {0}": "Checking {0}",
   "Language Check Error: {0}": "Language Check Error: {0}",
   "Failed to communicate with language-check core: {0}": "Failed to communicate with language-check core: {0}",
-  "No language issues found in the current scope.": "No language issues found in the current scope."
+  "No language issues found in the current scope.": "No language issues found in the current scope.",
+  "Fix all \"{0}\" in this file": "Fix all \"{0}\" in this file",
+  "Fix all \"{0}\" in workspace": "Fix all \"{0}\" in workspace"
 }

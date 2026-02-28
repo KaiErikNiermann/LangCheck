@@ -35,6 +35,14 @@ let lastCheckInfo: InspectorCheckInfo | null = null;
 // Cached extraction data per document URI (from real Rust core response)
 const extractionCache = new Map<string, { prose: InspectorProseRange[]; languageId: string }>();
 
+function isSpellingRule(ruleId: string): boolean {
+    return ruleId.includes('Spell') || ruleId.includes('spell') || ruleId.includes('MORFOLOGIK');
+}
+
+function getDiagnosticWord(document: vscode.TextDocument, diagnostic: vscode.Diagnostic): string {
+    return document.getText(diagnostic.range);
+}
+
 export function activate(context: vscode.ExtensionContext) {
     console.log('Language Check extension activated');
 
@@ -309,8 +317,8 @@ export function activate(context: vscode.ExtensionContext) {
 
                     // Add "Add to Dictionary" action for spelling rules
                     const ruleId = (diag.code as string) || '';
-                    if (ruleId.includes('Spell') || ruleId.includes('spell') || ruleId.includes('MORFOLOGIK')) {
-                        const word = document.getText(diag.range);
+                    if (isSpellingRule(ruleId)) {
+                        const word = getDiagnosticWord(document, diag);
                         const dictAction = new vscode.CodeAction(
                             `Add "${word}" to dictionary`,
                             vscode.CodeActionKind.QuickFix
@@ -322,6 +330,63 @@ export function activate(context: vscode.ExtensionContext) {
                         };
                         dictAction.diagnostics = [diag];
                         actions.push(dictAction);
+
+                        // "Fix all" bulk actions (only when first suggestion exists)
+                        if (extDiag.suggestions && extDiag.suggestions.length > 0) {
+                            const replacement = extDiag.suggestions[0]!;
+                            const uri = document.uri.toString();
+
+                            // Count matching spelling diagnostics in this file
+                            const fileCount = diagnostics.filter(d => {
+                                const dRuleId = (d.code as string) || '';
+                                return isSpellingRule(dRuleId)
+                                    && getDiagnosticWord(document, d) === word;
+                            }).length;
+
+                            if (fileCount >= 2) {
+                                const fixFileAction = new vscode.CodeAction(
+                                    vscode.l10n.t('Fix all "{0}" in this file', word),
+                                    vscode.CodeActionKind.QuickFix
+                                );
+                                fixFileAction.command = {
+                                    command: 'language-check.fixAllSpellingInFile',
+                                    title: 'Fix all in file',
+                                    arguments: [uri, word, replacement]
+                                };
+                                fixFileAction.diagnostics = [diag];
+                                actions.push(fixFileAction);
+                            }
+
+                            // Count matching spelling diagnostics across workspace
+                            let workspaceCount = 0;
+                            for (const [entryUri, entryDiags] of diagnosticsMap) {
+                                const entryDoc = vscode.workspace.textDocuments.find(
+                                    doc => doc.uri.toString() === entryUri
+                                );
+                                if (!entryDoc) continue;
+                                for (const d of entryDiags) {
+                                    const dRuleId = (d.code as string) || '';
+                                    if (isSpellingRule(dRuleId)
+                                        && getDiagnosticWord(entryDoc, d) === word) {
+                                        workspaceCount++;
+                                    }
+                                }
+                            }
+
+                            if (workspaceCount >= 2) {
+                                const fixWsAction = new vscode.CodeAction(
+                                    vscode.l10n.t('Fix all "{0}" in workspace', word),
+                                    vscode.CodeActionKind.QuickFix
+                                );
+                                fixWsAction.command = {
+                                    command: 'language-check.fixAllSpellingInWorkspace',
+                                    title: 'Fix all in workspace',
+                                    arguments: [word, replacement]
+                                };
+                                fixWsAction.diagnostics = [diag];
+                                actions.push(fixWsAction);
+                            }
+                        }
                     }
                 }
 
@@ -333,6 +398,76 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.ignoreDiagnostic', async (diagnosticId: string) => {
         await ignoreDiagnostic(diagnosticId);
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.fixAllSpellingInFile', async (uri: string, word: string, replacement: string) => {
+        const diagnostics = diagnosticsMap.get(uri);
+        if (!diagnostics) return;
+
+        const document = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri);
+        if (!document) return;
+
+        const matching = diagnostics.filter(d => {
+            const dRuleId = (d.code as string) || '';
+            return isSpellingRule(dRuleId) && getDiagnosticWord(document, d) === word;
+        });
+        if (matching.length === 0) return;
+
+        const edit = new vscode.WorkspaceEdit();
+        for (const d of matching) {
+            edit.replace(document.uri, d.range, replacement);
+        }
+        await vscode.workspace.applyEdit(edit);
+
+        // Optimistic removal
+        const remaining = diagnostics.filter(d => !matching.includes(d));
+        diagnosticsMap.set(uri, remaining);
+        diagnosticCollection.set(document.uri, remaining);
+        inlayHintEmitter.fire();
+        updateSpeedFixDiagnostics();
+
+        // Re-check for consistency
+        await checkDocument(document);
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.fixAllSpellingInWorkspace', async (word: string, replacement: string) => {
+        const edit = new vscode.WorkspaceEdit();
+        const affectedUris: string[] = [];
+
+        for (const [uri, diagnostics] of diagnosticsMap) {
+            const document = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri);
+            if (!document) continue;
+
+            const matching = diagnostics.filter(d => {
+                const dRuleId = (d.code as string) || '';
+                return isSpellingRule(dRuleId) && getDiagnosticWord(document, d) === word;
+            });
+            if (matching.length === 0) continue;
+
+            for (const d of matching) {
+                edit.replace(document.uri, d.range, replacement);
+            }
+
+            // Optimistic removal
+            const remaining = diagnostics.filter(d => !matching.includes(d));
+            diagnosticsMap.set(uri, remaining);
+            diagnosticCollection.set(document.uri, remaining);
+            affectedUris.push(uri);
+        }
+
+        if (affectedUris.length === 0) return;
+
+        await vscode.workspace.applyEdit(edit);
+        inlayHintEmitter.fire();
+        updateSpeedFixDiagnostics();
+
+        // Re-check all affected files
+        for (const uri of affectedUris) {
+            const document = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri);
+            if (document) {
+                await checkDocument(document);
+            }
+        }
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.toggleTrace', () => {
@@ -387,8 +522,7 @@ export function activate(context: vscode.ExtensionContext) {
                     if (diagnostics) {
                         const remaining = diagnostics.filter(d => {
                             const diagWord = editor.document.getText(d.range);
-                            const isSpelling = typeof d.code === 'string' &&
-                                (d.code.includes('Spell') || d.code.includes('spell') || d.code.includes('MORFOLOGIK'));
+                            const isSpelling = typeof d.code === 'string' && isSpellingRule(d.code);
                             if (isSpelling && diagWord.toLowerCase() === wordLower) {
                                 removedCount++;
                                 return false;
