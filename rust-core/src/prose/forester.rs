@@ -70,19 +70,33 @@ const SKIP_KINDS: &[&str] = &[
 /// Uses scoped collection: block-level commands (\p, \li, \ol, etc.) create
 /// prose scope boundaries that prevent sentence merging across them. Inline
 /// commands (\em, \strong) bridge with surrounding text. Unknown macros are
-/// skipped by default. Math (#{}, ##{}), verbatim, comments, and wiki links
-/// are always excluded.
+/// recursed into so nested known blocks are still extracted. Math (#{}, ##{})
+/// is excluded both via tree-sitter nodes and a text-based safety-net scanner.
+/// Verbatim, comments, and wiki links are always excluded.
 pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     let mut scopes: Vec<Vec<(usize, usize)>> = vec![vec![]];
-    collect_prose_nodes(root, text, &mut scopes);
+    let mut skips: Vec<(usize, usize)> = Vec::new();
+    collect_prose_nodes(root, text, &mut scopes, &mut skips, false);
 
-    scopes
+    // Safety net: text-based math scanner catches regions where tree-sitter
+    // truncated display_math/inline_math at escaped braces.
+    skips.extend(find_math_regions(text));
+
+    let mut result: Vec<ProseRange> = scopes
         .iter()
         .filter(|s| !s.is_empty())
         .flat_map(|scope| {
-            shared::merge_ranges(scope, text, strip_forester_noise, collect_math_exclusions)
+            shared::merge_ranges(
+                scope,
+                text,
+                strip_forester_noise,
+                collect_forester_exclusions,
+            )
         })
-        .collect()
+        .collect();
+
+    install_skip_exclusions(&mut result, &skips, text.as_bytes());
+    result
 }
 
 /// Get the command name string from a command node.
@@ -100,12 +114,20 @@ fn get_command_name<'a>(node: Node, text: &'a str) -> Option<&'a str> {
 ///
 /// Block-level commands push new segments to prevent cross-boundary merging.
 /// Inline commands recurse normally so their content bridges. Unknown macros
-/// are skipped entirely (not checked by default).
-fn collect_prose_nodes(node: Node, text: &str, scopes: &mut Vec<Vec<(usize, usize)>>) {
+/// recurse into children (so nested `\p`/`\li` are found) but don't enable
+/// text collection — only known prose commands set `in_prose` to true.
+fn collect_prose_nodes(
+    node: Node,
+    text: &str,
+    scopes: &mut Vec<Vec<(usize, usize)>>,
+    skips: &mut Vec<(usize, usize)>,
+    in_prose: bool,
+) {
     let kind = node.kind();
 
     // Skip entire subtrees for non-prose node kinds
     if SKIP_KINDS.contains(&kind) {
+        skips.push((node.start_byte(), node.end_byte()));
         return;
     }
 
@@ -117,12 +139,12 @@ fn collect_prose_nodes(node: Node, text: &str, scopes: &mut Vec<Vec<(usize, usiz
             return;
         }
 
-        // Block-level commands: create scope boundaries
+        // Block-level commands: create scope boundaries, enable prose collection
         if cmd_name.is_some_and(|n| BLOCK_COMMANDS.contains(&n)) {
             scopes.push(vec![]);
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                collect_prose_nodes(child, text, scopes);
+                collect_prose_nodes(child, text, scopes, skips, true);
             }
             // New scope after so subsequent siblings don't merge with this block
             scopes.push(vec![]);
@@ -133,18 +155,23 @@ fn collect_prose_nodes(node: Node, text: &str, scopes: &mut Vec<Vec<(usize, usiz
         if cmd_name.is_some_and(|n| INLINE_COMMANDS.contains(&n)) {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                collect_prose_nodes(child, text, scopes);
+                collect_prose_nodes(child, text, scopes, skips, true);
             }
             return;
         }
 
-        // Unknown command/macro: skip by default (macros are predominantly
-        // non-prose; users can opt in via comment directives in the future)
+        // Unknown command/macro: recurse into children so nested known
+        // blocks (\p, \li, etc.) still create their own scope boundaries.
+        // Text collection stays OFF — only known commands enable it.
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            collect_prose_nodes(child, text, scopes, skips, false);
+        }
         return;
     }
 
-    // Leaf prose nodes
-    if kind == "text" || kind == "escape" {
+    // Leaf prose nodes (only when inside a known prose command)
+    if kind == "text" && in_prose {
         let start = node.start_byte();
         let end = node.end_byte();
         if start < end {
@@ -155,56 +182,44 @@ fn collect_prose_nodes(node: Node, text: &str, scopes: &mut Vec<Vec<(usize, usiz
         return;
     }
 
-    // Recurse into all other nodes (groups, source_file, etc.)
+    // source_file: collect text (handles orphaned nodes from AST truncation).
+    // find_math_regions will exclude any leaked math content.
+    // Other nodes (brace_group, paren_group, etc.): preserve current context.
+    let child_prose = in_prose || kind == "source_file";
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        collect_prose_nodes(child, text, scopes);
+        collect_prose_nodes(child, text, scopes, skips, child_prose);
     }
 }
 
-/// Find inline math (`#{...}`) and display math (`##{...}`) regions in a gap
-/// and record them as exclusions. Extends exclusions to cover surrounding
-/// whitespace so the grammar checker sees clean boundaries.
-fn collect_math_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, usize)>) {
-    let bytes = gap.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        // Display math: ##{...}
-        let is_display =
-            i + 2 < bytes.len() && bytes[i] == b'#' && bytes[i + 1] == b'#' && bytes[i + 2] == b'{';
-        // Inline math: #{...} (but not ##{)
-        let is_inline =
-            !is_display && i + 1 < bytes.len() && bytes[i] == b'#' && bytes[i + 1] == b'{';
+/// Install skip-node byte ranges as exclusions on merged prose ranges.
+///
+/// For each `ProseRange`, finds all skip ranges that overlap `[start_byte, end_byte)`,
+/// extends each to cover surrounding whitespace (so the checker sees clean boundaries),
+/// and adds them as exclusions.
+fn install_skip_exclusions(ranges: &mut [ProseRange], skips: &[(usize, usize)], text: &[u8]) {
+    for range in ranges.iter_mut() {
+        for &(skip_start, skip_end) in skips {
+            // Skip range must overlap the prose range
+            if skip_end <= range.start_byte || skip_start >= range.end_byte {
+                continue;
+            }
 
-        if is_display || is_inline {
+            // Clamp to the prose range boundaries
+            let mut exc_start = skip_start.max(range.start_byte);
+            let mut exc_end = skip_end.min(range.end_byte);
+
             // Extend backwards to include leading whitespace
-            let mut exc_start = i;
-            while exc_start > 0 && bytes[exc_start - 1].is_ascii_whitespace() {
+            while exc_start > range.start_byte && text[exc_start - 1].is_ascii_whitespace() {
                 exc_start -= 1;
             }
 
-            // Skip past the opener
-            i += if is_display { 3 } else { 2 };
-            let mut depth = 1;
-            while i < bytes.len() && depth > 0 {
-                if bytes[i] == b'{' {
-                    depth += 1;
-                } else if bytes[i] == b'}' {
-                    depth -= 1;
-                }
-                i += 1;
-            }
-
             // Extend forwards to include trailing whitespace
-            let mut exc_end = i;
-            while exc_end < bytes.len() && bytes[exc_end].is_ascii_whitespace() {
+            while exc_end < range.end_byte && text[exc_end].is_ascii_whitespace() {
                 exc_end += 1;
             }
 
-            out.push((gap_offset + exc_start, gap_offset + exc_end));
-            i = exc_end;
-        } else {
-            i += 1;
+            range.exclusions.push((exc_start, exc_end));
         }
     }
 }
@@ -288,6 +303,163 @@ fn strip_forester_noise(gap: &str) -> String {
         }
     }
     result
+}
+
+/// Collect exclusion regions from a gap string between prose text nodes.
+///
+/// Works on bytes directly — Forester markup delimiters (`#`, `{`, `}`, `\`,
+/// `%`) are all single-byte ASCII. Called by `merge_ranges` for each bridgeable
+/// gap so that commands, math, escapes, and comments become exclusions.
+fn collect_forester_exclusions(gap: &str, offset: usize, exclusions: &mut Vec<(usize, usize)>) {
+    let b = gap.as_bytes();
+    let len = b.len();
+    let mut i = 0;
+    while i < len {
+        let start = i;
+        if b[i] == b'#' && i + 2 < len && b[i + 1] == b'#' && b[i + 2] == b'{' {
+            i = skip_braces(b, i + 3); // display math
+            exclusions.push((offset + start, offset + i));
+        } else if b[i] == b'#' && i + 1 < len && b[i + 1] == b'{' {
+            i = skip_braces(b, i + 2); // inline math
+            exclusions.push((offset + start, offset + i));
+        } else if b[i] == b'\\' && i + 1 < len && b[i + 1].is_ascii_alphanumeric() {
+            i = skip_command_with_args(b, i); // \name{...}[...](...)
+            exclusions.push((offset + start, offset + i));
+        } else if b[i] == b'\\' && i + 1 < len {
+            i += 2; // escape \X
+            exclusions.push((offset + start, offset + i));
+        } else if b[i] == b'%' {
+            while i < len && b[i] != b'\n' {
+                i += 1;
+            }
+            exclusions.push((offset + start, offset + i));
+        } else {
+            i += 1;
+        }
+    }
+}
+
+/// Skip balanced braces starting after the opening `{`. Returns position after closing `}`.
+fn skip_braces(b: &[u8], mut i: usize) -> usize {
+    let mut depth: u32 = 1;
+    while i < b.len() && depth > 0 {
+        if b[i] == b'\\' && i + 1 < b.len() {
+            i += 2;
+            continue;
+        }
+        if b[i] == b'{' {
+            depth += 1;
+        } else if b[i] == b'}' {
+            depth -= 1;
+        }
+        i += 1;
+    }
+    i
+}
+
+/// Skip a `\name` command and its optional brace/bracket/paren arguments.
+fn skip_command_with_args(b: &[u8], mut i: usize) -> usize {
+    i += 1; // skip backslash
+    while i < b.len()
+        && (b[i].is_ascii_alphanumeric() || matches!(b[i], b'-' | b'/' | b'?' | b'*'))
+    {
+        i += 1;
+    }
+    while i < b.len() && matches!(b[i], b'{' | b'[' | b'(') {
+        let (open, close) = match b[i] {
+            b'{' => (b'{', b'}'),
+            b'[' => (b'[', b']'),
+            b'(' => (b'(', b')'),
+            _ => unreachable!(),
+        };
+        let mut depth: u32 = 1;
+        i += 1;
+        while i < b.len() && depth > 0 {
+            if b[i] == open {
+                depth += 1;
+            } else if b[i] == close {
+                depth -= 1;
+            }
+            i += 1;
+        }
+    }
+    i
+}
+
+/// Scan raw text for `#{...}` and `##{...}` math regions using escape-aware
+/// brace counting. Returns byte ranges covering each math region (including
+/// the `#` / `##` prefix and the outermost braces).
+///
+/// This provides a safety net for cases where tree-sitter truncates math nodes
+/// at escaped braces (`\{`, `\}`).
+fn find_math_regions(text: &str) -> Vec<(usize, usize)> {
+    let bytes = text.as_bytes();
+    let len = bytes.len();
+    let mut regions = Vec::new();
+    let mut i = 0;
+
+    while i < len {
+        // Skip % comments (to end of line)
+        if bytes[i] == b'%' {
+            while i < len && bytes[i] != b'\n' {
+                i += 1;
+            }
+            continue;
+        }
+
+        // Skip escape sequences: \X consumes 2 bytes (prevents \# from
+        // triggering math detection)
+        if bytes[i] == b'\\' && i + 1 < len {
+            i += 2;
+            continue;
+        }
+
+        // Display math: ##{...}
+        if bytes[i] == b'#' && i + 2 < len && bytes[i + 1] == b'#' && bytes[i + 2] == b'{' {
+            let start = i;
+            i += 3; // skip ##{
+            let mut depth: u32 = 1;
+            while i < len && depth > 0 {
+                if bytes[i] == b'\\' && i + 1 < len {
+                    i += 2; // skip escape inside math
+                    continue;
+                }
+                if bytes[i] == b'{' {
+                    depth += 1;
+                } else if bytes[i] == b'}' {
+                    depth -= 1;
+                }
+                i += 1;
+            }
+            regions.push((start, i));
+            continue;
+        }
+
+        // Inline math: #{...}
+        if bytes[i] == b'#' && i + 1 < len && bytes[i + 1] == b'{' {
+            let start = i;
+            i += 2; // skip #{
+            let mut depth: u32 = 1;
+            while i < len && depth > 0 {
+                if bytes[i] == b'\\' && i + 1 < len {
+                    i += 2; // skip escape inside math
+                    continue;
+                }
+                if bytes[i] == b'{' {
+                    depth += 1;
+                } else if bytes[i] == b'}' {
+                    depth -= 1;
+                }
+                i += 1;
+            }
+            regions.push((start, i));
+            continue;
+        }
+
+        i += 1;
+    }
+
+    regions
 }
 
 #[cfg(test)]
@@ -580,12 +752,37 @@ which proves our claim.}";
     }
 
     #[test]
-    fn test_forester_unknown_macros_skipped() -> Result<()> {
+    fn test_forester_unknown_macros_recurse() -> Result<()> {
         let mut extractor = forester_extractor()?;
 
+        // Unknown macros now recurse into children, so nested \p is extracted
+        let text = r"\solution{
+  \p{Prose inside unknown wrapper.}
+}";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted
+                .iter()
+                .any(|t| t.contains("Prose inside unknown wrapper")),
+            "Nested \\p inside unknown macro should be extracted, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_unknown_macros_plain_text_skipped() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Plain text inside unknown macros is NOT collected — only text
+        // inside known prose commands (\p, \li, etc.) is prose.
         let text = r"\p{Real prose here.}
 \mymacro{macro content}
-\anothermacro[opt]{more content}
 \p{More real prose.}";
         let ranges = extractor.extract(text, "forester")?;
         let extracted: Vec<&str> = ranges
@@ -595,18 +792,10 @@ which proves our claim.}";
 
         assert!(
             !extracted.iter().any(|t| t.contains("macro content")),
-            "Unknown macro content should NOT be checked, got: {extracted:?}"
-        );
-        assert!(
-            !extracted.iter().any(|t| t.contains("more content")),
-            "Unknown macro with args should NOT be checked, got: {extracted:?}"
+            "Text inside unknown macro should NOT be extracted, got: {extracted:?}"
         );
         assert!(
             extracted.iter().any(|t| t.contains("Real prose")),
-            "Known commands should still extract prose, got: {extracted:?}"
-        );
-        assert!(
-            extracted.iter().any(|t| t.contains("More real prose")),
             "Known commands should still extract prose, got: {extracted:?}"
         );
 
@@ -648,4 +837,338 @@ which proves our claim.}";
 
         Ok(())
     }
+
+    #[test]
+    fn test_forester_display_math_align_inside_li() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Real-world pattern: display math with \begin{align*} inside \li.
+        // The braces inside the math used to confuse the old brace-counting
+        // exclusion collector, leaking LaTeX commands into prose.
+        let text = r"\ol{\li{We have the equation
+##{
+  \begin{align*}
+    \mathcal{C} &\vDash \forall x.\, \varphi(x) \\
+    &\Rightarrow \psi
+  \end{align*}
+}
+which completes the proof.}}";
+        let ranges = extractor.extract(text, "forester")?;
+
+        for range in &ranges {
+            let clean = range.extract_text(text);
+            assert!(
+                !clean.contains("\\mathcal"),
+                "LaTeX \\mathcal should not leak into prose, got: {clean:?}"
+            );
+            assert!(
+                !clean.contains("\\vDash"),
+                "LaTeX \\vDash should not leak into prose, got: {clean:?}"
+            );
+            assert!(
+                !clean.contains("\\forall"),
+                "LaTeX \\forall should not leak into prose, got: {clean:?}"
+            );
+            assert!(
+                !clean.contains("\\begin"),
+                "LaTeX \\begin should not leak into prose, got: {clean:?}"
+            );
+        }
+
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            all_text.contains("We have the equation"),
+            "Prose before display math should be extracted, got: {all_text:?}"
+        );
+        assert!(
+            all_text.contains("completes the proof"),
+            "Prose after display math should be extracted, got: {all_text:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_forester_em_command_name_not_leaked() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{This has \em{emphasized} words.}";
+        let ranges = extractor.extract(text, "forester")?;
+
+        let range = ranges
+            .iter()
+            .find(|r| {
+                let t = &text[r.start_byte..r.end_byte];
+                t.contains("emphasized")
+            })
+            .expect("Should find range containing 'emphasized'");
+
+        let clean = range.extract_text(text);
+        assert!(
+            !clean.contains("\\em"),
+            "Command name \\em should not appear in clean text, got: {clean:?}"
+        );
+        assert!(
+            clean.contains("emphasized"),
+            "Word 'emphasized' should be in clean text, got: {clean:?}"
+        );
+        assert!(
+            clean.contains("This has"),
+            "Surrounding prose should be in clean text, got: {clean:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_unknown_inline_macro_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Unknown inline macros like \cf{...} should be excluded from prose
+        // (their content is not checked) while surrounding prose bridges.
+        let text = r"\li{The carrier \cf{Fin A.n} is important.}";
+        let ranges = extractor.extract(text, "forester")?;
+
+        for range in &ranges {
+            let clean = range.extract_text(text);
+            assert!(
+                !clean.contains("Fin"),
+                "\\cf content should be excluded, got: {clean:?}"
+            );
+        }
+
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            all_text.contains("The carrier"),
+            "Prose before \\cf, got: {all_text:?}"
+        );
+        assert!(
+            all_text.contains("is important"),
+            "Prose after \\cf, got: {all_text:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_display_math_escaped_braces_top_level() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Display math with \{...\} at top level between \p blocks.
+        // Tree-sitter truncates display_math at escaped braces; the text-based
+        // scanner should catch the leaked content.
+        let text = r"\p{Consider the structure:}
+##{
+  U = \{A, B\} \quad I = \{\texttt{taller} \mapsto \{\langle A, B\rangle\}\}
+}
+\p{Is it a model?}";
+        let ranges = extractor.extract(text, "forester")?;
+
+        for range in &ranges {
+            let clean = range.extract_text(text);
+            assert!(
+                !clean.contains("\\texttt"),
+                "\\texttt should not leak into prose, got: {clean:?}"
+            );
+            assert!(
+                !clean.contains("\\mapsto"),
+                "\\mapsto should not leak into prose, got: {clean:?}"
+            );
+            assert!(
+                !clean.contains("\\langle"),
+                "\\langle should not leak into prose, got: {clean:?}"
+            );
+        }
+
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            all_text.contains("Consider the structure"),
+            "Prose before math should be extracted, got: {all_text:?}"
+        );
+        assert!(
+            all_text.contains("Is it a model"),
+            "Prose after math should be extracted, got: {all_text:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_display_math_align_top_level() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Display math with \begin{align*} at top level
+        let text = r"\p{Define the interpretation:}
+##{
+  \begin{align*}
+  I &= \{a \mapsto \alpha\} \\
+  I &= \{f(\alpha) \mapsto \beta\}
+  \end{align*}
+}
+\p{Evaluate the terms.}";
+        let ranges = extractor.extract(text, "forester")?;
+
+        for range in &ranges {
+            let clean = range.extract_text(text);
+            assert!(
+                !clean.contains("\\begin"),
+                "\\begin should not leak, got: {clean:?}"
+            );
+            assert!(
+                !clean.contains("\\end"),
+                "\\end should not leak, got: {clean:?}"
+            );
+            assert!(
+                !clean.contains("\\mapsto"),
+                "\\mapsto should not leak, got: {clean:?}"
+            );
+        }
+
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            all_text.contains("Define the interpretation"),
+            "Got: {all_text:?}"
+        );
+        assert!(all_text.contains("Evaluate the terms"), "Got: {all_text:?}");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_display_math_escaped_braces_inside_li() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Display math with \{...\} inside \li — the hardest case because
+        // tree-sitter's brace_group interacts with display_math.
+        let text = r"\li{
+    If we change the interpretation to
+    ##{
+      I = \{\texttt{taller} \mapsto \{\langle A, B\rangle\}\}
+    }
+    is the structure now a model?
+  }";
+        let ranges = extractor.extract(text, "forester")?;
+
+        for range in &ranges {
+            let clean = range.extract_text(text);
+            assert!(
+                !clean.contains("\\texttt"),
+                "\\texttt should not leak, got: {clean:?}"
+            );
+            assert!(
+                !clean.contains("\\mapsto"),
+                "\\mapsto should not leak, got: {clean:?}"
+            );
+        }
+
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            all_text.contains("change the interpretation"),
+            "Prose before math in \\li, got: {all_text:?}"
+        );
+        assert!(
+            all_text.contains("is the structure now a model"),
+            "Prose after math in \\li, got: {all_text:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_unknown_macro_wrapping_blocks() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // \solution is not in any command list — should recurse into children
+        let text = r"\solution{
+  \p{As a reminder we are working with the axiom.}
+  \ol{
+    \li{First item.}
+    \li{Second item.}
+  }
+}";
+        let ranges = extractor.extract(text, "forester")?;
+        let extracted: Vec<&str> = ranges
+            .iter()
+            .map(|r| &text[r.start_byte..r.end_byte])
+            .collect();
+
+        assert!(
+            extracted
+                .iter()
+                .any(|t| t.contains("working with the axiom")),
+            "\\p inside \\solution should be extracted, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("First item")),
+            "\\li inside \\solution should be extracted, got: {extracted:?}"
+        );
+        assert!(
+            extracted.iter().any(|t| t.contains("Second item")),
+            "\\li inside \\solution should be extracted, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_multiple_inline_math_in_li() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Multiple inline math expressions in a single \li — all should be excluded
+        let text = r"\li{#{p(a)} evaluates to #{\top} because #{a = \alpha}.}";
+        let ranges = extractor.extract(text, "forester")?;
+
+        for range in &ranges {
+            let clean = range.extract_text(text);
+            assert!(
+                !clean.contains("p(a)"),
+                "Inline math p(a) should be excluded, got: {clean:?}"
+            );
+            assert!(
+                !clean.contains("\\top"),
+                "Inline math \\top should be excluded, got: {clean:?}"
+            );
+            assert!(
+                !clean.contains("\\alpha"),
+                "Inline math \\alpha should be excluded, got: {clean:?}"
+            );
+        }
+
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            all_text.contains("evaluates to"),
+            "Prose between math should be extracted, got: {all_text:?}"
+        );
+        assert!(
+            all_text.contains("because"),
+            "Prose between math should be extracted, got: {all_text:?}"
+        );
+
+        Ok(())
+    }
+
 }
