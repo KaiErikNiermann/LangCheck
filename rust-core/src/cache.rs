@@ -98,6 +98,7 @@ mod tests {
         let ranges = vec![ProseRange {
             start_byte: 0,
             end_byte: 5,
+            exclusions: vec![],
         }];
         cache.put(PathBuf::from("foo.md"), "hello", ranges.clone());
         let result = cache.get(Path::new("foo.md"), "hello");
@@ -110,6 +111,7 @@ mod tests {
         let ranges = vec![ProseRange {
             start_byte: 0,
             end_byte: 5,
+            exclusions: vec![],
         }];
         cache.put(PathBuf::from("foo.md"), "hello", ranges);
         assert!(cache.get(Path::new("foo.md"), "hello world").is_none());
@@ -121,6 +123,7 @@ mod tests {
         let r = vec![ProseRange {
             start_byte: 0,
             end_byte: 1,
+            exclusions: vec![],
         }];
         cache.put(PathBuf::from("a.md"), "a", r.clone());
         cache.put(PathBuf::from("b.md"), "b", r.clone());
@@ -138,6 +141,7 @@ mod tests {
         let r = vec![ProseRange {
             start_byte: 0,
             end_byte: 1,
+            exclusions: vec![],
         }];
         cache.put(PathBuf::from("foo.md"), "x", r);
         cache.invalidate(Path::new("foo.md"));

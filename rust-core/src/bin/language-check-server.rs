@@ -69,10 +69,10 @@ async fn process_file_for_indexing(
 
     // Acquire/release locks per-range to avoid starving foreground requests
     for range in ranges {
-        let prose_text = safe_slice(&text, range.start_byte, range.end_byte);
+        let prose_text = range.extract_text(&text);
 
         let mut orchestrator_lock = orchestrator_arc.lock().await;
-        let check_result = orchestrator_lock.check(prose_text, &lang_id).await;
+        let check_result = orchestrator_lock.check(&prose_text, &lang_id).await;
         drop(orchestrator_lock);
 
         if let Ok(mut diagnostics) = check_result {
@@ -340,9 +340,9 @@ async fn main() -> Result<()> {
                             let ignore_store = ignore_store_arc.lock().await;
                             let dict = dictionary_arc.lock().await;
                             for range in ranges {
-                                let prose_text = safe_slice(&req.text, range.start_byte, range.end_byte);
+                                let prose_text = range.extract_text(&req.text);
                                 if let Ok(mut diagnostics) =
-                                    orchestrator.check(prose_text, &req.language_id).await
+                                    orchestrator.check(&prose_text, &req.language_id).await
                                 {
                                     for d in &mut diagnostics {
                                         d.start_byte += range.start_byte as u32;

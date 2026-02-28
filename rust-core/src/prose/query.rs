@@ -31,6 +31,7 @@ pub(crate) fn extract(
             ranges.push(ProseRange {
                 start_byte: capture.node.start_byte(),
                 end_byte: capture.node.end_byte(),
+                exclusions: vec![],
             });
         }
     }

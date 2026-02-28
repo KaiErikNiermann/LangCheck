@@ -196,6 +196,7 @@ fn merge_word_ranges(words: &[(usize, usize)], text: &str) -> Vec<ProseRange> {
     let mut ranges = Vec::new();
     let mut chunk_start = words[0].0;
     let mut chunk_end = words[0].1;
+    let mut exclusions: Vec<(usize, usize)> = Vec::new();
 
     for &(start, end) in &words[1..] {
         let gap = &text[chunk_end..start];
@@ -204,8 +205,12 @@ fn merge_word_ranges(words: &[(usize, usize)], text: &str) -> Vec<ProseRange> {
             ranges.push(ProseRange {
                 start_byte: chunk_start,
                 end_byte: chunk_end,
+                exclusions: std::mem::take(&mut exclusions),
             });
             chunk_start = start;
+        } else {
+            // Collect display math regions in the gap as exclusions
+            collect_display_math_exclusions(gap, chunk_end, &mut exclusions);
         }
         chunk_end = end;
     }
@@ -213,19 +218,43 @@ fn merge_word_ranges(words: &[(usize, usize)], text: &str) -> Vec<ProseRange> {
     ranges.push(ProseRange {
         start_byte: chunk_start,
         end_byte: chunk_end,
+        exclusions,
     });
 
     ranges
 }
 
+/// Find display math regions (`\[...\]`) in a gap and record them as
+/// exclusions (document-level byte offsets).
+fn collect_display_math_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, usize)>) {
+    let bytes = gap.as_bytes();
+    let mut i = 0;
+    while i + 1 < bytes.len() {
+        if bytes[i] == b'\\' && bytes[i + 1] == b'[' {
+            let math_start = gap_offset + i;
+            i += 2;
+            while i + 1 < bytes.len() && !(bytes[i] == b'\\' && bytes[i + 1] == b']') {
+                i += 1;
+            }
+            if i + 1 < bytes.len() {
+                i += 2; // skip \]
+            }
+            let math_end = gap_offset + i;
+            out.push((math_start, math_end));
+        } else {
+            i += 1;
+        }
+    }
+}
+
 /// Check if the gap between two word ranges can be bridged (merged into one
 /// prose chunk). A bridgeable gap contains only:
 /// - Whitespace (spaces, tabs, single newlines — NOT paragraph breaks)
-/// - Inline math: `$...$`, `\(...\)`
+/// - Math: `$...$`, `\(...\)`, `\[...\]` (display math becomes an exclusion)
 /// - LaTeX commands: `\textbf`, `\textit`, `\ref{...}`, etc.
 /// - Braces and simple punctuation: `{`, `}`, `, . ; : ! ? ( ) ' " - –`
 ///
-/// Non-bridgeable gaps include paragraph breaks and display math (`\[...\]`).
+/// Non-bridgeable gaps include paragraph breaks.
 fn is_bridgeable_gap(gap: &str) -> bool {
     if gap.contains("\n\n") || gap.contains("\r\n\r\n") {
         return false;
@@ -258,11 +287,11 @@ fn is_bridgeable_gap(gap: &str) -> bool {
     })
 }
 
-/// Strip LaTeX noise from a gap string: inline math (`$...$`, `\(...\)`)
-/// and command names (`\textbf`, `\ref`, etc.). Display math (`\[...\]`)
-/// is NOT stripped — it contains text that would cause false positives if
-/// included in prose ranges. Leaves braces, whitespace, and punctuation
-/// intact for subsequent validation.
+/// Strip LaTeX noise from a gap string: math (`$...$`, `\(...\)`, `\[...\]`)
+/// and command names (`\textbf`, `\ref`, etc.). Display math content is
+/// excluded from the prose text via `ProseRange.exclusions`, so stripping
+/// it here is safe. Leaves braces, whitespace, and punctuation intact for
+/// subsequent validation.
 fn strip_latex_noise(gap: &str) -> String {
     let mut result = String::new();
     let chars: Vec<char> = gap.chars().collect();
@@ -274,12 +303,16 @@ fn strip_latex_noise(gap: &str) -> String {
                 i += 1;
             }
             i += 1;
-        } else if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1] == '(' {
-            // Strip inline math \(...\) — but NOT display math \[...\] which
-            // contains text that would cause false positives if included in
-            // the prose range.
+        } else if chars[i] == '\\'
+            && i + 1 < chars.len()
+            && (chars[i + 1] == '[' || chars[i + 1] == '(')
+        {
+            // Strip both inline math \(...\) and display math \[...\]
+            // from gap analysis. Display math content is excluded from
+            // the prose text via ProseRange.exclusions.
+            let close = if chars[i + 1] == '[' { ']' } else { ')' };
             i += 2;
-            while i + 1 < chars.len() && !(chars[i] == '\\' && chars[i + 1] == ')') {
+            while i + 1 < chars.len() && !(chars[i] == '\\' && chars[i + 1] == close) {
                 i += 1;
             }
             if i + 1 < chars.len() {

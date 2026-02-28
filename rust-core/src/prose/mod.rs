@@ -35,6 +35,33 @@ impl ProseExtractor {
 pub struct ProseRange {
     pub start_byte: usize,
     pub end_byte: usize,
+    /// Byte ranges (document-level) within this prose range that should be
+    /// excluded from grammar checking (e.g. display math). These regions are
+    /// replaced with spaces when extracting text, preserving byte offsets.
+    pub exclusions: Vec<(usize, usize)>,
+}
+
+impl ProseRange {
+    /// Extract the prose text from the full document, replacing any excluded
+    /// regions with spaces so that byte offsets remain stable.
+    pub fn extract_text<'a>(&self, text: &'a str) -> std::borrow::Cow<'a, str> {
+        let slice = &text[self.start_byte..self.end_byte];
+        if self.exclusions.is_empty() {
+            return std::borrow::Cow::Borrowed(slice);
+        }
+        let mut buf = slice.to_string();
+        // SAFETY: we only replace valid UTF-8 ranges with ASCII spaces
+        let bytes = unsafe { buf.as_bytes_mut() };
+        for &(exc_start, exc_end) in &self.exclusions {
+            // Convert document-level offsets to slice-local offsets
+            let local_start = exc_start.saturating_sub(self.start_byte);
+            let local_end = exc_end.saturating_sub(self.start_byte).min(bytes.len());
+            for b in &mut bytes[local_start..local_end] {
+                *b = b' ';
+            }
+        }
+        std::borrow::Cow::Owned(buf)
+    }
 }
 
 #[cfg(test)]
@@ -420,6 +447,60 @@ Some text after.
         assert!(
             extracted.iter().any(|t| t.contains("text after")),
             "Should extract prose after includegraphics, got: {extracted:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_latex_display_math_excluded_from_text() -> Result<()> {
+        let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+
+        let text = r"\documentclass{article}
+\begin{document}
+
+We know that
+\[
+  x^2 + y^2 = z^2
+\]
+which proves our claim.
+
+\end{document}
+";
+        let ranges = extractor.extract(text, "latex")?;
+
+        // The sentence should bridge across the display math
+        let bridged = ranges
+            .iter()
+            .any(|r| {
+                let raw = &text[r.start_byte..r.end_byte];
+                raw.contains("know that") && raw.contains("proves our claim")
+            });
+        assert!(bridged, "Sentence should bridge across display math, got: {:?}",
+            ranges.iter().map(|r| &text[r.start_byte..r.end_byte]).collect::<Vec<_>>());
+
+        // But extract_text should replace the math with spaces
+        let bridged_range = ranges
+            .iter()
+            .find(|r| {
+                let raw = &text[r.start_byte..r.end_byte];
+                raw.contains("know that") && raw.contains("proves our claim")
+            })
+            .expect("Should have a bridged range");
+
+        assert!(!bridged_range.exclusions.is_empty(), "Should have exclusions for display math");
+
+        let clean_text = bridged_range.extract_text(text);
+        assert!(
+            !clean_text.contains("x^2"),
+            "extract_text should not contain math content, got: {:?}",
+            clean_text
+        );
+        assert!(
+            clean_text.contains("know that"),
+            "extract_text should still contain prose, got: {:?}",
+            clean_text
         );
 
         Ok(())
