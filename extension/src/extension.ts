@@ -80,6 +80,20 @@ const BUILTIN_SKIP_ENVS = new Set([
     "cases", "bnf",
 ]);
 
+// Standard prose-bearing environments — never suggest skipping these since they
+// obviously contain text that should be checked.
+const PROSE_ENVS = new Set([
+    "document",
+    "abstract",
+    "itemize", "enumerate", "description",
+    "figure", "figure*", "table", "table*",
+    "minipage", "center", "flushleft", "flushright",
+    "quote", "quotation", "verse",
+    "theorem", "lemma", "proposition", "corollary", "definition",
+    "example", "exercise", "remark", "note", "proof",
+    "frame",
+]);
+
 // User-configured skip_environments from .languagecheck.yaml
 let userSkipEnvs = new Set<string>();
 
@@ -366,7 +380,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 let m: RegExpExecArray | null;
                 while ((m = re.exec(text)) !== null) {
                     const envName = m[1]!;
-                    if (BUILTIN_SKIP_ENVS.has(envName) || userSkipEnvs.has(envName)) continue;
+                    if (BUILTIN_SKIP_ENVS.has(envName) || PROSE_ENVS.has(envName) || userSkipEnvs.has(envName)) continue;
                     const pos = document.positionAt(m.index + m[0].length);
                     const hint = new vscode.InlayHint(
                         pos,
