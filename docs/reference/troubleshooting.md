@@ -69,7 +69,9 @@ Switch between different core binary builds:
 
 ## Reporting Issues
 
-When filing a bug report, include:
+```{tip}
+Including all of the items below helps us diagnose the problem faster.
+```
 
 1. VS Code version (`Help > About`)
 2. Extension version (Extensions panel)

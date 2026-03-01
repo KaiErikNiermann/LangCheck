@@ -40,7 +40,9 @@ You can add support for extra file types without code in two ways:
 See the [Config-Only Language Guide](../guide-config-language.md) for both
 workflows, including a full schema example.
 
+```{tip}
 To add support for an entirely new markup language with its own tree-sitter grammar, see the [Plugin Language Guide](../guide-plugin-language.md).
+```
 
 ## Checking Languages
 

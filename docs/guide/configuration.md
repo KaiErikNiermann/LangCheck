@@ -67,6 +67,8 @@ performance:
 
 ## Full Example
 
+Here's a `.languagecheck.yaml` putting it all together:
+
 ```yaml
 engines:
   harper: true

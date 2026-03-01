@@ -4,6 +4,8 @@ A fast, multi-engine prose linter for VS Code with a Rust core.
 
 Language Check catches grammar, spelling, and style issues in Markdown, HTML, LaTeX, reStructuredText, Org mode, BibTeX, Forester, and R Sweave files using [Harper](https://github.com/elijah-potter/harper) and optional [LanguageTool](https://languagetool.org/) integration.
 
+---
+
 ```{toctree}
 :maxdepth: 2
 :caption: User Guide

@@ -34,8 +34,159 @@
     cursor: not-allowed;
 }
 
-/* Improve code block readability */
+/* ── Typography & spacing ────────────────────────────────────── */
+
+/* Slightly relax line-height in body text for readability */
+.content p {
+    line-height: 1.7;
+}
+
+/* Give section headings a touch more breathing room */
+.content h2 {
+    margin-top: 2.5rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--color-sidebar-background-border);
+}
+
+.content h3 {
+    margin-top: 2rem;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────── */
+
+/* Soften code blocks and lift them slightly from the flow */
 .highlight pre {
-    border-radius: 6px;
-    padding: 1em;
+    border-radius: 8px;
+    padding: 1.1em 1.2em;
+    font-size: 0.88em;
+    line-height: 1.55;
+    border: 1px solid var(--color-sidebar-background-border);
+}
+
+/* Inline code: softer contrast, slight padding */
+.content code.literal {
+    padding: 0.15em 0.35em;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+/* ── Tables ──────────────────────────────────────────────────── */
+
+/* Rounder, airier tables */
+.content table {
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--color-sidebar-background-border);
+    width: 100%;
+    margin: 1.2em 0;
+}
+
+.content table th,
+.content table td {
+    padding: 0.6em 1em;
+    border-bottom: 1px solid var(--color-sidebar-background-border);
+}
+
+.content table th {
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+}
+
+.content table tr:last-child td {
+    border-bottom: none;
+}
+
+/* ── Admonitions (GitHub markdown-alert style) ───────────────── */
+
+/* Override Furo's CSS variables to remove title backgrounds */
+body {
+    --color-admonition-title-background:         transparent;
+    --color-admonition-title-background--note:    transparent;
+    --color-admonition-title-background--tip:     transparent;
+    --color-admonition-title-background--hint:    transparent;
+    --color-admonition-title-background--important: transparent;
+    --color-admonition-title-background--warning: transparent;
+    --color-admonition-title-background--attention: transparent;
+    --color-admonition-title-background--caution: transparent;
+    --color-admonition-title-background--danger:  transparent;
+    --color-admonition-title-background--error:   transparent;
+    --color-admonition-title-background--seealso: transparent;
+    --color-admonition-title-background--admonition-todo: transparent;
+
+    /* GitHub accent colors for border + icon + title text */
+    --color-admonition-title--note:      #4493f8;
+    --color-admonition-title--tip:       #3fb950;
+    --color-admonition-title--hint:      #3fb950;
+    --color-admonition-title--important: #ab7df8;
+    --color-admonition-title--warning:   #d29922;
+    --color-admonition-title--attention: #d29922;
+    --color-admonition-title--caution:   #f85149;
+    --color-admonition-title--danger:    #f85149;
+    --color-admonition-title--error:     #f85149;
+    --color-admonition-title--seealso:   #4493f8;
+    --color-admonition-title:            #ab7df8;
+
+    /* Match surrounding body text size (Furo defaults to 0.8125rem) */
+    --admonition-font-size:       1rem;
+    --admonition-title-font-size: 1rem;
+}
+
+.admonition {
+    border-radius: 0;
+    background: none;
+    margin: 1em 0;
+    padding: 0.5em 1em;
+    color: inherit;
+    box-shadow: none;
+    border-left-width: .25em;
+    font-size: var(--admonition-font-size);
+}
+
+/* Title: no background, colored text matching the left border */
+.admonition > .admonition-title {
+    background-color: transparent !important;
+    padding: 0.4rem 0.5rem 0.4rem 2rem;
+    margin: 0 0 0.3em 0;
+    font-size: var(--admonition-title-font-size);
+    font-weight: 600;
+}
+
+/* Color the title text to match icon + border */
+.admonition.note > .admonition-title      { color: var(--color-admonition-title--note); }
+.admonition.tip > .admonition-title       { color: var(--color-admonition-title--tip); }
+.admonition.hint > .admonition-title      { color: var(--color-admonition-title--hint); }
+.admonition.important > .admonition-title { color: var(--color-admonition-title--important); }
+.admonition.warning > .admonition-title   { color: var(--color-admonition-title--warning); }
+.admonition.attention > .admonition-title { color: var(--color-admonition-title--attention); }
+.admonition.caution > .admonition-title   { color: var(--color-admonition-title--caution); }
+.admonition.danger > .admonition-title    { color: var(--color-admonition-title--danger); }
+.admonition.error > .admonition-title     { color: var(--color-admonition-title--error); }
+.admonition.seealso > .admonition-title   { color: var(--color-admonition-title--seealso); }
+
+/* ── Definition lists (troubleshooting etc.) ──────────────────── */
+
+dl.simple dt,
+dl dt {
+    margin-top: 1.2em;
+    font-weight: 600;
+}
+
+dl.simple dd,
+dl dd {
+    margin-left: 1.2em;
+}
+
+/* ── Sidebar navigation ──────────────────────────────────────── */
+
+/* Soften the sidebar caption labels */
+.sidebar-tree .caption {
+    font-size: 0.8em;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-top: 1.5em;
 }
