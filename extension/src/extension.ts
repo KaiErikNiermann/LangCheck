@@ -747,6 +747,10 @@ export async function activate(context: vscode.ExtensionContext) {
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.openSpeedFix', () => {
+        // Capture the active editor before creating the panel, since the
+        // webview will steal focus and make activeTextEditor undefined.
+        const originEditor = vscode.window.activeTextEditor;
+
         if (speedFixPanel) {
             speedFixPanel.reveal(vscode.ViewColumn.Beside);
             updateSpeedFixDiagnostics();
@@ -777,11 +781,12 @@ export async function activate(context: vscode.ExtensionContext) {
                     speedFixPanel?.webview.postMessage({ type: 'setLowResource', payload: hpm });
                     // If we already have diagnostics, send them immediately
                     updateSpeedFixDiagnostics();
-                    // If no diagnostics exist yet, auto-run a check
-                    const activeEditor = vscode.window.activeTextEditor;
-                    if (activeEditor && !diagnosticsMap.has(activeEditor.document.uri.toString())) {
+                    // If no diagnostics exist yet, auto-run a check using the
+                    // editor captured before the panel stole focus.
+                    const editorForCheck = originEditor ?? vscode.window.activeTextEditor;
+                    if (editorForCheck && !diagnosticsMap.has(editorForCheck.document.uri.toString())) {
                         sendSpeedFixLoading(true);
-                        checkDocument(activeEditor.document).then(() => {
+                        checkDocument(editorForCheck.document).then(() => {
                             sendSpeedFixLoading(false);
                         });
                     }
@@ -837,8 +842,13 @@ export async function activate(context: vscode.ExtensionContext) {
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.openInspector', () => {
+        // Capture the active editor before creating the panel, since the
+        // webview will steal focus and make activeTextEditor undefined.
+        const originEditor = vscode.window.activeTextEditor;
+
         if (inspectorPanel) {
             inspectorPanel.reveal(vscode.ViewColumn.Beside);
+            updateInspectorData();
             return;
         }
 
@@ -860,10 +870,10 @@ export async function activate(context: vscode.ExtensionContext) {
         inspectorPanel.webview.onDidReceiveMessage(async (message: InspectorToExtensionMessage) => {
             switch (message.type) {
                 case 'inspectorReady': {
-                    // If no diagnostics exist yet, auto-run a check first
-                    const activeEd = vscode.window.activeTextEditor;
-                    if (activeEd && !diagnosticsMap.has(activeEd.document.uri.toString())) {
-                        await checkDocument(activeEd.document);
+                    // Use the editor captured before the panel stole focus.
+                    const editorForCheck = originEditor ?? vscode.window.activeTextEditor;
+                    if (editorForCheck && !diagnosticsMap.has(editorForCheck.document.uri.toString())) {
+                        await checkDocument(editorForCheck.document);
                     }
                     await updateInspectorData();
                     break;
@@ -1124,7 +1134,11 @@ function getInspectorContent(webview: vscode.Webview, extensionPath: string): st
 async function updateInspectorData() {
     if (!inspectorPanel) return;
 
-    const editor = vscode.window.activeTextEditor;
+    // Prefer active editor, fall back to a visible editor with diagnostics.
+    // When the inspector panel has focus, activeTextEditor is undefined.
+    const editor = vscode.window.activeTextEditor
+        ?? findEditorWithDiagnostics()
+        ?? vscode.window.visibleTextEditors[0];
     if (!editor) return;
 
     const document = editor.document;
