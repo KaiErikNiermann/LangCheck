@@ -66,6 +66,36 @@ const extractionCache = new Map<string, { prose: InspectorProseRange[]; language
 // Tracked english_engine value from config (for change detection + inspector)
 let lastKnownEnglishEngine: string | undefined;
 
+// Built-in LaTeX environments that the checker always skips (mirrors SKIP_GENERIC_ENVS in latex.rs)
+const BUILTIN_SKIP_ENVS = new Set([
+    "algorithm", "algorithmic", "lstlisting",
+    "equation", "equation*", "align", "align*",
+    "gather", "gather*", "multline", "multline*",
+    "flalign", "flalign*", "split",
+    "mathpar", "mathpar*",
+    "IEEEeqnarray", "IEEEeqnarray*",
+    "tikzpicture", "pgfpicture", "forest",
+    "tabular", "tabular*", "array",
+    "matrix", "bmatrix", "pmatrix", "vmatrix", "Bmatrix", "Vmatrix",
+    "cases", "bnf",
+]);
+
+// User-configured skip_environments from .languagecheck.yaml
+let userSkipEnvs = new Set<string>();
+
+/** Parse skip_environments list items from a YAML config string. */
+function parseSkipEnvironments(content: string): Set<string> {
+    const envs = new Set<string>();
+    const match = content.match(/skip_environments:\s*\n((?:\s+-\s+\S+\n?)*)/);
+    if (match?.[1]) {
+        for (const line of match[1].split('\n')) {
+            const item = line.match(/^\s+-\s+(\S+)/);
+            if (item?.[1]) envs.add(item[1]);
+        }
+    }
+    return envs;
+}
+
 /** Push a timestamped event to the Inspector event log (if open). */
 function pushInspectorEvent(level: InspectorEvent['level'], source: string, message: string, extra?: { durationMs?: number; details?: string }) {
     const evt: InspectorEvent = { timestamp: Date.now(), level, source, message };
@@ -288,6 +318,40 @@ export async function activate(context: vscode.ExtensionContext) {
                         vscode.InlayHintKind.Type
                     );
                     hint.tooltip = tooltip;
+                    hints.push(hint);
+                }
+                return hints;
+            }
+        }
+    ));
+
+    // Register LaTeX-only Inlay Hints Provider for environment skip hints
+    context.subscriptions.push(vscode.languages.registerInlayHintsProvider(
+        [{ language: 'latex' }],
+        {
+            onDidChangeInlayHints: inlayHintEmitter.event,
+            provideInlayHints(document, _range, _token) {
+                const text = document.getText();
+                const hints: vscode.InlayHint[] = [];
+                const re = /\\begin\{([^}]+)\}/g;
+                let m: RegExpExecArray | null;
+                while ((m = re.exec(text)) !== null) {
+                    const envName = m[1]!;
+                    if (BUILTIN_SKIP_ENVS.has(envName) || userSkipEnvs.has(envName)) continue;
+                    const pos = document.positionAt(m.index + m[0].length);
+                    const hint = new vscode.InlayHint(
+                        pos,
+                        [{
+                            value: ' \u2298 skip',
+                            command: {
+                                command: 'language-check.skipLatexEnv',
+                                title: 'Skip this LaTeX environment',
+                                arguments: [envName]
+                            }
+                        }],
+                        vscode.InlayHintKind.Parameter
+                    );
+                    hint.tooltip = `Add "${envName}" to skip_environments in .languagecheck.yaml`;
                     hints.push(hint);
                 }
                 return hints;
@@ -714,6 +778,55 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.skipLatexEnv', async (envName: string) => {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            vscode.window.showWarningMessage(vscode.l10n.t('No workspace folder open.'));
+            return;
+        }
+
+        const configNames = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
+        let configUri: vscode.Uri | undefined;
+        for (const name of configNames) {
+            const uri = vscode.Uri.joinPath(workspaceFolder.uri, name);
+            try {
+                await vscode.workspace.fs.stat(uri);
+                configUri = uri;
+                break;
+            } catch { /* not found */ }
+        }
+
+        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
+        try {
+            let content: string;
+            try {
+                const raw = await vscode.workspace.fs.readFile(targetUri);
+                content = Buffer.from(raw).toString('utf8');
+            } catch {
+                content = '';
+            }
+
+            if (content.match(/skip_environments:/)) {
+                content = content.replace(/skip_environments:/, `skip_environments:\n      - ${envName}`);
+            } else if (content.match(/latex:/)) {
+                content = content.replace(/latex:/, `latex:\n    skip_environments:\n      - ${envName}`);
+            } else if (content.match(/languages:/)) {
+                content = content.replace(/languages:/, `languages:\n  latex:\n    skip_environments:\n      - ${envName}`);
+            } else {
+                content = `languages:\n  latex:\n    skip_environments:\n      - ${envName}\n${content}`;
+            }
+
+            await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Added "{0}" to skip list. Rechecking...', envName)
+            );
+            userSkipEnvs.add(envName);
+            inlayHintEmitter.fire();
+        } catch (err) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to update config: {0}', String(err)));
+        }
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('language-check.checkDocument', async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) return;
@@ -1000,6 +1113,8 @@ export async function activate(context: vscode.ExtensionContext) {
                     reinitializeAndRecheck();
                 }
                 lastKnownEnglishEngine = current;
+                userSkipEnvs = parseSkipEnvironments(raw);
+                inlayHintEmitter.fire();
                 return;
             } catch { /* not found, try next */ }
         }
@@ -1019,6 +1134,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     const raw = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
                     const match = raw.match(/english_engine:\s*(\S+)/);
                     lastKnownEnglishEngine = match?.[1] ?? 'harper';
+                    userSkipEnvs = parseSkipEnvironments(raw);
                     break;
                 } catch { /* not found, try next */ }
             }

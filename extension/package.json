@@ -59,6 +59,10 @@
       {
         "command": "language-check.toggleEnglishEngine",
         "title": "%command.toggleEnglishEngine%"
+      },
+      {
+        "command": "language-check.skipLatexEnv",
+        "title": "%command.skipLatexEnv%"
       }
     ],
     "keybindings": [
