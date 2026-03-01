@@ -1417,13 +1417,18 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
                     const excEndChar = byteToChar(excEndByte) - byteToChar(startByte);
                     const excText = rawText.substring(excStartChar, excEndChar);
 
-                    // Infer exclusion kind heuristically from content
+                    // Infer exclusion kind heuristically from content.
+                    // Trim leading/trailing whitespace since install_skip_exclusions
+                    // extends exclusion ranges to cover surrounding whitespace.
+                    const trimmed = excText.trim();
                     let kind = 'unknown';
-                    if (excText.startsWith('##{') || excText.startsWith('\\[')) kind = 'display_math';
-                    else if (excText.startsWith('#{') || excText.startsWith('$')) kind = 'inline_math';
-                    else if (excText.startsWith('\\') && excText.length > 1 && /^\\[a-zA-Z]/.test(excText)) kind = 'command';
-                    else if (excText.startsWith('\\')) kind = 'escape';
-                    else if (excText.startsWith('%')) kind = 'comment';
+                    if (trimmed.startsWith('##{') || trimmed.startsWith('\\[')) kind = 'display_math';
+                    else if (trimmed.startsWith('#{') || trimmed.startsWith('$')) kind = 'inline_math';
+                    else if (/^\\[a-zA-Z]/.test(trimmed)) kind = 'command';
+                    else if (trimmed.startsWith('\\')) kind = 'escape';
+                    else if (trimmed.startsWith('%')) kind = 'comment';
+                    else if (/^[{}\[\]()]+$/.test(trimmed)) kind = 'delimiter';
+                    else if (trimmed === '') kind = 'whitespace';
 
                     return { startChar: excStartChar, endChar: excEndChar, kind, text: excText };
                 });

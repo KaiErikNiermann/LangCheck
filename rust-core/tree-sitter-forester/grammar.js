@@ -52,12 +52,18 @@ module.exports = grammar({
     inline_math:  $ => seq('#{',  repeat($._math_node), '}'),
 
     _math_node: $ => choice(
+      $.math_escape,
       $.math_command,
       $.math_brace_group,
       $.math_bracket_group,
       $.math_paren_group,
       $.math_text,
     ),
+
+    // Escape sequences inside math: \{ \} \\ \, \  etc.
+    // Higher precedence than math_command so \{ is consumed as
+    // an escape rather than starting a command parse.
+    math_escape: $ => token(prec(1, /\\[\\\{\}\[\]#%, "`;_\|&]/)),
 
     math_command: $ => prec.right(seq(
       $.command_name,
@@ -85,6 +91,6 @@ module.exports = grammar({
     comment: $ => /%[^\n]*/,
 
     // Plain text: runs of non-special characters (backtick excluded)
-    text: $ => token(prec(-1, /[^\\\{\}\[\]\(\)\n\t %#`]+/)),
+    text: $ => token(prec(-1, /[^\\\{\}\[\]\(\)\n\t %`]+/)),
   },
 });

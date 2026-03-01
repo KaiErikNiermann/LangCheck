@@ -216,6 +216,10 @@
       "members": [
         {
           "type": "SYMBOL",
+          "name": "math_escape"
+        },
+        {
+          "type": "SYMBOL",
           "name": "math_command"
         },
         {
@@ -235,6 +239,17 @@
           "name": "math_text"
         }
       ]
+    },
+    "math_escape": {
+      "type": "TOKEN",
+      "content": {
+        "type": "PREC",
+        "value": 1,
+        "content": {
+          "type": "PATTERN",
+          "value": "\\\\[\\\\\\{\\}\\[\\]#%, \"`;_\\|&]"
+        }
+      }
     },
     "math_command": {
       "type": "PREC_RIGHT",
@@ -375,7 +390,7 @@
         "value": -1,
         "content": {
           "type": "PATTERN",
-          "value": "[^\\\\\\{\\}\\[\\]\\(\\)\\n\\t %#`]+"
+          "value": "[^\\\\\\{\\}\\[\\]\\(\\)\\n\\t %`]+"
         }
       }
     }

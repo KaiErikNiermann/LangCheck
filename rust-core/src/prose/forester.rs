@@ -153,10 +153,17 @@ fn collect_prose_nodes(
             return;
         }
 
-        // Inline commands: recurse normally (bridges with surrounding text)
+        // Inline commands: recurse normally (bridges with surrounding text).
+        // Skip the delimiters { } of each brace_group argument so they
+        // don't leak into prose output as stray brackets.
         if cmd_name.is_some_and(|n| INLINE_COMMANDS.contains(&n)) {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
+                if child.kind() == "brace_group" {
+                    // Skip opening '{' and closing '}'
+                    skips.push((child.start_byte(), child.start_byte() + 1));
+                    skips.push((child.end_byte() - 1, child.end_byte()));
+                }
                 collect_prose_nodes(child, text, scopes, skips, true);
             }
             return;
@@ -957,6 +964,15 @@ which completes the proof.}}";
             clean.contains("This has"),
             "Surrounding prose should be in clean text, got: {clean:?}"
         );
+        // Braces from \em{...} should not leak into clean text
+        assert!(
+            !clean.contains('{'),
+            "Opening brace should not leak into clean text, got: {clean:?}"
+        );
+        assert!(
+            !clean.contains('}'),
+            "Closing brace should not leak into clean text, got: {clean:?}"
+        );
 
         Ok(())
     }
@@ -1286,6 +1302,156 @@ which completes the proof.}}";
                 range.start_byte, range.end_byte, range.exclusions.len()
             );
         }
+
+        Ok(())
+    }
+
+    /// Helper: parse `source` with tree-sitter and assert no ERROR or MISSING nodes.
+    fn assert_no_errors(source: &str) {
+        let language: tree_sitter::Language = crate::forester_ts::LANGUAGE.into();
+        let mut parser = tree_sitter::Parser::new();
+        parser.set_language(&language).unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let root = tree.root_node();
+        assert!(
+            !root.has_error(),
+            "Parse tree has ERROR/MISSING nodes:\n{}\nSource:\n{source}",
+            root.to_sexp()
+        );
+    }
+
+    #[test]
+    fn test_math_escape_inline_braces() {
+        // Inline math with escaped braces: \{ and \}
+        assert_no_errors(r"#{\ \mathcal F = \{W, R\} }");
+    }
+
+    #[test]
+    fn test_math_escape_display_row_separator() {
+        // Display math with \\ row separator and escaped braces
+        assert_no_errors(
+            r"##{
+  \begin{align*}
+    x &= \{a, b\} \\
+    y &= \{c, d\}
+  \end{align*}
+}",
+        );
+    }
+
+    #[test]
+    fn test_bare_hash_in_text() {
+        // Bare # in a URL should parse as text, not cause an error
+        assert_no_errors(r"\p{See https://q.uiver.app/#q=WzAsMl0= for details.}");
+    }
+
+    #[test]
+    fn test_math_escape_inline_extraction() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{The family #{\mathcal F = \{W, R\} } is coherent.}";
+        let ranges = extractor.extract(text, "forester", &[])?;
+
+        // Math should be excluded
+        for range in &ranges {
+            let clean = range.extract_text(text);
+            assert!(
+                !clean.contains("\\mathcal"),
+                "Math content should be excluded, got: {clean:?}"
+            );
+        }
+
+        // Surrounding prose should be extracted
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            all_text.contains("The family"),
+            "Prose before math, got: {all_text:?}"
+        );
+        assert!(
+            all_text.contains("is coherent"),
+            "Prose after math, got: {all_text:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_inline_command_braces_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Real-world pattern: \strong{...} and \em{...} delimiters must not
+        // leak into prose output as stray brackets.
+        let text = r"\li{
+\strong{Explanation}: We know this since the \em{necessarily} modality.
+}";
+        let ranges = extractor.extract(text, "forester", &[])?;
+
+        for range in &ranges {
+            let clean = range.extract_text(text);
+            assert!(
+                !clean.contains('{'),
+                "Opening brace should not leak, got: {clean:?}"
+            );
+            assert!(
+                !clean.contains('}'),
+                "Closing brace should not leak, got: {clean:?}"
+            );
+        }
+
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            all_text.contains("Explanation"),
+            "Content inside \\strong should be extracted, got: {all_text:?}"
+        );
+        assert!(
+            all_text.contains("necessarily"),
+            "Content inside \\em should be extracted, got: {all_text:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_display_math_row_separator_extraction() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{We have
+##{
+  a &= b \\
+  c &= \{d, e\}
+}
+so the result follows.}";
+        let ranges = extractor.extract(text, "forester", &[])?;
+
+        for range in &ranges {
+            let clean = range.extract_text(text);
+            assert!(
+                !clean.contains("&="),
+                "Math content should not leak, got: {clean:?}"
+            );
+        }
+
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            all_text.contains("We have"),
+            "Prose before math, got: {all_text:?}"
+        );
+        assert!(
+            all_text.contains("result follows"),
+            "Prose after math, got: {all_text:?}"
+        );
 
         Ok(())
     }
