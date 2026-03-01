@@ -17,6 +17,7 @@ module.exports = grammar({
       $.inline_math,
       $.verbatim,
       $.wiki_link,
+      $.markdown_link,
       $.escape,
       $.brace_group,
       $.bracket_group,
@@ -86,6 +87,9 @@ module.exports = grammar({
 
     // Wiki links: [[...]]
     wiki_link: $ => token(seq('[[', /[^\]\n]*/, ']]')),
+
+    // Markdown-style links: [alias](target)
+    markdown_link: $ => token(seq('[', /[^\]\n]*/, '](', /[^\)\n]*/, ')')),
 
     // Line comments: % to end of line
     comment: $ => /%[^\n]*/,

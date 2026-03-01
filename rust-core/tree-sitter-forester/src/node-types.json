@@ -36,6 +36,10 @@
           "named": true
         },
         {
+          "type": "markdown_link",
+          "named": true
+        },
+        {
           "type": "paren_group",
           "named": true
         },
@@ -88,6 +92,10 @@
         },
         {
           "type": "inline_math",
+          "named": true
+        },
+        {
+          "type": "markdown_link",
           "named": true
         },
         {
@@ -375,6 +383,10 @@
           "named": true
         },
         {
+          "type": "markdown_link",
+          "named": true
+        },
+        {
           "type": "paren_group",
           "named": true
         },
@@ -431,6 +443,10 @@
           "named": true
         },
         {
+          "type": "markdown_link",
+          "named": true
+        },
+        {
           "type": "paren_group",
           "named": true
         },
@@ -483,6 +499,10 @@
   },
   {
     "type": "escape",
+    "named": true
+  },
+  {
+    "type": "markdown_link",
     "named": true
   },
   {

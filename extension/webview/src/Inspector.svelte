@@ -107,6 +107,7 @@
       case 'command': return 'rgba(160, 100, 220, 0.25)';
       case 'escape': return 'rgba(220, 200, 60, 0.2)';
       case 'comment': return 'rgba(80, 180, 80, 0.2)';
+      case 'link': return 'rgba(80, 200, 180, 0.2)';
       case 'delimiter': return 'rgba(180, 140, 100, 0.2)';
       case 'whitespace': return 'rgba(128, 128, 128, 0.1)';
       default: return 'rgba(128, 128, 128, 0.2)';
@@ -120,6 +121,7 @@
       case 'command': return '#c080e0';
       case 'escape': return '#d0c050';
       case 'comment': return '#6ece6e';
+      case 'link': return '#50c8b4';
       case 'delimiter': return '#c0a070';
       case 'whitespace': return '#888';
       default: return '#aaa';

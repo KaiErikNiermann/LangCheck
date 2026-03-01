@@ -62,6 +62,7 @@ const SKIP_KINDS: &[&str] = &[
     "verbatim",
     "comment",
     "wiki_link",
+    "markdown_link",
     "command_name",
 ];
 
@@ -1451,6 +1452,48 @@ so the result follows.}";
         assert!(
             all_text.contains("result follows"),
             "Prose after math, got: {all_text:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_markdown_link_parse() {
+        // Markdown-style links [alias](target) should parse without errors
+        assert_no_errors(r"\p{See [frame](006j) for details.}");
+    }
+
+    #[test]
+    fn test_markdown_link_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{See [frame](006j) for details.}";
+        let ranges = extractor.extract(text, "forester", &[])?;
+
+        for range in &ranges {
+            let clean = range.extract_text(text);
+            assert!(
+                !clean.contains("006j"),
+                "Link target should be excluded, got: {clean:?}"
+            );
+            assert!(
+                !clean.contains("[frame]"),
+                "Link syntax should be excluded, got: {clean:?}"
+            );
+        }
+
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            all_text.contains("See"),
+            "Prose before link, got: {all_text:?}"
+        );
+        assert!(
+            all_text.contains("for details"),
+            "Prose after link, got: {all_text:?}"
         );
 
         Ok(())

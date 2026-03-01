@@ -34,6 +34,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "markdown_link"
+        },
+        {
+          "type": "SYMBOL",
           "name": "escape"
         },
         {
@@ -375,6 +379,34 @@
           {
             "type": "STRING",
             "value": "]]"
+          }
+        ]
+      }
+    },
+    "markdown_link": {
+      "type": "TOKEN",
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "STRING",
+            "value": "["
+          },
+          {
+            "type": "PATTERN",
+            "value": "[^\\]\\n]*"
+          },
+          {
+            "type": "STRING",
+            "value": "]("
+          },
+          {
+            "type": "PATTERN",
+            "value": "[^\\)\\n]*"
+          },
+          {
+            "type": "STRING",
+            "value": ")"
           }
         ]
       }
