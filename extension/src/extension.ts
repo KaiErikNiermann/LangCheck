@@ -6,7 +6,7 @@ import { TraceLogger } from './trace';
 import { createAPI } from './api';
 import { binaryExists, downloadBinary } from './downloader';
 import type { LanguageCheckDiagnostic } from './api';
-import type { SpeedFixDiagnostic, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo } from './events';
+import type { SpeedFixDiagnostic, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent } from './events';
 import { Logger } from './logger';
 
 const GITHUB_REPO = 'KaiErikNiermann/lang-check';
@@ -27,6 +27,32 @@ const inlayHintEmitter = new vscode.EventEmitter<void>();
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const DEBOUNCE_MS = 500;
 
+// Concurrency limiter: max simultaneous CheckProse RPCs to avoid flooding
+// the server (each LT check holds the orchestrator mutex for seconds).
+const MAX_CONCURRENT_CHECKS = 3;
+let activeChecks = 0;
+const checkQueue: Array<() => void> = [];
+
+/** Acquire a check slot. Resolves immediately if under the limit, otherwise
+ *  waits until a slot frees up. */
+function acquireCheckSlot(): Promise<void> {
+    if (activeChecks < MAX_CONCURRENT_CHECKS) {
+        activeChecks++;
+        return Promise.resolve();
+    }
+    return new Promise(resolve => checkQueue.push(resolve));
+}
+
+/** Release a check slot and wake the next queued caller, if any. */
+function releaseCheckSlot() {
+    const next = checkQueue.shift();
+    if (next) {
+        next(); // slot stays occupied — transferred to the next waiter
+    } else {
+        activeChecks--;
+    }
+}
+
 // Checking state (for status bar spinner)
 let isChecking = false;
 
@@ -39,6 +65,14 @@ const extractionCache = new Map<string, { prose: InspectorProseRange[]; language
 
 // Tracked english_engine value from config (for change detection + inspector)
 let lastKnownEnglishEngine: string | undefined;
+
+/** Push a timestamped event to the Inspector event log (if open). */
+function pushInspectorEvent(level: InspectorEvent['level'], source: string, message: string, extra?: { durationMs?: number; details?: string }) {
+    const evt: InspectorEvent = { timestamp: Date.now(), level, source, message };
+    if (extra?.durationMs !== undefined) evt.durationMs = extra.durationMs;
+    if (extra?.details !== undefined) evt.details = extra.details;
+    inspectorPanel?.webview.postMessage({ type: 'pushEvent', payload: evt });
+}
 
 function isSpellingRule(ruleId: string): boolean {
     return ruleId.includes('Spell') || ruleId.includes('spell') || ruleId.includes('MORFOLOGIK');
@@ -98,10 +132,15 @@ export async function activate(context: vscode.ExtensionContext) {
     const initializeClient = async () => {
         if (client && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
             const root = vscode.workspace.workspaceFolders[0]!.uri.fsPath;
-            log.debug('Sending Initialize request', { workspaceRoot: root });
+            const indexOnOpen = vscode.workspace.getConfiguration('languageCheck')
+                .get<boolean>('workspace.indexOnOpen', false);
+            log.debug('Sending Initialize request', { workspaceRoot: root, indexOnOpen });
+            pushInspectorEvent('info', 'initialize', `Initializing (indexOnOpen=${indexOnOpen})`);
+            const t0 = performance.now();
             await client.sendRequest({
-                initialize: { workspaceRoot: root }
+                initialize: { workspaceRoot: root, indexOnOpen }
             });
+            pushInspectorEvent('info', 'initialize', 'Server initialized', { durationMs: performance.now() - t0 });
             log.debug('Initialize response received');
         }
     };
@@ -534,11 +573,16 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand('language-check.addToDictionary', async (word: string) => {
         if (!client) return;
         sendSpeedFixLoading(true);
+        const t0 = performance.now();
+        log.debug('addToDictionary', { word });
+        pushInspectorEvent('info', 'addToDictionary', `Sending request for "${word}"`);
         try {
             const response = await client.sendRequest({
                 addDictionaryWord: { word }
             });
+            const rpcMs = performance.now() - t0;
             if (response.ok) {
+                pushInspectorEvent('info', 'addToDictionary', `Server confirmed "${word}"`, { durationMs: rpcMs });
                 // Optimistic removal: remove all spelling diagnostics for this word immediately
                 const editor = findEditorWithDiagnostics();
                 let removedCount = 0;
@@ -561,16 +605,22 @@ export async function activate(context: vscode.ExtensionContext) {
                         inlayHintEmitter.fire();
                         updateSpeedFixDiagnostics();
                     }
+                    pushInspectorEvent('debug', 'addToDictionary', `Removed ${removedCount} diagnostics, re-checking`);
                     // Full re-check for consistency (dictionary is now server-side updated)
                     await checkDocument(editor.document);
                 }
                 const extra = removedCount > 1 ? vscode.l10n.t(' ({0} occurrences resolved)', removedCount) : '';
                 vscode.window.showInformationMessage(vscode.l10n.t('Added "{0}" to dictionary', word) + extra);
+                pushInspectorEvent('info', 'addToDictionary', `Done`, { durationMs: performance.now() - t0 });
             } else if (response.error) {
+                pushInspectorEvent('error', 'addToDictionary', `Server error: ${response.error.message}`, { durationMs: rpcMs });
                 vscode.window.showErrorMessage(vscode.l10n.t('Failed to add word: {0}', response.error.message ?? ''));
             }
         } catch (err) {
-            vscode.window.showErrorMessage(vscode.l10n.t('Failed to add word: {0}', String(err)));
+            const errStr = String(err);
+            pushInspectorEvent('error', 'addToDictionary', errStr, { durationMs: performance.now() - t0 });
+            log.error('addToDictionary failed', { word, error: errStr });
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to add word: {0}', errStr));
         } finally {
             sendSpeedFixLoading(false);
         }
@@ -843,11 +893,18 @@ export async function activate(context: vscode.ExtensionContext) {
     }));
 
     // ── Auto-check on document open ──
+    // Guard: only check documents visible in an editor tab.
+    // VS Code fires onDidOpenTextDocument for background loads (search, git, etc.)
+    // which would flood the server with hundreds of concurrent checks.
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((document) => {
         if (!supportedLanguages.includes(document.languageId)) return;
-        if (!client) return; // Client not ready yet
+        if (!client) return;
         const trigger = vscode.workspace.getConfiguration('languageCheck').get<string>('check.trigger', 'onChange');
         if (trigger === 'onSave') return;
+        const isVisible = vscode.window.visibleTextEditors.some(
+            e => e.document.uri.toString() === document.uri.toString()
+        );
+        if (!isVisible) return;
         checkDocument(document);
     }));
 
@@ -1153,6 +1210,10 @@ async function applyFix(diagnosticId: string, suggestion: string) {
     const diagnostic = diagnostics[index];
     if (!diagnostic) return;
 
+    const t0 = performance.now();
+    const origText = editor.document.getText(diagnostic.range);
+    log.debug('applyFix', { diagnosticId, suggestion, original: origText });
+    pushInspectorEvent('info', 'applyFix', `"${origText}" → "${suggestion}"`);
     sendSpeedFixLoading(true);
 
     try {
@@ -1178,6 +1239,7 @@ async function applyFix(diagnosticId: string, suggestion: string) {
         updateSpeedFixDiagnostics();
 
         // Background re-check for full consistency
+        pushInspectorEvent('debug', 'applyFix', 'Re-checking after fix', { durationMs: performance.now() - t0 });
         checkDocument(editor.document);
     } finally {
         sendSpeedFixLoading(false);
@@ -1198,6 +1260,9 @@ async function ignoreDiagnostic(diagnosticId: string) {
     const diagnostic = diagnostics[index];
     if (diagnostic) {
         sendSpeedFixLoading(true);
+        const t0 = performance.now();
+        const ignoredText = editor.document.getText(diagnostic.range);
+        pushInspectorEvent('info', 'ignoreDiagnostic', `Ignoring "${ignoredText}" (${diagnostic.message})`);
         // Send ignore request to core with full document text + original byte
         // offsets so the fingerprint matches the one created during checkProse.
         await client.sendRequest({
@@ -1217,6 +1282,7 @@ async function ignoreDiagnostic(diagnosticId: string) {
         inlayHintEmitter.fire();
         updateSpeedFixDiagnostics();
         sendSpeedFixLoading(false);
+        pushInspectorEvent('info', 'ignoreDiagnostic', 'Ignore confirmed, re-checking', { durationMs: performance.now() - t0 });
 
         // Background re-check for full consistency
         checkDocument(editor.document);
@@ -1262,7 +1328,12 @@ function updateSpeedFixDiagnostics() {
 async function checkDocument(document: vscode.TextDocument): Promise<number> {
     if (!client) return -1;
 
+    const shortName = path.basename(document.fileName);
     log.debug('checkDocument', { file: document.fileName, lang: document.languageId });
+    pushInspectorEvent('info', 'checkDocument', `Checking ${shortName} (${document.languageId})`);
+
+    // Wait for a concurrency slot so we don't flood the server
+    await acquireCheckSlot();
     setCheckingSpinner(true);
     const timings: { name: string; durationMs: number }[] = [];
 
@@ -1272,6 +1343,7 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
         timings.push({ name: 'Read document', durationMs: performance.now() - t0 });
 
         const t1 = performance.now();
+        pushInspectorEvent('debug', 'checkDocument', `Sending CheckProse RPC (${textContent.length} chars)`);
         const response = await client.sendRequest({
             checkProse: {
                 text: textContent,
@@ -1280,7 +1352,9 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
                 filePath: document.uri.fsPath
             }
         });
-        timings.push({ name: 'Core RPC (checkProse)', durationMs: performance.now() - t1 });
+        const rpcMs = performance.now() - t1;
+        timings.push({ name: 'Core RPC (checkProse)', durationMs: rpcMs });
+        pushInspectorEvent('info', 'checkDocument', `RPC response received`, { durationMs: rpcMs });
 
         if (response.checkProse) {
             const t2 = performance.now();
@@ -1398,16 +1472,25 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
                 });
             }
 
+            pushInspectorEvent('info', 'checkDocument', `${extendedDiagnostics.length} issues in ${shortName}`, { durationMs: performance.now() - t0 });
             return extendedDiagnostics.length;
         } else if (response.error) {
+            pushInspectorEvent('error', 'checkDocument', `Server error: ${response.error.message}`);
             vscode.window.showErrorMessage(vscode.l10n.t('Language Check Error: {0}', response.error.message ?? ''));
             return -1;
         }
     } catch (err) {
-        log.error('Failed to communicate with language-check core', { error: String(err), file: document.fileName });
-        vscode.window.showErrorMessage(vscode.l10n.t('Failed to communicate with language-check core: {0}', String(err)));
+        const errStr = String(err);
+        log.error('checkDocument failed', { error: errStr, file: document.fileName });
+        pushInspectorEvent('error', 'checkDocument', errStr, { details: document.fileName });
+        if (errStr.includes('timed out')) {
+            log.warn('Request timed out — the core process may be busy or the LanguageTool server unresponsive');
+        } else {
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to communicate with language-check core: {0}', errStr));
+        }
         return -1;
     } finally {
+        releaseCheckSlot();
         setCheckingSpinner(false);
     }
 

@@ -432,6 +432,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck
          * @interface IInitializeRequest
          * @property {string|null} [workspaceRoot] InitializeRequest workspaceRoot
+         * @property {boolean|null} [indexOnOpen] InitializeRequest indexOnOpen
          */
 
         /**
@@ -456,6 +457,23 @@ $root.languagecheck = (function() {
          * @instance
          */
         InitializeRequest.prototype.workspaceRoot = "";
+
+        /**
+         * InitializeRequest indexOnOpen.
+         * @member {boolean|null|undefined} indexOnOpen
+         * @memberof languagecheck.InitializeRequest
+         * @instance
+         */
+        InitializeRequest.prototype.indexOnOpen = null;
+
+        // OneOf field names bound to virtual getters and setters
+        var $oneOfFields;
+
+        // Virtual OneOf for proto3 optional field
+        Object.defineProperty(InitializeRequest.prototype, "_indexOnOpen", {
+            get: $util.oneOfGetter($oneOfFields = ["indexOnOpen"]),
+            set: $util.oneOfSetter($oneOfFields)
+        });
 
         /**
          * Creates a new InitializeRequest instance using the specified properties.
@@ -483,6 +501,8 @@ $root.languagecheck = (function() {
                 writer = $Writer.create();
             if (message.workspaceRoot != null && Object.hasOwnProperty.call(message, "workspaceRoot"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.workspaceRoot);
+            if (message.indexOnOpen != null && Object.hasOwnProperty.call(message, "indexOnOpen"))
+                writer.uint32(/* id 2, wireType 0 =*/16).bool(message.indexOnOpen);
             return writer;
         };
 
@@ -523,6 +543,10 @@ $root.languagecheck = (function() {
                         message.workspaceRoot = reader.string();
                         break;
                     }
+                case 2: {
+                        message.indexOnOpen = reader.bool();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -558,9 +582,15 @@ $root.languagecheck = (function() {
         InitializeRequest.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            var properties = {};
             if (message.workspaceRoot != null && message.hasOwnProperty("workspaceRoot"))
                 if (!$util.isString(message.workspaceRoot))
                     return "workspaceRoot: string expected";
+            if (message.indexOnOpen != null && message.hasOwnProperty("indexOnOpen")) {
+                properties._indexOnOpen = 1;
+                if (typeof message.indexOnOpen !== "boolean")
+                    return "indexOnOpen: boolean expected";
+            }
             return null;
         };
 
@@ -578,6 +608,8 @@ $root.languagecheck = (function() {
             var message = new $root.languagecheck.InitializeRequest();
             if (object.workspaceRoot != null)
                 message.workspaceRoot = String(object.workspaceRoot);
+            if (object.indexOnOpen != null)
+                message.indexOnOpen = Boolean(object.indexOnOpen);
             return message;
         };
 
@@ -598,6 +630,11 @@ $root.languagecheck = (function() {
                 object.workspaceRoot = "";
             if (message.workspaceRoot != null && message.hasOwnProperty("workspaceRoot"))
                 object.workspaceRoot = message.workspaceRoot;
+            if (message.indexOnOpen != null && message.hasOwnProperty("indexOnOpen")) {
+                object.indexOnOpen = message.indexOnOpen;
+                if (options.oneofs)
+                    object._indexOnOpen = "indexOnOpen";
+            }
             return object;
         };
 

@@ -71,12 +71,23 @@ export interface InspectorCheckInfo {
     englishEngine: string;
 }
 
+export interface InspectorEvent {
+    timestamp: number;      // Date.now()
+    level: 'info' | 'warn' | 'error' | 'debug';
+    source: string;         // e.g. 'checkDocument', 'addToDictionary', 'applyFix'
+    message: string;
+    durationMs?: number;    // optional elapsed time
+    details?: string;       // optional extra context
+}
+
 // Messages from extension → Inspector webview
 export type ExtensionToInspectorMessage =
     | { type: 'setExtraction'; payload: { prose: InspectorProseRange[]; fileName: string; languageId: string } }
     | { type: 'setLatency'; payload: { stages: InspectorLatencyStage[] } }
     | { type: 'setDiagnosticSummary'; payload: InspectorDiagnosticSummary }
-    | { type: 'setCheckInfo'; payload: InspectorCheckInfo };
+    | { type: 'setCheckInfo'; payload: InspectorCheckInfo }
+    | { type: 'pushEvent'; payload: InspectorEvent }
+    | { type: 'clearEvents' };
 
 // Messages from Inspector webview → extension
 export type InspectorToExtensionMessage =

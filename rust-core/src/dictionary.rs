@@ -4,8 +4,12 @@ use std::path::{Path, PathBuf};
 
 /// Manages custom dictionaries for the language checker.
 /// Words in the dictionary are excluded from spelling diagnostics.
+///
+/// Internally, user-added words and bundled words are kept in separate sets.
+/// Only user words are persisted to `dictionary.txt`.
 pub struct Dictionary {
-    words: HashSet<String>,
+    user_words: HashSet<String>,
+    bundled_words: HashSet<String>,
     workspace_path: Option<PathBuf>,
 }
 
@@ -19,7 +23,8 @@ impl Dictionary {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            words: HashSet::new(),
+            user_words: HashSet::new(),
+            bundled_words: HashSet::new(),
             workspace_path: None,
         }
     }
@@ -36,7 +41,7 @@ impl Dictionary {
             for line in content.lines() {
                 let word = line.trim();
                 if !word.is_empty() && !word.starts_with('#') {
-                    dict.words.insert(word.to_lowercase());
+                    dict.user_words.insert(word.to_lowercase());
                 }
             }
         }
@@ -46,9 +51,10 @@ impl Dictionary {
 
     /// Load the bundled dictionaries that ship with the extension.
     /// These contain domain-specific technical terms from open-source wordlists.
+    /// Bundled words are kept separate and never persisted to the user's dictionary file.
     pub fn load_bundled(&mut self) {
         for words_str in bundled::ALL {
-            parse_wordlist_into(words_str, &mut self.words);
+            parse_wordlist_into(words_str, &mut self.bundled_words);
         }
     }
 
@@ -80,42 +86,45 @@ impl Dictionary {
 
         let content = std::fs::read_to_string(&resolved)
             .map_err(|e| anyhow::anyhow!("Cannot read wordlist {}: {e}", resolved.display()))?;
-        parse_wordlist_into(&content, &mut self.words);
+        parse_wordlist_into(&content, &mut self.bundled_words);
         Ok(())
     }
 
-    /// Add a word to the dictionary and persist to disk.
+    /// Add a word to the user dictionary and persist to disk.
     pub fn add_word(&mut self, word: &str) -> Result<()> {
         let lower = word.to_lowercase();
-        if self.words.insert(lower) {
+        if self.user_words.insert(lower) {
             self.persist()?;
         }
         Ok(())
     }
 
     /// Check if a word is in the dictionary (case-insensitive).
+    /// Checks both user words and bundled/external wordlists.
     #[must_use]
     pub fn contains(&self, word: &str) -> bool {
-        self.words.contains(&word.to_lowercase())
+        let lower = word.to_lowercase();
+        self.user_words.contains(&lower) || self.bundled_words.contains(&lower)
     }
 
-    /// Return all words in the dictionary.
+    /// Return all words in the dictionary (user + bundled).
     pub fn words(&self) -> impl Iterator<Item = &String> {
-        self.words.iter()
+        self.user_words.iter().chain(self.bundled_words.iter())
     }
 
-    /// Return the total number of words loaded.
+    /// Return the total number of words loaded (user + bundled).
     #[must_use]
     pub fn len(&self) -> usize {
-        self.words.len()
+        self.user_words.len() + self.bundled_words.len()
     }
 
     /// Whether the dictionary is empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.words.is_empty()
+        self.user_words.is_empty() && self.bundled_words.is_empty()
     }
 
+    /// Persist only user-added words to the workspace dictionary file.
     fn persist(&self) -> Result<()> {
         let Some(path) = &self.workspace_path else {
             return Ok(());
@@ -125,7 +134,7 @@ impl Dictionary {
             std::fs::create_dir_all(parent)?;
         }
 
-        let mut words: Vec<&str> = self.words.iter().map(String::as_str).collect();
+        let mut words: Vec<&str> = self.user_words.iter().map(String::as_str).collect();
         words.sort_unstable();
         let content = words.join("\n");
         std::fs::write(path, content + "\n")?;
@@ -180,7 +189,7 @@ mod tests {
     #[test]
     fn add_and_contains() {
         let mut dict = Dictionary::new();
-        dict.words.insert("hello".to_string());
+        dict.user_words.insert("hello".to_string());
         assert!(dict.contains("hello"));
         assert!(dict.contains("Hello")); // case-insensitive
         assert!(dict.contains("HELLO"));
@@ -234,17 +243,17 @@ mod tests {
     #[test]
     fn add_duplicate_word_is_idempotent() {
         let mut dict = Dictionary::new();
-        dict.words.insert("test".to_string());
+        dict.user_words.insert("test".to_string());
         let initial_count = dict.words().count();
-        dict.words.insert("test".to_string());
+        dict.user_words.insert("test".to_string());
         assert_eq!(dict.words().count(), initial_count);
     }
 
     #[test]
     fn words_iterator() {
         let mut dict = Dictionary::new();
-        dict.words.insert("alpha".to_string());
-        dict.words.insert("beta".to_string());
+        dict.user_words.insert("alpha".to_string());
+        dict.user_words.insert("beta".to_string());
         assert_eq!(dict.words().count(), 2);
     }
 
@@ -282,7 +291,7 @@ mod tests {
         dict.load_bundled();
         let bundled_count = dict.len();
 
-        dict.words.insert("myprojectword".to_string());
+        dict.user_words.insert("myprojectword".to_string());
         assert_eq!(dict.len(), bundled_count + 1);
         assert!(dict.contains("myprojectword"));
         // Bundled words still present
@@ -304,6 +313,42 @@ mod tests {
         assert!(dict.contains("foobar"));
         assert!(dict.contains("bazqux"));
         assert_eq!(dict.len(), 2);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn persistence_excludes_bundled_words() {
+        let dir = std::env::temp_dir().join("lang_check_test_dict_bundled_persist");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Add a user word alongside bundled words
+        {
+            let mut dict = Dictionary::load(&dir).unwrap();
+            dict.load_bundled();
+            dict.add_word("myuserword").unwrap();
+        }
+
+        // Read the persisted file directly — should only contain user words
+        let dict_path = dir.join(".languagecheck").join("dictionary.txt");
+        let content = std::fs::read_to_string(&dict_path).unwrap();
+        assert!(
+            content.contains("myuserword"),
+            "User word should be persisted"
+        );
+        assert!(
+            !content.contains("kubernetes"),
+            "Bundled words should NOT be persisted"
+        );
+
+        // Reload and verify everything still works
+        {
+            let mut dict = Dictionary::load(&dir).unwrap();
+            dict.load_bundled();
+            assert!(dict.contains("myuserword"));
+            assert!(dict.contains("kubernetes"));
+        }
 
         let _ = std::fs::remove_dir_all(&dir);
     }

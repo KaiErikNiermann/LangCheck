@@ -19,6 +19,8 @@ pub struct Config {
     pub dictionaries: DictionaryConfig,
     #[serde(default)]
     pub languages: LanguageConfig,
+    #[serde(default)]
+    pub workspace: WorkspaceConfig,
 }
 
 /// Language extension aliasing configuration.
@@ -58,6 +60,20 @@ pub struct LaTeXConfig {
     /// These are checked in addition to the built-in skip list.
     #[serde(default)]
     pub skip_environments: Vec<String>,
+}
+
+/// Workspace-level settings.
+///
+/// ```yaml
+/// workspace:
+///   index_on_open: true
+/// ```
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct WorkspaceConfig {
+    /// Whether to run a full workspace index when the project is opened.
+    /// Default: false (only check documents on open/change).
+    #[serde(default)]
+    pub index_on_open: bool,
 }
 
 /// Performance tuning options. High Performance Mode (HPM) disables
@@ -287,6 +303,7 @@ impl Default for Config {
             performance: PerformanceConfig::default(),
             dictionaries: DictionaryConfig::default(),
             languages: LanguageConfig::default(),
+            workspace: WorkspaceConfig::default(),
         }
     }
 }

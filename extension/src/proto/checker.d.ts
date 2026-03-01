@@ -138,6 +138,9 @@ export namespace languagecheck {
 
         /** InitializeRequest workspaceRoot */
         workspaceRoot?: (string|null);
+
+        /** InitializeRequest indexOnOpen */
+        indexOnOpen?: (boolean|null);
     }
 
     /** Represents an InitializeRequest. */
@@ -151,6 +154,9 @@ export namespace languagecheck {
 
         /** InitializeRequest workspaceRoot. */
         public workspaceRoot: string;
+
+        /** InitializeRequest indexOnOpen. */
+        public indexOnOpen?: (boolean|null);
 
         /**
          * Creates a new InitializeRequest instance using the specified properties.

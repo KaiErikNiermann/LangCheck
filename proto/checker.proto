@@ -15,6 +15,10 @@ message Request {
 
 message InitializeRequest {
   string workspace_root = 1;
+  // VS Code global setting: whether to index the whole workspace on open.
+  // The server uses this as a fallback when .languagecheck.yaml doesn't
+  // set workspace.index_on_open.
+  optional bool index_on_open = 2;
 }
 
 message IgnoreRequest {

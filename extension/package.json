@@ -120,6 +120,11 @@
           },
           "default": [],
           "description": "%config.dictionaries.paths%"
+        },
+        "languageCheck.workspace.indexOnOpen": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.workspace.indexOnOpen%"
         }
       }
     },

@@ -37,16 +37,27 @@
     englishEngine: string;
   }
 
-  type Tab = 'extraction' | 'cleantext' | 'latency' | 'diagnostics';
+  interface PipelineEvent {
+    timestamp: number;
+    level: 'info' | 'warn' | 'error' | 'debug';
+    source: string;
+    message: string;
+    durationMs?: number;
+    details?: string;
+  }
+
+  type Tab = 'extraction' | 'cleantext' | 'latency' | 'diagnostics' | 'events';
 
   let proseRanges: ProseRange[] = $state([]);
   let latencyStages: LatencyStage[] = $state([]);
   let diagnosticSummary: DiagnosticSummary | null = $state(null);
   let checkInfo: CheckInfo | null = $state(null);
+  let events: PipelineEvent[] = $state([]);
   let activeTab: Tab = $state('extraction');
   let fileName: string = $state('');
   let languageId: string = $state('');
   let selectedRangeIdx: number | null = $state(null);
+  const MAX_EVENTS = 200;
 
   const vscode = (window as any).acquireVsCodeApi();
 
@@ -68,6 +79,12 @@
           break;
         case 'setCheckInfo':
           checkInfo = message.payload;
+          break;
+        case 'pushEvent':
+          events = [...events.slice(-(MAX_EVENTS - 1)), message.payload];
+          break;
+        case 'clearEvents':
+          events = [];
           break;
       }
     });
@@ -145,6 +162,20 @@
     }
   }
 
+  function eventLevelColor(level: string): string {
+    switch (level) {
+      case 'error': return 'var(--vscode-editorError-foreground, #f44)';
+      case 'warn': return 'var(--vscode-editorWarning-foreground, #fa4)';
+      case 'debug': return 'var(--vscode-editorHint-foreground, #aaa)';
+      default: return 'var(--vscode-textLink-foreground, #48f)';
+    }
+  }
+
+  function formatTime(ts: number): string {
+    const d = new Date(ts);
+    return d.toLocaleTimeString('en-GB', { hour12: false }) + '.' + String(d.getMilliseconds()).padStart(3, '0');
+  }
+
   /** Build HTML segments for range text with exclusion zones highlighted. */
   function renderSegments(range: ProseRange): { text: string; isExclusion: boolean; kind: string }[] {
     if (range.exclusions.length === 0) {
@@ -181,6 +212,9 @@
     </button>
     <button class="tab" class:active={activeTab === 'diagnostics'} onclick={() => activeTab = 'diagnostics'}>
       Issues
+    </button>
+    <button class="tab" class:active={activeTab === 'events'} onclick={() => activeTab = 'events'}>
+      Events{events.length > 0 ? ` (${events.length})` : ''}
     </button>
     {#if fileName}
       <span class="tab-filename">{fileName}</span>
@@ -388,6 +422,35 @@
         </div>
       {:else}
         <div class="empty-state">No diagnostics reported yet.</div>
+      {/if}
+
+    {:else if activeTab === 'events'}
+      <!-- Event Log -->
+      {#if events.length > 0}
+        <div class="section-list">
+          <div class="section-header">
+            <span class="section-title">Pipeline Events</span>
+            <button class="clear-btn" onclick={() => events = []}>Clear</button>
+          </div>
+          <div class="event-log">
+            {#each [...events].reverse() as evt}
+              <div class="event-row" class:event-error={evt.level === 'error'} class:event-warn={evt.level === 'warn'}>
+                <span class="event-time">{formatTime(evt.timestamp)}</span>
+                <span class="event-level-dot" style="background: {eventLevelColor(evt.level)}" title={evt.level}></span>
+                <span class="event-source">{evt.source}</span>
+                <span class="event-msg">{evt.message}</span>
+                {#if evt.durationMs !== undefined}
+                  <span class="event-duration">{formatDuration(evt.durationMs)}</span>
+                {/if}
+                {#if evt.details}
+                  <span class="event-details" title={evt.details}>{evt.details}</span>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        </div>
+      {:else}
+        <div class="empty-state">No events captured yet. Interact with the extension to see pipeline events.</div>
       {/if}
     {/if}
   </div>
@@ -804,6 +867,98 @@
     opacity: 0.6;
     min-width: 30px;
     text-align: right;
+  }
+
+  /* -- Event Log -- */
+  .event-log {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 11px;
+    font-family: var(--vscode-editor-font-family, monospace);
+  }
+
+  .event-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    line-height: 1.4;
+    min-height: 22px;
+  }
+
+  .event-row:hover {
+    background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.08));
+  }
+
+  .event-error {
+    background: rgba(255, 60, 60, 0.08);
+  }
+
+  .event-warn {
+    background: rgba(255, 170, 60, 0.06);
+  }
+
+  .event-time {
+    opacity: 0.35;
+    font-size: 10px;
+    min-width: 80px;
+    flex-shrink: 0;
+  }
+
+  .event-level-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .event-source {
+    color: var(--vscode-textLink-foreground, #48f);
+    min-width: 100px;
+    flex-shrink: 0;
+    font-weight: 600;
+    font-size: 10px;
+  }
+
+  .event-msg {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.8;
+  }
+
+  .event-duration {
+    opacity: 0.5;
+    flex-shrink: 0;
+    min-width: 55px;
+    text-align: right;
+  }
+
+  .event-details {
+    opacity: 0.3;
+    font-size: 10px;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .clear-btn {
+    border: none;
+    background: transparent;
+    color: var(--vscode-textLink-foreground, #48f);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-family: var(--vscode-font-family);
+  }
+
+  .clear-btn:hover {
+    background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.15));
   }
 
   /* -- Empty state -- */
