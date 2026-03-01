@@ -11,7 +11,10 @@ engines:
   harper: true           # Fast, local grammar/spelling (always recommended)
   languagetool: false    # Optional, requires a running LT server
   languagetool_url: "http://localhost:8010"
+  english_engine: harper # Which engine checks English: "harper" or "languagetool"
 ```
+
+When both Harper and LanguageTool are enabled, `english_engine` controls which one handles English content. Set it to `"languagetool"` to use LanguageTool for English and skip Harper entirely. The non-selected engine is automatically skipped for English text, avoiding duplicate diagnostics.
 
 ## Rule Overrides
 
@@ -69,6 +72,7 @@ engines:
   harper: true
   languagetool: true
   languagetool_url: "http://localhost:8010"
+  english_engine: harper          # "harper" or "languagetool"
   external:
     - name: vale
       command: vale

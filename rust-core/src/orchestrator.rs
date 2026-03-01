@@ -80,9 +80,25 @@ impl Orchestrator {
             return Ok(Vec::new());
         }
 
+        let is_english = is_english_content(language_id);
+        let english_engine = &self.config.engines.english_engine;
+
         let mut all_diagnostics = Vec::new();
+        let mut engines_ran = 0u32;
 
         for engine in &mut self.engines {
+            // English engine toggle: skip the non-selected engine for English content
+            let engine_name = engine.name();
+            if english_engine == "languagetool" && engine_name == "harper" {
+                // Harper is English-only; when LT is the English engine, skip it entirely
+                continue;
+            }
+            if english_engine == "harper" && engine_name == "languagetool" && is_english {
+                // Let LT still run for non-English content, but skip it for English
+                continue;
+            }
+
+            engines_ran += 1;
             match engine.check(text, language_id).await {
                 Ok(mut diagnostics) => {
                     // Normalize and filter based on config
@@ -120,6 +136,22 @@ impl Orchestrator {
             }
         }
 
+        // Warn when no engines ran for non-English content
+        if engines_ran == 0 && !is_english && all_diagnostics.is_empty() {
+            all_diagnostics.push(Diagnostic {
+                start_byte: 0,
+                end_byte: 0,
+                message: "No checking provider is configured for this language. \
+                          Enable LanguageTool or add an external provider."
+                    .to_string(),
+                suggestions: Vec::new(),
+                rule_id: "languagecheck.no-provider".to_string(),
+                severity: Severity::Information as i32,
+                unified_id: "languagecheck.no-provider".to_string(),
+                confidence: 1.0,
+            });
+        }
+
         // Advanced deduplication: if two engines report the same unified rule at the same range,
         // prefer the one with higher severity or just keep one.
         all_diagnostics.sort_by_key(|d| (d.start_byte, d.end_byte, d.unified_id.clone()));
@@ -140,4 +172,17 @@ impl Orchestrator {
 
         Ok(all_diagnostics)
     }
+}
+
+/// Treat a `language_id` as English unless it's an explicit non-English locale.
+///
+/// File-type identifiers like `"markdown"`, `"html"`, `"latex"` default to English.
+/// BCP-47 tags starting with `"en"` (e.g. `"en-US"`) are English. Everything else
+/// (e.g. `"de"`, `"fr-FR"`) is non-English.
+fn is_english_content(language_id: &str) -> bool {
+    // File types that default to English
+    matches!(
+        language_id,
+        "markdown" | "html" | "latex" | "text" | "rst" | "asciidoc" | "typst" | "djot"
+    ) || language_id.starts_with("en")
 }

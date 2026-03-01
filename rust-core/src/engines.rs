@@ -12,6 +12,7 @@ use std::path::PathBuf;
 
 #[async_trait::async_trait]
 pub trait Engine {
+    fn name(&self) -> &'static str;
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>>;
 }
 
@@ -37,6 +38,10 @@ impl HarperEngine {
 
 #[async_trait::async_trait]
 impl Engine for HarperEngine {
+    fn name(&self) -> &'static str {
+        "harper"
+    }
+
     async fn check(&mut self, text: &str, _language_id: &str) -> Result<Vec<Diagnostic>> {
         let document = Document::new(text, &Markdown::default(), self.dict.as_ref());
         let lints = self.linter.lint(&document);
@@ -121,6 +126,10 @@ impl LanguageToolEngine {
 
 #[async_trait::async_trait]
 impl Engine for LanguageToolEngine {
+    fn name(&self) -> &'static str {
+        "languagetool"
+    }
+
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
         let url = format!("{}/v2/check", self.url);
 
@@ -221,6 +230,10 @@ fn default_severity_value() -> i32 {
 
 #[async_trait::async_trait]
 impl Engine for ExternalEngine {
+    fn name(&self) -> &'static str {
+        "external"
+    }
+
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
         use tokio::process::Command;
 
@@ -336,6 +349,10 @@ impl WasmEngine {
 
 #[async_trait::async_trait]
 impl Engine for WasmEngine {
+    fn name(&self) -> &'static str {
+        "wasm"
+    }
+
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
         let request = serde_json::json!({
             "text": text,
