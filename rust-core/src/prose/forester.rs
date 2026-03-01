@@ -1499,4 +1499,44 @@ so the result follows.}";
         Ok(())
     }
 
+    #[test]
+    fn test_codeblock_with_errors_no_leakage() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Simulate the pattern from 001b.tree: backticks in \codeblock cause
+        // ERROR nodes, but the whole \codeblock is structural and skipped.
+        let text = r"\p{Here is a recursor example.}
+\codeblock{lean}{
+  macro_rules
+    | `(ex{ $n:num }) => `(Expr.const $n)
+    | `(ex{ $x:ident }) => pure $x
+}
+\p{This defines the syntax.}";
+        let ranges = extractor.extract(text, "forester", &[])?;
+        let all_clean: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text).into_owned())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        assert!(
+            !all_clean.contains("macro_rules"),
+            "Code should not leak from \\codeblock, got: {all_clean:?}"
+        );
+        assert!(
+            !all_clean.contains("Expr.const"),
+            "Code should not leak from \\codeblock, got: {all_clean:?}"
+        );
+        assert!(
+            all_clean.contains("recursor example"),
+            "Prose should be extracted, got: {all_clean:?}"
+        );
+        assert!(
+            all_clean.contains("defines the syntax"),
+            "Prose should be extracted, got: {all_clean:?}"
+        );
+
+        Ok(())
+    }
+
 }
