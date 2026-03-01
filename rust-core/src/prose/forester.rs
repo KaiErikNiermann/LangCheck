@@ -96,6 +96,8 @@ pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
         .collect();
 
     install_skip_exclusions(&mut result, &skips, text.as_bytes());
+    dedup_exclusions(&mut result);
+    result.retain(|r| !is_fully_excluded(r));
     result
 }
 
@@ -222,6 +224,41 @@ fn install_skip_exclusions(ranges: &mut [ProseRange], skips: &[(usize, usize)], 
             range.exclusions.push((exc_start, exc_end));
         }
     }
+}
+
+/// Merge overlapping or adjacent exclusions within each prose range.
+fn dedup_exclusions(ranges: &mut [ProseRange]) {
+    for range in ranges.iter_mut() {
+        if range.exclusions.len() <= 1 {
+            continue;
+        }
+        range.exclusions.sort_unstable_by_key(|&(s, _)| s);
+        let mut merged = vec![range.exclusions[0]];
+        for &(s, e) in &range.exclusions[1..] {
+            let last = merged.last_mut().unwrap();
+            if s <= last.1 {
+                last.1 = last.1.max(e);
+            } else {
+                merged.push((s, e));
+            }
+        }
+        range.exclusions = merged;
+    }
+}
+
+/// Check whether a prose range is entirely covered by its exclusions.
+fn is_fully_excluded(range: &ProseRange) -> bool {
+    if range.exclusions.is_empty() {
+        return false;
+    }
+    let mut covered = range.start_byte;
+    for &(s, e) in &range.exclusions {
+        if s > covered {
+            return false;
+        }
+        covered = covered.max(e);
+    }
+    covered >= range.end_byte
 }
 
 /// Strip Forester noise from a gap string: math, commands, escapes.
@@ -1167,6 +1204,88 @@ which completes the proof.}}";
             all_text.contains("because"),
             "Prose between math should be extracted, got: {all_text:?}"
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dedup_exclusions_merges_overlapping() {
+        use super::{ProseRange, dedup_exclusions};
+
+        let mut ranges = vec![ProseRange {
+            start_byte: 0,
+            end_byte: 100,
+            exclusions: vec![(10, 30), (10, 25), (20, 40), (50, 60)],
+        }];
+        dedup_exclusions(&mut ranges);
+        assert_eq!(ranges[0].exclusions, vec![(10, 40), (50, 60)]);
+    }
+
+    #[test]
+    fn test_dedup_exclusions_adjacent() {
+        use super::{ProseRange, dedup_exclusions};
+
+        let mut ranges = vec![ProseRange {
+            start_byte: 0,
+            end_byte: 100,
+            exclusions: vec![(10, 20), (20, 30)],
+        }];
+        dedup_exclusions(&mut ranges);
+        assert_eq!(ranges[0].exclusions, vec![(10, 30)]);
+    }
+
+    #[test]
+    fn test_is_fully_excluded() {
+        use super::{ProseRange, is_fully_excluded};
+
+        // Fully covered
+        let r = ProseRange {
+            start_byte: 10,
+            end_byte: 50,
+            exclusions: vec![(10, 50)],
+        };
+        assert!(is_fully_excluded(&r));
+
+        // Gap in the middle
+        let r2 = ProseRange {
+            start_byte: 10,
+            end_byte: 50,
+            exclusions: vec![(10, 30), (35, 50)],
+        };
+        assert!(!is_fully_excluded(&r2));
+
+        // No exclusions
+        let r3 = ProseRange {
+            start_byte: 10,
+            end_byte: 50,
+            exclusions: vec![],
+        };
+        assert!(!is_fully_excluded(&r3));
+    }
+
+    #[test]
+    fn test_fully_excluded_ranges_filtered() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Display math with escaped braces at top level — tree-sitter truncates
+        // and orphan text nodes leak. After dedup + retain, those all-excluded
+        // ranges should be gone.
+        let text = r"\p{Consider:}
+##{
+  U = \{A, B\}
+}
+\p{Done.}";
+        let ranges = extractor.extract(text, "forester", &[])?;
+
+        for range in &ranges {
+            let clean = range.extract_text(text);
+            let trimmed = clean.trim();
+            assert!(
+                !trimmed.is_empty(),
+                "No all-blank ranges should remain, got range [{}, {}) with {} exclusions",
+                range.start_byte, range.end_byte, range.exclusions.len()
+            );
+        }
 
         Ok(())
     }

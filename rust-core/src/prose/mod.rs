@@ -178,6 +178,7 @@ impl ProseRange {
                 *b = b' ';
             }
         }
+        strip_unmatched_brackets(bytes);
         std::borrow::Cow::Owned(buf)
     }
 
@@ -191,6 +192,50 @@ impl ProseRange {
             let ee = exc_end as u32;
             doc_start < ee && doc_end > es
         })
+    }
+}
+
+/// Replace provably-unmatched brackets `()[]{}` with spaces.
+///
+/// Uses a single O(n) pass with per-type stacks. Only brackets that have no
+/// matching partner anywhere in the text are replaced — correctly paired
+/// brackets (even across exclusion gaps) are left untouched.
+fn strip_unmatched_brackets(bytes: &mut [u8]) {
+    let mut paren_stack: Vec<usize> = Vec::new();
+    let mut bracket_stack: Vec<usize> = Vec::new();
+    let mut brace_stack: Vec<usize> = Vec::new();
+    let mut unmatched: Vec<usize> = Vec::new();
+
+    for (i, &b) in bytes.iter().enumerate() {
+        match b {
+            b'(' => paren_stack.push(i),
+            b')' => {
+                if paren_stack.pop().is_none() {
+                    unmatched.push(i);
+                }
+            }
+            b'[' => bracket_stack.push(i),
+            b']' => {
+                if bracket_stack.pop().is_none() {
+                    unmatched.push(i);
+                }
+            }
+            b'{' => brace_stack.push(i),
+            b'}' => {
+                if brace_stack.pop().is_none() {
+                    unmatched.push(i);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    unmatched.extend(paren_stack);
+    unmatched.extend(bracket_stack);
+    unmatched.extend(brace_stack);
+
+    for idx in unmatched {
+        bytes[idx] = b' ';
     }
 }
 
@@ -343,5 +388,52 @@ Last paragraph after.";
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn strip_unmatched_orphan_close() {
+        let mut bytes = b"hello } world".to_vec();
+        strip_unmatched_brackets(&mut bytes);
+        assert_eq!(&bytes, b"hello   world");
+    }
+
+    #[test]
+    fn strip_unmatched_orphan_open() {
+        let mut bytes = b"hello ( world".to_vec();
+        strip_unmatched_brackets(&mut bytes);
+        assert_eq!(&bytes, b"hello   world");
+    }
+
+    #[test]
+    fn strip_unmatched_preserves_matched() {
+        let mut bytes = b"f(x) and [y]".to_vec();
+        strip_unmatched_brackets(&mut bytes);
+        assert_eq!(&bytes, b"f(x) and [y]");
+    }
+
+    #[test]
+    fn strip_unmatched_mixed() {
+        // '}' is unmatched, '(x)' is matched
+        let mut bytes = b"value } is f(x)".to_vec();
+        strip_unmatched_brackets(&mut bytes);
+        assert_eq!(&bytes, b"value   is f(x)");
+    }
+
+    #[test]
+    fn strip_unmatched_via_extract_text() {
+        let range = ProseRange {
+            start_byte: 0,
+            end_byte: 20,
+            exclusions: vec![(5, 10)],
+        };
+        // "text } rest" after blanking exclusion [5,10) -> "text      rest"
+        // but if original is "text #{x+y} rest", after blanking the #{x+y}
+        // region we get "text        rest" with no unmatched brackets.
+        let text = "text #{x+y} rest____";
+        let clean = range.extract_text(text);
+        // The #{x+y} was blanked, no unmatched brackets remain
+        assert!(!clean.contains('#'));
+        assert!(!clean.contains('{'));
+        assert!(!clean.contains('}'));
     }
 }
