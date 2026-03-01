@@ -100,20 +100,22 @@ Ceci est du texte français.
 A region with **only** a `lang:` option (no rule IDs) acts as a pure
 language override — it does not suppress any diagnostics.
 
-#### Line Count (`check[curr:N]`)
+#### Line Slice (`check[a:b]`)
 
-Auto-close the region after N lines. No `lang-check-end` is needed:
+Auto-close the region using slice notation. No `lang-check-end` is needed.
+`a` and `b` are 0-indexed line offsets after the directive (like Python slicing):
 
 ```markdown
-<!-- lang-check-begin check[curr:5] lang:de -->
-Fünf Zeilen auf Deutsch.
-Zweite Zeile.
-Dritte Zeile.
-Vierte Zeile.
-Fünfte Zeile.
+<!-- lang-check-begin check[:5] lang:de -->
+Fünf Zeilen auf Deutsch.          <!-- line 0 -->
+Zweite Zeile.                     <!-- line 1 -->
+Dritte Zeile.                     <!-- line 2 -->
+Vierte Zeile.                     <!-- line 3 -->
+Fünfte Zeile.                     <!-- line 4 -->
 ```
 
-The region covers exactly the next N lines after the directive.
+`check[:5]` covers lines 0–4 (the first 5 lines). You can also start from an
+offset — `check[2:5]` would cover only lines 2–4:
 
 #### Match Filter (`match:/PATTERN/`)
 
@@ -157,7 +159,7 @@ The format must be a supported language ID (e.g. `latex`, `html`, `rst`,
 Multiple options can be combined in a single directive:
 
 ```markdown
-<!-- lang-check-begin lang:de spelling.typo check[curr:3] -->
+<!-- lang-check-begin lang:de spelling.typo check[:3] -->
 Drei Zeilen auf Deutsch, nur Rechtschreibung unterdrückt.
 Zweite Zeile.
 Dritte Zeile.

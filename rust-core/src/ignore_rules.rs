@@ -26,8 +26,9 @@ pub struct BeginOptions {
     pub language: Option<String>,
     /// Re-parse region as this format (e.g. "latex"). Deferred implementation.
     pub doc_type: Option<String>,
-    /// Scope applies for N lines (no end directive needed).
-    pub line_count: Option<usize>,
+    /// Scope applies to a slice of lines after the directive (no end directive needed).
+    /// `(start, end)` in 0-indexed line offsets, like Python slice notation `[start:end]`.
+    pub line_slice: Option<(usize, usize)>,
     /// Only apply to lines matching this regex pattern.
     pub match_pattern: Option<String>,
     /// Skip lines matching this regex pattern.
@@ -214,10 +215,11 @@ impl IgnoreParser {
                         .clone()
                         .unwrap_or_default();
 
-                    if let Some(n) = opts.line_count {
-                        // Auto-closing: scope covers N lines after the directive
-                        let start = next_line_start(text, directive.line_end);
-                        let end = advance_n_lines(text, start, n);
+                    if let Some((a, b)) = opts.line_slice {
+                        // Auto-closing: scope covers lines a..b after the directive
+                        let first_line = next_line_start(text, directive.line_end);
+                        let start = advance_n_lines(text, first_line, a);
+                        let end = advance_n_lines(text, first_line, b);
                         if start < text.len() {
                             regions.push(DirectiveRegion {
                                 byte_range: start..end,
@@ -389,7 +391,7 @@ fn parse_rule_ids(rest: &str) -> Vec<String> {
 /// Tokens are space-separated. Recognized option prefixes:
 /// - `lang:xx` → language override
 /// - `type:xx` → document type override
-/// - `check[curr:N]` → line-count specifier
+/// - `check[a:b]` or `check[:b]` → line slice (0-indexed, like `[start:end]`)
 /// - `match:/PATTERN/` → regex include filter
 /// - `exclude:/PATTERN/` → regex exclude filter
 /// - anything else → treated as a rule ID
@@ -401,11 +403,19 @@ fn parse_begin_options(rest: &str) -> BeginOptions {
             opts.language = Some(lang.to_string());
         } else if let Some(dtype) = token.strip_prefix("type:") {
             opts.doc_type = Some(dtype.to_string());
-        } else if let Some(inner) = token.strip_prefix("check[curr:")
-            && let Some(n_str) = inner.strip_suffix(']')
-            && let Ok(n) = n_str.parse::<usize>()
+        } else if let Some(inner) = token.strip_prefix("check[")
+            && let Some(slice) = inner.strip_suffix(']')
+            && let Some((a_str, b_str)) = slice.split_once(':')
+            && let Ok(b) = b_str.parse::<usize>()
         {
-            opts.line_count = Some(n);
+            let a = if a_str.is_empty() {
+                0
+            } else if let Ok(v) = a_str.parse::<usize>() {
+                v
+            } else {
+                continue;
+            };
+            opts.line_slice = Some((a, b));
         } else if let Some(pat) = token.strip_prefix("match:") {
             // e.g. "match:/^>\s/"
             let pat = pat.strip_prefix('/').unwrap_or(pat);
@@ -668,7 +678,7 @@ mod tests {
 
     #[test]
     fn parse_begin_with_line_count() {
-        let text = "<!-- lang-check-begin check[curr:2] -->\nLine one\nLine two\nLine three";
+        let text = "<!-- lang-check-begin check[:2] -->\nLine one\nLine two\nLine three";
         let directives = IgnoreParser::parse_directives(text);
         let resolved = IgnoreParser::resolve_all(text, &directives);
         assert_eq!(resolved.regions.len(), 1);
@@ -697,14 +707,14 @@ mod tests {
     #[test]
     fn parse_begin_multiple_options() {
         let text =
-            "<!-- lang-check-begin lang:de spelling.typo check[curr:3] -->\nZeile\nZwei\nDrei\nVier";
+            "<!-- lang-check-begin lang:de spelling.typo check[:3] -->\nZeile\nZwei\nDrei\nVier";
         let directives = IgnoreParser::parse_directives(text);
         let resolved = IgnoreParser::resolve_all(text, &directives);
         assert_eq!(resolved.regions.len(), 1);
         let opts = &resolved.regions[0].options;
         assert_eq!(opts.language, Some("de".to_string()));
         assert_eq!(opts.rule_ids, vec!["spelling.typo"]);
-        assert_eq!(opts.line_count, Some(3));
+        assert_eq!(opts.line_slice, Some((0, 3)));
     }
 
     #[test]
@@ -760,7 +770,7 @@ mod tests {
 
     #[test]
     fn begin_line_count_no_end_needed() {
-        let text = "<!-- lang-check-begin check[curr:1] -->\nBad line\nGood line";
+        let text = "<!-- lang-check-begin check[:1] -->\nBad line\nGood line";
         let directives = IgnoreParser::parse_directives(text);
         let resolved = IgnoreParser::resolve_all(text, &directives);
         assert_eq!(resolved.regions.len(), 1);
