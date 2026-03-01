@@ -9,6 +9,7 @@ Language Check catches grammar, spelling, and style issues in Markdown, HTML, La
 :caption: User Guide
 
 guide/installation
+guide/languagetool-setup
 guide/configuration
 guide/languages
 ```
