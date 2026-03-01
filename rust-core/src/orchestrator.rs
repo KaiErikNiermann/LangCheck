@@ -4,6 +4,7 @@ use crate::engines::{Engine, ExternalEngine, HarperEngine, LanguageToolEngine, W
 use crate::ignore_rules::IgnoreParser;
 use crate::rules::RuleNormalizer;
 use anyhow::Result;
+use tracing::warn;
 
 pub struct Orchestrator {
     engines: Vec<Box<dyn Engine + Send>>,
@@ -54,9 +55,10 @@ impl Orchestrator {
                     std::path::PathBuf::from(&wasm_plugin.path),
                 ) {
                     Ok(engine) => self.engines.push(Box::new(engine)),
-                    Err(e) => eprintln!(
-                        "Failed to load WASM plugin '{}' from {}: {e}",
-                        wasm_plugin.name, wasm_plugin.path
+                    Err(e) => warn!(
+                        plugin = %wasm_plugin.name,
+                        path = %wasm_plugin.path,
+                        "Failed to load WASM plugin: {e}"
                     ),
                 }
             }
@@ -132,7 +134,7 @@ impl Orchestrator {
                     diagnostics.retain(|d| d.severity != -1);
                     all_diagnostics.extend(diagnostics);
                 }
-                Err(e) => eprintln!("Engine error: {e}"),
+                Err(e) => warn!(engine = engine_name, "Engine error: {e}"),
             }
         }
 
@@ -180,9 +182,20 @@ impl Orchestrator {
 /// BCP-47 tags starting with `"en"` (e.g. `"en-US"`) are English. Everything else
 /// (e.g. `"de"`, `"fr-FR"`) is non-English.
 fn is_english_content(language_id: &str) -> bool {
-    // File types that default to English
+    // File-type identifiers default to English (no explicit locale)
     matches!(
         language_id,
-        "markdown" | "html" | "latex" | "text" | "rst" | "asciidoc" | "typst" | "djot"
+        "markdown"
+            | "html"
+            | "latex"
+            | "text"
+            | "rst"
+            | "asciidoc"
+            | "typst"
+            | "djot"
+            | "org"
+            | "bibtex"
+            | "forester"
+            | "sweave"
     ) || language_id.starts_with("en")
 }

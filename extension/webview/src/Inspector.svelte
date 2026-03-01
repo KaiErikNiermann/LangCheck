@@ -34,6 +34,7 @@
     proseRangeCount: number;
     totalProseBytes: number;
     diagnosticCount: number;
+    englishEngine: string;
   }
 
   type Tab = 'extraction' | 'cleantext' | 'latency' | 'diagnostics';
@@ -320,6 +321,10 @@
               <div class="check-info-row">
                 <span class="check-info-label">Language</span>
                 <span class="check-info-value">{checkInfo.languageId}</span>
+              </div>
+              <div class="check-info-row">
+                <span class="check-info-label">English engine</span>
+                <span class="check-info-value engine-badge">{checkInfo.englishEngine}</span>
               </div>
               <div class="check-info-row">
                 <span class="check-info-label">Prose ranges</span>
@@ -719,6 +724,11 @@
     font-size: 11px;
     font-family: var(--vscode-editor-font-family, monospace);
     text-align: right;
+  }
+
+  .engine-badge {
+    text-transform: capitalize;
+    color: var(--vscode-textLink-foreground, #48f);
   }
 
   /* -- Diagnostics -- */

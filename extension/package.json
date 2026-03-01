@@ -55,6 +55,10 @@
       {
         "command": "language-check.showTrace",
         "title": "%command.showTrace%"
+      },
+      {
+        "command": "language-check.toggleEnglishEngine",
+        "title": "%command.toggleEnglishEngine%"
       }
     ],
     "keybindings": [

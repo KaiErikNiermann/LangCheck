@@ -9,6 +9,7 @@ use harper_core::{
 };
 use serde::Deserialize;
 use std::path::PathBuf;
+use tracing::warn;
 
 #[async_trait::async_trait]
 pub trait Engine {
@@ -117,10 +118,12 @@ struct LTRule {
 impl LanguageToolEngine {
     #[must_use]
     pub fn new(url: String) -> Self {
-        Self {
-            url,
-            client: reqwest::Client::new(),
-        }
+        let client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(3))
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .unwrap_or_default();
+        Self { url, client }
     }
 }
 
@@ -133,11 +136,11 @@ impl Engine for LanguageToolEngine {
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
         let url = format!("{}/v2/check", self.url);
 
-        // Map common language IDs to LT format if necessary
-        let lt_lang = if language_id == "markdown" {
-            "en-US" // Default if it's just the file type
-        } else {
-            language_id
+        // Map file-type language IDs to BCP-47 codes that LanguageTool understands
+        let lt_lang = match language_id {
+            "markdown" | "html" | "latex" | "text" | "rst" | "asciidoc" | "typst" | "djot"
+            | "org" | "bibtex" | "forester" | "sweave" => "en-US",
+            other => other,
         };
 
         let res = match self
@@ -149,7 +152,7 @@ impl Engine for LanguageToolEngine {
         {
             Ok(r) => r.json::<LTResponse>().await?,
             Err(e) => {
-                eprintln!("LanguageTool connection error: {e}");
+                warn!("LanguageTool connection error: {e}");
                 return Ok(vec![]);
             }
         };
@@ -256,18 +259,18 @@ impl Engine for ExternalEngine {
                 child.wait_with_output().await?
             }
             Err(e) => {
-                eprintln!("Failed to spawn external provider '{}': {e}", self.name);
+                warn!(provider = %self.name, "Failed to spawn external provider: {e}");
                 return Ok(vec![]);
             }
         };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!(
-                "External provider '{}' exited with {}: {}",
-                self.name,
-                output.status,
-                stderr.trim()
+            warn!(
+                provider = %self.name,
+                status = %output.status,
+                stderr = stderr.trim(),
+                "External provider exited with error"
             );
             return Ok(vec![]);
         }
@@ -276,10 +279,7 @@ impl Engine for ExternalEngine {
         let ext_diagnostics: Vec<ExternalDiagnostic> = match serde_json::from_str(&stdout) {
             Ok(d) => d,
             Err(e) => {
-                eprintln!(
-                    "Failed to parse output from external provider '{}': {e}",
-                    self.name
-                );
+                warn!(provider = %self.name, "Failed to parse external provider output: {e}");
                 return Ok(vec![]);
             }
         };
@@ -363,7 +363,7 @@ impl Engine for WasmEngine {
         let output = match self.plugin.call::<&str, &str>("check", &input) {
             Ok(result) => result.to_string(),
             Err(e) => {
-                eprintln!("WASM plugin '{}' call failed: {e}", self.name);
+                warn!(plugin = %self.name, "WASM plugin call failed: {e}");
                 return Ok(vec![]);
             }
         };
@@ -371,10 +371,7 @@ impl Engine for WasmEngine {
         let ext_diagnostics: Vec<ExternalDiagnostic> = match serde_json::from_str(&output) {
             Ok(d) => d,
             Err(e) => {
-                eprintln!(
-                    "Failed to parse output from WASM plugin '{}': {e}",
-                    self.name
-                );
+                warn!(plugin = %self.name, "Failed to parse WASM plugin output: {e}");
                 return Ok(vec![]);
             }
         };

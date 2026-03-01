@@ -68,6 +68,7 @@ export interface InspectorCheckInfo {
     proseRangeCount: number;
     totalProseBytes: number;
     diagnosticCount: number;
+    englishEngine: string;
 }
 
 // Messages from extension → Inspector webview

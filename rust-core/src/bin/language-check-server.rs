@@ -28,6 +28,7 @@ use std::time::Duration;
 use tokio::fs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Mutex, Notify};
+use tracing::{debug, error, info, warn};
 use workspace::WorkspaceIndex;
 
 /// Slice a `&str` at byte offsets, snapping to the nearest char boundaries.
@@ -45,7 +46,7 @@ fn safe_slice(s: &str, start: usize, end: usize) -> &str {
 
 async fn process_file_for_indexing(
     file_path: PathBuf,
-    orchestrator_arc: Arc<Mutex<Orchestrator>>,
+    orchestrator: Arc<Mutex<Orchestrator>>,
     ignore_store_arc: Arc<Mutex<IgnoreStore>>,
     schema_registry_arc: Arc<Mutex<SchemaRegistry>>,
     workspace_index_arc: Arc<Mutex<Option<WorkspaceIndex>>>,
@@ -79,13 +80,13 @@ async fn process_file_for_indexing(
     };
     let mut all_diagnostics = Vec::new();
 
-    // Acquire/release locks per-range to avoid starving foreground requests
     for range in ranges {
         let prose_text = range.extract_text(&text);
 
-        let mut orchestrator_lock = orchestrator_arc.lock().await;
-        let check_result = orchestrator_lock.check(&prose_text, &lang_id).await;
-        drop(orchestrator_lock);
+        // Uses a dedicated indexing orchestrator — no contention with foreground
+        let mut orch = orchestrator.lock().await;
+        let check_result = orch.check(&prose_text, &lang_id).await;
+        drop(orch);
 
         if let Ok(mut diagnostics) = check_result {
             diagnostics.retain(|d| !range.overlaps_exclusion(d.start_byte, d.end_byte));
@@ -107,7 +108,6 @@ async fn process_file_for_indexing(
             all_diagnostics.extend(diagnostics);
         }
 
-        // Yield to let foreground requests acquire the lock
         tokio::task::yield_now().await;
     }
 
@@ -117,12 +117,12 @@ async fn process_file_for_indexing(
         let insights = ProseInsights::analyze(&text);
         idx.update_diagnostics(file_path_str, &all_diagnostics)
             .unwrap_or_else(|e| {
-                eprintln!("Error updating diagnostics for {file_path_str}: {e}");
+                warn!(file = file_path_str, "Error updating diagnostics: {e}");
             });
         idx.update_insights(file_path_str, &insights)
-            .unwrap_or_else(|e| eprintln!("Error updating insights for {file_path_str}: {e}"));
+            .unwrap_or_else(|e| warn!(file = file_path_str, "Error updating insights: {e}"));
         idx.update_file_hash(file_path_str, &text)
-            .unwrap_or_else(|e| eprintln!("Error updating file hash for {file_path_str}: {e}"));
+            .unwrap_or_else(|e| warn!(file = file_path_str, "Error updating file hash: {e}"));
     }
 
     Ok(())
@@ -130,6 +130,23 @@ async fn process_file_for_indexing(
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Initialize structured logging.  In debug builds default to `debug`;
+    // in release builds default to `warn`.  The user can always override
+    // via the RUST_LOG env-var (e.g. `RUST_LOG=trace`).
+    let default_level = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "warn"
+    };
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(default_level)),
+        )
+        .with_writer(std::io::stderr)
+        .with_target(false)
+        .init();
+
     let stdin = tokio::io::stdin();
     let mut stdout = tokio::io::stdout();
     let mut buffer = BytesMut::with_capacity(4096);
@@ -144,14 +161,16 @@ async fn main() -> Result<()> {
     let workspace_index_arc: Arc<Mutex<Option<WorkspaceIndex>>> = Arc::new(Mutex::new(None));
     let indexing_notify = Arc::new(Notify::new());
 
-    // Background indexing task
+    // Background indexing task — uses its own orchestrator to avoid mutex
+    // contention with the foreground request handler.
     let indexing_handle = {
-        let orchestrator_arc = orchestrator_arc.clone();
         let config_arc = config_arc.clone();
         let ignore_store_arc = ignore_store_arc.clone();
         let schema_registry_arc = schema_registry_arc.clone();
         let workspace_index_arc = workspace_index_arc.clone();
         let indexing_notify = indexing_notify.clone();
+        // Read the foreground config to build the indexing orchestrator
+        let fg_orchestrator = orchestrator_arc.clone();
 
         tokio::spawn(async move {
             loop {
@@ -168,12 +187,20 @@ async fn main() -> Result<()> {
                 };
 
                 if let Some(root) = workspace_root {
-                    eprintln!("Starting workspace indexing for {}", root.display());
-                    let config = orchestrator_arc.lock().await.get_config().clone();
+                    info!(root = %root.display(), "Starting workspace indexing");
+
+                    // Build a dedicated orchestrator for indexing.  Force Harper-only
+                    // mode so background work never hits the LT HTTP server — this
+                    // avoids flooding LT's request queue and starving foreground
+                    // requests that genuinely need LT.
+                    let mut config = fg_orchestrator.lock().await.get_config().clone();
+                    config.engines.harper = true;
+                    config.engines.languagetool = false;
+                    config.engines.english_engine = "harper".to_string();
+                    let indexing_orchestrator =
+                        Arc::new(Mutex::new(Orchestrator::new(config.clone())));
 
                     // Build exclude matchers from config.
-                    // We use MatchOptions with require_literal_separator = false
-                    // so that "node_modules/**" matches "node_modules/a/b/c".
                     let exclude_patterns: Vec<glob::Pattern> = config
                         .exclude
                         .iter()
@@ -203,7 +230,7 @@ async fn main() -> Result<()> {
                                     continue;
                                 }
 
-                                let task_orchestrator = orchestrator_arc.clone();
+                                let task_orchestrator = indexing_orchestrator.clone();
                                 let task_config = config_arc.clone();
                                 let task_ignore_store = ignore_store_arc.clone();
                                 let task_schema_registry = schema_registry_arc.clone();
@@ -225,10 +252,10 @@ async fn main() -> Result<()> {
 
                     for task in tasks {
                         if let Err(e) = task.await {
-                            eprintln!("Error joining indexing task: {e}");
+                            warn!("Error joining indexing task: {e}");
                         }
                     }
-                    eprintln!("Finished workspace indexing for {}", root.display());
+                    info!(root = %root.display(), "Finished workspace indexing");
                 }
                 tokio::time::sleep(Duration::from_secs(600)).await; // Re-index every 10 minutes
             }
@@ -272,7 +299,7 @@ async fn main() -> Result<()> {
         let request = match Request::decode(msg_data) {
             Ok(req) => req,
             Err(e) => {
-                eprintln!("Failed to decode request: {e}");
+                error!("Failed to decode request: {e}");
                 // Send error response with id=0 since we can't read the request id
                 let response = Response {
                     id: 0,
@@ -294,6 +321,12 @@ async fn main() -> Result<()> {
                 let root_path = std::path::PathBuf::from(&req.workspace_root);
 
                 let config = Config::load(&root_path).unwrap_or_else(|_| Config::default());
+                info!(
+                    harper = config.engines.harper,
+                    languagetool = config.engines.languagetool,
+                    english_engine = %config.engines.english_engine,
+                    "Initialize: engines configured"
+                );
                 orchestrator_arc.lock().await.update_config(config.clone());
                 *config_arc.lock().await = config.clone();
 
@@ -308,19 +341,19 @@ async fn main() -> Result<()> {
                         for path_str in &config.dictionaries.paths {
                             let path = std::path::Path::new(path_str);
                             if let Err(e) = loaded_dict.load_wordlist_file(path, &root_path) {
-                                eprintln!("Warning: could not load wordlist {path_str}: {e}");
+                                warn!(path = path_str, "Could not load wordlist: {e}");
                             }
                         }
-                        eprintln!(
-                            "Dictionary loaded: {} words (bundled={}, extra_paths={})",
-                            loaded_dict.len(),
-                            config.dictionaries.bundled,
-                            config.dictionaries.paths.len(),
+                        info!(
+                            words = loaded_dict.len(),
+                            bundled = config.dictionaries.bundled,
+                            extra_paths = config.dictionaries.paths.len(),
+                            "Dictionary loaded"
                         );
                         *dictionary_arc.lock().await = loaded_dict;
                     }
                     Err(e) => {
-                        eprintln!("Warning: could not load dictionary: {e}");
+                        warn!("Could not load dictionary: {e}");
                     }
                 }
                 match IgnoreStore::load(&root_path) {
@@ -328,13 +361,13 @@ async fn main() -> Result<()> {
                         *ignore_store_arc.lock().await = loaded_store;
                     }
                     Err(e) => {
-                        eprintln!("Warning: could not load ignore store: {e}");
+                        warn!("Could not load ignore store: {e}");
                     }
                 }
 
                 match SchemaRegistry::from_workspace(&root_path) {
                     Ok(schema_registry) => {
-                        eprintln!("Loaded {} SLS schema(s)", schema_registry.len());
+                        info!(count = schema_registry.len(), "Loaded SLS schemas");
                         *schema_registry_arc.lock().await = schema_registry;
 
                         match WorkspaceIndex::new(&root_path) {
@@ -390,14 +423,26 @@ async fn main() -> Result<()> {
                         };
 
                         let mut all_diagnostics = Vec::new();
-                        let mut orchestrator = orchestrator_arc.lock().await;
-                        let ignore_store = ignore_store_arc.lock().await;
-                        let dict = dictionary_arc.lock().await;
-                        for range in ranges {
+                        let check_start = std::time::Instant::now();
+                        for range in &ranges {
                             let prose_text = range.extract_text(&req.text);
-                            if let Ok(mut diagnostics) =
-                                orchestrator.check(&prose_text, &req.language_id).await
-                            {
+                            let range_start = std::time::Instant::now();
+
+                            let mut orchestrator = orchestrator_arc.lock().await;
+                            let check_result =
+                                orchestrator.check(&prose_text, &req.language_id).await;
+                            drop(orchestrator);
+
+                            debug!(
+                                start = range.start_byte,
+                                end = range.end_byte,
+                                elapsed_ms = range_start.elapsed().as_millis() as u64,
+                                "Checked range"
+                            );
+
+                            let ignore_store = ignore_store_arc.lock().await;
+                            let dict = dictionary_arc.lock().await;
+                            if let Ok(mut diagnostics) = check_result {
                                 diagnostics.retain(|d| {
                                     !range.overlaps_exclusion(d.start_byte, d.end_byte)
                                 });
@@ -433,6 +478,12 @@ async fn main() -> Result<()> {
                                 all_diagnostics.extend(diagnostics);
                             }
                         }
+                        debug!(
+                            elapsed_ms = check_start.elapsed().as_millis() as u64,
+                            ranges = ranges.len(),
+                            diagnostics = all_diagnostics.len(),
+                            "CheckProse complete"
+                        );
 
                         // Store diagnostics and insights in workspace index (non-fatal)
                         if let Some(idx) = &*workspace_index_arc.lock().await
@@ -441,11 +492,11 @@ async fn main() -> Result<()> {
                             let insights = ProseInsights::analyze(&req.text);
                             idx.update_diagnostics(&file_path, &all_diagnostics)
                                 .unwrap_or_else(|e| {
-                                    eprintln!("Error updating diagnostics for {file_path}: {e}");
+                                    warn!(file = file_path, "Error updating diagnostics: {e}");
                                 });
                             idx.update_insights(&file_path, &insights)
                                 .unwrap_or_else(|e| {
-                                    eprintln!("Error updating insights for {file_path}: {e}");
+                                    warn!(file = file_path, "Error updating insights: {e}");
                                 });
                         }
                         Some(response::Payload::CheckProse(CheckResponse {

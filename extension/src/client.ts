@@ -2,7 +2,7 @@ import * as cp from 'child_process';
 import { languagecheck } from './proto/checker';
 import type { TraceLogger } from './trace';
 
-const REQUEST_TIMEOUT_MS = 30_000;
+const REQUEST_TIMEOUT_MS = 120_000;
 const MAX_RESTART_ATTEMPTS = 3;
 const RESTART_DELAY_MS = 1000;
 

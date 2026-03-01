@@ -7,11 +7,13 @@ import { createAPI } from './api';
 import { binaryExists, downloadBinary } from './downloader';
 import type { LanguageCheckDiagnostic } from './api';
 import type { SpeedFixDiagnostic, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo } from './events';
+import { Logger } from './logger';
 
 const GITHUB_REPO = 'KaiErikNiermann/lang-check';
 
 let client: LanguageClient | null = null;
 let traceLogger: TraceLogger | null = null;
+let log: Logger;
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('language-check');
 let speedFixPanel: vscode.WebviewPanel | null = null;
 let inspectorPanel: vscode.WebviewPanel | null = null;
@@ -35,6 +37,9 @@ let lastCheckInfo: InspectorCheckInfo | null = null;
 // Cached extraction data per document URI (from real Rust core response)
 const extractionCache = new Map<string, { prose: InspectorProseRange[]; languageId: string }>();
 
+// Tracked english_engine value from config (for change detection + inspector)
+let lastKnownEnglishEngine: string | undefined;
+
 function isSpellingRule(ruleId: string): boolean {
     return ruleId.includes('Spell') || ruleId.includes('spell') || ruleId.includes('MORFOLOGIK');
 }
@@ -43,8 +48,11 @@ function getDiagnosticWord(document: vscode.TextDocument, diagnostic: vscode.Dia
     return document.getText(diagnostic.range);
 }
 
-export function activate(context: vscode.ExtensionContext) {
-    console.log('Language Check extension activated');
+export async function activate(context: vscode.ExtensionContext) {
+    const isDev = context.extensionMode === vscode.ExtensionMode.Development;
+    log = new Logger(isDev);
+    context.subscriptions.push({ dispose: () => log.dispose() });
+    log.info('Language Check extension activated', { mode: isDev ? 'dev' : 'prod' });
 
     // First-run onboarding: show welcome notification once
     const hasSeenWelcome = context.globalState.get<boolean>('language-check.hasSeenWelcome', false);
@@ -87,21 +95,25 @@ export function activate(context: vscode.ExtensionContext) {
         }
     };
 
-    const initializeClient = () => {
+    const initializeClient = async () => {
         if (client && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-            client.sendRequest({
-                initialize: {
-                    workspaceRoot: vscode.workspace.workspaceFolders[0]!.uri.fsPath
-                }
+            const root = vscode.workspace.workspaceFolders[0]!.uri.fsPath;
+            log.debug('Sending Initialize request', { workspaceRoot: root });
+            await client.sendRequest({
+                initialize: { workspaceRoot: root }
             });
+            log.debug('Initialize response received');
         }
     };
 
+
     const startClient = (channel?: string) => {
         if (client) {
+            log.debug('Stopping existing client');
             client.stop();
         }
         const binaryPath = resolveBinaryPath(channel);
+        log.info('Starting core', { binary: binaryPath, channel: channel ?? 'stable' });
         client = new LanguageClient(binaryPath);
         if (traceLogger) client.setTraceLogger(traceLogger);
         client.onRestart(() => initializeClient());
@@ -167,6 +179,21 @@ export function activate(context: vscode.ExtensionContext) {
     // Canonical language IDs with built-in tree-sitter support, plus
     // known VS Code language ID aliases that map to a canonical ID.
     const supportedLanguages = ['markdown', 'html', 'latex', 'forester', 'tinylang', 'rst', 'sweave', 'bibtex', 'org', 'mdx', 'xhtml'];
+
+    /** Re-initialize the server, clear stale diagnostics, and recheck open documents. */
+    const reinitializeAndRecheck = async () => {
+        log.info('Reinitializing and rechecking');
+        await initializeClient();
+        diagnosticCollection.clear();
+        diagnosticsMap.clear();
+        const editors = vscode.window.visibleTextEditors.filter(e =>
+            supportedLanguages.includes(e.document.languageId)
+        );
+        log.debug('Rechecking visible editors', { count: editors.length });
+        for (const editor of editors) {
+            checkDocument(editor.document);
+        }
+    };
 
     // Register Inlay Hints Provider with invalidation support
     context.subscriptions.push(vscode.languages.registerInlayHintsProvider(
@@ -569,6 +596,65 @@ export function activate(context: vscode.ExtensionContext) {
         }
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.toggleEnglishEngine', async () => {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            vscode.window.showWarningMessage(vscode.l10n.t('No workspace folder open.'));
+            return;
+        }
+
+        // Read current config
+        const configNames = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
+        let configUri: vscode.Uri | undefined;
+        for (const name of configNames) {
+            const uri = vscode.Uri.joinPath(workspaceFolder.uri, name);
+            try {
+                await vscode.workspace.fs.stat(uri);
+                configUri = uri;
+                break;
+            } catch { /* not found */ }
+        }
+
+        // Build choices: always offer harper and languagetool
+        const choices = [
+            { label: 'harper', description: vscode.l10n.t('Fast, local (default)') },
+            { label: 'languagetool', description: vscode.l10n.t('LanguageTool server (deeper analysis)') },
+        ];
+
+        const selected = await vscode.window.showQuickPick(choices, {
+            placeHolder: vscode.l10n.t('Select English checking engine'),
+        });
+        if (!selected) return;
+
+        // Write to config file
+        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
+        try {
+            let content: string;
+            try {
+                const raw = await vscode.workspace.fs.readFile(targetUri);
+                content = Buffer.from(raw).toString('utf8');
+            } catch {
+                content = '';
+            }
+
+            if (content.includes('english_engine:')) {
+                content = content.replace(/english_engine:\s*\S+/, `english_engine: ${selected.label}`);
+            } else if (content.includes('engines:')) {
+                content = content.replace(/engines:/, `engines:\n  english_engine: ${selected.label}`);
+            } else {
+                content = `engines:\n  english_engine: ${selected.label}\n${content}`;
+            }
+
+            await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('English engine set to "{0}". Reloading...', selected.label)
+            );
+            await reinitializeAndRecheck();
+        } catch (err) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to update config: {0}', String(err)));
+        }
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('language-check.checkDocument', async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) return;
@@ -818,6 +904,53 @@ export function activate(context: vscode.ExtensionContext) {
             await updateInspectorData();
         }
     });
+
+    // Watch .languagecheck config files for english_engine changes
+    const configWatcher = vscode.workspace.createFileSystemWatcher('**/.languagecheck.{yaml,yml,json}');
+    const checkEnglishEngineChange = async () => {
+        const folder = vscode.workspace.workspaceFolders?.[0];
+        if (!folder) return;
+        for (const name of ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json']) {
+            const uri = vscode.Uri.joinPath(folder.uri, name);
+            try {
+                const raw = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+                const match = raw.match(/english_engine:\s*(\S+)/);
+                const current = match?.[1] ?? 'harper';
+                if (lastKnownEnglishEngine !== undefined && current !== lastKnownEnglishEngine) {
+                    log.info('English engine changed via config file', { from: lastKnownEnglishEngine, to: current });
+                    vscode.window.showInformationMessage(
+                        vscode.l10n.t('English engine changed to "{0}"', current)
+                    );
+                    reinitializeAndRecheck();
+                }
+                lastKnownEnglishEngine = current;
+                return;
+            } catch { /* not found, try next */ }
+        }
+    };
+    configWatcher.onDidChange(checkEnglishEngineChange);
+    configWatcher.onDidCreate(checkEnglishEngineChange);
+    context.subscriptions.push(configWatcher);
+
+    // Eagerly read the initial english_engine value so we can detect changes
+    // even if the config was modified before the extension activated.
+    {
+        const folder = vscode.workspace.workspaceFolders?.[0];
+        if (folder) {
+            for (const name of ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json']) {
+                const uri = vscode.Uri.joinPath(folder.uri, name);
+                try {
+                    const raw = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+                    const match = raw.match(/english_engine:\s*(\S+)/);
+                    lastKnownEnglishEngine = match?.[1] ?? 'harper';
+                    break;
+                } catch { /* not found, try next */ }
+            }
+        }
+        if (lastKnownEnglishEngine === undefined) {
+            lastKnownEnglishEngine = 'harper';
+        }
+    }
 
     // Listen for diagnostic changes to keep SpeedFix in sync
     context.subscriptions.push(vscode.languages.onDidChangeDiagnostics(() => {
@@ -1120,6 +1253,7 @@ function updateSpeedFixDiagnostics() {
 async function checkDocument(document: vscode.TextDocument): Promise<number> {
     if (!client) return -1;
 
+    log.debug('checkDocument', { file: document.fileName, lang: document.languageId });
     setCheckingSpinner(true);
     const timings: { name: string; durationMs: number }[] = [];
 
@@ -1241,6 +1375,7 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
                 proseRangeCount: inspectorRanges.length,
                 totalProseBytes,
                 diagnosticCount: extendedDiagnostics.length,
+                englishEngine: lastKnownEnglishEngine ?? 'harper',
             };
             // Update inspector if open
             if (inspectorPanel) {
@@ -1260,6 +1395,7 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
             return -1;
         }
     } catch (err) {
+        log.error('Failed to communicate with language-check core', { error: String(err), file: document.fileName });
         vscode.window.showErrorMessage(vscode.l10n.t('Failed to communicate with language-check core: {0}', String(err)));
         return -1;
     } finally {
