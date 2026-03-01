@@ -47,10 +47,10 @@ pub fn builtin_language_for_extension(ext: &str) -> Option<&'static str> {
 ///
 /// Checks user-defined aliases from config first, then built-in mappings.
 /// Returns `"markdown"` as the default when no match is found.
+#[must_use]
 pub fn detect_language(path: &std::path::Path, config: &Config) -> String {
-    let ext = match path.extension().and_then(|e| e.to_str()) {
-        Some(e) => e,
-        None => return "markdown".to_string(),
+    let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
+        return "markdown".to_string();
     };
 
     // User-defined aliases take priority
@@ -72,6 +72,7 @@ pub fn detect_language(path: &std::path::Path, config: &Config) -> String {
 ///
 /// Handles aliases like `"mdx"` → `"markdown"`, `"xhtml"` → `"html"`.
 /// Returns the input unchanged if it's already canonical or unknown.
+#[must_use]
 pub fn resolve_language_id(lang_id: &str) -> &str {
     for &(alias, canonical) in LANGUAGE_ID_ALIASES {
         if alias.eq_ignore_ascii_case(lang_id) {
@@ -84,6 +85,7 @@ pub fn resolve_language_id(lang_id: &str) -> &str {
 /// Get all file extensions (without leading dots) for a given canonical language ID.
 ///
 /// Combines built-in extensions with any user-defined aliases from config.
+#[must_use]
 pub fn extensions_for_language(lang_id: &str, config: &Config) -> Vec<String> {
     let mut exts: Vec<String> = BUILTIN_EXTENSIONS
         .iter()
@@ -105,6 +107,7 @@ pub fn extensions_for_language(lang_id: &str, config: &Config) -> Vec<String> {
 /// Get all `(glob_pattern, canonical_language_id)` pairs for workspace scanning.
 ///
 /// Returns one entry per file extension, e.g. `("**/*.md", "markdown")`.
+#[must_use]
 pub fn all_file_patterns(config: &Config) -> Vec<(String, String)> {
     let mut seen: HashMap<String, String> = HashMap::new();
 
@@ -130,6 +133,7 @@ pub fn all_file_patterns(config: &Config) -> Vec<(String, String)> {
 
 /// Get all language IDs that the extension should register for,
 /// including aliases that VS Code might send.
+#[must_use]
 pub fn all_activation_language_ids(config: &Config) -> Vec<String> {
     let mut ids: Vec<String> = SUPPORTED_LANGUAGE_IDS
         .iter()
@@ -158,6 +162,7 @@ pub fn all_activation_language_ids(config: &Config) -> Vec<String> {
 /// Resolve a canonical language ID to its tree-sitter [`Language`](tree_sitter::Language).
 ///
 /// Falls back to Markdown for unknown language IDs.
+#[must_use]
 pub fn resolve_ts_language(lang: &str) -> tree_sitter::Language {
     match lang {
         "html" => tree_sitter_html::LANGUAGE.into(),

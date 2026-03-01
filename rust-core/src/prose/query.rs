@@ -7,7 +7,7 @@ use super::ProseRange;
 ///
 /// This is the generic extraction path for languages where prose regions
 /// correspond directly to named AST nodes (paragraphs, headings, text nodes).
-pub(crate) fn extract(
+pub fn extract(
     text: &str,
     root: Node,
     language: &Language,

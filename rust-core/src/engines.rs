@@ -128,6 +128,7 @@ impl LanguageToolEngine {
     }
 }
 
+#[allow(clippy::too_many_lines, clippy::cast_possible_truncation)]
 #[async_trait::async_trait]
 impl Engine for LanguageToolEngine {
     fn name(&self) -> &'static str {
@@ -238,7 +239,7 @@ pub struct ExternalEngine {
 
 impl ExternalEngine {
     #[must_use]
-    pub fn new(name: String, command: String, args: Vec<String>) -> Self {
+    pub const fn new(name: String, command: String, args: Vec<String>) -> Self {
         Self {
             name,
             command,
@@ -270,7 +271,7 @@ struct ExternalDiagnostic {
     confidence: f32,
 }
 
-fn default_severity_value() -> i32 {
+const fn default_severity_value() -> i32 {
     Severity::Warning as i32
 }
 

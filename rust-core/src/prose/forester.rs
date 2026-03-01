@@ -74,7 +74,7 @@ const SKIP_KINDS: &[&str] = &[
 /// recursed into so nested known blocks are still extracted. Math (#{}, ##{})
 /// is excluded both via tree-sitter nodes and a text-based safety-net scanner.
 /// Verbatim, comments, and wiki links are always excluded.
-pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
+pub fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     let mut scopes: Vec<Vec<(usize, usize)>> = vec![vec![]];
     let mut skips: Vec<(usize, usize)> = Vec::new();
     collect_prose_nodes(root, text, &mut scopes, &mut skips, false);
@@ -184,10 +184,10 @@ fn collect_prose_nodes(
     if kind == "text" && in_prose {
         let start = node.start_byte();
         let end = node.end_byte();
-        if start < end {
-            if let Some(scope) = scopes.last_mut() {
-                scope.push((start, end));
-            }
+        if start < end
+            && let Some(scope) = scopes.last_mut()
+        {
+            scope.push((start, end));
         }
         return;
     }
@@ -405,8 +405,7 @@ fn skip_braces(b: &[u8], mut i: usize) -> usize {
 /// Skip a `\name` command and its optional brace/bracket/paren arguments.
 fn skip_command_with_args(b: &[u8], mut i: usize) -> usize {
     i += 1; // skip backslash
-    while i < b.len()
-        && (b[i].is_ascii_alphanumeric() || matches!(b[i], b'-' | b'/' | b'?' | b'*'))
+    while i < b.len() && (b[i].is_ascii_alphanumeric() || matches!(b[i], b'-' | b'/' | b'?' | b'*'))
     {
         i += 1;
     }
@@ -1301,7 +1300,9 @@ which completes the proof.}}";
             assert!(
                 !trimmed.is_empty(),
                 "No all-blank ranges should remain, got range [{}, {}) with {} exclusions",
-                range.start_byte, range.end_byte, range.exclusions.len()
+                range.start_byte,
+                range.end_byte,
+                range.exclusions.len()
             );
         }
 
@@ -1539,5 +1540,4 @@ so the result follows.}";
 
         Ok(())
     }
-
 }

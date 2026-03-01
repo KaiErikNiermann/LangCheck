@@ -269,6 +269,7 @@ async fn main() -> Result<()> {
     let stdout_arc = Arc::new(Mutex::new(tokio::io::stdout()));
 
     /// Send a length-prefixed protobuf response to stdout.
+    #[allow(clippy::items_after_statements)]
     async fn send_response(
         stdout: &Arc<Mutex<tokio::io::Stdout>>,
         response: Response,
@@ -359,279 +360,284 @@ async fn main() -> Result<()> {
         tokio::spawn(async move {
             let handler_start = std::time::Instant::now();
             let response_payload = match request.payload {
-            Some(checker::request::Payload::Initialize(req)) => {
-                let root_path = std::path::PathBuf::from(&req.workspace_root);
+                Some(checker::request::Payload::Initialize(req)) => {
+                    let root_path = std::path::PathBuf::from(&req.workspace_root);
 
-                let config = Config::load(&root_path).unwrap_or_else(|_| Config::default());
-                info!(
-                    id = request_id,
-                    harper = config.engines.harper,
-                    languagetool = config.engines.languagetool,
-                    english_engine = %config.engines.english_engine,
-                    "Initialize: engines configured"
-                );
-                orchestrator_arc.lock().await.update_config(config.clone());
-                *config_arc.lock().await = config.clone();
+                    let config = Config::load(&root_path).unwrap_or_else(|_| Config::default());
+                    info!(
+                        id = request_id,
+                        harper = config.engines.harper,
+                        languagetool = config.engines.languagetool,
+                        english_engine = %config.engines.english_engine,
+                        "Initialize: engines configured"
+                    );
+                    orchestrator_arc.lock().await.update_config(config.clone());
+                    *config_arc.lock().await = config.clone();
 
-                // Load persisted ignore store and dictionary from workspace
-                match Dictionary::load(&root_path) {
-                    Ok(mut loaded_dict) => {
-                        // Load bundled domain-specific dictionaries
-                        if config.dictionaries.bundled {
-                            loaded_dict.load_bundled();
-                        }
-                        // Load user-configured additional wordlist files
-                        for path_str in &config.dictionaries.paths {
-                            let path = std::path::Path::new(path_str);
-                            if let Err(e) = loaded_dict.load_wordlist_file(path, &root_path) {
-                                warn!(path = path_str, "Could not load wordlist: {e}");
+                    // Load persisted ignore store and dictionary from workspace
+                    match Dictionary::load(&root_path) {
+                        Ok(mut loaded_dict) => {
+                            // Load bundled domain-specific dictionaries
+                            if config.dictionaries.bundled {
+                                loaded_dict.load_bundled();
                             }
-                        }
-                        info!(
-                            words = loaded_dict.len(),
-                            bundled = config.dictionaries.bundled,
-                            extra_paths = config.dictionaries.paths.len(),
-                            "Dictionary loaded"
-                        );
-                        *dictionary_arc.lock().await = loaded_dict;
-                    }
-                    Err(e) => {
-                        warn!("Could not load dictionary: {e}");
-                    }
-                }
-                match IgnoreStore::load(&root_path) {
-                    Ok(loaded_store) => {
-                        *ignore_store_arc.lock().await = loaded_store;
-                    }
-                    Err(e) => {
-                        warn!("Could not load ignore store: {e}");
-                    }
-                }
-
-                match SchemaRegistry::from_workspace(&root_path) {
-                    Ok(schema_registry) => {
-                        info!(count = schema_registry.len(), "Loaded SLS schemas");
-                        *schema_registry_arc.lock().await = schema_registry;
-
-                        match WorkspaceIndex::new(&root_path) {
-                            Ok(index) => {
-                                let mut idx_lock = workspace_index_arc.lock().await;
-                                *idx_lock = Some(index);
-                                let should_index = config.workspace.index_on_open
-                                    || req.index_on_open.unwrap_or(false);
-                                if should_index {
-                                    info!("Workspace indexing enabled — starting background index");
-                                    indexing_notify.notify_one();
-                                } else {
-                                    debug!("Workspace indexing disabled (workspace.index_on_open = false)");
+                            // Load user-configured additional wordlist files
+                            for path_str in &config.dictionaries.paths {
+                                let path = std::path::Path::new(path_str);
+                                if let Err(e) = loaded_dict.load_wordlist_file(path, &root_path) {
+                                    warn!(path = path_str, "Could not load wordlist: {e}");
                                 }
-                                Some(response::Payload::Ok(checker::OkResponse {}))
                             }
-                            Err(e) => Some(response::Payload::Error(ErrorResponse {
-                                message: e.to_string(),
-                            })),
+                            info!(
+                                words = loaded_dict.len(),
+                                bundled = config.dictionaries.bundled,
+                                extra_paths = config.dictionaries.paths.len(),
+                                "Dictionary loaded"
+                            );
+                            *dictionary_arc.lock().await = loaded_dict;
+                        }
+                        Err(e) => {
+                            warn!("Could not load dictionary: {e}");
                         }
                     }
-                    Err(e) => Some(response::Payload::Error(ErrorResponse {
-                        message: format!("Failed to load SLS schemas: {e}"),
-                    })),
+                    match IgnoreStore::load(&root_path) {
+                        Ok(loaded_store) => {
+                            *ignore_store_arc.lock().await = loaded_store;
+                        }
+                        Err(e) => {
+                            warn!("Could not load ignore store: {e}");
+                        }
+                    }
+
+                    match SchemaRegistry::from_workspace(&root_path) {
+                        Ok(schema_registry) => {
+                            info!(count = schema_registry.len(), "Loaded SLS schemas");
+                            *schema_registry_arc.lock().await = schema_registry;
+
+                            match WorkspaceIndex::new(&root_path) {
+                                Ok(index) => {
+                                    let mut idx_lock = workspace_index_arc.lock().await;
+                                    *idx_lock = Some(index);
+                                    let should_index = config.workspace.index_on_open
+                                        || req.index_on_open.unwrap_or(false);
+                                    if should_index {
+                                        info!(
+                                            "Workspace indexing enabled — starting background index"
+                                        );
+                                        indexing_notify.notify_one();
+                                    } else {
+                                        debug!(
+                                            "Workspace indexing disabled (workspace.index_on_open = false)"
+                                        );
+                                    }
+                                    Some(response::Payload::Ok(checker::OkResponse {}))
+                                }
+                                Err(e) => Some(response::Payload::Error(ErrorResponse {
+                                    message: e.to_string(),
+                                })),
+                            }
+                        }
+                        Err(e) => Some(response::Payload::Error(ErrorResponse {
+                            message: format!("Failed to load SLS schemas: {e}"),
+                        })),
+                    }
                 }
-            }
-            Some(checker::request::Payload::CheckProse(req)) => {
-                let canonical_lang = rust_core::languages::resolve_language_id(&req.language_id);
-                let file_path = req.file_path.as_deref().map(Path::new);
-                debug!(
-                    id = request_id,
-                    language = canonical_lang,
-                    file = ?file_path,
-                    text_len = req.text.len(),
-                    "CheckProse: starting extraction"
-                );
-                let extraction = {
-                    let schema_registry = schema_registry_arc.lock().await;
-                    let cfg = config_arc.lock().await;
-                    let latex_extras = prose::latex::LatexExtras {
-                        skip_envs: &cfg.languages.latex.skip_environments,
-                        skip_commands: &cfg.languages.latex.skip_commands,
-                    };
-                    prose::extract_with_fallback(
-                        &req.text,
-                        canonical_lang,
-                        file_path,
-                        Some(&schema_registry),
-                        &latex_extras,
-                    )
-                };
-
-                match extraction {
-                    Ok(ranges) => {
-                        debug!(
-                            id = request_id,
-                            ranges = ranges.len(),
-                            "CheckProse: extraction complete, checking ranges"
-                        );
-                        let extraction_info = ExtractionInfo {
-                            prose_ranges: ranges
-                                .iter()
-                                .map(|r| ExtractionProseRange {
-                                    start_byte: r.start_byte as u32,
-                                    end_byte: r.end_byte as u32,
-                                    exclusions: r
-                                        .exclusions
-                                        .iter()
-                                        .map(|&(s, e)| ExtractionExclusion {
-                                            start_byte: s as u32,
-                                            end_byte: e as u32,
-                                        })
-                                        .collect(),
-                                })
-                                .collect(),
+                Some(checker::request::Payload::CheckProse(req)) => {
+                    let canonical_lang =
+                        rust_core::languages::resolve_language_id(&req.language_id);
+                    let file_path = req.file_path.as_deref().map(Path::new);
+                    debug!(
+                        id = request_id,
+                        language = canonical_lang,
+                        file = ?file_path,
+                        text_len = req.text.len(),
+                        "CheckProse: starting extraction"
+                    );
+                    let extraction = {
+                        let schema_registry = schema_registry_arc.lock().await;
+                        let cfg = config_arc.lock().await;
+                        let latex_extras = prose::latex::LatexExtras {
+                            skip_envs: &cfg.languages.latex.skip_environments,
+                            skip_commands: &cfg.languages.latex.skip_commands,
                         };
+                        prose::extract_with_fallback(
+                            &req.text,
+                            canonical_lang,
+                            file_path,
+                            Some(&schema_registry),
+                            &latex_extras,
+                        )
+                    };
 
-                        let mut all_diagnostics = Vec::new();
-                        let check_start = std::time::Instant::now();
-                        for (range_idx, range) in ranges.iter().enumerate() {
-                            let prose_text = range.extract_text(&req.text);
-                            let range_start = std::time::Instant::now();
-
-                            let mut orchestrator = orchestrator_arc.lock().await;
-                            let check_result =
-                                orchestrator.check(&prose_text, &req.language_id).await;
-                            drop(orchestrator);
-
+                    match extraction {
+                        Ok(ranges) => {
                             debug!(
                                 id = request_id,
-                                range = range_idx,
-                                start = range.start_byte,
-                                end = range.end_byte,
-                                elapsed_ms = range_start.elapsed().as_millis() as u64,
-                                "CheckProse: range checked"
+                                ranges = ranges.len(),
+                                "CheckProse: extraction complete, checking ranges"
                             );
+                            let extraction_info = ExtractionInfo {
+                                prose_ranges: ranges
+                                    .iter()
+                                    .map(|r| ExtractionProseRange {
+                                        start_byte: r.start_byte as u32,
+                                        end_byte: r.end_byte as u32,
+                                        exclusions: r
+                                            .exclusions
+                                            .iter()
+                                            .map(|&(s, e)| ExtractionExclusion {
+                                                start_byte: s as u32,
+                                                end_byte: e as u32,
+                                            })
+                                            .collect(),
+                                    })
+                                    .collect(),
+                            };
 
-                            let ignore_store = ignore_store_arc.lock().await;
-                            let dict = dictionary_arc.lock().await;
-                            if let Ok(mut diagnostics) = check_result {
-                                diagnostics.retain(|d| {
-                                    !range.overlaps_exclusion(d.start_byte, d.end_byte)
-                                });
-                                for d in &mut diagnostics {
-                                    d.start_byte += range.start_byte as u32;
-                                    d.end_byte += range.start_byte as u32;
-                                }
+                            let mut all_diagnostics = Vec::new();
+                            let check_start = std::time::Instant::now();
+                            for (range_idx, range) in ranges.iter().enumerate() {
+                                let prose_text = range.extract_text(&req.text);
+                                let range_start = std::time::Instant::now();
 
-                                diagnostics.retain(|d| {
-                                    let fingerprint = DiagnosticFingerprint::new(
-                                        &d.message,
-                                        &req.text,
-                                        d.start_byte as usize,
-                                        d.end_byte as usize,
-                                    );
-                                    if ignore_store.is_ignored(&fingerprint) {
-                                        return false;
+                                let mut orchestrator = orchestrator_arc.lock().await;
+                                let check_result =
+                                    orchestrator.check(&prose_text, &req.language_id).await;
+                                drop(orchestrator);
+
+                                debug!(
+                                    id = request_id,
+                                    range = range_idx,
+                                    start = range.start_byte,
+                                    end = range.end_byte,
+                                    elapsed_ms = range_start.elapsed().as_millis() as u64,
+                                    "CheckProse: range checked"
+                                );
+
+                                let ignore_store = ignore_store_arc.lock().await;
+                                let dict = dictionary_arc.lock().await;
+                                if let Ok(mut diagnostics) = check_result {
+                                    diagnostics.retain(|d| {
+                                        !range.overlaps_exclusion(d.start_byte, d.end_byte)
+                                    });
+                                    for d in &mut diagnostics {
+                                        d.start_byte += range.start_byte as u32;
+                                        d.end_byte += range.start_byte as u32;
                                     }
-                                    if d.unified_id.starts_with("spelling.") {
-                                        let word = safe_slice(
+
+                                    diagnostics.retain(|d| {
+                                        let fingerprint = DiagnosticFingerprint::new(
+                                            &d.message,
                                             &req.text,
                                             d.start_byte as usize,
                                             d.end_byte as usize,
                                         );
-                                        if dict.contains(word) {
+                                        if ignore_store.is_ignored(&fingerprint) {
                                             return false;
                                         }
-                                    }
-                                    true
-                                });
+                                        if d.unified_id.starts_with("spelling.") {
+                                            let word = safe_slice(
+                                                &req.text,
+                                                d.start_byte as usize,
+                                                d.end_byte as usize,
+                                            );
+                                            if dict.contains(word) {
+                                                return false;
+                                            }
+                                        }
+                                        true
+                                    });
 
-                                all_diagnostics.extend(diagnostics);
+                                    all_diagnostics.extend(diagnostics);
+                                }
                             }
-                        }
-                        debug!(
-                            id = request_id,
-                            elapsed_ms = check_start.elapsed().as_millis() as u64,
-                            ranges = ranges.len(),
-                            diagnostics = all_diagnostics.len(),
-                            "CheckProse complete"
-                        );
+                            debug!(
+                                id = request_id,
+                                elapsed_ms = check_start.elapsed().as_millis() as u64,
+                                ranges = ranges.len(),
+                                diagnostics = all_diagnostics.len(),
+                                "CheckProse complete"
+                            );
 
-                        // Store diagnostics and insights in workspace index (non-fatal)
-                        if let Some(idx) = &*workspace_index_arc.lock().await
-                            && let Some(file_path) = req.file_path.clone()
-                        {
-                            let insights = ProseInsights::analyze(&req.text);
-                            idx.update_diagnostics(&file_path, &all_diagnostics)
-                                .unwrap_or_else(|e| {
-                                    warn!(file = file_path, "Error updating diagnostics: {e}");
-                                });
-                            idx.update_insights(&file_path, &insights)
-                                .unwrap_or_else(|e| {
-                                    warn!(file = file_path, "Error updating insights: {e}");
-                                });
+                            // Store diagnostics and insights in workspace index (non-fatal)
+                            if let Some(idx) = &*workspace_index_arc.lock().await
+                                && let Some(file_path) = req.file_path.clone()
+                            {
+                                let insights = ProseInsights::analyze(&req.text);
+                                idx.update_diagnostics(&file_path, &all_diagnostics)
+                                    .unwrap_or_else(|e| {
+                                        warn!(file = file_path, "Error updating diagnostics: {e}");
+                                    });
+                                idx.update_insights(&file_path, &insights)
+                                    .unwrap_or_else(|e| {
+                                        warn!(file = file_path, "Error updating insights: {e}");
+                                    });
+                            }
+                            Some(response::Payload::CheckProse(CheckResponse {
+                                diagnostics: all_diagnostics,
+                                extraction: Some(extraction_info),
+                            }))
                         }
-                        Some(response::Payload::CheckProse(CheckResponse {
-                            diagnostics: all_diagnostics,
-                            extraction: Some(extraction_info),
-                        }))
-                    }
-                    Err(e) => Some(response::Payload::Error(ErrorResponse {
-                        message: format!("Extraction error: {e}"),
-                    })),
-                }
-            }
-            Some(checker::request::Payload::GetMetadata(_)) => {
-                Some(response::Payload::GetMetadata(MetadataResponse {
-                    name: "Rust Core".to_string(),
-                    version: "0.1.0".to_string(),
-                    supported_languages: rust_core::languages::SUPPORTED_LANGUAGE_IDS
-                        .iter()
-                        .map(|s| (*s).to_string())
-                        .collect(),
-                }))
-            }
-            Some(checker::request::Payload::Ignore(req)) => {
-                debug!(id = request_id, "Ignore: adding fingerprint");
-                let mut ignore_store = ignore_store_arc.lock().await;
-                let fingerprint = if req.text.is_empty() {
-                    DiagnosticFingerprint::new(
-                        &req.message,
-                        &req.context,
-                        0,
-                        req.context.len(),
-                    )
-                } else {
-                    DiagnosticFingerprint::new(
-                        &req.message,
-                        &req.text,
-                        req.start_byte as usize,
-                        req.end_byte as usize,
-                    )
-                };
-                ignore_store.ignore(&fingerprint);
-
-                Some(response::Payload::Ok(checker::OkResponse {}))
-            }
-            Some(checker::request::Payload::AddDictionaryWord(req)) => {
-                debug!(id = request_id, word = %req.word, "AddDictionaryWord: persisting");
-                let mut dict = dictionary_arc.lock().await;
-                match dict.add_word(&req.word) {
-                    Ok(()) => {
-                        info!(id = request_id, word = %req.word, "Word added to dictionary");
-                        Some(response::Payload::Ok(checker::OkResponse {}))
-                    }
-                    Err(e) => {
-                        warn!(id = request_id, word = %req.word, "Failed to add word: {e}");
-                        Some(response::Payload::Error(ErrorResponse {
-                            message: format!("Failed to add word to dictionary: {e}"),
-                        }))
+                        Err(e) => Some(response::Payload::Error(ErrorResponse {
+                            message: format!("Extraction error: {e}"),
+                        })),
                     }
                 }
-            }
-            None => Some(response::Payload::Error(ErrorResponse {
-                message: "Empty payload".to_string(),
-            })),
-        };
+                Some(checker::request::Payload::GetMetadata(_)) => {
+                    Some(response::Payload::GetMetadata(MetadataResponse {
+                        name: "Rust Core".to_string(),
+                        version: "0.1.0".to_string(),
+                        supported_languages: rust_core::languages::SUPPORTED_LANGUAGE_IDS
+                            .iter()
+                            .map(|s| (*s).to_string())
+                            .collect(),
+                    }))
+                }
+                Some(checker::request::Payload::Ignore(req)) => {
+                    debug!(id = request_id, "Ignore: adding fingerprint");
+                    let mut ignore_store = ignore_store_arc.lock().await;
+                    let fingerprint = if req.text.is_empty() {
+                        DiagnosticFingerprint::new(&req.message, &req.context, 0, req.context.len())
+                    } else {
+                        DiagnosticFingerprint::new(
+                            &req.message,
+                            &req.text,
+                            req.start_byte as usize,
+                            req.end_byte as usize,
+                        )
+                    };
+                    ignore_store.ignore(&fingerprint);
+
+                    Some(response::Payload::Ok(checker::OkResponse {}))
+                }
+                Some(checker::request::Payload::AddDictionaryWord(req)) => {
+                    debug!(id = request_id, word = %req.word, "AddDictionaryWord: persisting");
+                    let mut dict = dictionary_arc.lock().await;
+                    match dict.add_word(&req.word) {
+                        Ok(()) => {
+                            info!(id = request_id, word = %req.word, "Word added to dictionary");
+                            Some(response::Payload::Ok(checker::OkResponse {}))
+                        }
+                        Err(e) => {
+                            warn!(id = request_id, word = %req.word, "Failed to add word: {e}");
+                            Some(response::Payload::Error(ErrorResponse {
+                                message: format!("Failed to add word to dictionary: {e}"),
+                            }))
+                        }
+                    }
+                }
+                None => Some(response::Payload::Error(ErrorResponse {
+                    message: "Empty payload".to_string(),
+                })),
+            };
 
             let elapsed = handler_start.elapsed().as_millis() as u64;
-            debug!(id = request_id, kind = payload_kind, elapsed_ms = elapsed, "Response ready");
+            debug!(
+                id = request_id,
+                kind = payload_kind,
+                elapsed_ms = elapsed,
+                "Response ready"
+            );
 
             let response = Response {
                 id: request_id,

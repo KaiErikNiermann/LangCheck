@@ -106,7 +106,7 @@ impl Default for PerformanceConfig {
     }
 }
 
-fn default_debounce_ms() -> u64 {
+const fn default_debounce_ms() -> u64 {
     300
 }
 
@@ -282,10 +282,10 @@ impl Config {
         let mut total = 0;
 
         for rule in &self.auto_fix {
-            if let Some(ctx) = &rule.context {
-                if !result.contains(ctx.as_str()) {
-                    continue;
-                }
+            if let Some(ctx) = &rule.context
+                && !result.contains(ctx.as_str())
+            {
+                continue;
             }
             let count = result.matches(&rule.find).count();
             if count > 0 {

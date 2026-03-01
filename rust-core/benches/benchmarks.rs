@@ -17,8 +17,12 @@ fn prose_extraction_short_markdown(bencher: divan::Bencher) {
     bencher
         .with_inputs(|| ProseExtractor::new(tree_sitter_md::LANGUAGE.into()).unwrap())
         .bench_local_refs(|ext| {
-            ext.extract("# Hello\n\nA short paragraph.", "markdown", &LatexExtras::default())
-                .unwrap()
+            ext.extract(
+                "# Hello\n\nA short paragraph.",
+                "markdown",
+                &LatexExtras::default(),
+            )
+            .unwrap()
         });
 }
 
@@ -27,7 +31,10 @@ fn prose_extraction_long_markdown(bencher: divan::Bencher) {
     let text = generate_markdown(100);
     bencher
         .with_inputs(|| ProseExtractor::new(tree_sitter_md::LANGUAGE.into()).unwrap())
-        .bench_local_refs(|ext| ext.extract(&text, "markdown", &LatexExtras::default()).unwrap());
+        .bench_local_refs(|ext| {
+            ext.extract(&text, "markdown", &LatexExtras::default())
+                .unwrap()
+        });
 }
 
 #[divan::bench]

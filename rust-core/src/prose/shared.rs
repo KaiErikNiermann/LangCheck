@@ -7,7 +7,7 @@
 use super::ProseRange;
 
 /// Characters that are allowed in a bridgeable gap (after noise stripping).
-fn is_bridge_char(c: char) -> bool {
+const fn is_bridge_char(c: char) -> bool {
     c.is_ascii_whitespace()
         || matches!(
             c,
@@ -56,15 +56,15 @@ pub fn merge_ranges(
     for &(start, end) in &words[1..] {
         let gap = &text[chunk_end..start];
 
-        if !is_bridgeable_gap(gap, strip_noise) {
+        if is_bridgeable_gap(gap, strip_noise) {
+            collect_exclusions(gap, chunk_end, &mut exclusions);
+        } else {
             ranges.push(ProseRange {
                 start_byte: chunk_start,
                 end_byte: chunk_end,
                 exclusions: std::mem::take(&mut exclusions),
             });
             chunk_start = start;
-        } else {
-            collect_exclusions(gap, chunk_end, &mut exclusions);
         }
         chunk_end = end;
     }

@@ -128,7 +128,7 @@ fn is_chunk_end(line: &[u8]) -> bool {
 /// LaTeX prose extractor. Since preprocessing preserves byte offsets (replacing
 /// code bytes with spaces and keeping newlines), the returned ranges map
 /// directly back to the original document.
-pub(crate) fn extract(text: &str, root: Node, latex_extras: &LatexExtras) -> Vec<ProseRange> {
+pub fn extract(text: &str, root: Node, latex_extras: &LatexExtras) -> Vec<ProseRange> {
     let preprocessed = preprocess(text);
 
     // Re-parse the preprocessed text with the same LaTeX grammar so that the

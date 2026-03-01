@@ -11,12 +11,12 @@ pub const DEFAULT_SCHEMA_DIR: &str = ".langcheck/schemas";
 /// A Simplified Language Schema definition, loaded from YAML.
 ///
 /// Defines how to extract prose regions from a file format using regex patterns,
-/// for languages that don't have tree-sitter grammars (e.g. RST, AsciiDoc, TOML).
+/// for languages that don't have tree-sitter grammars (e.g. RST, `AsciiDoc`, TOML).
 #[derive(Debug, Deserialize, Clone)]
 pub struct LanguageSchema {
     /// Schema name (e.g. "restructuredtext").
     pub name: String,
-    /// File extensions this schema handles (e.g. ["rst", "rest"]).
+    /// File extensions this schema handles (e.g. [`rst`, `rest`]).
     #[serde(default)]
     pub extensions: Vec<String>,
     /// Patterns that match lines containing prose text.
@@ -250,11 +250,11 @@ impl SchemaRegistry {
         for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
-            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                if ext == "yaml" || ext == "yml" {
-                    self.load_file(&path)?;
-                    count += 1;
-                }
+            if let Some(ext) = path.extension().and_then(|e| e.to_str())
+                && (ext == "yaml" || ext == "yml")
+            {
+                self.load_file(&path)?;
+                count += 1;
             }
         }
         Ok(count)
@@ -277,13 +277,13 @@ impl SchemaRegistry {
 
     /// Number of loaded schemas.
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.schemas.len()
     }
 
     /// Whether the registry is empty.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.schemas.is_empty()
     }
 

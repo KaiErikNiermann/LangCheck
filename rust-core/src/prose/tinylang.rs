@@ -18,12 +18,12 @@ const SKIP_KINDS: &[&str] = &[
     "link_url",
 ];
 
-/// Extract prose ranges from a TinyLang AST.
+/// Extract prose ranges from a `TinyLang` AST.
 ///
 /// Walks the tree collecting `text` leaf nodes, skipping math, code, comments,
 /// and structural command arguments. Adjacent text nodes are merged into
 /// sentence-level prose chunks with gap analysis.
-pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
+pub fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     let mut word_ranges: Vec<(usize, usize)> = Vec::new();
     collect_prose_nodes(root, text, false, &mut word_ranges);
     shared::merge_ranges(
@@ -122,7 +122,7 @@ fn collect_math_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, u
     }
 }
 
-/// Strip TinyLang noise from a gap string: math, commands, code spans, etc.
+/// Strip `TinyLang` noise from a gap string: math, commands, code spans, etc.
 fn strip_tinylang_noise(gap: &str) -> String {
     let mut result = String::new();
     let chars: Vec<char> = gap.chars().collect();

@@ -107,13 +107,16 @@ fn apply_type_overrides(
     type_regions: &[&DirectiveRegion],
     latex_extras: &latex::LatexExtras,
 ) -> Result<Vec<ProseRange>> {
-    let override_spans: Vec<&Range<usize>> =
-        type_regions.iter().map(|r| &r.byte_range).collect();
+    let override_spans: Vec<&Range<usize>> = type_regions.iter().map(|r| &r.byte_range).collect();
 
     // Keep base ranges that don't start inside any type-override region.
     let mut result: Vec<ProseRange> = base_ranges
         .into_iter()
-        .filter(|r| !override_spans.iter().any(|span| span.contains(&r.start_byte)))
+        .filter(|r| {
+            !override_spans
+                .iter()
+                .any(|span| span.contains(&r.start_byte))
+        })
         .collect();
 
     for region in type_regions {
@@ -121,9 +124,7 @@ fn apply_type_overrides(
         let canonical = crate::languages::resolve_language_id(doc_type);
 
         if !crate::languages::SUPPORTED_LANGUAGE_IDS.contains(&canonical) {
-            eprintln!(
-                "lang-check: `type:{doc_type}` is not a supported language; skipping region"
-            );
+            eprintln!("lang-check: `type:{doc_type}` is not a supported language; skipping region");
             continue;
         }
 
@@ -162,6 +163,7 @@ pub struct ProseRange {
 impl ProseRange {
     /// Extract the prose text from the full document, replacing any excluded
     /// regions with spaces so that byte offsets remain stable.
+    #[must_use]
     pub fn extract_text<'a>(&self, text: &'a str) -> std::borrow::Cow<'a, str> {
         let slice = &text[self.start_byte..self.end_byte];
         if self.exclusions.is_empty() {
@@ -184,6 +186,8 @@ impl ProseRange {
 
     /// Check whether a local byte range (relative to this prose range)
     /// overlaps with any exclusion zone.
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
     pub fn overlaps_exclusion(&self, local_start: u32, local_end: u32) -> bool {
         let doc_start = self.start_byte as u32 + local_start;
         let doc_end = self.start_byte as u32 + local_end;

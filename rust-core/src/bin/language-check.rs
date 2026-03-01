@@ -244,8 +244,13 @@ async fn check_file(
         println!("Checking {}...", style(&*file_str).cyan());
     }
 
-    let ranges =
-        prose::extract_with_fallback(&text, lang, Some(path.as_path()), Some(schema_registry), &prose::latex::LatexExtras::default())?;
+    let ranges = prose::extract_with_fallback(
+        &text,
+        lang,
+        Some(path.as_path()),
+        Some(schema_registry),
+        &prose::latex::LatexExtras::default(),
+    )?;
     let mut found_issues = 0;
 
     for range in ranges {
@@ -316,8 +321,13 @@ async fn fix_file(
     let mut text = fs::read_to_string(path)?;
     println!("Fixing {}...", style(path.to_string_lossy()).cyan());
 
-    let ranges =
-        prose::extract_with_fallback(&text, lang, Some(path.as_path()), Some(schema_registry), &prose::latex::LatexExtras::default())?;
+    let ranges = prose::extract_with_fallback(
+        &text,
+        lang,
+        Some(path.as_path()),
+        Some(schema_registry),
+        &prose::latex::LatexExtras::default(),
+    )?;
     let mut total_fixes = 0;
 
     let mut all_diagnostics = Vec::new();

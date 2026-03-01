@@ -17,7 +17,7 @@ const SKIP_NODES: &[&str] = &[
 ///
 /// Walks the tree collecting `paragraph` and heading `item` nodes as prose.
 /// Skips code blocks, drawers, LaTeX environments, and other non-prose elements.
-pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
+pub fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     let mut ranges = Vec::new();
     collect_prose(root, text, &mut ranges);
     ranges
@@ -51,21 +51,20 @@ fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>) {
     }
 
     // Heading item nodes contain the heading text
-    if kind == "item" {
-        if let Some(parent) = node.parent() {
-            if parent.kind() == "headline" {
-                let start = node.start_byte();
-                let end = node.end_byte();
-                if start < end {
-                    out.push(ProseRange {
-                        start_byte: start,
-                        end_byte: end,
-                        exclusions: Vec::new(),
-                    });
-                }
-                return;
-            }
+    if kind == "item"
+        && let Some(parent) = node.parent()
+        && parent.kind() == "headline"
+    {
+        let start = node.start_byte();
+        let end = node.end_byte();
+        if start < end {
+            out.push(ProseRange {
+                start_byte: start,
+                end_byte: end,
+                exclusions: Vec::new(),
+            });
         }
+        return;
     }
 
     let mut cursor = node.walk();

@@ -284,6 +284,7 @@ fn should_skip_generic_command(node: Node, text: &str, extra_skip_commands: &[St
 /// escape sequences (`\\`, `\,`, etc.).  Display math exclusions are
 /// extended to cover surrounding whitespace so that the grammar checker
 /// doesn't see false paragraph breaks.
+#[allow(clippy::too_many_lines)]
 fn collect_gap_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, usize)>) {
     let bytes = gap.as_bytes();
     let len = bytes.len();
@@ -394,6 +395,7 @@ fn collect_gap_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, us
 /// excluded from the prose text via `ProseRange.exclusions`, so stripping
 /// it here is safe. Leaves braces, whitespace, and punctuation intact for
 /// subsequent validation.
+#[allow(clippy::too_many_lines)]
 fn strip_latex_noise(gap: &str) -> String {
     let mut result = String::new();
     let chars: Vec<char> = gap.chars().collect();
@@ -1084,7 +1086,9 @@ Some real prose here.
 
         // \hfill should break merging — LV and Assignment 1 should not be in the same range
         assert!(
-            !extracted.iter().any(|t| t.contains("LV") && t.contains("Assignment")),
+            !extracted
+                .iter()
+                .any(|t| t.contains("LV") && t.contains("Assignment")),
             "\\hfill should break ranges, got: {extracted:?}"
         );
         assert!(
@@ -1129,11 +1133,15 @@ That concludes the grammar.
             "Should extract prose before bnf, got: {extracted:?}"
         );
         assert!(
-            extracted.iter().any(|t| t.contains("concludes the grammar")),
+            extracted
+                .iter()
+                .any(|t| t.contains("concludes the grammar")),
             "Should extract prose after bnf, got: {extracted:?}"
         );
         assert!(
-            !extracted.iter().any(|t| t.contains("prod-delim") || t.contains("colspec")),
+            !extracted
+                .iter()
+                .any(|t| t.contains("prod-delim") || t.contains("colspec")),
             "Should NOT extract bnf parameters, got: {extracted:?}"
         );
 
@@ -1294,7 +1302,10 @@ Text after custom env.
 
         // With extra skip envs, prooftree content is skipped
         let extra = vec!["prooftree".to_string()];
-        let extras = LatexExtras { skip_envs: &extra, ..LatexExtras::default() };
+        let extras = LatexExtras {
+            skip_envs: &extra,
+            ..LatexExtras::default()
+        };
         let ranges = extractor.extract(text, "latex", &extras)?;
         let extracted: Vec<&str> = ranges
             .iter()

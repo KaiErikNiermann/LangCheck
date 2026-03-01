@@ -210,10 +210,7 @@ impl IgnoreParser {
         for directive in directives {
             match &directive.kind {
                 DirectiveKind::Begin => {
-                    let opts = directive
-                        .options
-                        .clone()
-                        .unwrap_or_default();
+                    let opts = directive.options.clone().unwrap_or_default();
 
                     if let Some((a, b)) = opts.line_slice {
                         // Auto-closing: scope covers lines a..b after the directive
@@ -232,10 +229,7 @@ impl IgnoreParser {
                 }
                 DirectiveKind::End => {
                     if let Some(begin) = open_begins.pop() {
-                        let opts = begin
-                            .options
-                            .clone()
-                            .unwrap_or_default();
+                        let opts = begin.options.clone().unwrap_or_default();
                         let start = next_line_start(text, begin.line_end);
                         let end = directive.line_start;
                         if start < end {
@@ -252,10 +246,7 @@ impl IgnoreParser {
 
         // Unclosed begins extend to EOF
         for begin in open_begins {
-            let opts = begin
-                .options
-                .clone()
-                .unwrap_or_default();
+            let opts = begin.options.clone().unwrap_or_default();
             let start = next_line_start(text, begin.line_end);
             if start < text.len() {
                 regions.push(DirectiveRegion {
@@ -670,10 +661,7 @@ mod tests {
         let directives = IgnoreParser::parse_directives(text);
         let resolved = IgnoreParser::resolve_all(text, &directives);
         assert_eq!(resolved.regions.len(), 1);
-        assert_eq!(
-            resolved.regions[0].options.language,
-            Some("fr".to_string())
-        );
+        assert_eq!(resolved.regions[0].options.language, Some("fr".to_string()));
     }
 
     #[test]
@@ -690,7 +678,8 @@ mod tests {
 
     #[test]
     fn parse_begin_with_match_exclude() {
-        let text = "<!-- lang-check-begin match:/^>/ exclude:/TODO/ -->\ntext\n<!-- lang-check-end -->";
+        let text =
+            "<!-- lang-check-begin match:/^>/ exclude:/TODO/ -->\ntext\n<!-- lang-check-end -->";
         let directives = IgnoreParser::parse_directives(text);
         let resolved = IgnoreParser::resolve_all(text, &directives);
         assert_eq!(resolved.regions.len(), 1);
@@ -792,8 +781,7 @@ mod tests {
 
     #[test]
     fn begin_end_with_match_filter() {
-        let text =
-            "<!-- lang-check-begin match:/^>/ -->\n> Quoted line\nNormal line\n<!-- lang-check-end -->";
+        let text = "<!-- lang-check-begin match:/^>/ -->\n> Quoted line\nNormal line\n<!-- lang-check-end -->";
         let directives = IgnoreParser::parse_directives(text);
         let resolved = IgnoreParser::resolve_all(text, &directives);
 
@@ -816,8 +804,7 @@ mod tests {
 
     #[test]
     fn begin_end_with_exclude_filter() {
-        let text =
-            "<!-- lang-check-begin exclude:/TODO/ -->\nCheck this\nTODO skip this\n<!-- lang-check-end -->";
+        let text = "<!-- lang-check-begin exclude:/TODO/ -->\nCheck this\nTODO skip this\n<!-- lang-check-end -->";
         let directives = IgnoreParser::parse_directives(text);
         let resolved = IgnoreParser::resolve_all(text, &directives);
 
@@ -846,19 +833,18 @@ mod tests {
 
         // Legacy disable range
         assert_eq!(resolved.ignore_ranges.len(), 1);
-        assert!(
-            text[resolved.ignore_ranges[0].byte_range.clone()].contains("Disabled")
-        );
+        assert!(text[resolved.ignore_ranges[0].byte_range.clone()].contains("Disabled"));
 
         // Begin/end region
         assert_eq!(resolved.regions.len(), 1);
-        assert!(
-            text[resolved.regions[0].byte_range.clone()].contains("Begin region")
-        );
+        assert!(text[resolved.regions[0].byte_range.clone()].contains("Begin region"));
 
         // Both systems suppress their respective content
         let d_disabled = make_diag(text, "Disabled", "r", "spelling.typo");
-        assert!(IgnoreParser::should_ignore(&d_disabled, &resolved.ignore_ranges));
+        assert!(IgnoreParser::should_ignore(
+            &d_disabled,
+            &resolved.ignore_ranges
+        ));
 
         let d_begin = make_diag(text, "Begin region", "r", "spelling.typo");
         assert!(IgnoreParser::should_ignore_by_region(
@@ -868,7 +854,10 @@ mod tests {
         ));
 
         let d_clean = make_diag(text, "Clean", "r", "spelling.typo");
-        assert!(!IgnoreParser::should_ignore(&d_clean, &resolved.ignore_ranges));
+        assert!(!IgnoreParser::should_ignore(
+            &d_clean,
+            &resolved.ignore_ranges
+        ));
         assert!(!IgnoreParser::should_ignore_by_region(
             &d_clean,
             text,

@@ -1,0 +1,1692 @@
+<?xml version="1.0"?>
+<sources>
+  <source name="/home/as_user/Projects/notes/trees/004q.tree">
+    <source_file srow="0" scol="0" erow="132" ecol="0">
+      <command srow="0" scol="0" erow="0" ecol="17">
+        <command_name srow="0" scol="0" erow="0" ecol="5">\date</command_name>
+        <brace_group srow="0" scol="5" erow="0" ecol="17">
+          {
+          <text srow="0" scol="6" erow="0" ecol="16">2026-02-11</text>
+          }
+        </brace_group>
+      </command>
+      <command srow="2" scol="0" erow="2" ecol="20">
+        <command_name srow="2" scol="0" erow="2" ecol="7">\import</command_name>
+        <brace_group srow="2" scol="7" erow="2" ecol="20">
+          {
+          <text srow="2" scol="8" erow="2" ecol="19">base-macros</text>
+          }
+        </brace_group>
+      </command>
+      <command srow="4" scol="0" erow="4" ecol="18">
+        <command_name srow="4" scol="0" erow="4" ecol="6">\taxon</command_name>
+        <brace_group srow="4" scol="6" erow="4" ecol="18">
+          {
+          <text srow="4" scol="7" erow="4" ecol="17">VU-AL-2026</text>
+          }
+        </brace_group>
+      </command>
+      <command srow="6" scol="0" erow="6" ecol="17">
+        <command_name srow="6" scol="0" erow="6" ecol="6">\title</command_name>
+        <brace_group srow="6" scol="6" erow="6" ecol="17">
+          {
+          <text srow="6" scol="7" erow="6" ecol="14">Lecture</text>
+          <text srow="6" scol="15" erow="6" ecol="16">2</text>
+          }
+        </brace_group>
+      </command>
+      <command srow="8" scol="0" erow="131" ecol="1">
+        <command_name srow="8" scol="0" erow="8" ecol="8">\subtree</command_name>
+        <bracket_group srow="8" scol="8" erow="8" ecol="14">
+          [
+          <text srow="8" scol="9" erow="8" ecol="13">006q</text>
+          ]
+        </bracket_group>
+        <brace_group srow="8" scol="14" erow="131" ecol="1">
+          {
+          <command srow="9" scol="2" erow="9" ecol="34">
+            <command_name srow="9" scol="2" erow="9" ecol="8">\title</command_name>
+            <brace_group srow="9" scol="8" erow="9" ecol="34">
+              {
+              <text srow="9" scol="9" erow="9" ecol="14">State</text>
+              <text srow="9" scol="15" erow="9" ecol="17">in</text>
+              <text srow="9" scol="18" erow="9" ecol="19">a</text>
+              <bracket_group srow="9" scol="20" erow="9" ecol="27">
+                [
+                <text srow="9" scol="21" erow="9" ecol="26">frame</text>
+                ]
+              </bracket_group>
+              <paren_group srow="9" scol="27" erow="9" ecol="33">
+                (
+                <text srow="9" scol="28" erow="9" ecol="32">006j</text>
+                )
+              </paren_group>
+              }
+            </brace_group>
+          </command>
+          <command srow="11" scol="2" erow="13" ecol="3">
+            <command_name srow="11" scol="2" erow="11" ecol="4">\p</command_name>
+            <brace_group srow="11" scol="4" erow="13" ecol="3">
+              {
+              <text srow="12" scol="4" erow="12" ecol="5">A</text>
+              <text srow="12" scol="6" erow="12" ecol="11">state</text>
+              <text srow="12" scol="12" erow="12" ecol="14">in</text>
+              <text srow="12" scol="15" erow="12" ecol="16">a</text>
+              <text srow="12" scol="17" erow="12" ecol="22">frame</text>
+              <text srow="12" scol="23" erow="12" ecol="25">is</text>
+              <text srow="12" scol="26" erow="12" ecol="30">just</text>
+              <text srow="12" scol="31" erow="12" ecol="33">an</text>
+              <text srow="12" scol="34" erow="12" ecol="41">element</text>
+              <text srow="12" scol="42" erow="12" ecol="44">of</text>
+              <text srow="12" scol="45" erow="12" ecol="48">the</text>
+              <text srow="12" scol="49" erow="12" ecol="52">set</text>
+              <text srow="12" scol="53" erow="12" ecol="55">of</text>
+              <text srow="12" scol="56" erow="12" ecol="64">possible</text>
+              <text srow="12" scol="65" erow="12" ecol="71">worlds</text>
+              <inline_math srow="12" scol="72" erow="12" ecol="82">
+                #{
+                <math_text srow="12" scol="74" erow="12" ecol="75">w</math_text>
+                <math_command srow="12" scol="76" erow="12" ecol="79">
+                  <command_name srow="12" scol="76" erow="12" ecol="79">\in</command_name>
+                </math_command>
+                <math_text srow="12" scol="80" erow="12" ecol="81">W</math_text>
+                }
+              </inline_math>
+              <text srow="12" scol="83" erow="12" ecol="85">in</text>
+              <text srow="12" scol="86" erow="12" ecol="89">the</text>
+              <text srow="12" scol="90" erow="12" ecol="95">frame</text>
+              <inline_math srow="12" scol="96" erow="12" ecol="120">
+                #{
+                <math_command srow="12" scol="98" erow="12" ecol="106">
+                  <command_name srow="12" scol="98" erow="12" ecol="106">\mathcal</command_name>
+                </math_command>
+                <math_text srow="12" scol="107" erow="12" ecol="108">F</math_text>
+                <math_text srow="12" scol="109" erow="12" ecol="110">=</math_text>
+                <math_escape srow="12" scol="111" erow="12" ecol="113">\{</math_escape>
+                <math_text srow="12" scol="113" erow="12" ecol="115">W,</math_text>
+                <math_text srow="12" scol="116" erow="12" ecol="117">R</math_text>
+                <math_escape srow="12" scol="117" erow="12" ecol="119">\}</math_escape>
+                }
+              </inline_math>
+              }
+            </brace_group>
+          </command>
+          <command srow="14" scol="2" erow="93" ecol="3">
+            <command_name srow="14" scol="2" erow="14" ecol="10">\subtree</command_name>
+            <bracket_group srow="14" scol="10" erow="14" ecol="16">
+              [
+              <text srow="14" scol="11" erow="14" ecol="15">006r</text>
+              ]
+            </bracket_group>
+            <brace_group srow="14" scol="16" erow="93" ecol="3">
+              {
+              <command srow="15" scol="4" erow="15" ecol="19">
+                <command_name srow="15" scol="4" erow="15" ecol="10">\taxon</command_name>
+                <brace_group srow="15" scol="10" erow="15" ecol="19">
+                  {
+                  <text srow="15" scol="11" erow="15" ecol="18">Example</text>
+                  }
+                </brace_group>
+              </command>
+              <command srow="16" scol="4" erow="16" ecol="41">
+                <command_name srow="16" scol="4" erow="16" ecol="10">\title</command_name>
+                <brace_group srow="16" scol="10" erow="16" ecol="41">
+                  {
+                  <text srow="16" scol="11" erow="16" ecol="19">Examples</text>
+                  <text srow="16" scol="20" erow="16" ecol="22">of</text>
+                  <text srow="16" scol="23" erow="16" ecol="29">states</text>
+                  <text srow="16" scol="30" erow="16" ecol="32">in</text>
+                  <text srow="16" scol="33" erow="16" ecol="34">a</text>
+                  <text srow="16" scol="35" erow="16" ecol="40">frame</text>
+                  }
+                </brace_group>
+              </command>
+              <command srow="18" scol="4" erow="20" ecol="5">
+                <command_name srow="18" scol="4" erow="18" ecol="6">\p</command_name>
+                <brace_group srow="18" scol="6" erow="20" ecol="5">
+                  {
+                  <text srow="19" scol="6" erow="19" ecol="8">To</text>
+                  <text srow="19" scol="9" erow="19" ecol="16">provide</text>
+                  <text srow="19" scol="17" erow="19" ecol="21">some</text>
+                  <text srow="19" scol="22" erow="19" ecol="30">examples</text>
+                  <text srow="19" scol="31" erow="19" ecol="33">of</text>
+                  <text srow="19" scol="34" erow="19" ecol="40">states</text>
+                  <text srow="19" scol="41" erow="19" ecol="43">in</text>
+                  <text srow="19" scol="44" erow="19" ecol="45">a</text>
+                  <text srow="19" scol="46" erow="19" ecol="51">frame</text>
+                  <text srow="19" scol="52" erow="19" ecol="57">let's</text>
+                  <text srow="19" scol="58" erow="19" ecol="62">look</text>
+                  <text srow="19" scol="63" erow="19" ecol="65">at</text>
+                  <text srow="19" scol="66" erow="19" ecol="69">the</text>
+                  <text srow="19" scol="70" erow="19" ecol="77">diagram</text>
+                  <text srow="19" scol="78" erow="19" ecol="82">from</text>
+                  <text srow="19" scol="83" erow="19" ecol="90">Lecture</text>
+                  <text srow="19" scol="91" erow="19" ecol="92">1</text>
+                  <text srow="19" scol="93" erow="19" ecol="98">again</text>
+                  }
+                </brace_group>
+              </command>
+              <command srow="21" scol="4" erow="34" ecol="7">
+                <command_name srow="21" scol="4" erow="21" ecol="12">\ltexfig</command_name>
+                <brace_group srow="21" scol="12" erow="22" ecol="7">
+                  {
+                  <text srow="21" scol="13" erow="21" ecol="144">https://q.uiver.app/#q=WzAsNCxbMCwxLCIxIl0sWzEsMCwiMiJdLFsyLDEsIjQiXSxbMSwyLCIzIl0sWzAsMV0sWzEsMl0sWzAsM10sWzMsMl0sWzAsMl0sWzEsMV1d</text>
+                  }
+                </brace_group>
+                <brace_group srow="22" scol="7" erow="34" ecol="7">
+                  {
+                  <escape srow="23" scol="8" erow="23" ecol="10">\[</escape>
+                  <command srow="23" scol="10" erow="23" ecol="24">
+                    <command_name srow="23" scol="10" erow="23" ecol="16">\begin</command_name>
+                    <brace_group srow="23" scol="16" erow="23" ecol="24">
+                      {
+                      <text srow="23" scol="17" erow="23" ecol="23">tikzcd</text>
+                      }
+                    </brace_group>
+                  </command>
+                  <text srow="24" scol="10" erow="24" ecol="11">&amp;</text>
+                  <text srow="24" scol="12" erow="24" ecol="13">2</text>
+                  <text srow="24" scol="14" erow="24" ecol="15">&amp;</text>
+                  <escape srow="24" scol="16" erow="24" ecol="18">\\</escape>
+                  <text srow="25" scol="10" erow="25" ecol="11">1</text>
+                  <text srow="25" scol="12" erow="25" ecol="14">&amp;&amp;</text>
+                  <text srow="25" scol="15" erow="25" ecol="16">4</text>
+                  <escape srow="25" scol="17" erow="25" ecol="19">\\</escape>
+                  <text srow="26" scol="10" erow="26" ecol="11">&amp;</text>
+                  <text srow="26" scol="12" erow="26" ecol="13">3</text>
+                  <command srow="27" scol="10" erow="27" ecol="71">
+                    <command_name srow="27" scol="10" erow="27" ecol="16">\arrow</command_name>
+                    <bracket_group srow="27" scol="16" erow="27" ecol="71">
+                      [
+                      <text srow="27" scol="17" erow="27" ecol="26">from=1-2,</text>
+                      <text srow="27" scol="27" erow="27" ecol="34">to=1-2,</text>
+                      <text srow="27" scol="35" erow="27" ecol="40">loop,</text>
+                      <text srow="27" scol="41" erow="27" ecol="47">in=55,</text>
+                      <text srow="27" scol="48" erow="27" ecol="56">out=125,</text>
+                      <text srow="27" scol="57" erow="27" ecol="70">distance=10mm</text>
+                      ]
+                    </bracket_group>
+                  </command>
+                  <command srow="28" scol="10" erow="28" ecol="34">
+                    <command_name srow="28" scol="10" erow="28" ecol="16">\arrow</command_name>
+                    <bracket_group srow="28" scol="16" erow="28" ecol="34">
+                      [
+                      <text srow="28" scol="17" erow="28" ecol="26">from=1-2,</text>
+                      <text srow="28" scol="27" erow="28" ecol="33">to=2-3</text>
+                      ]
+                    </bracket_group>
+                  </command>
+                  <command srow="29" scol="10" erow="29" ecol="34">
+                    <command_name srow="29" scol="10" erow="29" ecol="16">\arrow</command_name>
+                    <bracket_group srow="29" scol="16" erow="29" ecol="34">
+                      [
+                      <text srow="29" scol="17" erow="29" ecol="26">from=2-1,</text>
+                      <text srow="29" scol="27" erow="29" ecol="33">to=1-2</text>
+                      ]
+                    </bracket_group>
+                  </command>
+                  <command srow="30" scol="10" erow="30" ecol="34">
+                    <command_name srow="30" scol="10" erow="30" ecol="16">\arrow</command_name>
+                    <bracket_group srow="30" scol="16" erow="30" ecol="34">
+                      [
+                      <text srow="30" scol="17" erow="30" ecol="26">from=2-1,</text>
+                      <text srow="30" scol="27" erow="30" ecol="33">to=2-3</text>
+                      ]
+                    </bracket_group>
+                  </command>
+                  <command srow="31" scol="10" erow="31" ecol="34">
+                    <command_name srow="31" scol="10" erow="31" ecol="16">\arrow</command_name>
+                    <bracket_group srow="31" scol="16" erow="31" ecol="34">
+                      [
+                      <text srow="31" scol="17" erow="31" ecol="26">from=2-1,</text>
+                      <text srow="31" scol="27" erow="31" ecol="33">to=3-2</text>
+                      ]
+                    </bracket_group>
+                  </command>
+                  <command srow="32" scol="10" erow="32" ecol="34">
+                    <command_name srow="32" scol="10" erow="32" ecol="16">\arrow</command_name>
+                    <bracket_group srow="32" scol="16" erow="32" ecol="34">
+                      [
+                      <text srow="32" scol="17" erow="32" ecol="26">from=3-2,</text>
+                      <text srow="32" scol="27" erow="32" ecol="33">to=2-3</text>
+                      ]
+                    </bracket_group>
+                  </command>
+                  <command srow="33" scol="8" erow="33" ecol="20">
+                    <command_name srow="33" scol="8" erow="33" ecol="12">\end</command_name>
+                    <brace_group srow="33" scol="12" erow="33" ecol="20">
+                      {
+                      <text srow="33" scol="13" erow="33" ecol="19">tikzcd</text>
+                      }
+                    </brace_group>
+                  </command>
+                  <escape srow="33" scol="20" erow="33" ecol="22">\]</escape>
+                  }
+                </brace_group>
+              </command>
+              <command srow="35" scol="4" erow="37" ecol="5">
+                <command_name srow="35" scol="4" erow="35" ecol="6">\p</command_name>
+                <brace_group srow="35" scol="6" erow="37" ecol="5">
+                  {
+                  <text srow="36" scol="6" erow="36" ecol="11">There</text>
+                  <text srow="36" scol="12" erow="36" ecol="15">are</text>
+                  <text srow="36" scol="16" erow="36" ecol="23">various</text>
+                  <text srow="36" scol="24" erow="36" ecol="30">states</text>
+                  <text srow="36" scol="31" erow="36" ecol="33">we</text>
+                  <text srow="36" scol="34" erow="36" ecol="37">can</text>
+                  <text srow="36" scol="38" erow="36" ecol="44">assess</text>
+                  <text srow="36" scol="45" erow="36" ecol="47">in</text>
+                  <text srow="36" scol="48" erow="36" ecol="52">this</text>
+                  <text srow="36" scol="53" erow="36" ecol="58">frame</text>
+                  <text srow="36" scol="59" erow="36" ecol="66">diagram</text>
+                  }
+                </brace_group>
+              </command>
+              <command srow="38" scol="4" erow="92" ecol="5">
+                <command_name srow="38" scol="4" erow="38" ecol="7">\ul</command_name>
+                <brace_group srow="38" scol="7" erow="92" ecol="5">
+                  {
+                  <command srow="39" scol="6" erow="48" ecol="7">
+                    <command_name srow="39" scol="6" erow="39" ecol="9">\li</command_name>
+                    <brace_group srow="39" scol="9" erow="48" ecol="7">
+                      {
+                      <command srow="40" scol="8" erow="42" ecol="9">
+                        <command_name srow="40" scol="8" erow="40" ecol="19">\blockquote</command_name>
+                        <brace_group srow="40" scol="19" erow="42" ecol="9">
+                          {
+                          <text srow="41" scol="10" erow="41" ecol="11">4</text>
+                          <text srow="41" scol="12" erow="41" ecol="14">is</text>
+                          <text srow="41" scol="15" erow="41" ecol="18">the</text>
+                          <text srow="41" scol="19" erow="41" ecol="23">only</text>
+                          <text srow="41" scol="24" erow="41" ecol="29">state</text>
+                          <text srow="41" scol="30" erow="41" ecol="32">in</text>
+                          <text srow="41" scol="33" erow="41" ecol="38">which</text>
+                          <inline_math srow="41" scol="39" erow="41" ecol="51">
+                            #{
+                            <math_command srow="41" scol="41" erow="41" ecol="45">
+                              <command_name srow="41" scol="41" erow="41" ecol="45">\Box</command_name>
+                            </math_command>
+                            <math_command srow="41" scol="46" erow="41" ecol="50">
+                              <command_name srow="41" scol="46" erow="41" ecol="50">\bot</command_name>
+                            </math_command>
+                            }
+                          </inline_math>
+                          <text srow="41" scol="52" erow="41" ecol="54">is</text>
+                          <text srow="41" scol="55" erow="41" ecol="59">true</text>
+                          }
+                        </brace_group>
+                      </command>
+                      <command srow="43" scol="8" erow="43" ecol="28">
+                        <command_name srow="43" scol="8" erow="43" ecol="15">\strong</command_name>
+                        <brace_group srow="43" scol="15" erow="43" ecol="28">
+                          {
+                          <text srow="43" scol="16" erow="43" ecol="27">Explanation</text>
+                          }
+                        </brace_group>
+                      </command>
+                      <text srow="43" scol="28" erow="43" ecol="29">:</text>
+                      <text srow="43" scol="30" erow="43" ecol="32">We</text>
+                      <text srow="43" scol="33" erow="43" ecol="37">know</text>
+                      <text srow="43" scol="38" erow="43" ecol="42">this</text>
+                      <text srow="43" scol="43" erow="43" ecol="48">since</text>
+                      <text srow="43" scol="49" erow="43" ecol="52">the</text>
+                      <text srow="43" scol="53" erow="43" ecol="58">local</text>
+                      <text srow="43" scol="59" erow="43" ecol="64">truth</text>
+                      <text srow="43" scol="65" erow="43" ecol="68">for</text>
+                      <text srow="43" scol="69" erow="43" ecol="72">the</text>
+                      <command srow="43" scol="73" erow="43" ecol="89">
+                        <command_name srow="43" scol="73" erow="43" ecol="76">\em</command_name>
+                        <brace_group srow="43" scol="76" erow="43" ecol="89">
+                          {
+                          <text srow="43" scol="77" erow="43" ecol="88">necessarily</text>
+                          }
+                        </brace_group>
+                      </command>
+                      <text srow="43" scol="90" erow="43" ecol="98">modality</text>
+                      <text srow="43" scol="99" erow="43" ecol="101">is</text>
+                      <text srow="43" scol="102" erow="43" ecol="109">defined</text>
+                      <text srow="43" scol="110" erow="43" ecol="112">as</text>
+                      <display_math srow="44" scol="8" erow="46" ecol="9">
+                        ##{
+                        <math_paren_group srow="45" scol="10" erow="45" ecol="25">
+                          (
+                          <math_command srow="45" scol="11" erow="45" ecol="19">
+                            <command_name srow="45" scol="11" erow="45" ecol="19">\mathcal</command_name>
+                          </math_command>
+                          <math_text srow="45" scol="20" erow="45" ecol="22">M,</math_text>
+                          <math_text srow="45" scol="23" erow="45" ecol="24">w</math_text>
+                          )
+                        </math_paren_group>
+                        <math_command srow="45" scol="26" erow="45" ecol="32">
+                          <command_name srow="45" scol="26" erow="45" ecol="32">\vDash</command_name>
+                        </math_command>
+                        <math_command srow="45" scol="33" erow="45" ecol="37">
+                          <command_name srow="45" scol="33" erow="45" ecol="37">\Box</command_name>
+                        </math_command>
+                        <math_command srow="45" scol="38" erow="45" ecol="42">
+                          <command_name srow="45" scol="38" erow="45" ecol="42">\phi</command_name>
+                        </math_command>
+                        <math_command srow="45" scol="43" erow="45" ecol="47">
+                          <command_name srow="45" scol="43" erow="45" ecol="47">\iff</command_name>
+                        </math_command>
+                        <math_command srow="45" scol="48" erow="45" ecol="55">
+                          <command_name srow="45" scol="48" erow="45" ecol="55">\forall</command_name>
+                        </math_command>
+                        <math_text srow="45" scol="56" erow="45" ecol="57">v</math_text>
+                        <math_text srow="45" scol="58" erow="45" ecol="59">:</math_text>
+                        <math_paren_group srow="45" scol="60" erow="45" ecol="65">
+                          (
+                          <math_text srow="45" scol="61" erow="45" ecol="64">wRv</math_text>
+                          )
+                        </math_paren_group>
+                        <math_command srow="45" scol="66" erow="45" ecol="85">
+                          <command_name srow="45" scol="66" erow="45" ecol="69">\to</command_name>
+                          <math_paren_group srow="45" scol="70" erow="45" ecol="85">
+                            (
+                            <math_command srow="45" scol="71" erow="45" ecol="79">
+                              <command_name srow="45" scol="71" erow="45" ecol="79">\mathcal</command_name>
+                            </math_command>
+                            <math_text srow="45" scol="80" erow="45" ecol="82">M,</math_text>
+                            <math_text srow="45" scol="83" erow="45" ecol="84">v</math_text>
+                            )
+                          </math_paren_group>
+                        </math_command>
+                        <math_command srow="45" scol="86" erow="45" ecol="92">
+                          <command_name srow="45" scol="86" erow="45" ecol="92">\vDash</command_name>
+                        </math_command>
+                        <math_command srow="45" scol="93" erow="45" ecol="97">
+                          <command_name srow="45" scol="93" erow="45" ecol="97">\phi</command_name>
+                        </math_command>
+                        }
+                      </display_math>
+                      <text srow="47" scol="8" erow="47" ecol="10">we</text>
+                      <text srow="47" scol="11" erow="47" ecol="15">know</text>
+                      <text srow="47" scol="16" erow="47" ecol="20">this</text>
+                      <text srow="47" scol="21" erow="47" ecol="26">means</text>
+                      <text srow="47" scol="27" erow="47" ecol="31">that</text>
+                      <inline_math srow="47" scol="32" erow="47" ecol="44">
+                        #{
+                        <math_command srow="47" scol="34" erow="47" ecol="38">
+                          <command_name srow="47" scol="34" erow="47" ecol="38">\Box</command_name>
+                        </math_command>
+                        <math_command srow="47" scol="39" erow="47" ecol="43">
+                          <command_name srow="47" scol="39" erow="47" ecol="43">\bot</command_name>
+                        </math_command>
+                        }
+                      </inline_math>
+                      <text srow="47" scol="45" erow="47" ecol="47">is</text>
+                      <text srow="47" scol="48" erow="47" ecol="52">true</text>
+                      <text srow="47" scol="53" erow="47" ecol="55">at</text>
+                      <text srow="47" scol="56" erow="47" ecol="57">a</text>
+                      <text srow="47" scol="58" erow="47" ecol="63">state</text>
+                      <text srow="47" scol="64" erow="47" ecol="68">only</text>
+                      <text srow="47" scol="69" erow="47" ecol="71">if</text>
+                      <text srow="47" scol="72" erow="47" ecol="76">it's</text>
+                      <text srow="47" scol="77" erow="47" ecol="81">true</text>
+                      <text srow="47" scol="82" erow="47" ecol="84">at</text>
+                      <text srow="47" scol="85" erow="47" ecol="88">all</text>
+                      <text srow="47" scol="89" erow="47" ecol="98">successor</text>
+                      <text srow="47" scol="99" erow="47" ecol="106">states.</text>
+                      <text srow="47" scol="107" erow="47" ecol="109">As</text>
+                      <text srow="47" scol="110" erow="47" ecol="112">we</text>
+                      <text srow="47" scol="113" erow="47" ecol="116">can</text>
+                      <text srow="47" scol="117" erow="47" ecol="126">trivially</text>
+                      <text srow="47" scol="127" erow="47" ecol="134">observe</text>
+                      <text srow="47" scol="135" erow="47" ecol="139">that</text>
+                      <text srow="47" scol="140" erow="47" ecol="143">the</text>
+                      <text srow="47" scol="144" erow="47" ecol="149">point</text>
+                      <inline_math srow="47" scol="150" erow="47" ecol="154">
+                        #{
+                        <math_text srow="47" scol="152" erow="47" ecol="153">4</math_text>
+                        }
+                      </inline_math>
+                      <text srow="47" scol="155" erow="47" ecol="158">has</text>
+                      <text srow="47" scol="159" erow="47" ecol="161">no</text>
+                      <text srow="47" scol="162" erow="47" ecol="172">successors</text>
+                      <text srow="47" scol="173" erow="47" ecol="175">or</text>
+                      <text srow="47" scol="176" erow="47" ecol="182">target</text>
+                      <text srow="47" scol="183" erow="47" ecol="189">nodes,</text>
+                      <text srow="47" scol="190" erow="47" ecol="194">what</text>
+                      <text srow="47" scol="195" erow="47" ecol="199">this</text>
+                      <text srow="47" scol="200" erow="47" ecol="205">means</text>
+                      <text srow="47" scol="206" erow="47" ecol="208">is</text>
+                      <text srow="47" scol="209" erow="47" ecol="213">that</text>
+                      <text srow="47" scol="214" erow="47" ecol="216">we</text>
+                      <text srow="47" scol="217" erow="47" ecol="221">have</text>
+                      <text srow="47" scol="222" erow="47" ecol="229">vacuous</text>
+                      <text srow="47" scol="230" erow="47" ecol="236">truth.</text>
+                      }
+                    </brace_group>
+                  </command>
+                  <command srow="49" scol="6" erow="63" ecol="7">
+                    <command_name srow="49" scol="6" erow="49" ecol="9">\li</command_name>
+                    <brace_group srow="49" scol="9" erow="63" ecol="7">
+                      {
+                      <command srow="50" scol="8" erow="52" ecol="9">
+                        <command_name srow="50" scol="8" erow="50" ecol="19">\blockquote</command_name>
+                        <brace_group srow="50" scol="19" erow="52" ecol="9">
+                          {
+                          <text srow="51" scol="10" erow="51" ecol="11">3</text>
+                          <text srow="51" scol="12" erow="51" ecol="14">is</text>
+                          <text srow="51" scol="15" erow="51" ecol="18">the</text>
+                          <text srow="51" scol="19" erow="51" ecol="23">only</text>
+                          <text srow="51" scol="24" erow="51" ecol="29">state</text>
+                          <text srow="51" scol="30" erow="51" ecol="32">in</text>
+                          <text srow="51" scol="33" erow="51" ecol="38">which</text>
+                          <inline_math srow="51" scol="39" erow="51" ecol="81">
+                            #{
+                            <math_command srow="51" scol="41" erow="51" ecol="49">
+                              <command_name srow="51" scol="41" erow="51" ecol="49">\Diamond</command_name>
+                            </math_command>
+                            <math_command srow="51" scol="50" erow="51" ecol="54">
+                              <command_name srow="51" scol="50" erow="51" ecol="54">\Box</command_name>
+                            </math_command>
+                            <math_command srow="51" scol="55" erow="51" ecol="59">
+                              <command_name srow="51" scol="55" erow="51" ecol="59">\bot</command_name>
+                            </math_command>
+                            <math_command srow="51" scol="60" erow="51" ecol="65">
+                              <command_name srow="51" scol="60" erow="51" ecol="65">\land</command_name>
+                            </math_command>
+                            <math_command srow="51" scol="66" erow="51" ecol="70">
+                              <command_name srow="51" scol="66" erow="51" ecol="70">\Box</command_name>
+                            </math_command>
+                            <math_command srow="51" scol="71" erow="51" ecol="75">
+                              <command_name srow="51" scol="71" erow="51" ecol="75">\Box</command_name>
+                            </math_command>
+                            <math_command srow="51" scol="76" erow="51" ecol="80">
+                              <command_name srow="51" scol="76" erow="51" ecol="80">\bot</command_name>
+                            </math_command>
+                            }
+                          </inline_math>
+                          <text srow="51" scol="82" erow="51" ecol="84">is</text>
+                          <text srow="51" scol="85" erow="51" ecol="89">true</text>
+                          }
+                        </brace_group>
+                      </command>
+                      <command srow="53" scol="8" erow="53" ecol="28">
+                        <command_name srow="53" scol="8" erow="53" ecol="15">\strong</command_name>
+                        <brace_group srow="53" scol="15" erow="53" ecol="28">
+                          {
+                          <text srow="53" scol="16" erow="53" ecol="27">Explanation</text>
+                          }
+                        </brace_group>
+                      </command>
+                      <text srow="53" scol="28" erow="53" ecol="29">:</text>
+                      <text srow="53" scol="30" erow="53" ecol="32">We</text>
+                      <text srow="53" scol="33" erow="53" ecol="36">can</text>
+                      <text srow="53" scol="37" erow="53" ecol="42">break</text>
+                      <text srow="53" scol="43" erow="53" ecol="47">this</text>
+                      <text srow="53" scol="48" erow="53" ecol="52">down</text>
+                      <text srow="53" scol="53" erow="53" ecol="57">into</text>
+                      <text srow="53" scol="58" erow="53" ecol="61">the</text>
+                      <text srow="53" scol="62" erow="53" ecol="65">two</text>
+                      <text srow="53" scol="66" erow="53" ecol="75">conjuncts</text>
+                      <command srow="54" scol="8" erow="62" ecol="9">
+                        <command_name srow="54" scol="8" erow="54" ecol="11">\ol</command_name>
+                        <brace_group srow="54" scol="11" erow="62" ecol="9">
+                          {
+                          <command srow="55" scol="10" erow="58" ecol="11">
+                            <command_name srow="55" scol="10" erow="55" ecol="13">\li</command_name>
+                            <brace_group srow="55" scol="13" erow="58" ecol="11">
+                              {
+                              <inline_math srow="56" scol="12" erow="56" ecol="33">
+                                #{
+                                <math_command srow="56" scol="14" erow="56" ecol="22">
+                                  <command_name srow="56" scol="14" erow="56" ecol="22">\Diamond</command_name>
+                                </math_command>
+                                <math_command srow="56" scol="23" erow="56" ecol="27">
+                                  <command_name srow="56" scol="23" erow="56" ecol="27">\Box</command_name>
+                                </math_command>
+                                <math_command srow="56" scol="28" erow="56" ecol="32">
+                                  <command_name srow="56" scol="28" erow="56" ecol="32">\bot</command_name>
+                                </math_command>
+                                }
+                              </inline_math>
+                              <text srow="56" scol="34" erow="56" ecol="35">-</text>
+                              <text srow="56" scol="36" erow="56" ecol="38">we</text>
+                              <text srow="56" scol="39" erow="56" ecol="43">have</text>
+                              <text srow="56" scol="44" erow="56" ecol="48">both</text>
+                              <text srow="56" scol="49" erow="56" ecol="59">modalities</text>
+                              <text srow="56" scol="60" erow="56" ecol="65">here,</text>
+                              <text srow="56" scol="66" erow="56" ecol="68">we</text>
+                              <text srow="56" scol="69" erow="56" ecol="72">can</text>
+                              <text srow="56" scol="73" erow="56" ecol="77">read</text>
+                              <text srow="56" scol="78" erow="56" ecol="82">this</text>
+                              <text srow="56" scol="83" erow="56" ecol="86">as:</text>
+                              <text srow="56" scol="87" erow="56" ecol="92">there</text>
+                              <text srow="56" scol="93" erow="56" ecol="99">exists</text>
+                              <text srow="56" scol="100" erow="56" ecol="104">some</text>
+                              <text srow="56" scol="105" erow="56" ecol="114">successor</text>
+                              <text srow="56" scol="115" erow="56" ecol="118">for</text>
+                              <text srow="56" scol="119" erow="56" ecol="123">whom</text>
+                              <text srow="56" scol="124" erow="56" ecol="127">all</text>
+                              <text srow="56" scol="128" erow="56" ecol="138">successors</text>
+                              <text srow="56" scol="139" erow="56" ecol="142">are</text>
+                              <text srow="56" scol="143" erow="56" ecol="148">true.</text>
+                              <text srow="56" scol="149" erow="56" ecol="153">Here</text>
+                              <text srow="56" scol="154" erow="56" ecol="159">again</text>
+                              <text srow="56" scol="160" erow="56" ecol="163">our</text>
+                              <text srow="56" scol="164" erow="56" ecol="171">vacuous</text>
+                              <text srow="56" scol="172" erow="56" ecol="181">condition</text>
+                              <text srow="56" scol="182" erow="56" ecol="187">kicks</text>
+                              <text srow="56" scol="188" erow="56" ecol="191">in,</text>
+                              <text srow="56" scol="192" erow="56" ecol="193">3</text>
+                              <text srow="56" scol="194" erow="56" ecol="200">indeed</text>
+                              <text srow="56" scol="201" erow="56" ecol="204">has</text>
+                              <text srow="56" scol="205" erow="56" ecol="209">some</text>
+                              <text srow="56" scol="210" erow="56" ecol="219">successor</text>
+                              <text srow="56" scol="220" erow="56" ecol="226">namely</text>
+                              <text srow="56" scol="227" erow="56" ecol="229">4,</text>
+                              <text srow="56" scol="230" erow="56" ecol="233">and</text>
+                              <text srow="56" scol="234" erow="56" ecol="236">we</text>
+                              <text srow="56" scol="237" erow="56" ecol="241">know</text>
+                              <text srow="56" scol="242" erow="56" ecol="246">from</text>
+                              <text srow="56" scol="247" erow="56" ecol="250">the</text>
+                              <text srow="56" scol="251" erow="56" ecol="258">earlier</text>
+                              <text srow="56" scol="259" erow="56" ecol="266">example</text>
+                              <text srow="56" scol="267" erow="56" ecol="271">that</text>
+                              <text srow="56" scol="272" erow="56" ecol="273">4</text>
+                              <text srow="56" scol="274" erow="56" ecol="276">is</text>
+                              <text srow="56" scol="277" erow="56" ecol="286">vacuously</text>
+                              <text srow="56" scol="287" erow="56" ecol="291">true</text>
+                              <text srow="56" scol="292" erow="56" ecol="295">for</text>
+                              <inline_math srow="56" scol="296" erow="56" ecol="308">
+                                #{
+                                <math_command srow="56" scol="298" erow="56" ecol="302">
+                                  <command_name srow="56" scol="298" erow="56" ecol="302">\Box</command_name>
+                                </math_command>
+                                <math_command srow="56" scol="303" erow="56" ecol="307">
+                                  <command_name srow="56" scol="303" erow="56" ecol="307">\bot</command_name>
+                                </math_command>
+                                }
+                              </inline_math>
+                              <text srow="56" scol="308" erow="56" ecol="309">.</text>
+                              }
+                            </brace_group>
+                          </command>
+                          <command srow="59" scol="10" erow="61" ecol="11">
+                            <command_name srow="59" scol="10" erow="59" ecol="13">\li</command_name>
+                            <brace_group srow="59" scol="13" erow="61" ecol="11">
+                              {
+                              <inline_math srow="60" scol="12" erow="60" ecol="29">
+                                #{
+                                <math_command srow="60" scol="14" erow="60" ecol="18">
+                                  <command_name srow="60" scol="14" erow="60" ecol="18">\Box</command_name>
+                                </math_command>
+                                <math_command srow="60" scol="19" erow="60" ecol="23">
+                                  <command_name srow="60" scol="19" erow="60" ecol="23">\Box</command_name>
+                                </math_command>
+                                <math_command srow="60" scol="24" erow="60" ecol="28">
+                                  <command_name srow="60" scol="24" erow="60" ecol="28">\bot</command_name>
+                                </math_command>
+                                }
+                              </inline_math>
+                              <text srow="60" scol="30" erow="60" ecol="31">-</text>
+                              <text srow="60" scol="32" erow="60" ecol="36">this</text>
+                              <text srow="60" scol="37" erow="60" ecol="43">should</text>
+                              <text srow="60" scol="44" erow="60" ecol="53">hopefully</text>
+                              <text srow="60" scol="54" erow="60" ecol="56">be</text>
+                              <text srow="60" scol="57" erow="60" ecol="62">quite</text>
+                              <text srow="60" scol="63" erow="60" ecol="78">straightforward</text>
+                              <text srow="60" scol="79" erow="60" ecol="81">by</text>
+                              <text srow="60" scol="82" erow="60" ecol="85">now</text>
+                              <text srow="60" scol="86" erow="60" ecol="88">as</text>
+                              <text srow="60" scol="89" erow="60" ecol="92">its</text>
+                              <text srow="60" scol="93" erow="60" ecol="97">just</text>
+                              <text srow="60" scol="98" erow="60" ecol="108">equivalent</text>
+                              <text srow="60" scol="109" erow="60" ecol="111">to</text>
+                              <text srow="60" scol="112" erow="60" ecol="115">the</text>
+                              <text srow="60" scol="116" erow="60" ecol="121">above</text>
+                              <text srow="60" scol="122" erow="60" ecol="129">formula</text>
+                              <text srow="60" scol="130" erow="60" ecol="135">given</text>
+                              <text srow="60" scol="136" erow="60" ecol="140">that</text>
+                              <text srow="60" scol="141" erow="60" ecol="146">there</text>
+                              <text srow="60" scol="147" erow="60" ecol="151">only</text>
+                              <text srow="60" scol="152" erow="60" ecol="154">is</text>
+                              <text srow="60" scol="155" erow="60" ecol="158">one</text>
+                              <text srow="60" scol="159" erow="60" ecol="168">successor</text>
+                              <text srow="60" scol="169" erow="60" ecol="171">to</text>
+                              <text srow="60" scol="172" erow="60" ecol="174">3.</text>
+                              }
+                            </brace_group>
+                          </command>
+                          }
+                        </brace_group>
+                      </command>
+                      }
+                    </brace_group>
+                  </command>
+                  <command srow="64" scol="6" erow="73" ecol="7">
+                    <command_name srow="64" scol="6" erow="64" ecol="9">\li</command_name>
+                    <brace_group srow="64" scol="9" erow="73" ecol="7">
+                      {
+                      <command srow="65" scol="8" erow="67" ecol="9">
+                        <command_name srow="65" scol="8" erow="65" ecol="19">\blockquote</command_name>
+                        <brace_group srow="65" scol="19" erow="67" ecol="9">
+                          {
+                          <text srow="66" scol="10" erow="66" ecol="11">1</text>
+                          <text srow="66" scol="12" erow="66" ecol="14">is</text>
+                          <text srow="66" scol="15" erow="66" ecol="18">the</text>
+                          <text srow="66" scol="19" erow="66" ecol="23">only</text>
+                          <text srow="66" scol="24" erow="66" ecol="29">state</text>
+                          <text srow="66" scol="30" erow="66" ecol="32">in</text>
+                          <text srow="66" scol="33" erow="66" ecol="38">which</text>
+                          <inline_math srow="66" scol="39" erow="66" ecol="92">
+                            #{
+                            <math_command srow="66" scol="41" erow="66" ecol="91">
+                              <command_name srow="66" scol="41" erow="66" ecol="49">\Diamond</command_name>
+                              <math_paren_group srow="66" scol="50" erow="66" ecol="91">
+                                (
+                                <math_command srow="66" scol="51" erow="66" ecol="59">
+                                  <command_name srow="66" scol="51" erow="66" ecol="59">\Diamond</command_name>
+                                </math_command>
+                                <math_command srow="66" scol="60" erow="66" ecol="64">
+                                  <command_name srow="66" scol="60" erow="66" ecol="64">\Box</command_name>
+                                </math_command>
+                                <math_command srow="66" scol="65" erow="66" ecol="69">
+                                  <command_name srow="66" scol="65" erow="66" ecol="69">\bot</command_name>
+                                </math_command>
+                                <math_command srow="66" scol="70" erow="66" ecol="75">
+                                  <command_name srow="66" scol="70" erow="66" ecol="75">\land</command_name>
+                                </math_command>
+                                <math_command srow="66" scol="76" erow="66" ecol="80">
+                                  <command_name srow="66" scol="76" erow="66" ecol="80">\Box</command_name>
+                                </math_command>
+                                <math_command srow="66" scol="81" erow="66" ecol="85">
+                                  <command_name srow="66" scol="81" erow="66" ecol="85">\Box</command_name>
+                                </math_command>
+                                <math_command srow="66" scol="86" erow="66" ecol="90">
+                                  <command_name srow="66" scol="86" erow="66" ecol="90">\bot</command_name>
+                                </math_command>
+                                )
+                              </math_paren_group>
+                            </math_command>
+                            }
+                          </inline_math>
+                          <text srow="66" scol="93" erow="66" ecol="95">is</text>
+                          <text srow="66" scol="96" erow="66" ecol="100">true</text>
+                          }
+                        </brace_group>
+                      </command>
+                      <text srow="68" scol="8" erow="68" ecol="13">Given</text>
+                      <text srow="68" scol="14" erow="68" ecol="18">what</text>
+                      <text srow="68" scol="19" erow="68" ecol="21">we</text>
+                      <text srow="68" scol="22" erow="68" ecol="26">know</text>
+                      <text srow="68" scol="27" erow="68" ecol="31">from</text>
+                      <text srow="68" scol="32" erow="68" ecol="35">the</text>
+                      <text srow="68" scol="36" erow="68" ecol="41">prior</text>
+                      <text srow="68" scol="42" erow="68" ecol="49">formula</text>
+                      <text srow="68" scol="50" erow="68" ecol="54">this</text>
+                      <text srow="68" scol="55" erow="68" ecol="61">should</text>
+                      <text srow="68" scol="62" erow="68" ecol="64">be</text>
+                      <text srow="68" scol="65" erow="68" ecol="75">relatively</text>
+                      <text srow="68" scol="76" erow="68" ecol="92">straightforward,</text>
+                      <text srow="68" scol="93" erow="68" ecol="95">we</text>
+                      <text srow="68" scol="96" erow="68" ecol="100">know</text>
+                      <text srow="68" scol="101" erow="68" ecol="105">that</text>
+                      <text srow="68" scol="106" erow="68" ecol="112">entire</text>
+                      <text srow="68" scol="113" erow="68" ecol="118">inner</text>
+                      <text srow="68" scol="119" erow="68" ecol="126">section</text>
+                      <text srow="68" scol="127" erow="68" ecol="129">is</text>
+                      <text srow="68" scol="130" erow="68" ecol="134">only</text>
+                      <text srow="68" scol="135" erow="68" ecol="139">true</text>
+                      <text srow="68" scol="140" erow="68" ecol="142">in</text>
+                      <text srow="68" scol="143" erow="68" ecol="154">state/world</text>
+                      <text srow="68" scol="155" erow="68" ecol="156">3</text>
+                      <text srow="68" scol="157" erow="68" ecol="162">hence</text>
+                      <text srow="68" scol="163" erow="68" ecol="168">going</text>
+                      <text srow="68" scol="169" erow="68" ecol="173">back</text>
+                      <text srow="68" scol="174" erow="68" ecol="176">to</text>
+                      <text srow="68" scol="177" erow="68" ecol="180">our</text>
+                      <text srow="68" scol="181" erow="68" ecol="191">definition</text>
+                      <text srow="68" scol="192" erow="68" ecol="194">of</text>
+                      <text srow="68" scol="195" erow="68" ecol="200">local</text>
+                      <text srow="68" scol="201" erow="68" ecol="206">truth</text>
+                      <text srow="68" scol="207" erow="68" ecol="210">for</text>
+                      <inline_math srow="68" scol="211" erow="68" ecol="222">
+                        #{
+                        <math_command srow="68" scol="213" erow="68" ecol="221">
+                          <command_name srow="68" scol="213" erow="68" ecol="221">\Diamond</command_name>
+                        </math_command>
+                        }
+                      </inline_math>
+                      <display_math srow="69" scol="8" erow="71" ecol="9">
+                        ##{
+                        <math_paren_group srow="70" scol="10" erow="70" ecol="25">
+                          (
+                          <math_command srow="70" scol="11" erow="70" ecol="19">
+                            <command_name srow="70" scol="11" erow="70" ecol="19">\mathcal</command_name>
+                          </math_command>
+                          <math_text srow="70" scol="20" erow="70" ecol="22">M,</math_text>
+                          <math_text srow="70" scol="23" erow="70" ecol="24">w</math_text>
+                          )
+                        </math_paren_group>
+                        <math_command srow="70" scol="26" erow="70" ecol="32">
+                          <command_name srow="70" scol="26" erow="70" ecol="32">\vDash</command_name>
+                        </math_command>
+                        <math_command srow="70" scol="33" erow="70" ecol="41">
+                          <command_name srow="70" scol="33" erow="70" ecol="41">\Diamond</command_name>
+                        </math_command>
+                        <math_command srow="70" scol="42" erow="70" ecol="46">
+                          <command_name srow="70" scol="42" erow="70" ecol="46">\phi</command_name>
+                        </math_command>
+                        <math_command srow="70" scol="47" erow="70" ecol="51">
+                          <command_name srow="70" scol="47" erow="70" ecol="51">\iff</command_name>
+                        </math_command>
+                        <math_command srow="70" scol="52" erow="70" ecol="59">
+                          <command_name srow="70" scol="52" erow="70" ecol="59">\exists</command_name>
+                        </math_command>
+                        <math_text srow="70" scol="60" erow="70" ecol="62">v:</math_text>
+                        <math_paren_group srow="70" scol="63" erow="70" ecol="70">
+                          (
+                          <math_text srow="70" scol="64" erow="70" ecol="65">w</math_text>
+                          <math_text srow="70" scol="66" erow="70" ecol="67">R</math_text>
+                          <math_text srow="70" scol="68" erow="70" ecol="69">v</math_text>
+                          )
+                        </math_paren_group>
+                        <math_command srow="70" scol="71" erow="70" ecol="92">
+                          <command_name srow="70" scol="71" erow="70" ecol="76">\land</command_name>
+                          <math_paren_group srow="70" scol="77" erow="70" ecol="92">
+                            (
+                            <math_command srow="70" scol="78" erow="70" ecol="86">
+                              <command_name srow="70" scol="78" erow="70" ecol="86">\mathcal</command_name>
+                            </math_command>
+                            <math_text srow="70" scol="87" erow="70" ecol="89">M,</math_text>
+                            <math_text srow="70" scol="90" erow="70" ecol="91">v</math_text>
+                            )
+                          </math_paren_group>
+                        </math_command>
+                        <math_command srow="70" scol="93" erow="70" ecol="99">
+                          <command_name srow="70" scol="93" erow="70" ecol="99">\vDash</command_name>
+                        </math_command>
+                        <math_command srow="70" scol="100" erow="70" ecol="104">
+                          <command_name srow="70" scol="100" erow="70" ecol="104">\phi</command_name>
+                        </math_command>
+                        }
+                      </display_math>
+                      <text srow="72" scol="8" erow="72" ecol="10">we</text>
+                      <text srow="72" scol="11" erow="72" ecol="18">clearly</text>
+                      <text srow="72" scol="19" erow="72" ecol="23">only</text>
+                      <text srow="72" scol="24" erow="72" ecol="28">have</text>
+                      <inline_math srow="72" scol="29" erow="72" ecol="69">
+                        #{
+                        <math_paren_group srow="72" scol="31" erow="72" ecol="46">
+                          (
+                          <math_command srow="72" scol="32" erow="72" ecol="40">
+                            <command_name srow="72" scol="32" erow="72" ecol="40">\mathcal</command_name>
+                          </math_command>
+                          <math_text srow="72" scol="41" erow="72" ecol="43">M,</math_text>
+                          <math_text srow="72" scol="44" erow="72" ecol="45">1</math_text>
+                          )
+                        </math_paren_group>
+                        <math_command srow="72" scol="47" erow="72" ecol="53">
+                          <command_name srow="72" scol="47" erow="72" ecol="53">\vDash</command_name>
+                        </math_command>
+                        <math_command srow="72" scol="54" erow="72" ecol="68">
+                          <command_name srow="72" scol="54" erow="72" ecol="62">\Diamond</command_name>
+                          <math_paren_group srow="72" scol="62" erow="72" ecol="68">
+                            (
+                            <math_command srow="72" scol="63" erow="72" ecol="67">
+                              <command_name srow="72" scol="63" erow="72" ecol="67">\phi</command_name>
+                            </math_command>
+                            )
+                          </math_paren_group>
+                        </math_command>
+                        }
+                      </inline_math>
+                      <text srow="72" scol="70" erow="72" ecol="75">where</text>
+                      <inline_math srow="72" scol="76" erow="72" ecol="84">
+                        #{
+                        <math_text srow="72" scol="78" erow="72" ecol="79">v</math_text>
+                        <math_text srow="72" scol="80" erow="72" ecol="81">=</math_text>
+                        <math_text srow="72" scol="82" erow="72" ecol="83">3</math_text>
+                        }
+                      </inline_math>
+                      <text srow="72" scol="84" erow="72" ecol="85">.</text>
+                      }
+                    </brace_group>
+                  </command>
+                  <command srow="74" scol="6" erow="91" ecol="7">
+                    <command_name srow="74" scol="6" erow="74" ecol="9">\li</command_name>
+                    <brace_group srow="74" scol="9" erow="91" ecol="7">
+                      {
+                      <command srow="75" scol="8" erow="77" ecol="9">
+                        <command_name srow="75" scol="8" erow="75" ecol="19">\blockquote</command_name>
+                        <brace_group srow="75" scol="19" erow="77" ecol="9">
+                          {
+                          <text srow="76" scol="10" erow="76" ecol="11">2</text>
+                          <text srow="76" scol="12" erow="76" ecol="14">is</text>
+                          <text srow="76" scol="15" erow="76" ecol="18">the</text>
+                          <text srow="76" scol="19" erow="76" ecol="23">only</text>
+                          <text srow="76" scol="24" erow="76" ecol="29">state</text>
+                          <text srow="76" scol="30" erow="76" ecol="32">in</text>
+                          <text srow="76" scol="33" erow="76" ecol="38">which</text>
+                          <inline_math srow="76" scol="39" erow="76" ecol="126">
+                            #{
+                            <math_command srow="76" scol="41" erow="76" ecol="49">
+                              <command_name srow="76" scol="41" erow="76" ecol="49">\Diamond</command_name>
+                            </math_command>
+                            <math_command srow="76" scol="50" erow="76" ecol="58">
+                              <command_name srow="76" scol="50" erow="76" ecol="58">\Diamond</command_name>
+                            </math_command>
+                            <math_command srow="76" scol="59" erow="76" ecol="63">
+                              <command_name srow="76" scol="59" erow="76" ecol="63">\top</command_name>
+                            </math_command>
+                            <math_command srow="76" scol="64" erow="76" ecol="69">
+                              <command_name srow="76" scol="64" erow="76" ecol="69">\land</command_name>
+                            </math_command>
+                            <math_command srow="76" scol="70" erow="76" ecol="74">
+                              <command_name srow="76" scol="70" erow="76" ecol="74">\neg</command_name>
+                            </math_command>
+                            <math_command srow="76" scol="75" erow="76" ecol="125">
+                              <command_name srow="76" scol="75" erow="76" ecol="83">\Diamond</command_name>
+                              <math_paren_group srow="76" scol="84" erow="76" ecol="125">
+                                (
+                                <math_command srow="76" scol="85" erow="76" ecol="93">
+                                  <command_name srow="76" scol="85" erow="76" ecol="93">\Diamond</command_name>
+                                </math_command>
+                                <math_command srow="76" scol="94" erow="76" ecol="98">
+                                  <command_name srow="76" scol="94" erow="76" ecol="98">\Box</command_name>
+                                </math_command>
+                                <math_command srow="76" scol="99" erow="76" ecol="103">
+                                  <command_name srow="76" scol="99" erow="76" ecol="103">\bot</command_name>
+                                </math_command>
+                                <math_command srow="76" scol="104" erow="76" ecol="109">
+                                  <command_name srow="76" scol="104" erow="76" ecol="109">\land</command_name>
+                                </math_command>
+                                <math_command srow="76" scol="110" erow="76" ecol="114">
+                                  <command_name srow="76" scol="110" erow="76" ecol="114">\Box</command_name>
+                                </math_command>
+                                <math_command srow="76" scol="115" erow="76" ecol="119">
+                                  <command_name srow="76" scol="115" erow="76" ecol="119">\Box</command_name>
+                                </math_command>
+                                <math_command srow="76" scol="120" erow="76" ecol="124">
+                                  <command_name srow="76" scol="120" erow="76" ecol="124">\bot</command_name>
+                                </math_command>
+                                )
+                              </math_paren_group>
+                            </math_command>
+                            }
+                          </inline_math>
+                          <text srow="76" scol="127" erow="76" ecol="129">is</text>
+                          <text srow="76" scol="130" erow="76" ecol="134">true</text>
+                          }
+                        </brace_group>
+                      </command>
+                      <text srow="78" scol="8" erow="78" ecol="16">Probably</text>
+                      <text srow="78" scol="17" erow="78" ecol="22">makes</text>
+                      <text srow="78" scol="23" erow="78" ecol="28">sense</text>
+                      <text srow="78" scol="29" erow="78" ecol="31">to</text>
+                      <text srow="78" scol="32" erow="78" ecol="37">again</text>
+                      <text srow="78" scol="38" erow="78" ecol="43">break</text>
+                      <text srow="78" scol="44" erow="78" ecol="48">this</text>
+                      <text srow="78" scol="49" erow="78" ecol="53">into</text>
+                      <text srow="78" scol="54" erow="78" ecol="57">the</text>
+                      <text srow="78" scol="58" erow="78" ecol="61">two</text>
+                      <text srow="78" scol="62" erow="78" ecol="67">sides</text>
+                      <text srow="78" scol="68" erow="78" ecol="70">of</text>
+                      <text srow="78" scol="71" erow="78" ecol="74">the</text>
+                      <text srow="78" scol="75" erow="78" ecol="83">conjunct</text>
+                      <command srow="79" scol="8" erow="90" ecol="9">
+                        <command_name srow="79" scol="8" erow="79" ecol="11">\ol</command_name>
+                        <brace_group srow="79" scol="11" erow="90" ecol="9">
+                          {
+                          <command srow="80" scol="10" erow="86" ecol="11">
+                            <command_name srow="80" scol="10" erow="80" ecol="13">\li</command_name>
+                            <brace_group srow="80" scol="13" erow="86" ecol="11">
+                              {
+                              <text srow="81" scol="12" erow="81" ecol="16">This</text>
+                              <text srow="81" scol="17" erow="81" ecol="21">part</text>
+                              <text srow="81" scol="22" erow="81" ecol="27">seems</text>
+                              <text srow="81" scol="28" erow="81" ecol="40">interesting,</text>
+                              <text srow="81" scol="41" erow="81" ecol="43">if</text>
+                              <text srow="81" scol="44" erow="81" ecol="46">we</text>
+                              <text srow="81" scol="47" erow="81" ecol="50">use</text>
+                              <text srow="81" scol="51" erow="81" ecol="54">our</text>
+                              <text srow="81" scol="55" erow="81" ecol="65">expression</text>
+                              <text srow="81" scol="66" erow="81" ecol="71">again</text>
+                              <text srow="81" scol="72" erow="81" ecol="74">we</text>
+                              <text srow="81" scol="75" erow="81" ecol="79">have</text>
+                              <display_math srow="82" scol="12" erow="84" ecol="13">
+                                ##{
+                                <math_command srow="83" scol="14" erow="83" ecol="21">
+                                  <command_name srow="83" scol="14" erow="83" ecol="21">\exists</command_name>
+                                </math_command>
+                                <math_text srow="83" scol="22" erow="83" ecol="24">v:</math_text>
+                                <math_paren_group srow="83" scol="25" erow="83" ecol="32">
+                                  (
+                                  <math_text srow="83" scol="26" erow="83" ecol="27">w</math_text>
+                                  <math_text srow="83" scol="28" erow="83" ecol="29">R</math_text>
+                                  <math_text srow="83" scol="30" erow="83" ecol="31">v</math_text>
+                                  )
+                                </math_paren_group>
+                                <math_command srow="83" scol="33" erow="83" ecol="72">
+                                  <command_name srow="83" scol="33" erow="83" ecol="38">\land</command_name>
+                                  <math_paren_group srow="83" scol="39" erow="83" ecol="72">
+                                    (
+                                    <math_command srow="83" scol="40" erow="83" ecol="47">
+                                      <command_name srow="83" scol="40" erow="83" ecol="47">\exists</command_name>
+                                    </math_command>
+                                    <math_text srow="83" scol="48" erow="83" ecol="51">v':</math_text>
+                                    <math_paren_group srow="83" scol="52" erow="83" ecol="60">
+                                      (
+                                      <math_text srow="83" scol="53" erow="83" ecol="54">v</math_text>
+                                      <math_text srow="83" scol="55" erow="83" ecol="56">R</math_text>
+                                      <math_text srow="83" scol="57" erow="83" ecol="59">v'</math_text>
+                                      )
+                                    </math_paren_group>
+                                    <math_command srow="83" scol="61" erow="83" ecol="66">
+                                      <command_name srow="83" scol="61" erow="83" ecol="66">\land</command_name>
+                                    </math_command>
+                                    <math_command srow="83" scol="67" erow="83" ecol="71">
+                                      <command_name srow="83" scol="67" erow="83" ecol="71">\top</command_name>
+                                    </math_command>
+                                    )
+                                  </math_paren_group>
+                                </math_command>
+                                }
+                              </display_math>
+                              <text srow="85" scol="12" erow="85" ecol="14">in</text>
+                              <text srow="85" scol="15" erow="85" ecol="20">plain</text>
+                              <text srow="85" scol="21" erow="85" ecol="28">English</text>
+                              <text srow="85" scol="29" erow="85" ecol="31">im</text>
+                              <text srow="85" scol="32" erow="85" ecol="38">fairly</text>
+                              <text srow="85" scol="39" erow="85" ecol="46">certain</text>
+                              <text srow="85" scol="47" erow="85" ecol="51">this</text>
+                              <text srow="85" scol="52" erow="85" ecol="54">is</text>
+                              <text srow="85" scol="55" erow="85" ecol="64">basically</text>
+                              <text srow="85" scol="65" erow="85" ecol="69">just</text>
+                              <text srow="85" scol="70" erow="85" ecol="76">asking</text>
+                              <text srow="85" scol="77" erow="85" ecol="82">which</text>
+                              <text srow="85" scol="83" erow="85" ecol="94">state/world</text>
+                              <text srow="85" scol="95" erow="85" ecol="98">has</text>
+                              <text srow="85" scol="99" erow="85" ecol="101">to</text>
+                              <text srow="85" scol="102" erow="85" ecol="112">successors</text>
+                              <text srow="85" scol="113" erow="85" ecol="115">as</text>
+                              <text srow="85" scol="116" erow="85" ecol="119">the</text>
+                              <text srow="85" scol="120" erow="85" ecol="125">final</text>
+                              <inline_math srow="85" scol="126" erow="85" ecol="157">
+                                #{
+                                <math_paren_group srow="85" scol="128" erow="85" ecol="144">
+                                  (
+                                  <math_command srow="85" scol="129" erow="85" ecol="137">
+                                    <command_name srow="85" scol="129" erow="85" ecol="137">\mathcal</command_name>
+                                  </math_command>
+                                  <math_text srow="85" scol="138" erow="85" ecol="140">M,</math_text>
+                                  <math_text srow="85" scol="141" erow="85" ecol="143">v'</math_text>
+                                  )
+                                </math_paren_group>
+                                <math_command srow="85" scol="145" erow="85" ecol="151">
+                                  <command_name srow="85" scol="145" erow="85" ecol="151">\vDash</command_name>
+                                </math_command>
+                                <math_command srow="85" scol="152" erow="85" ecol="156">
+                                  <command_name srow="85" scol="152" erow="85" ecol="156">\top</command_name>
+                                </math_command>
+                                }
+                              </inline_math>
+                              <text srow="85" scol="158" erow="85" ecol="160">is</text>
+                              <text srow="85" scol="161" erow="85" ecol="165">just</text>
+                              <text srow="85" scol="166" erow="85" ecol="167">a</text>
+                              <text srow="85" scol="168" erow="85" ecol="178">tautology,</text>
+                              <text srow="85" scol="179" erow="85" ecol="183">here</text>
+                              <text srow="85" scol="184" erow="85" ecol="186">we</text>
+                              <text srow="85" scol="187" erow="85" ecol="198">technically</text>
+                              <text srow="85" scol="199" erow="85" ecol="203">have</text>
+                              <text srow="85" scol="204" erow="85" ecol="205">2</text>
+                              <text srow="85" scol="206" erow="85" ecol="212">states</text>
+                              <text srow="85" scol="213" erow="85" ecol="216">for</text>
+                              <text srow="85" scol="217" erow="85" ecol="222">which</text>
+                              <text srow="85" scol="223" erow="85" ecol="227">this</text>
+                              <text srow="85" scol="228" erow="85" ecol="234">holds,</text>
+                              <text srow="85" scol="235" erow="85" ecol="238">but</text>
+                              <text srow="85" scol="239" erow="85" ecol="242">due</text>
+                              <text srow="85" scol="243" erow="85" ecol="245">to</text>
+                              <text srow="85" scol="246" erow="85" ecol="249">the</text>
+                              <text srow="85" scol="250" erow="85" ecol="256">second</text>
+                              <text srow="85" scol="257" erow="85" ecol="265">conjunct</text>
+                              <text srow="85" scol="266" erow="85" ecol="268">it</text>
+                              <text srow="85" scol="269" erow="85" ecol="276">filters</text>
+                              <text srow="85" scol="277" erow="85" ecol="283">things</text>
+                              <text srow="85" scol="284" erow="85" ecol="288">down</text>
+                              <text srow="85" scol="289" erow="85" ecol="291">to</text>
+                              <text srow="85" scol="292" erow="85" ecol="296">just</text>
+                              <text srow="85" scol="297" erow="85" ecol="300">the</text>
+                              <text srow="85" scol="301" erow="85" ecol="306">state</text>
+                              <text srow="85" scol="307" erow="85" ecol="309">2.</text>
+                              <paren_group srow="85" scol="310" erow="85" ecol="319">
+                                (
+                                <text srow="85" scol="311" erow="85" ecol="312">I</text>
+                                <text srow="85" scol="313" erow="85" ecol="318">think</text>
+                                )
+                              </paren_group>
+                              }
+                            </brace_group>
+                          </command>
+                          <command srow="87" scol="10" erow="89" ecol="11">
+                            <command_name srow="87" scol="10" erow="87" ecol="13">\li</command_name>
+                            <brace_group srow="87" scol="13" erow="89" ecol="11">
+                              {
+                              <text srow="88" scol="12" erow="88" ecol="16">This</text>
+                              <text srow="88" scol="17" erow="88" ecol="22">seems</text>
+                              <text srow="88" scol="23" erow="88" ecol="27">less</text>
+                              <text srow="88" scol="28" erow="88" ecol="39">interesting</text>
+                              <text srow="88" scol="40" erow="88" ecol="42">as</text>
+                              <text srow="88" scol="43" erow="88" ecol="45">we</text>
+                              <text srow="88" scol="46" erow="88" ecol="49">can</text>
+                              <text srow="88" scol="50" erow="88" ecol="54">just</text>
+                              <text srow="88" scol="55" erow="88" ecol="60">infer</text>
+                              <text srow="88" scol="61" erow="88" ecol="65">it's</text>
+                              <text srow="88" scol="66" erow="88" ecol="68">an</text>
+                              <text srow="88" scol="69" erow="88" ecol="78">exclusion</text>
+                              <text srow="88" scol="79" erow="88" ecol="81">of</text>
+                              <text srow="88" scol="82" erow="88" ecol="83">1</text>
+                              <text srow="88" scol="84" erow="88" ecol="89">since</text>
+                              <text srow="88" scol="90" erow="88" ecol="95">thats</text>
+                              <text srow="88" scol="96" erow="88" ecol="99">the</text>
+                              <text srow="88" scol="100" erow="88" ecol="104">only</text>
+                              <text srow="88" scol="105" erow="88" ecol="110">state</text>
+                              <text srow="88" scol="111" erow="88" ecol="113">in</text>
+                              <text srow="88" scol="114" erow="88" ecol="119">which</text>
+                              <text srow="88" scol="120" erow="88" ecol="124">that</text>
+                              <text srow="88" scol="125" erow="88" ecol="135">expression</text>
+                              <text srow="88" scol="136" erow="88" ecol="138">is</text>
+                              <text srow="88" scol="139" erow="88" ecol="144">true.</text>
+                              }
+                            </brace_group>
+                          </command>
+                          }
+                        </brace_group>
+                      </command>
+                      }
+                    </brace_group>
+                  </command>
+                  }
+                </brace_group>
+              </command>
+              }
+            </brace_group>
+          </command>
+          <command srow="95" scol="2" erow="130" ecol="3">
+            <command_name srow="95" scol="2" erow="95" ecol="10">\subtree</command_name>
+            <bracket_group srow="95" scol="10" erow="95" ecol="16">
+              [
+              <text srow="95" scol="11" erow="95" ecol="15">006s</text>
+              ]
+            </bracket_group>
+            <brace_group srow="95" scol="16" erow="130" ecol="3">
+              {
+              <command srow="96" scol="4" erow="96" ecol="22">
+                <command_name srow="96" scol="4" erow="96" ecol="10">\taxon</command_name>
+                <brace_group srow="96" scol="10" erow="96" ecol="22">
+                  {
+                  <text srow="96" scol="11" erow="96" ecol="21">Definition</text>
+                  }
+                </brace_group>
+              </command>
+              <command srow="97" scol="4" erow="97" ecol="43">
+                <command_name srow="97" scol="4" erow="97" ecol="10">\title</command_name>
+                <brace_group srow="97" scol="10" erow="97" ecol="43">
+                  {
+                  <text srow="97" scol="11" erow="97" ecol="16">Local</text>
+                  <text srow="97" scol="17" erow="97" ecol="23">truth:</text>
+                  <text srow="97" scol="24" erow="97" ecol="28">some</text>
+                  <text srow="97" scol="29" erow="97" ecol="33">more</text>
+                  <text srow="97" scol="34" erow="97" ecol="42">examples</text>
+                  }
+                </brace_group>
+              </command>
+              <command srow="99" scol="4" erow="101" ecol="5">
+                <command_name srow="99" scol="4" erow="99" ecol="6">\p</command_name>
+                <brace_group srow="99" scol="6" erow="101" ecol="5">
+                  {
+                  <text srow="100" scol="6" erow="100" ecol="8">To</text>
+                  <text srow="100" scol="9" erow="100" ecol="15">expand</text>
+                  <text srow="100" scol="16" erow="100" ecol="18">on</text>
+                  <text srow="100" scol="19" erow="100" ecol="23">some</text>
+                  <text srow="100" scol="24" erow="100" ecol="28">more</text>
+                  <text srow="100" scol="29" erow="100" ecol="37">examples</text>
+                  <text srow="100" scol="38" erow="100" ecol="40">of</text>
+                  <text srow="100" scol="41" erow="100" ecol="46">local</text>
+                  <text srow="100" scol="47" erow="100" ecol="52">truth</text>
+                  <text srow="100" scol="53" erow="100" ecol="55">we</text>
+                  <text srow="100" scol="56" erow="100" ecol="59">can</text>
+                  <text srow="100" scol="60" erow="100" ecol="69">enumerate</text>
+                  <text srow="100" scol="70" erow="100" ecol="74">them</text>
+                  <text srow="100" scol="75" erow="100" ecol="80">below</text>
+                  }
+                </brace_group>
+              </command>
+              <display_math srow="102" scol="4" erow="114" ecol="5">
+                ##{
+                <math_command srow="103" scol="6" erow="104" ecol="21">
+                  <command_name srow="103" scol="6" erow="103" ecol="12">\begin</command_name>
+                  <math_brace_group srow="103" scol="12" erow="103" ecol="20">
+                    {
+                    <math_text srow="103" scol="13" erow="103" ecol="19">align*</math_text>
+                    }
+                  </math_brace_group>
+                  <math_paren_group srow="104" scol="6" erow="104" ecol="21">
+                    (
+                    <math_command srow="104" scol="7" erow="104" ecol="15">
+                      <command_name srow="104" scol="7" erow="104" ecol="15">\mathcal</command_name>
+                    </math_command>
+                    <math_text srow="104" scol="16" erow="104" ecol="18">M,</math_text>
+                    <math_text srow="104" scol="19" erow="104" ecol="20">w</math_text>
+                    )
+                  </math_paren_group>
+                </math_command>
+                <math_command srow="104" scol="22" erow="104" ecol="29">
+                  <command_name srow="104" scol="22" erow="104" ecol="29">\nvDash</command_name>
+                </math_command>
+                <math_command srow="104" scol="30" erow="104" ecol="34">
+                  <command_name srow="104" scol="30" erow="104" ecol="34">\Box</command_name>
+                </math_command>
+                <math_text srow="104" scol="35" erow="104" ecol="36">p</math_text>
+                <math_text srow="104" scol="37" erow="104" ecol="38">&amp;</math_text>
+                <math_command srow="104" scol="39" erow="104" ecol="43">
+                  <command_name srow="104" scol="39" erow="104" ecol="43">\iff</command_name>
+                </math_command>
+                <math_command srow="104" scol="44" erow="104" ecol="51">
+                  <command_name srow="104" scol="44" erow="104" ecol="51">\exists</command_name>
+                </math_command>
+                <math_text srow="104" scol="52" erow="104" ecol="53">v</math_text>
+                <math_command srow="104" scol="54" erow="104" ecol="57">
+                  <command_name srow="104" scol="54" erow="104" ecol="57">\in</command_name>
+                </math_command>
+                <math_text srow="104" scol="58" erow="104" ecol="59">W</math_text>
+                <math_text srow="104" scol="60" erow="104" ecol="61">:</math_text>
+                <math_paren_group srow="104" scol="62" erow="104" ecol="67">
+                  (
+                  <math_text srow="104" scol="63" erow="104" ecol="66">wRv</math_text>
+                  )
+                </math_paren_group>
+                <math_command srow="104" scol="68" erow="104" ecol="89">
+                  <command_name srow="104" scol="68" erow="104" ecol="73">\land</command_name>
+                  <math_paren_group srow="104" scol="74" erow="104" ecol="89">
+                    (
+                    <math_command srow="104" scol="75" erow="104" ecol="83">
+                      <command_name srow="104" scol="75" erow="104" ecol="83">\mathcal</command_name>
+                    </math_command>
+                    <math_text srow="104" scol="84" erow="104" ecol="86">M,</math_text>
+                    <math_text srow="104" scol="87" erow="104" ecol="88">v</math_text>
+                    )
+                  </math_paren_group>
+                </math_command>
+                <math_command srow="104" scol="90" erow="104" ecol="97">
+                  <command_name srow="104" scol="90" erow="104" ecol="97">\nvDash</command_name>
+                </math_command>
+                <math_text srow="104" scol="98" erow="104" ecol="99">p</math_text>
+                <math_escape srow="104" scol="100" erow="104" ecol="102">\\</math_escape>
+                <math_paren_group srow="105" scol="6" erow="105" ecol="21">
+                  (
+                  <math_command srow="105" scol="7" erow="105" ecol="15">
+                    <command_name srow="105" scol="7" erow="105" ecol="15">\mathcal</command_name>
+                  </math_command>
+                  <math_text srow="105" scol="16" erow="105" ecol="18">M,</math_text>
+                  <math_text srow="105" scol="19" erow="105" ecol="20">w</math_text>
+                  )
+                </math_paren_group>
+                <math_command srow="105" scol="22" erow="105" ecol="29">
+                  <command_name srow="105" scol="22" erow="105" ecol="29">\nvDash</command_name>
+                </math_command>
+                <math_command srow="105" scol="30" erow="105" ecol="38">
+                  <command_name srow="105" scol="30" erow="105" ecol="38">\Diamond</command_name>
+                </math_command>
+                <math_text srow="105" scol="39" erow="105" ecol="40">p</math_text>
+                <math_text srow="105" scol="41" erow="105" ecol="42">&amp;</math_text>
+                <math_command srow="105" scol="43" erow="105" ecol="47">
+                  <command_name srow="105" scol="43" erow="105" ecol="47">\iff</command_name>
+                </math_command>
+                <math_command srow="105" scol="48" erow="105" ecol="55">
+                  <command_name srow="105" scol="48" erow="105" ecol="55">\forall</command_name>
+                </math_command>
+                <math_text srow="105" scol="56" erow="105" ecol="57">v</math_text>
+                <math_command srow="105" scol="58" erow="105" ecol="61">
+                  <command_name srow="105" scol="58" erow="105" ecol="61">\in</command_name>
+                </math_command>
+                <math_text srow="105" scol="62" erow="105" ecol="63">W</math_text>
+                <math_text srow="105" scol="65" erow="105" ecol="66">:</math_text>
+                <math_paren_group srow="105" scol="67" erow="105" ecol="72">
+                  (
+                  <math_text srow="105" scol="68" erow="105" ecol="71">wRv</math_text>
+                  )
+                </math_paren_group>
+                <math_command srow="105" scol="73" erow="105" ecol="94">
+                  <command_name srow="105" scol="73" erow="105" ecol="78">\land</command_name>
+                  <math_paren_group srow="105" scol="79" erow="105" ecol="94">
+                    (
+                    <math_command srow="105" scol="80" erow="105" ecol="88">
+                      <command_name srow="105" scol="80" erow="105" ecol="88">\mathcal</command_name>
+                    </math_command>
+                    <math_text srow="105" scol="89" erow="105" ecol="91">M,</math_text>
+                    <math_text srow="105" scol="92" erow="105" ecol="93">v</math_text>
+                    )
+                  </math_paren_group>
+                </math_command>
+                <math_command srow="105" scol="95" erow="105" ecol="102">
+                  <command_name srow="105" scol="95" erow="105" ecol="102">\nvDash</command_name>
+                </math_command>
+                <math_text srow="105" scol="103" erow="105" ecol="104">p</math_text>
+                <math_escape srow="105" scol="105" erow="105" ecol="107">\\</math_escape>
+                <math_paren_group srow="106" scol="6" erow="106" ecol="21">
+                  (
+                  <math_command srow="106" scol="7" erow="106" ecol="15">
+                    <command_name srow="106" scol="7" erow="106" ecol="15">\mathcal</command_name>
+                  </math_command>
+                  <math_text srow="106" scol="16" erow="106" ecol="18">M,</math_text>
+                  <math_text srow="106" scol="19" erow="106" ecol="20">w</math_text>
+                  )
+                </math_paren_group>
+                <math_command srow="106" scol="22" erow="106" ecol="28">
+                  <command_name srow="106" scol="22" erow="106" ecol="28">\vDash</command_name>
+                </math_command>
+                <math_command srow="106" scol="29" erow="106" ecol="33">
+                  <command_name srow="106" scol="29" erow="106" ecol="33">\top</command_name>
+                </math_command>
+                <math_text srow="106" scol="34" erow="106" ecol="35">&amp;</math_text>
+                <math_command srow="106" scol="36" erow="106" ecol="40">
+                  <command_name srow="106" scol="36" erow="106" ecol="40">\iff</command_name>
+                </math_command>
+                <math_command srow="106" scol="41" erow="106" ecol="56">
+                  <command_name srow="106" scol="41" erow="106" ecol="48">\textrm</command_name>
+                  <math_brace_group srow="106" scol="48" erow="106" ecol="56">
+                    {
+                    <math_text srow="106" scol="49" erow="106" ecol="55">always</math_text>
+                    }
+                  </math_brace_group>
+                </math_command>
+                <math_escape srow="106" scol="57" erow="106" ecol="59">\\</math_escape>
+                <math_paren_group srow="107" scol="6" erow="107" ecol="21">
+                  (
+                  <math_command srow="107" scol="7" erow="107" ecol="15">
+                    <command_name srow="107" scol="7" erow="107" ecol="15">\mathcal</command_name>
+                  </math_command>
+                  <math_text srow="107" scol="16" erow="107" ecol="18">M,</math_text>
+                  <math_text srow="107" scol="19" erow="107" ecol="20">w</math_text>
+                  )
+                </math_paren_group>
+                <math_command srow="107" scol="22" erow="107" ecol="28">
+                  <command_name srow="107" scol="22" erow="107" ecol="28">\vDash</command_name>
+                </math_command>
+                <math_command srow="107" scol="29" erow="107" ecol="33">
+                  <command_name srow="107" scol="29" erow="107" ecol="33">\bot</command_name>
+                </math_command>
+                <math_text srow="107" scol="34" erow="107" ecol="35">&amp;</math_text>
+                <math_command srow="107" scol="36" erow="107" ecol="40">
+                  <command_name srow="107" scol="36" erow="107" ecol="40">\iff</command_name>
+                </math_command>
+                <math_command srow="107" scol="41" erow="107" ecol="55">
+                  <command_name srow="107" scol="41" erow="107" ecol="48">\textrm</command_name>
+                  <math_brace_group srow="107" scol="48" erow="107" ecol="55">
+                    {
+                    <math_text srow="107" scol="49" erow="107" ecol="54">never</math_text>
+                    }
+                  </math_brace_group>
+                </math_command>
+                <math_escape srow="107" scol="56" erow="107" ecol="58">\\</math_escape>
+                <math_paren_group srow="108" scol="6" erow="108" ecol="21">
+                  (
+                  <math_command srow="108" scol="7" erow="108" ecol="15">
+                    <command_name srow="108" scol="7" erow="108" ecol="15">\mathcal</command_name>
+                  </math_command>
+                  <math_text srow="108" scol="16" erow="108" ecol="18">M,</math_text>
+                  <math_text srow="108" scol="19" erow="108" ecol="20">w</math_text>
+                  )
+                </math_paren_group>
+                <math_command srow="108" scol="22" erow="108" ecol="28">
+                  <command_name srow="108" scol="22" erow="108" ecol="28">\vDash</command_name>
+                </math_command>
+                <math_command srow="108" scol="29" erow="108" ecol="37">
+                  <command_name srow="108" scol="29" erow="108" ecol="37">\Diamond</command_name>
+                </math_command>
+                <math_command srow="108" scol="38" erow="108" ecol="42">
+                  <command_name srow="108" scol="38" erow="108" ecol="42">\top</command_name>
+                </math_command>
+                <math_text srow="108" scol="43" erow="108" ecol="44">&amp;</math_text>
+                <math_command srow="108" scol="45" erow="108" ecol="49">
+                  <command_name srow="108" scol="45" erow="108" ecol="49">\iff</command_name>
+                </math_command>
+                <math_command srow="108" scol="50" erow="108" ecol="57">
+                  <command_name srow="108" scol="50" erow="108" ecol="57">\exists</command_name>
+                </math_command>
+                <math_text srow="108" scol="58" erow="108" ecol="59">v</math_text>
+                <math_command srow="108" scol="60" erow="108" ecol="63">
+                  <command_name srow="108" scol="60" erow="108" ecol="63">\in</command_name>
+                </math_command>
+                <math_text srow="108" scol="64" erow="108" ecol="65">W</math_text>
+                <math_text srow="108" scol="66" erow="108" ecol="67">:</math_text>
+                <math_paren_group srow="108" scol="68" erow="108" ecol="73">
+                  (
+                  <math_text srow="108" scol="69" erow="108" ecol="72">wRv</math_text>
+                  )
+                </math_paren_group>
+                <math_escape srow="108" scol="74" erow="108" ecol="76">\\</math_escape>
+                <math_paren_group srow="109" scol="6" erow="109" ecol="21">
+                  (
+                  <math_command srow="109" scol="7" erow="109" ecol="15">
+                    <command_name srow="109" scol="7" erow="109" ecol="15">\mathcal</command_name>
+                  </math_command>
+                  <math_text srow="109" scol="16" erow="109" ecol="18">M,</math_text>
+                  <math_text srow="109" scol="19" erow="109" ecol="20">w</math_text>
+                  )
+                </math_paren_group>
+                <math_command srow="109" scol="22" erow="109" ecol="28">
+                  <command_name srow="109" scol="22" erow="109" ecol="28">\vDash</command_name>
+                </math_command>
+                <math_command srow="109" scol="29" erow="109" ecol="33">
+                  <command_name srow="109" scol="29" erow="109" ecol="33">\Box</command_name>
+                </math_command>
+                <math_command srow="109" scol="34" erow="109" ecol="38">
+                  <command_name srow="109" scol="34" erow="109" ecol="38">\bot</command_name>
+                </math_command>
+                <math_text srow="109" scol="39" erow="109" ecol="40">&amp;</math_text>
+                <math_command srow="109" scol="40" erow="109" ecol="44">
+                  <command_name srow="109" scol="40" erow="109" ecol="44">\iff</command_name>
+                </math_command>
+                <math_escape srow="109" scol="45" erow="109" ecol="47">\ </math_escape>
+                <math_command srow="109" scol="47" erow="109" ecol="70">
+                  <command_name srow="109" scol="47" erow="109" ecol="56">\mathrlap</command_name>
+                  <math_brace_group srow="109" scol="56" erow="109" ecol="61">
+                    {
+                    <math_escape srow="109" scol="57" erow="109" ecol="59">\,</math_escape>
+                    <math_text srow="109" scol="59" erow="109" ecol="60">/</math_text>
+                    }
+                  </math_brace_group>
+                  <math_brace_group srow="109" scol="61" erow="109" ecol="70">
+                    {
+                    <math_command srow="109" scol="62" erow="109" ecol="69">
+                      <command_name srow="109" scol="62" erow="109" ecol="69">\exists</command_name>
+                    </math_command>
+                    }
+                  </math_brace_group>
+                </math_command>
+                <math_escape srow="109" scol="70" erow="109" ecol="72">\ </math_escape>
+                <math_text srow="109" scol="72" erow="109" ecol="73">v</math_text>
+                <math_command srow="109" scol="74" erow="109" ecol="77">
+                  <command_name srow="109" scol="74" erow="109" ecol="77">\in</command_name>
+                </math_command>
+                <math_text srow="109" scol="78" erow="109" ecol="79">W</math_text>
+                <math_text srow="109" scol="80" erow="109" ecol="81">:</math_text>
+                <math_paren_group srow="109" scol="82" erow="109" ecol="87">
+                  (
+                  <math_text srow="109" scol="83" erow="109" ecol="86">wRv</math_text>
+                  )
+                </math_paren_group>
+                <math_escape srow="109" scol="88" erow="109" ecol="90">\\</math_escape>
+                <math_paren_group srow="110" scol="6" erow="110" ecol="21">
+                  (
+                  <math_command srow="110" scol="7" erow="110" ecol="15">
+                    <command_name srow="110" scol="7" erow="110" ecol="15">\mathcal</command_name>
+                  </math_command>
+                  <math_text srow="110" scol="16" erow="110" ecol="18">M,</math_text>
+                  <math_text srow="110" scol="19" erow="110" ecol="20">w</math_text>
+                  )
+                </math_paren_group>
+                <math_command srow="110" scol="22" erow="110" ecol="29">
+                  <command_name srow="110" scol="22" erow="110" ecol="29">\nvDash</command_name>
+                </math_command>
+                <math_command srow="110" scol="30" erow="110" ecol="38">
+                  <command_name srow="110" scol="30" erow="110" ecol="38">\Diamond</command_name>
+                </math_command>
+                <math_command srow="110" scol="39" erow="110" ecol="43">
+                  <command_name srow="110" scol="39" erow="110" ecol="43">\bot</command_name>
+                </math_command>
+                <math_text srow="110" scol="44" erow="110" ecol="45">&amp;</math_text>
+                <math_command srow="110" scol="45" erow="110" ecol="49">
+                  <command_name srow="110" scol="45" erow="110" ecol="49">\iff</command_name>
+                </math_command>
+                <math_command srow="110" scol="50" erow="110" ecol="65">
+                  <command_name srow="110" scol="50" erow="110" ecol="57">\textrm</command_name>
+                  <math_brace_group srow="110" scol="57" erow="110" ecol="65">
+                    {
+                    <math_text srow="110" scol="58" erow="110" ecol="64">always</math_text>
+                    }
+                  </math_brace_group>
+                </math_command>
+                <math_escape srow="110" scol="66" erow="110" ecol="68">\\</math_escape>
+                <math_paren_group srow="111" scol="6" erow="111" ecol="21">
+                  (
+                  <math_command srow="111" scol="7" erow="111" ecol="15">
+                    <command_name srow="111" scol="7" erow="111" ecol="15">\mathcal</command_name>
+                  </math_command>
+                  <math_text srow="111" scol="16" erow="111" ecol="18">M,</math_text>
+                  <math_text srow="111" scol="19" erow="111" ecol="20">w</math_text>
+                  )
+                </math_paren_group>
+                <math_command srow="111" scol="22" erow="111" ecol="28">
+                  <command_name srow="111" scol="22" erow="111" ecol="28">\vDash</command_name>
+                </math_command>
+                <math_command srow="111" scol="29" erow="111" ecol="33">
+                  <command_name srow="111" scol="29" erow="111" ecol="33">\Box</command_name>
+                </math_command>
+                <math_command srow="111" scol="34" erow="111" ecol="38">
+                  <command_name srow="111" scol="34" erow="111" ecol="38">\top</command_name>
+                </math_command>
+                <math_text srow="111" scol="39" erow="111" ecol="40">&amp;</math_text>
+                <math_command srow="111" scol="40" erow="111" ecol="44">
+                  <command_name srow="111" scol="40" erow="111" ecol="44">\iff</command_name>
+                </math_command>
+                <math_command srow="111" scol="45" erow="111" ecol="60">
+                  <command_name srow="111" scol="45" erow="111" ecol="52">\textrm</command_name>
+                  <math_brace_group srow="111" scol="52" erow="111" ecol="60">
+                    {
+                    <math_text srow="111" scol="53" erow="111" ecol="59">always</math_text>
+                    }
+                  </math_brace_group>
+                </math_command>
+                <math_escape srow="111" scol="61" erow="111" ecol="63">\\</math_escape>
+                <math_paren_group srow="112" scol="6" erow="112" ecol="21">
+                  (
+                  <math_command srow="112" scol="7" erow="112" ecol="15">
+                    <command_name srow="112" scol="7" erow="112" ecol="15">\mathcal</command_name>
+                  </math_command>
+                  <math_text srow="112" scol="16" erow="112" ecol="18">M,</math_text>
+                  <math_text srow="112" scol="19" erow="112" ecol="20">w</math_text>
+                  )
+                </math_paren_group>
+                <math_command srow="112" scol="22" erow="112" ecol="28">
+                  <command_name srow="112" scol="22" erow="112" ecol="28">\vDash</command_name>
+                </math_command>
+                <math_command srow="112" scol="29" erow="112" ecol="37">
+                  <command_name srow="112" scol="29" erow="112" ecol="37">\Diamond</command_name>
+                </math_command>
+                <math_command srow="112" scol="38" erow="112" ecol="42">
+                  <command_name srow="112" scol="38" erow="112" ecol="42">\bot</command_name>
+                </math_command>
+                <math_text srow="112" scol="43" erow="112" ecol="44">&amp;</math_text>
+                <math_command srow="112" scol="44" erow="112" ecol="48">
+                  <command_name srow="112" scol="44" erow="112" ecol="48">\iff</command_name>
+                </math_command>
+                <math_command srow="112" scol="49" erow="112" ecol="63">
+                  <command_name srow="112" scol="49" erow="112" ecol="56">\textrm</command_name>
+                  <math_brace_group srow="112" scol="56" erow="112" ecol="63">
+                    {
+                    <math_text srow="112" scol="57" erow="112" ecol="62">never</math_text>
+                    }
+                  </math_brace_group>
+                </math_command>
+                <math_command srow="113" scol="6" erow="113" ecol="18">
+                  <command_name srow="113" scol="6" erow="113" ecol="10">\end</command_name>
+                  <math_brace_group srow="113" scol="10" erow="113" ecol="18">
+                    {
+                    <math_text srow="113" scol="11" erow="113" ecol="17">align*</math_text>
+                    }
+                  </math_brace_group>
+                </math_command>
+                }
+              </display_math>
+              <command srow="115" scol="4" erow="128" ecol="5">
+                <command_name srow="115" scol="4" erow="115" ecol="6">\p</command_name>
+                <brace_group srow="115" scol="6" erow="128" ecol="5">
+                  {
+                  <text srow="116" scol="6" erow="116" ecol="9">The</text>
+                  <text srow="116" scol="10" erow="116" ecol="14">sort</text>
+                  <text srow="116" scol="15" erow="116" ecol="17">of</text>
+                  <text srow="116" scol="18" erow="116" ecol="25">premise</text>
+                  <text srow="116" scol="26" erow="116" ecol="27">I</text>
+                  <text srow="116" scol="28" erow="116" ecol="33">think</text>
+                  <text srow="116" scol="34" erow="116" ecol="38">when</text>
+                  <text srow="116" scol="39" erow="116" ecol="41">it</text>
+                  <text srow="116" scol="42" erow="116" ecol="47">comes</text>
+                  <text srow="116" scol="48" erow="116" ecol="50">to</text>
+                  <text srow="116" scol="51" erow="116" ecol="61">modalities</text>
+                  <text srow="116" scol="62" erow="116" ecol="71">prepended</text>
+                  <text srow="116" scol="72" erow="116" ecol="74">to</text>
+                  <inline_math srow="116" scol="75" erow="116" ecol="82">
+                    #{
+                    <math_command srow="116" scol="77" erow="116" ecol="81">
+                      <command_name srow="116" scol="77" erow="116" ecol="81">\bot</command_name>
+                    </math_command>
+                    }
+                  </inline_math>
+                  <text srow="116" scol="83" erow="116" ecol="86">and</text>
+                  <inline_math srow="116" scol="87" erow="116" ecol="94">
+                    #{
+                    <math_command srow="116" scol="89" erow="116" ecol="93">
+                      <command_name srow="116" scol="89" erow="116" ecol="93">\top</command_name>
+                    </math_command>
+                    }
+                  </inline_math>
+                  <text srow="116" scol="95" erow="116" ecol="96">I</text>
+                  <text srow="116" scol="97" erow="116" ecol="102">think</text>
+                  <text srow="116" scol="103" erow="116" ecol="105">is</text>
+                  <text srow="116" scol="106" erow="116" ecol="110">more</text>
+                  <text srow="116" scol="111" erow="116" ecol="113">or</text>
+                  <text srow="116" scol="114" erow="116" ecol="118">less</text>
+                  <text srow="116" scol="119" erow="116" ecol="123">just</text>
+                  <text srow="116" scol="124" erow="116" ecol="133">analogous</text>
+                  <text srow="116" scol="134" erow="116" ecol="136">to</text>
+                  <text srow="116" scol="137" erow="116" ecol="143">asking</text>
+                  <text srow="116" scol="144" erow="116" ecol="146">if</text>
+                  <text srow="116" scol="147" erow="116" ecol="156">something</text>
+                  <text srow="116" scol="157" erow="116" ecol="161">does</text>
+                  <text srow="116" scol="162" erow="116" ecol="164">or</text>
+                  <text srow="116" scol="165" erow="116" ecol="171">doesnt</text>
+                  <text srow="116" scol="172" erow="116" ecol="176">have</text>
+                  <text srow="116" scol="177" erow="116" ecol="178">a</text>
+                  <text srow="116" scol="179" erow="116" ecol="189">successor.</text>
+                  <text srow="116" scol="190" erow="116" ecol="196">Hence,</text>
+                  <text srow="116" scol="197" erow="116" ecol="200">why</text>
+                  <inline_math srow="116" scol="201" erow="116" ecol="241">
+                    #{
+                    <math_paren_group srow="116" scol="203" erow="116" ecol="218">
+                      (
+                      <math_command srow="116" scol="204" erow="116" ecol="212">
+                        <command_name srow="116" scol="204" erow="116" ecol="212">\mathcal</command_name>
+                      </math_command>
+                      <math_text srow="116" scol="213" erow="116" ecol="215">M,</math_text>
+                      <math_text srow="116" scol="216" erow="116" ecol="217">w</math_text>
+                      )
+                    </math_paren_group>
+                    <math_command srow="116" scol="219" erow="116" ecol="226">
+                      <command_name srow="116" scol="219" erow="116" ecol="226">\nvDash</command_name>
+                    </math_command>
+                    <math_command srow="116" scol="227" erow="116" ecol="235">
+                      <command_name srow="116" scol="227" erow="116" ecol="235">\Diamond</command_name>
+                    </math_command>
+                    <math_command srow="116" scol="236" erow="116" ecol="240">
+                      <command_name srow="116" scol="236" erow="116" ecol="240">\bot</command_name>
+                    </math_command>
+                    }
+                  </inline_math>
+                  <text srow="116" scol="242" erow="116" ecol="245">for</text>
+                  <text srow="116" scol="246" erow="116" ecol="253">example</text>
+                  <text srow="116" scol="254" erow="116" ecol="256">is</text>
+                  <text srow="116" scol="257" erow="116" ecol="263">always</text>
+                  <text srow="116" scol="264" erow="116" ecol="269">true,</text>
+                  <text srow="116" scol="270" erow="116" ecol="273">the</text>
+                  <text srow="116" scol="274" erow="116" ecol="278">line</text>
+                  <text srow="116" scol="279" erow="116" ecol="281">of</text>
+                  <text srow="116" scol="282" erow="116" ecol="291">reasoning</text>
+                  <text srow="116" scol="292" erow="116" ecol="297">being</text>
+                  <command srow="117" scol="6" erow="127" ecol="7">
+                    <command_name srow="117" scol="6" erow="117" ecol="9">\ol</command_name>
+                    <brace_group srow="117" scol="9" erow="127" ecol="7">
+                      {
+                      <command srow="118" scol="8" erow="120" ecol="9">
+                        <command_name srow="118" scol="8" erow="118" ecol="11">\li</command_name>
+                        <brace_group srow="118" scol="11" erow="120" ecol="9">
+                          {
+                          <text srow="119" scol="10" erow="119" ecol="13">The</text>
+                          <text srow="119" scol="14" erow="119" ecol="19">model</text>
+                          <text srow="119" scol="20" erow="119" ecol="30">"possibly"</text>
+                          <text srow="119" scol="31" erow="119" ecol="36">needs</text>
+                          <text srow="119" scol="37" erow="119" ecol="41">some</text>
+                          <text srow="119" scol="42" erow="119" ecol="51">successor</text>
+                          <paren_group srow="119" scol="52" erow="119" ecol="77">
+                            (
+                            <text srow="119" scol="53" erow="119" ecol="58">where</text>
+                            <text srow="119" scol="59" erow="119" ecol="62">the</text>
+                            <text srow="119" scol="63" erow="119" ecol="70">formula</text>
+                            <text srow="119" scol="71" erow="119" ecol="76">holds</text>
+                            )
+                          </paren_group>
+                          }
+                        </brace_group>
+                      </command>
+                      <command srow="121" scol="8" erow="123" ecol="9">
+                        <command_name srow="121" scol="8" erow="121" ecol="11">\li</command_name>
+                        <brace_group srow="121" scol="11" erow="123" ecol="9">
+                          {
+                          <inline_math srow="122" scol="10" erow="122" ecol="17">
+                            #{
+                            <math_command srow="122" scol="12" erow="122" ecol="16">
+                              <command_name srow="122" scol="12" erow="122" ecol="16">\bot</command_name>
+                            </math_command>
+                            }
+                          </inline_math>
+                          <text srow="122" scol="18" erow="122" ecol="32">definitionally</text>
+                          <text srow="122" scol="33" erow="122" ecol="38">holds</text>
+                          <text srow="122" scol="39" erow="122" ecol="46">nowhere</text>
+                          }
+                        </brace_group>
+                      </command>
+                      <command srow="124" scol="8" erow="126" ecol="9">
+                        <command_name srow="124" scol="8" erow="124" ecol="11">\li</command_name>
+                        <brace_group srow="124" scol="11" erow="126" ecol="9">
+                          {
+                          <text srow="125" scol="10" erow="125" ecol="16">Hence,</text>
+                          <text srow="125" scol="17" erow="125" ecol="21">it's</text>
+                          <text srow="125" scol="22" erow="125" ecol="27">never</text>
+                          <text srow="125" scol="28" erow="125" ecol="31">the</text>
+                          <text srow="125" scol="32" erow="125" ecol="36">case</text>
+                          <text srow="125" scol="37" erow="125" ecol="39">we</text>
+                          <text srow="125" scol="40" erow="125" ecol="44">have</text>
+                          <text srow="125" scol="45" erow="125" ecol="46">a</text>
+                          <text srow="125" scol="47" erow="125" ecol="56">successor</text>
+                          <text srow="125" scol="57" erow="125" ecol="62">where</text>
+                          <text srow="125" scol="63" erow="125" ecol="66">the</text>
+                          <text srow="125" scol="67" erow="125" ecol="74">formula</text>
+                          <text srow="125" scol="75" erow="125" ecol="77">is</text>
+                          <text srow="125" scol="78" erow="125" ecol="82">true</text>
+                          <text srow="125" scol="83" erow="125" ecol="85">as</text>
+                          <text srow="125" scol="86" erow="125" ecol="89">the</text>
+                          <text srow="125" scol="90" erow="125" ecol="97">formula</text>
+                          <text srow="125" scol="98" erow="125" ecol="100">is</text>
+                          <text srow="125" scol="101" erow="125" ecol="105">just</text>
+                          <text srow="125" scol="106" erow="125" ecol="112">itself</text>
+                          <inline_math srow="125" scol="113" erow="125" ecol="120">
+                            #{
+                            <math_command srow="125" scol="115" erow="125" ecol="119">
+                              <command_name srow="125" scol="115" erow="125" ecol="119">\bot</command_name>
+                            </math_command>
+                            }
+                          </inline_math>
+                          }
+                        </brace_group>
+                      </command>
+                      }
+                    </brace_group>
+                  </command>
+                  }
+                </brace_group>
+              </command>
+              }
+            </brace_group>
+          </command>
+          }
+        </brace_group>
+      </command>
+    </source_file>
+  </source>
+</sources>

@@ -19,7 +19,7 @@ const PROSE_FIELDS: &[&str] = &[
 /// Walks the tree collecting text from `brace_word` and `quote_word` leaf
 /// nodes inside specific prose-bearing fields (title, abstract, note, etc.).
 /// Words are merged into prose chunks using the shared gap analysis.
-pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
+pub fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     let mut ranges = Vec::new();
     let mut cursor = root.walk();
 
@@ -52,9 +52,8 @@ fn collect_entry_fields(entry: Node, text: &str, out: &mut Vec<ProseRange>) {
             continue;
         }
 
-        let value_node = match child.child_by_field_name("value") {
-            Some(v) => v,
-            None => continue,
+        let Some(value_node) = child.child_by_field_name("value") else {
+            continue;
         };
 
         // Collect all word-level leaf nodes inside the value

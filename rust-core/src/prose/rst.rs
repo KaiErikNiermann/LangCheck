@@ -24,7 +24,7 @@ const SKIP_DIRECTIVE_TYPES: &[&str] = &[
 /// Walks the tree collecting `paragraph` and `title` nodes as prose ranges,
 /// with exclusion zones for inline `literal` (`` ``code`` ``) nodes. Skips
 /// directive content for code-block, math, and other non-prose directives.
-pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
+pub fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     let mut ranges = Vec::new();
     collect_prose_ranges(root, text, &mut ranges, false);
     ranges

@@ -7,7 +7,7 @@ use std::path::Path;
 /// This data is stored per-project and used to suggest disabling noisy rules.
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct FeedbackTracker {
-    /// Map from unified_rule_id -> stats
+    /// Map from `unified_rule_id` -> stats
     rules: HashMap<String, RuleStats>,
 }
 
@@ -25,6 +25,7 @@ pub struct RuleStats {
 impl RuleStats {
     /// Fraction of shown diagnostics that were dismissed (0.0 to 1.0).
     #[must_use]
+    #[allow(clippy::cast_precision_loss)]
     pub fn dismiss_rate(&self) -> f64 {
         if self.shown == 0 {
             0.0
@@ -74,7 +75,7 @@ impl FeedbackTracker {
 
     /// Get rules that are frequently dismissed and should be considered for disabling.
     ///
-    /// Returns rules where dismiss_rate > `threshold` and at least `min_shown` occurrences.
+    /// Returns rules where `dismiss_rate` > `threshold` and at least `min_shown` occurrences.
     #[must_use]
     pub fn suggest_disable(&self, threshold: f64, min_shown: u64) -> Vec<DisableSuggestion> {
         let mut suggestions: Vec<DisableSuggestion> = self
