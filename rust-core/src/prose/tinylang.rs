@@ -168,16 +168,7 @@ fn strip_tinylang_noise(gap: &str) -> String {
             }
             // Skip command argument: {content}
             if i < chars.len() && chars[i] == '{' {
-                let mut depth = 1;
-                i += 1;
-                while i < chars.len() && depth > 0 {
-                    if chars[i] == '{' {
-                        depth += 1;
-                    } else if chars[i] == '}' {
-                        depth -= 1;
-                    }
-                    i += 1;
-                }
+                i = shared::skip_balanced_chars(&chars, i + 1, '{', '}');
             }
         // Comment: // to end of line — replace with newline so that a comment
         // on its own line reveals a paragraph break (\n + comment + \n → \n\n)

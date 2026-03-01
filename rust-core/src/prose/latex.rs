@@ -284,7 +284,6 @@ fn should_skip_generic_command(node: Node, text: &str, extra_skip_commands: &[St
 /// escape sequences (`\\`, `\,`, etc.).  Display math exclusions are
 /// extended to cover surrounding whitespace so that the grammar checker
 /// doesn't see false paragraph breaks.
-#[allow(clippy::too_many_lines)]
 fn collect_gap_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, usize)>) {
     let bytes = gap.as_bytes();
     let len = bytes.len();
@@ -351,21 +350,7 @@ fn collect_gap_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, us
             if i < len && bytes[i] == b'*' {
                 i += 1;
             }
-            // Skip command arguments: {content} and [content]
-            while i < len && (bytes[i] == b'{' || bytes[i] == b'[') {
-                let open = bytes[i];
-                let close = if open == b'{' { b'}' } else { b']' };
-                let mut depth: u32 = 1;
-                i += 1;
-                while i < len && depth > 0 {
-                    if bytes[i] == open {
-                        depth += 1;
-                    } else if bytes[i] == close {
-                        depth -= 1;
-                    }
-                    i += 1;
-                }
-            }
+            i = shared::skip_command_args_bytes(bytes, i, &[(b'{', b'}'), (b'[', b']')]);
             out.push((gap_offset + start, gap_offset + i));
             continue;
         }
@@ -395,7 +380,6 @@ fn collect_gap_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, us
 /// excluded from the prose text via `ProseRange.exclusions`, so stripping
 /// it here is safe. Leaves braces, whitespace, and punctuation intact for
 /// subsequent validation.
-#[allow(clippy::too_many_lines)]
 fn strip_latex_noise(gap: &str) -> String {
     let mut result = String::new();
     let chars: Vec<char> = gap.chars().collect();
@@ -461,21 +445,7 @@ fn strip_latex_noise(gap: &str) -> String {
             if i < chars.len() && chars[i] == '*' {
                 i += 1;
             }
-            // Skip command arguments: {content} and [content]
-            while i < chars.len() && (chars[i] == '{' || chars[i] == '[') {
-                let open = chars[i];
-                let close = if open == '{' { '}' } else { ']' };
-                let mut depth = 1;
-                i += 1;
-                while i < chars.len() && depth > 0 {
-                    if chars[i] == open {
-                        depth += 1;
-                    } else if chars[i] == close {
-                        depth -= 1;
-                    }
-                    i += 1;
-                }
-            }
+            i = shared::skip_command_args_chars(&chars, i, &[('{', '}'), ('[', ']')]);
         } else if chars[i] == '\\' {
             i += 1;
             if i < chars.len() {

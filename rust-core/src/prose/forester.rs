@@ -96,9 +96,9 @@ pub fn extract(text: &str, root: Node) -> Vec<ProseRange> {
         })
         .collect();
 
-    install_skip_exclusions(&mut result, &skips, text.as_bytes());
-    dedup_exclusions(&mut result);
-    result.retain(|r| !is_fully_excluded(r));
+    shared::install_skip_exclusions(&mut result, &skips, text.as_bytes());
+    shared::dedup_exclusions(&mut result);
+    result.retain(|r| !shared::is_fully_excluded(r));
     result
 }
 
@@ -202,73 +202,6 @@ fn collect_prose_nodes(
     }
 }
 
-/// Install skip-node byte ranges as exclusions on merged prose ranges.
-///
-/// For each `ProseRange`, finds all skip ranges that overlap `[start_byte, end_byte)`,
-/// extends each to cover surrounding whitespace (so the checker sees clean boundaries),
-/// and adds them as exclusions.
-fn install_skip_exclusions(ranges: &mut [ProseRange], skips: &[(usize, usize)], text: &[u8]) {
-    for range in ranges.iter_mut() {
-        for &(skip_start, skip_end) in skips {
-            // Skip range must overlap the prose range
-            if skip_end <= range.start_byte || skip_start >= range.end_byte {
-                continue;
-            }
-
-            // Clamp to the prose range boundaries
-            let mut exc_start = skip_start.max(range.start_byte);
-            let mut exc_end = skip_end.min(range.end_byte);
-
-            // Extend backwards to include leading whitespace
-            while exc_start > range.start_byte && text[exc_start - 1].is_ascii_whitespace() {
-                exc_start -= 1;
-            }
-
-            // Extend forwards to include trailing whitespace
-            while exc_end < range.end_byte && text[exc_end].is_ascii_whitespace() {
-                exc_end += 1;
-            }
-
-            range.exclusions.push((exc_start, exc_end));
-        }
-    }
-}
-
-/// Merge overlapping or adjacent exclusions within each prose range.
-fn dedup_exclusions(ranges: &mut [ProseRange]) {
-    for range in ranges.iter_mut() {
-        if range.exclusions.len() <= 1 {
-            continue;
-        }
-        range.exclusions.sort_unstable_by_key(|&(s, _)| s);
-        let mut merged = vec![range.exclusions[0]];
-        for &(s, e) in &range.exclusions[1..] {
-            let last = merged.last_mut().unwrap();
-            if s <= last.1 {
-                last.1 = last.1.max(e);
-            } else {
-                merged.push((s, e));
-            }
-        }
-        range.exclusions = merged;
-    }
-}
-
-/// Check whether a prose range is entirely covered by its exclusions.
-fn is_fully_excluded(range: &ProseRange) -> bool {
-    if range.exclusions.is_empty() {
-        return false;
-    }
-    let mut covered = range.start_byte;
-    for &(s, e) in &range.exclusions {
-        if s > covered {
-            return false;
-        }
-        covered = covered.max(e);
-    }
-    covered >= range.end_byte
-}
-
 /// Strip Forester noise from a gap string: math, commands, escapes.
 /// Leaves whitespace, braces, and punctuation for bridge analysis.
 fn strip_forester_noise(gap: &str) -> String {
@@ -278,29 +211,11 @@ fn strip_forester_noise(gap: &str) -> String {
     while i < chars.len() {
         // Display math: ##{...}
         if chars[i] == '#' && i + 2 < chars.len() && chars[i + 1] == '#' && chars[i + 2] == '{' {
-            i += 3;
-            let mut depth = 1;
-            while i < chars.len() && depth > 0 {
-                if chars[i] == '{' {
-                    depth += 1;
-                } else if chars[i] == '}' {
-                    depth -= 1;
-                }
-                i += 1;
-            }
+            i = shared::skip_balanced_chars(&chars, i + 3, '{', '}');
             result.push(' ');
         // Inline math: #{...}
         } else if chars[i] == '#' && i + 1 < chars.len() && chars[i + 1] == '{' {
-            i += 2;
-            let mut depth = 1;
-            while i < chars.len() && depth > 0 {
-                if chars[i] == '{' {
-                    depth += 1;
-                } else if chars[i] == '}' {
-                    depth -= 1;
-                }
-                i += 1;
-            }
+            i = shared::skip_balanced_chars(&chars, i + 2, '{', '}');
             result.push(' ');
         // Command: \name followed by optional {}, [], () args
         } else if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1].is_ascii_alphanumeric() {
@@ -314,26 +229,7 @@ fn strip_forester_noise(gap: &str) -> String {
             {
                 i += 1;
             }
-            // Skip command arguments: {content}, [content], (content)
-            while i < chars.len() && matches!(chars[i], '{' | '[' | '(') {
-                let open = chars[i];
-                let close = match open {
-                    '{' => '}',
-                    '[' => ']',
-                    '(' => ')',
-                    _ => unreachable!(),
-                };
-                let mut depth = 1;
-                i += 1;
-                while i < chars.len() && depth > 0 {
-                    if chars[i] == open {
-                        depth += 1;
-                    } else if chars[i] == close {
-                        depth -= 1;
-                    }
-                    i += 1;
-                }
-            }
+            i = shared::skip_command_args_chars(&chars, i, &[('{', '}'), ('[', ']'), ('(', ')')]);
         // Escape: \X
         } else if chars[i] == '\\' && i + 1 < chars.len() {
             i += 2;
@@ -362,10 +258,10 @@ fn collect_forester_exclusions(gap: &str, offset: usize, exclusions: &mut Vec<(u
     while i < len {
         let start = i;
         if b[i] == b'#' && i + 2 < len && b[i + 1] == b'#' && b[i + 2] == b'{' {
-            i = skip_braces(b, i + 3); // display math
+            i = shared::skip_balanced_bytes(b, i + 3, b'{', b'}', Some(b'\\')); // display math
             exclusions.push((offset + start, offset + i));
         } else if b[i] == b'#' && i + 1 < len && b[i + 1] == b'{' {
-            i = skip_braces(b, i + 2); // inline math
+            i = shared::skip_balanced_bytes(b, i + 2, b'{', b'}', Some(b'\\')); // inline math
             exclusions.push((offset + start, offset + i));
         } else if b[i] == b'\\' && i + 1 < len && b[i + 1].is_ascii_alphanumeric() {
             i = skip_command_with_args(b, i); // \name{...}[...](...)
@@ -384,24 +280,6 @@ fn collect_forester_exclusions(gap: &str, offset: usize, exclusions: &mut Vec<(u
     }
 }
 
-/// Skip balanced braces starting after the opening `{`. Returns position after closing `}`.
-fn skip_braces(b: &[u8], mut i: usize) -> usize {
-    let mut depth: u32 = 1;
-    while i < b.len() && depth > 0 {
-        if b[i] == b'\\' && i + 1 < b.len() {
-            i += 2;
-            continue;
-        }
-        if b[i] == b'{' {
-            depth += 1;
-        } else if b[i] == b'}' {
-            depth -= 1;
-        }
-        i += 1;
-    }
-    i
-}
-
 /// Skip a `\name` command and its optional brace/bracket/paren arguments.
 fn skip_command_with_args(b: &[u8], mut i: usize) -> usize {
     i += 1; // skip backslash
@@ -409,25 +287,7 @@ fn skip_command_with_args(b: &[u8], mut i: usize) -> usize {
     {
         i += 1;
     }
-    while i < b.len() && matches!(b[i], b'{' | b'[' | b'(') {
-        let (open, close) = match b[i] {
-            b'{' => (b'{', b'}'),
-            b'[' => (b'[', b']'),
-            b'(' => (b'(', b')'),
-            _ => unreachable!(),
-        };
-        let mut depth: u32 = 1;
-        i += 1;
-        while i < b.len() && depth > 0 {
-            if b[i] == open {
-                depth += 1;
-            } else if b[i] == close {
-                depth -= 1;
-            }
-            i += 1;
-        }
-    }
-    i
+    shared::skip_command_args_bytes(b, i, &[(b'{', b'}'), (b'[', b']'), (b'(', b')')])
 }
 
 /// Scan raw text for `#{...}` and `##{...}` math regions using escape-aware
@@ -461,20 +321,7 @@ fn find_math_regions(text: &str) -> Vec<(usize, usize)> {
         // Display math: ##{...}
         if bytes[i] == b'#' && i + 2 < len && bytes[i + 1] == b'#' && bytes[i + 2] == b'{' {
             let start = i;
-            i += 3; // skip ##{
-            let mut depth: u32 = 1;
-            while i < len && depth > 0 {
-                if bytes[i] == b'\\' && i + 1 < len {
-                    i += 2; // skip escape inside math
-                    continue;
-                }
-                if bytes[i] == b'{' {
-                    depth += 1;
-                } else if bytes[i] == b'}' {
-                    depth -= 1;
-                }
-                i += 1;
-            }
+            i = shared::skip_balanced_bytes(bytes, i + 3, b'{', b'}', Some(b'\\'));
             regions.push((start, i));
             continue;
         }
@@ -482,20 +329,7 @@ fn find_math_regions(text: &str) -> Vec<(usize, usize)> {
         // Inline math: #{...}
         if bytes[i] == b'#' && i + 1 < len && bytes[i + 1] == b'{' {
             let start = i;
-            i += 2; // skip #{
-            let mut depth: u32 = 1;
-            while i < len && depth > 0 {
-                if bytes[i] == b'\\' && i + 1 < len {
-                    i += 2; // skip escape inside math
-                    continue;
-                }
-                if bytes[i] == b'{' {
-                    depth += 1;
-                } else if bytes[i] == b'}' {
-                    depth -= 1;
-                }
-                i += 1;
-            }
+            i = shared::skip_balanced_bytes(bytes, i + 2, b'{', b'}', Some(b'\\'));
             regions.push((start, i));
             continue;
         }
@@ -1223,61 +1057,6 @@ which completes the proof.}}";
         );
 
         Ok(())
-    }
-
-    #[test]
-    fn test_dedup_exclusions_merges_overlapping() {
-        use super::{ProseRange, dedup_exclusions};
-
-        let mut ranges = vec![ProseRange {
-            start_byte: 0,
-            end_byte: 100,
-            exclusions: vec![(10, 30), (10, 25), (20, 40), (50, 60)],
-        }];
-        dedup_exclusions(&mut ranges);
-        assert_eq!(ranges[0].exclusions, vec![(10, 40), (50, 60)]);
-    }
-
-    #[test]
-    fn test_dedup_exclusions_adjacent() {
-        use super::{ProseRange, dedup_exclusions};
-
-        let mut ranges = vec![ProseRange {
-            start_byte: 0,
-            end_byte: 100,
-            exclusions: vec![(10, 20), (20, 30)],
-        }];
-        dedup_exclusions(&mut ranges);
-        assert_eq!(ranges[0].exclusions, vec![(10, 30)]);
-    }
-
-    #[test]
-    fn test_is_fully_excluded() {
-        use super::{ProseRange, is_fully_excluded};
-
-        // Fully covered
-        let r = ProseRange {
-            start_byte: 10,
-            end_byte: 50,
-            exclusions: vec![(10, 50)],
-        };
-        assert!(is_fully_excluded(&r));
-
-        // Gap in the middle
-        let r2 = ProseRange {
-            start_byte: 10,
-            end_byte: 50,
-            exclusions: vec![(10, 30), (35, 50)],
-        };
-        assert!(!is_fully_excluded(&r2));
-
-        // No exclusions
-        let r3 = ProseRange {
-            start_byte: 10,
-            end_byte: 50,
-            exclusions: vec![],
-        };
-        assert!(!is_fully_excluded(&r3));
     }
 
     #[test]
