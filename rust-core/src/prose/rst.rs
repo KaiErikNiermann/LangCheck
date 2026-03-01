@@ -96,6 +96,7 @@ fn collect_exclusions(node: Node, out: &mut Vec<(usize, usize)>) {
 #[cfg(test)]
 mod tests {
     use crate::prose::ProseExtractor;
+    use crate::prose::latex::LatexExtras;
     use anyhow::Result;
 
     fn rst_extractor() -> Result<ProseExtractor> {
@@ -107,7 +108,7 @@ mod tests {
     fn test_rst_basic_extraction() -> Result<()> {
         let mut extractor = rst_extractor()?;
         let text = "My Title\n========\n\nThis is a paragraph.\n";
-        let ranges = extractor.extract(text, "rst", &[])?;
+        let ranges = extractor.extract(text, "rst", &LatexExtras::default())?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
         assert!(
             all_prose.contains("My Title"),
@@ -125,7 +126,7 @@ mod tests {
         let mut extractor = rst_extractor()?;
         let text =
             "Some text.\n\n.. code-block:: python\n\n   def hello():\n       pass\n\nMore text.\n";
-        let ranges = extractor.extract(text, "rst", &[])?;
+        let ranges = extractor.extract(text, "rst", &LatexExtras::default())?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
         assert!(
             all_prose.contains("Some text"),
@@ -146,7 +147,7 @@ mod tests {
     fn test_rst_math_excluded() -> Result<()> {
         let mut extractor = rst_extractor()?;
         let text = "Before math.\n\n.. math::\n\n   E = mc^2\n\nAfter math.\n";
-        let ranges = extractor.extract(text, "rst", &[])?;
+        let ranges = extractor.extract(text, "rst", &LatexExtras::default())?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
         assert!(
             all_prose.contains("Before math"),
@@ -163,7 +164,7 @@ mod tests {
     fn test_rst_inline_code_excluded() -> Result<()> {
         let mut extractor = rst_extractor()?;
         let text = "Use ``some_function()`` to do things.\n";
-        let ranges = extractor.extract(text, "rst", &[])?;
+        let ranges = extractor.extract(text, "rst", &LatexExtras::default())?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
         assert!(
             all_prose.contains("Use"),
@@ -180,7 +181,7 @@ mod tests {
     fn test_rst_list_items_extracted() -> Result<()> {
         let mut extractor = rst_extractor()?;
         let text = "- First item\n- Second item\n";
-        let ranges = extractor.extract(text, "rst", &[])?;
+        let ranges = extractor.extract(text, "rst", &LatexExtras::default())?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
         assert!(
             all_prose.contains("First item"),

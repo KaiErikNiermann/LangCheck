@@ -60,6 +60,11 @@ pub struct LaTeXConfig {
     /// These are checked in addition to the built-in skip list.
     #[serde(default)]
     pub skip_environments: Vec<String>,
+    /// Extra command names whose arguments should be skipped during prose
+    /// extraction. These are checked in addition to the built-in skip list
+    /// (which includes `texttt`, `verb`, `url`, etc.).
+    #[serde(default)]
+    pub skip_commands: Vec<String>,
 }
 
 /// Workspace-level settings.
@@ -665,5 +670,27 @@ languages:
     fn default_config_has_empty_latex_skip_environments() {
         let config = Config::default();
         assert!(config.languages.latex.skip_environments.is_empty());
+    }
+
+    #[test]
+    fn latex_skip_commands_from_yaml() {
+        let yaml = r#"
+languages:
+  latex:
+    skip_commands:
+      - codefont
+      - myverb
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(
+            config.languages.latex.skip_commands,
+            vec!["codefont", "myverb"]
+        );
+    }
+
+    #[test]
+    fn default_config_has_empty_latex_skip_commands() {
+        let config = Config::default();
+        assert!(config.languages.latex.skip_commands.is_empty());
     }
 }

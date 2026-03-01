@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use rust_core::prose::ProseExtractor;
+use rust_core::prose::latex::LatexExtras;
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -12,7 +13,7 @@ fn extract_texts<'a>(
     text: &'a str,
     lang: &str,
 ) -> Result<Vec<String>> {
-    let ranges = extractor.extract(text, lang, &[])?;
+    let ranges = extractor.extract(text, lang, &LatexExtras::default())?;
     Ok(ranges
         .iter()
         .map(|r| r.extract_text(text).into_owned())

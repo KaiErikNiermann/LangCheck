@@ -96,6 +96,35 @@ function parseSkipEnvironments(content: string): Set<string> {
     return envs;
 }
 
+// Built-in LaTeX commands whose arguments the checker always skips (mirrors SKIP_GENERIC_COMMANDS in latex.rs)
+const BUILTIN_SKIP_COMMANDS = new Set([
+    "thispagestyle", "pagestyle", "bibliographystyle", "bibliography",
+    "setcounter", "addtocounter", "setlength", "addtolength",
+    "newcommand", "renewcommand", "newenvironment", "renewenvironment",
+    "DeclareMathOperator", "definecolor", "hypersetup", "geometry",
+    "input", "include", "hfill", "vfill", "hspace", "vspace",
+    "smallskip", "medskip", "bigskip", "hrule", "vrule",
+    "newpage", "clearpage", "maketitle",
+    "tableofcontents", "listoffigures", "listoftables",
+    "texttt", "verb", "lstinline", "mintinline", "url", "href", "path",
+]);
+
+// User-configured skip_commands from .languagecheck.yaml
+let userSkipCommands = new Set<string>();
+
+/** Parse skip_commands list items from a YAML config string. */
+function parseSkipCommands(content: string): Set<string> {
+    const cmds = new Set<string>();
+    const match = content.match(/skip_commands:\s*\n((?:\s+-\s+\S+\n?)*)/);
+    if (match?.[1]) {
+        for (const line of match[1].split('\n')) {
+            const item = line.match(/^\s+-\s+(\S+)/);
+            if (item?.[1]) cmds.add(item[1]);
+        }
+    }
+    return cmds;
+}
+
 /** Push a timestamped event to the Inspector event log (if open). */
 function pushInspectorEvent(level: InspectorEvent['level'], source: string, message: string, extra?: { durationMs?: number; details?: string }) {
     const evt: InspectorEvent = { timestamp: Date.now(), level, source, message };
@@ -352,6 +381,62 @@ export async function activate(context: vscode.ExtensionContext) {
                         vscode.InlayHintKind.Parameter
                     );
                     hint.tooltip = `Add "${envName}" to skip_environments in .languagecheck.yaml`;
+                    hints.push(hint);
+                }
+                return hints;
+            }
+        }
+    ));
+
+    // Register LaTeX-only Inlay Hints Provider for command skip hints (Approach B: diagnostic-driven)
+    context.subscriptions.push(vscode.languages.registerInlayHintsProvider(
+        [{ language: 'latex' }],
+        {
+            onDidChangeInlayHints: inlayHintEmitter.event,
+            provideInlayHints(document, _range, _token) {
+                const diagnostics = diagnosticsMap.get(document.uri.toString());
+                if (!diagnostics || diagnostics.length === 0) return [];
+                const text = document.getText();
+                const hints: vscode.InlayHint[] = [];
+                const seen = new Set<string>();
+                const re = /\\([a-zA-Z]+)\{/g;
+                let m: RegExpExecArray | null;
+                while ((m = re.exec(text)) !== null) {
+                    const cmdName = m[1]!;
+                    if (BUILTIN_SKIP_COMMANDS.has(cmdName) || userSkipCommands.has(cmdName)) continue;
+                    // Find the closing brace to get the full argument span
+                    const argStart = m.index + m[0].length - 1; // position of '{'
+                    let depth = 1;
+                    let argEnd = argStart + 1;
+                    while (argEnd < text.length && depth > 0) {
+                        if (text[argEnd] === '{') depth++;
+                        else if (text[argEnd] === '}') depth--;
+                        argEnd++;
+                    }
+                    // Check if any diagnostic falls inside this command's argument
+                    const cmdStartPos = document.positionAt(m.index);
+                    const cmdEndPos = document.positionAt(argEnd);
+                    const cmdRange = new vscode.Range(cmdStartPos, cmdEndPos);
+                    const hasDiag = diagnostics.some(d => cmdRange.contains(d.range));
+                    if (!hasDiag) continue;
+                    // Only show one hint per command name
+                    const key = `${cmdName}:${m.index}`;
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    const pos = document.positionAt(argEnd);
+                    const hint = new vscode.InlayHint(
+                        pos,
+                        [{
+                            value: ' \u2298 skip',
+                            command: {
+                                command: 'language-check.skipLatexCommand',
+                                title: 'Skip this LaTeX command',
+                                arguments: [cmdName]
+                            }
+                        }],
+                        vscode.InlayHintKind.Parameter
+                    );
+                    hint.tooltip = `Add "${cmdName}" to skip_commands in .languagecheck.yaml`;
                     hints.push(hint);
                 }
                 return hints;
@@ -827,6 +912,55 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.skipLatexCommand', async (cmdName: string) => {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            vscode.window.showWarningMessage(vscode.l10n.t('No workspace folder open.'));
+            return;
+        }
+
+        const configNames = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
+        let configUri: vscode.Uri | undefined;
+        for (const name of configNames) {
+            const uri = vscode.Uri.joinPath(workspaceFolder.uri, name);
+            try {
+                await vscode.workspace.fs.stat(uri);
+                configUri = uri;
+                break;
+            } catch { /* not found */ }
+        }
+
+        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
+        try {
+            let content: string;
+            try {
+                const raw = await vscode.workspace.fs.readFile(targetUri);
+                content = Buffer.from(raw).toString('utf8');
+            } catch {
+                content = '';
+            }
+
+            if (content.match(/skip_commands:/)) {
+                content = content.replace(/skip_commands:/, `skip_commands:\n      - ${cmdName}`);
+            } else if (content.match(/latex:/)) {
+                content = content.replace(/latex:/, `latex:\n    skip_commands:\n      - ${cmdName}`);
+            } else if (content.match(/languages:/)) {
+                content = content.replace(/languages:/, `languages:\n  latex:\n    skip_commands:\n      - ${cmdName}`);
+            } else {
+                content = `languages:\n  latex:\n    skip_commands:\n      - ${cmdName}\n${content}`;
+            }
+
+            await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Added "{0}" to skip_commands. Rechecking...', cmdName)
+            );
+            userSkipCommands.add(cmdName);
+            inlayHintEmitter.fire();
+        } catch (err) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to update config: {0}', String(err)));
+        }
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('language-check.checkDocument', async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) return;
@@ -1114,6 +1248,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 }
                 lastKnownEnglishEngine = current;
                 userSkipEnvs = parseSkipEnvironments(raw);
+                userSkipCommands = parseSkipCommands(raw);
                 inlayHintEmitter.fire();
                 return;
             } catch { /* not found, try next */ }
@@ -1135,6 +1270,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     const match = raw.match(/english_engine:\s*(\S+)/);
                     lastKnownEnglishEngine = match?.[1] ?? 'harper';
                     userSkipEnvs = parseSkipEnvironments(raw);
+                userSkipCommands = parseSkipCommands(raw);
                     break;
                 } catch { /* not found, try next */ }
             }

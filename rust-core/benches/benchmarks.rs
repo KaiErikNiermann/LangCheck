@@ -3,6 +3,7 @@
 use rust_core::engines::{Engine, HarperEngine};
 use rust_core::insights::ProseInsights;
 use rust_core::prose::ProseExtractor;
+use rust_core::prose::latex::LatexExtras;
 use rust_core::rules::RuleNormalizer;
 
 fn main() {
@@ -16,7 +17,7 @@ fn prose_extraction_short_markdown(bencher: divan::Bencher) {
     bencher
         .with_inputs(|| ProseExtractor::new(tree_sitter_md::LANGUAGE.into()).unwrap())
         .bench_local_refs(|ext| {
-            ext.extract("# Hello\n\nA short paragraph.", "markdown", &[])
+            ext.extract("# Hello\n\nA short paragraph.", "markdown", &LatexExtras::default())
                 .unwrap()
         });
 }
@@ -26,7 +27,7 @@ fn prose_extraction_long_markdown(bencher: divan::Bencher) {
     let text = generate_markdown(100);
     bencher
         .with_inputs(|| ProseExtractor::new(tree_sitter_md::LANGUAGE.into()).unwrap())
-        .bench_local_refs(|ext| ext.extract(&text, "markdown", &[]).unwrap());
+        .bench_local_refs(|ext| ext.extract(&text, "markdown", &LatexExtras::default()).unwrap());
 }
 
 #[divan::bench]
@@ -35,7 +36,7 @@ fn prose_extraction_html(bencher: divan::Bencher) {
         "<html><body><p>Hello world.</p><p>Another paragraph with some text.</p></body></html>";
     bencher
         .with_inputs(|| ProseExtractor::new(tree_sitter_html::LANGUAGE.into()).unwrap())
-        .bench_local_refs(|ext| ext.extract(text, "html", &[]).unwrap());
+        .bench_local_refs(|ext| ext.extract(text, "html", &LatexExtras::default()).unwrap());
 }
 
 // ── Harper checking benchmarks ───────────────────────────────────────

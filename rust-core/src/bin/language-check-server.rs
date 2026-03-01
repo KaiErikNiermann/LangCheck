@@ -70,12 +70,16 @@ async fn process_file_for_indexing(
     let ranges = {
         let schema_registry = schema_registry_arc.lock().await;
         let cfg = config_arc.lock().await;
+        let latex_extras = prose::latex::LatexExtras {
+            skip_envs: &cfg.languages.latex.skip_environments,
+            skip_commands: &cfg.languages.latex.skip_commands,
+        };
         prose::extract_with_fallback(
             &text,
             &lang_id,
             Some(file_path.as_path()),
             Some(&schema_registry),
-            &cfg.languages.latex.skip_environments,
+            &latex_extras,
         )?
     };
     let mut all_diagnostics = Vec::new();
@@ -446,12 +450,16 @@ async fn main() -> Result<()> {
                 let extraction = {
                     let schema_registry = schema_registry_arc.lock().await;
                     let cfg = config_arc.lock().await;
+                    let latex_extras = prose::latex::LatexExtras {
+                        skip_envs: &cfg.languages.latex.skip_environments,
+                        skip_commands: &cfg.languages.latex.skip_commands,
+                    };
                     prose::extract_with_fallback(
                         &req.text,
                         canonical_lang,
                         file_path,
                         Some(&schema_registry),
-                        &cfg.languages.latex.skip_environments,
+                        &latex_extras,
                     )
                 };
 

@@ -140,6 +140,7 @@ fn collect_command_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize
 #[cfg(test)]
 mod tests {
     use crate::prose::ProseExtractor;
+    use crate::prose::latex::LatexExtras;
     use anyhow::Result;
 
     fn bibtex_extractor() -> Result<ProseExtractor> {
@@ -156,7 +157,7 @@ mod tests {
   year = {2024},
 }
 "#;
-        let ranges = extractor.extract(text, "bibtex", &[])?;
+        let ranges = extractor.extract(text, "bibtex", &LatexExtras::default())?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
 
         assert!(
@@ -184,7 +185,7 @@ mod tests {
   journal = {Nature},
 }
 "#;
-        let ranges = extractor.extract(text, "bibtex", &[])?;
+        let ranges = extractor.extract(text, "bibtex", &LatexExtras::default())?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
 
         assert!(
@@ -208,7 +209,7 @@ mod tests {
   publisher = {Addison-Wesley},
 }
 "#;
-        let ranges = extractor.extract(text, "bibtex", &[])?;
+        let ranges = extractor.extract(text, "bibtex", &LatexExtras::default())?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
 
         assert!(
@@ -230,7 +231,7 @@ mod tests {
   title = {A Paper on \emph{Important} Things},
 }
 "#;
-        let ranges = extractor.extract(text, "bibtex", &[])?;
+        let ranges = extractor.extract(text, "bibtex", &LatexExtras::default())?;
         let all_prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
 
         assert!(
@@ -257,7 +258,7 @@ mod tests {
   doi = {10.1234/example},
 }
 "#;
-        let ranges = extractor.extract(text, "bibtex", &[])?;
+        let ranges = extractor.extract(text, "bibtex", &LatexExtras::default())?;
         assert!(
             ranges.is_empty(),
             "No prose fields present, should have no ranges, got: {:?}",
