@@ -645,6 +645,15 @@ export async function activate(context: vscode.ExtensionContext) {
                 content = `engines:\n  english_engine: ${selected.label}\n${content}`;
             }
 
+            // Auto-enable the languagetool flag when selecting it as the engine
+            if (selected.label === 'languagetool' && !content.match(/languagetool:\s*true/)) {
+                if (content.match(/languagetool:\s*false/)) {
+                    content = content.replace(/languagetool:\s*false/, 'languagetool: true');
+                } else if (content.includes('engines:')) {
+                    content = content.replace(/engines:/, 'engines:\n  languagetool: true');
+                }
+            }
+
             await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
             vscode.window.showInformationMessage(
                 vscode.l10n.t('English engine set to "{0}". Reloading...', selected.label)

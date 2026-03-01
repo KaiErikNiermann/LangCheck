@@ -9,7 +9,7 @@ use harper_core::{
 };
 use serde::Deserialize;
 use std::path::PathBuf;
-use tracing::warn;
+use tracing::{debug, warn};
 
 #[async_trait::async_trait]
 pub trait Engine {
@@ -110,6 +110,7 @@ struct LTReplacement {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct LTRule {
     id: String,
     issue_type: String,
@@ -143,19 +144,61 @@ impl Engine for LanguageToolEngine {
             other => other,
         };
 
-        let res = match self
+        debug!(
+            url = %url,
+            language = lt_lang,
+            text_len = text.len(),
+            "LanguageTool request"
+        );
+
+        let request_start = std::time::Instant::now();
+        let response = match self
             .client
             .post(&url)
             .form(&[("text", text), ("language", lt_lang)])
             .send()
             .await
         {
-            Ok(r) => r.json::<LTResponse>().await?,
+            Ok(r) => {
+                let status = r.status();
+                debug!(
+                    status = %status,
+                    elapsed_ms = request_start.elapsed().as_millis() as u64,
+                    "LanguageTool HTTP response"
+                );
+                if !status.is_success() {
+                    let body = r.text().await.unwrap_or_default();
+                    warn!(
+                        status = %status,
+                        body = %body,
+                        "LanguageTool returned non-200"
+                    );
+                    return Ok(vec![]);
+                }
+                r
+            }
             Err(e) => {
-                warn!("LanguageTool connection error: {e}");
+                warn!(
+                    elapsed_ms = request_start.elapsed().as_millis() as u64,
+                    "LanguageTool connection error: {e}"
+                );
                 return Ok(vec![]);
             }
         };
+
+        let res = match response.json::<LTResponse>().await {
+            Ok(r) => r,
+            Err(e) => {
+                warn!("LanguageTool JSON parse error: {e}");
+                return Ok(vec![]);
+            }
+        };
+
+        debug!(
+            matches = res.matches.len(),
+            elapsed_ms = request_start.elapsed().as_millis() as u64,
+            "LanguageTool check complete"
+        );
 
         let diagnostics = res
             .matches
@@ -553,5 +596,63 @@ mod tests {
     fn discover_wasm_plugins_nonexistent_dir() {
         let plugins = discover_wasm_plugins(std::path::Path::new("/nonexistent/dir"));
         assert!(plugins.is_empty());
+    }
+
+    /// Live integration test — requires LT Docker on localhost:8010.
+    /// Run with: `cargo test lt_engine_live -- --ignored --nocapture`
+    #[tokio::test]
+    #[ignore]
+    async fn lt_engine_live() -> Result<()> {
+        // Initialize tracing for visible output
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter("debug")
+            .with_writer(std::io::stderr)
+            .with_target(false)
+            .try_init();
+
+        let mut engine = LanguageToolEngine::new("http://localhost:8010".to_string());
+        let text = "This is a sentnce with erors.";
+        let diagnostics = engine.check(text, "markdown").await?;
+
+        println!("LT returned {} diagnostics:", diagnostics.len());
+        for d in &diagnostics {
+            println!(
+                "  [{}-{}] {} (rule: {}, suggestions: {:?})",
+                d.start_byte, d.end_byte, d.message, d.rule_id, d.suggestions
+            );
+        }
+
+        assert!(
+            diagnostics.len() >= 2,
+            "Expected at least 2 spelling errors, got {}",
+            diagnostics.len()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn lt_response_deserializes_camel_case() {
+        // Real LanguageTool API response (trimmed) — uses camelCase `issueType`
+        let json = r#"{
+            "matches": [{
+                "message": "Possible spelling mistake found.",
+                "offset": 10,
+                "length": 7,
+                "replacements": [{"value": "sentence"}],
+                "rule": {
+                    "id": "MORFOLOGIK_RULE_EN_US",
+                    "description": "Possible spelling mistake",
+                    "issueType": "misspelling",
+                    "category": {"id": "TYPOS", "name": "Possible Typo"}
+                }
+            }]
+        }"#;
+        let res: LTResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(res.matches.len(), 1);
+        assert_eq!(res.matches[0].rule.id, "MORFOLOGIK_RULE_EN_US");
+        assert_eq!(res.matches[0].rule.issue_type, "misspelling");
+        assert_eq!(res.matches[0].offset, 10);
+        assert_eq!(res.matches[0].length, 7);
+        assert_eq!(res.matches[0].replacements[0].value, "sentence");
     }
 }
