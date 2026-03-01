@@ -15,6 +15,7 @@ extension/package-lock.json
 
 # Sphinx docs
 docs/_build/
+docs/.venv/
 *.mo
 
 # Misc
@@ -26,3 +27,4 @@ test.md
 test.txt
 .serena/
 plans/
+spellcheck_wordlists.json
