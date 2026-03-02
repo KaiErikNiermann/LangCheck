@@ -1,6 +1,6 @@
 [package]
 name = "lang-check"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "Multilingual prose linter with tree-sitter extraction and pluggable checking engines"
 license = "MIT"
