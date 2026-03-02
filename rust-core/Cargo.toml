@@ -54,5 +54,5 @@ harness = false
 opt-level = 2
 
 [build-dependencies]
-prost-build = "0.13"
+prost-build = "0.14"
 cc = "1.0"
