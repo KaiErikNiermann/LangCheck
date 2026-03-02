@@ -138,7 +138,7 @@ _release version:
     set -euo pipefail
     version="{{version}}"
     just _sync-versions "$version"
-    cd rust-core && cargo check 2>/dev/null  # regenerate Cargo.lock
+    (cd rust-core && cargo check 2>/dev/null)  # regenerate Cargo.lock
     git add rust-core/Cargo.toml extension/package.json docs/conf.py
     git add -f rust-core/Cargo.lock 2>/dev/null || true
     git commit -m "chore(release): v$version"
