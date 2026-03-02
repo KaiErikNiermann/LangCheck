@@ -3,8 +3,8 @@ targets = []
 all-features = true
 
 [advisories]
-unmaintained = "warn"
-unsound = "warn"
+unmaintained = "workspace"
+unsound = "workspace"
 yanked = "warn"
 
 [licenses]
