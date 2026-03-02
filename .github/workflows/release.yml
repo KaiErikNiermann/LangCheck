@@ -55,6 +55,10 @@ jobs:
         if: matrix.cross
         run: cargo install cross --locked
 
+      - name: Stage proto for cross build
+        if: matrix.cross
+        run: mkdir -p proto && cp ../proto/checker.proto proto/
+
       - name: Build (native)
         if: "!matrix.cross"
         run: cargo build --release --target ${{ matrix.target }}
