@@ -41,7 +41,7 @@ jobs:
       run:
         working-directory: rust-core
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: arduino/setup-protoc@v3
 
@@ -70,7 +70,7 @@ jobs:
           cd dist
           tar czf ../language-check-${{ matrix.target }}.tar.gz *
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: binary-${{ matrix.target }}
           path: rust-core/language-check-${{ matrix.target }}.tar.gz
@@ -83,13 +83,13 @@ jobs:
       run:
         working-directory: extension
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: pnpm/action-setup@v4
         with:
           package_json_file: extension/package.json
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: pnpm
@@ -99,7 +99,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Download all binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -118,7 +118,7 @@ jobs:
       - name: Package VSIX
         run: npx @vscode/vsce package --no-dependencies
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: vsix
           path: extension/*.vsix
@@ -128,10 +128,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-binaries, build-vsix]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
