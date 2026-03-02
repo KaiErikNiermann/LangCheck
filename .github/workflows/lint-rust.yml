@@ -44,8 +44,5 @@ jobs:
       - name: Clippy
         run: cargo clippy -- -D warnings
 
-      - name: Security audit
-        run: cargo install cargo-audit --locked && cargo audit
-
-      - name: License & dependency check
+      - name: Advisories, licenses & dependency check
         run: cargo install cargo-deny --locked && cargo deny check
