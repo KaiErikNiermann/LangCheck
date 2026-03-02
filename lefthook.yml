@@ -3,33 +3,29 @@
 # Runs checks before pushing to ensure code quality
 
 pre-push:
-  # Parallel group: Rust Core checks
+  parallel: true
   commands:
-    rust_check:
+    rust_fmt:
       root: rust-core/
       glob: "*.rs"
-      run: cargo check
+      run: cargo fmt --check
 
     rust_clippy:
       root: rust-core/
       glob: "*.rs"
       run: cargo clippy -- -D warnings
 
-    rust_fmt:
-      root: rust-core/
-      glob: "*.rs"
-      run: cargo fmt --check
-
     rust_test:
       root: rust-core/
       glob: "*.rs"
       run: cargo test
 
-    # TypeScript Extension checks
     ts_type_check:
       root: extension/
       glob: "**/*.{ts,tsx}"
       run: npx tsc --noEmit
 
-  # Run all hooks in parallel for speed
-  parallel: true
+    ts_lint:
+      root: extension/
+      glob: "**/*.{ts,tsx}"
+      run: pnpm run lint
