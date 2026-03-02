@@ -3,10 +3,9 @@ targets = []
 all-features = true
 
 [advisories]
-vulnerability = "deny"
-unmaintained = "warn"
+unmaintained = "workspace"
+unsound = "workspace"
 yanked = "warn"
-notice = "warn"
 
 [licenses]
 unlicensed = "deny"
@@ -39,4 +38,4 @@ wildcards = "allow"
 unknown-registry = "warn"
 unknown-git = "warn"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
+allow-git = ["https://github.com/latex-lsp/tree-sitter-bibtex"]
