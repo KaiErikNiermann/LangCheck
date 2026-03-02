@@ -156,7 +156,7 @@ _sync-versions version:
     # rust-core/Cargo.toml
     sed -i "0,/^version = .*/s//version = \"$version\"/" rust-core/Cargo.toml
     # extension/package.json
-    cd extension && npm version "$version" --no-git-tag-version --allow-same-version
+    (cd extension && npm version "$version" --no-git-tag-version --allow-same-version)
     # docs/conf.py
     sed -i "s/^release = .*/release = \"$version\"/" docs/conf.py
     echo "Synced all versions to v$version"

@@ -96,7 +96,11 @@
         "languageCheck.core.channel": {
           "type": "string",
           "default": "stable",
-          "enum": ["stable", "canary", "dev"],
+          "enum": [
+            "stable",
+            "canary",
+            "dev"
+          ],
           "enumDescriptions": [
             "%config.core.channel.stable%",
             "%config.core.channel.canary%",
@@ -117,7 +121,10 @@
         "languageCheck.check.trigger": {
           "type": "string",
           "default": "onChange",
-          "enum": ["onChange", "onSave"],
+          "enum": [
+            "onChange",
+            "onSave"
+          ],
           "enumDescriptions": [
             "%config.check.trigger.onChange%",
             "%config.check.trigger.onSave%"
@@ -199,7 +206,6 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
   "packageManager": "pnpm@10.14.0",
   "dependencies": {
     "@vscode/l10n": "^0.0.18",
