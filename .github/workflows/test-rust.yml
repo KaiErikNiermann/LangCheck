@@ -1,0 +1,43 @@
+name: Test Rust
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "rust-core/**"
+      - ".github/workflows/test-rust.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "rust-core/**"
+      - ".github/workflows/test-rust.yml"
+
+concurrency:
+  group: test-rust-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-test:
+    name: Rust Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: rust-core
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+
+      - name: Build
+        run: cargo build
+
+      - name: Run tests
+        run: cargo test
