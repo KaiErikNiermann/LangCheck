@@ -1,7 +1,7 @@
 use crate::checker::Diagnostic;
 use crate::insights::ProseInsights;
 use anyhow::Result;
-use redb::{Database, TableDefinition};
+use redb::{Database, ReadableDatabase, TableDefinition};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};

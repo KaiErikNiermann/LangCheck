@@ -156,7 +156,7 @@ impl Engine for LanguageToolEngine {
         let response = match self
             .client
             .post(&url)
-            .form(&[("text", text), ("language", lt_lang)])
+            .form(&[("text", &text), ("language", &lt_lang)])
             .send()
             .await
         {
