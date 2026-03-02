@@ -1,10 +1,10 @@
 #![allow(clippy::pedantic)]
 
-use rust_core::engines::{Engine, HarperEngine};
-use rust_core::insights::ProseInsights;
-use rust_core::prose::ProseExtractor;
-use rust_core::prose::latex::LatexExtras;
-use rust_core::rules::RuleNormalizer;
+use lang_check::engines::{Engine, HarperEngine};
+use lang_check::insights::ProseInsights;
+use lang_check::prose::ProseExtractor;
+use lang_check::prose::latex::LatexExtras;
+use lang_check::rules::RuleNormalizer;
 
 fn main() {
     divan::main();

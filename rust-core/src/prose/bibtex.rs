@@ -143,7 +143,7 @@ mod tests {
     use anyhow::Result;
 
     fn bibtex_extractor() -> Result<ProseExtractor> {
-        let language: tree_sitter::Language = tree_sitter_bibtex::LANGUAGE.into();
+        let language: tree_sitter::Language = crate::bibtex_ts::LANGUAGE.into();
         ProseExtractor::new(language)
     }
 

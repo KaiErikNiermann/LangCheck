@@ -73,8 +73,10 @@ impl Dictionary {
             anyhow::anyhow!("Cannot resolve wordlist path {}: {e}", resolved.display())
         })?;
 
-        // Security: refuse to read files outside the workspace or common config dirs
-        if !resolved.starts_with(base)
+        // Security: refuse to read files outside the workspace or common config dirs.
+        // Canonicalize base too — on macOS /var → /private/var, on Windows UNC prefixes differ.
+        let canonical_base = base.canonicalize().unwrap_or_else(|_| base.to_path_buf());
+        if !resolved.starts_with(&canonical_base)
             && !resolved.starts_with(dirs::config_dir().unwrap_or_default())
             && !resolved.starts_with(dirs::home_dir().unwrap_or_default().join(".config"))
         {

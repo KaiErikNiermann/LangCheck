@@ -170,7 +170,7 @@ pub fn resolve_ts_language(lang: &str) -> tree_sitter::Language {
         "forester" => crate::forester_ts::LANGUAGE.into(),
         "tinylang" => crate::tinylang_ts::LANGUAGE.into(),
         "rst" => tree_sitter_rst::LANGUAGE.into(),
-        "bibtex" => tree_sitter_bibtex::LANGUAGE.into(),
+        "bibtex" => crate::bibtex_ts::LANGUAGE.into(),
         "org" => crate::org_ts::LANGUAGE.into(),
         _ => tree_sitter_md::LANGUAGE.into(),
     }

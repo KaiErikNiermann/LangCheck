@@ -1,10 +1,10 @@
 #![allow(clippy::pedantic)]
 
-use rust_core::engines::{Engine, HarperEngine};
-use rust_core::insights::ProseInsights;
-use rust_core::prose::ProseExtractor;
-use rust_core::prose::latex::LatexExtras;
-use rust_core::rules::RuleNormalizer;
+use lang_check::engines::{Engine, HarperEngine};
+use lang_check::insights::ProseInsights;
+use lang_check::prose::ProseExtractor;
+use lang_check::prose::latex::LatexExtras;
+use lang_check::rules::RuleNormalizer;
 use serde::Serialize;
 
 // Lightweight wrapper so insta can serialize Diagnostic (protobuf-generated types lack Serialize).
@@ -21,7 +21,7 @@ struct SnapDiagnostic {
 }
 
 impl SnapDiagnostic {
-    fn from(d: &rust_core::checker::Diagnostic) -> Self {
+    fn from(d: &lang_check::checker::Diagnostic) -> Self {
         Self {
             start_byte: d.start_byte,
             end_byte: d.end_byte,

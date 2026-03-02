@@ -18,10 +18,10 @@ use dictionary::Dictionary;
 use glob::glob;
 use hashing::{DiagnosticFingerprint, IgnoreStore};
 use insights::ProseInsights;
+use lang_check::sls::SchemaRegistry;
+use lang_check::{checker, config, dictionary, hashing, insights, orchestrator, prose, workspace};
 use orchestrator::Orchestrator;
 use prost::Message;
-use rust_core::sls::SchemaRegistry;
-use rust_core::{checker, config, dictionary, hashing, insights, orchestrator, prose, workspace};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -216,7 +216,7 @@ async fn main() -> Result<()> {
                     };
 
                     let mut tasks = Vec::new();
-                    let mut file_patterns = rust_core::languages::all_file_patterns(&config);
+                    let mut file_patterns = lang_check::languages::all_file_patterns(&config);
                     file_patterns.extend(schema_registry_arc.lock().await.fallback_file_patterns());
 
                     for (pattern_suffix, lang) in &file_patterns {
@@ -444,7 +444,7 @@ async fn main() -> Result<()> {
                 }
                 Some(checker::request::Payload::CheckProse(req)) => {
                     let canonical_lang =
-                        rust_core::languages::resolve_language_id(&req.language_id);
+                        lang_check::languages::resolve_language_id(&req.language_id);
                     let file_path = req.file_path.as_deref().map(Path::new);
                     debug!(
                         id = request_id,
@@ -587,7 +587,7 @@ async fn main() -> Result<()> {
                     Some(response::Payload::GetMetadata(MetadataResponse {
                         name: "Rust Core".to_string(),
                         version: "0.1.0".to_string(),
-                        supported_languages: rust_core::languages::SUPPORTED_LANGUAGE_IDS
+                        supported_languages: lang_check::languages::SUPPORTED_LANGUAGE_IDS
                             .iter()
                             .map(|s| (*s).to_string())
                             .collect(),

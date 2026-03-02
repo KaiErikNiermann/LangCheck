@@ -11,9 +11,9 @@ use clap::{Parser, Subcommand, ValueEnum};
 use config::Config;
 use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
+use lang_check::sls::SchemaRegistry;
+use lang_check::{checker::Diagnostic, config, orchestrator, prose, rules};
 use orchestrator::Orchestrator;
-use rust_core::sls::SchemaRegistry;
-use rust_core::{checker::Diagnostic, config, orchestrator, prose, rules};
 use serde::Serialize;
 use std::fs;
 use std::path::PathBuf;
@@ -125,16 +125,16 @@ async fn main() -> Result<()> {
         Commands::Check { path, lang, format } => {
             let schema_registry = SchemaRegistry::from_workspace(&current_dir)?;
             let lang = lang.map_or_else(
-                || rust_core::languages::detect_language(&path, &config),
-                |l| rust_core::languages::resolve_language_id(&l).to_string(),
+                || lang_check::languages::detect_language(&path, &config),
+                |l| lang_check::languages::resolve_language_id(&l).to_string(),
             );
             check_path(path, lang, &format, config, &schema_registry).await?;
         }
         Commands::Fix { path, lang } => {
             let schema_registry = SchemaRegistry::from_workspace(&current_dir)?;
             let lang = lang.map_or_else(
-                || rust_core::languages::detect_language(&path, &config),
-                |l| rust_core::languages::resolve_language_id(&l).to_string(),
+                || lang_check::languages::detect_language(&path, &config),
+                |l| lang_check::languages::resolve_language_id(&l).to_string(),
             );
             fix_path(path, lang, config, &schema_registry).await?;
         }
@@ -174,7 +174,7 @@ async fn check_path(
         )
         .await?;
     } else {
-        let exts = rust_core::languages::extensions_for_language(&lang, &config);
+        let exts = lang_check::languages::extensions_for_language(&lang, &config);
         let pattern = if exts.is_empty() {
             format!("**/*.{lang}")
         } else {

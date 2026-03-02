@@ -297,8 +297,9 @@ impl Engine for ExternalEngine {
             Ok(mut child) => {
                 use tokio::io::AsyncWriteExt;
                 if let Some(mut stdin) = child.stdin.take() {
-                    stdin.write_all(input.as_bytes()).await?;
-                    stdin.shutdown().await?;
+                    // Ignore write errors — the process may exit before reading stdin.
+                    let _ = stdin.write_all(input.as_bytes()).await;
+                    let _ = stdin.shutdown().await;
                 }
                 child.wait_with_output().await?
             }

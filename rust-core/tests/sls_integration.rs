@@ -1,8 +1,8 @@
 #![allow(clippy::pedantic)]
 
-use rust_core::prose;
-use rust_core::prose::latex::LatexExtras;
-use rust_core::sls::SchemaRegistry;
+use lang_check::prose;
+use lang_check::prose::latex::LatexExtras;
+use lang_check::sls::SchemaRegistry;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;

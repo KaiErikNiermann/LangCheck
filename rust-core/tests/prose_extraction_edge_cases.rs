@@ -3,8 +3,8 @@
 //! the unit tests in each language module.
 
 use anyhow::Result;
-use rust_core::prose::ProseExtractor;
-use rust_core::prose::latex::LatexExtras;
+use lang_check::prose::ProseExtractor;
+use lang_check::prose::latex::LatexExtras;
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -25,7 +25,7 @@ fn extract_texts<'a>(
 /// Real-world math-heavy Forester document (modeled on actual lecture notes).
 #[test]
 fn forester_math_definition_document() -> Result<()> {
-    let lang: tree_sitter::Language = rust_core::forester_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::forester_ts::LANGUAGE.into();
     let mut ex = ProseExtractor::new(lang)?;
 
     let text = r"\date{2025-11-22}
@@ -102,7 +102,7 @@ fn forester_math_definition_document() -> Result<()> {
 /// Forester document with nested subtrees and list items.
 #[test]
 fn forester_nested_structure_with_lists() -> Result<()> {
-    let lang: tree_sitter::Language = rust_core::forester_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::forester_ts::LANGUAGE.into();
     let mut ex = ProseExtractor::new(lang)?;
 
     let text = r"\title{Operating Systems Concepts}
@@ -155,7 +155,7 @@ fn forester_nested_structure_with_lists() -> Result<()> {
 /// Forester with unknown macros, tex blocks, and verbatim.
 #[test]
 fn forester_macros_and_code_excluded() -> Result<()> {
-    let lang: tree_sitter::Language = rust_core::forester_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::forester_ts::LANGUAGE.into();
     let mut ex = ProseExtractor::new(lang)?;
 
     let text = r"\title{Quiz Solution}
@@ -321,7 +321,7 @@ fn latex_nested_environments() -> Result<()> {
 /// BibTeX with varied entry types and LaTeX markup in titles.
 #[test]
 fn bibtex_mixed_entries() -> Result<()> {
-    let lang: tree_sitter::Language = tree_sitter_bibtex::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::bibtex_ts::LANGUAGE.into();
     let mut ex = ProseExtractor::new(lang)?;
 
     let text = r#"@article{knuth1984,
@@ -399,7 +399,7 @@ fn bibtex_mixed_entries() -> Result<()> {
 /// Org document with mixed content: headings, code, drawers, tables.
 #[test]
 fn org_mixed_content() -> Result<()> {
-    let lang: tree_sitter::Language = rust_core::org_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::org_ts::LANGUAGE.into();
     let mut ex = ProseExtractor::new(lang)?;
 
     let text = "* Introduction
@@ -545,7 +545,7 @@ The integral above is fundamental to the theory.
 /// Sweave document mixing LaTeX and R code chunks.
 #[test]
 fn sweave_mixed_content() -> Result<()> {
-    let lang = rust_core::languages::resolve_ts_language("sweave");
+    let lang = lang_check::languages::resolve_ts_language("sweave");
     let mut ex = ProseExtractor::new(lang)?;
 
     let text = r#"\documentclass{article}

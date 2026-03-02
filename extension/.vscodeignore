@@ -1,0 +1,10 @@
+src/**
+webview/src/**
+webview/node_modules/**
+tsconfig.json
+vitest.config.ts
+eslint.config.mjs
+.gitignore
+node_modules/**
+pnpm-lock.yaml
+**/*.map

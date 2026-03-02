@@ -1,6 +1,5 @@
 # Rust
 /rust-core/target/
-rust-core/Cargo.lock
 
 # Node
 /extension/node_modules/
@@ -12,11 +11,15 @@ extension/package-lock.json
 
 # Protobuf
 /proto/gen/
+/rust-core/proto/
 
 # Sphinx docs
 docs/_build/
 docs/.venv/
 *.mo
+
+# Debug/test output
+out.xml
 
 # Misc
 .DS_Store

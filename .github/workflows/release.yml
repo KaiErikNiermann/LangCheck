@@ -144,3 +144,99 @@ jobs:
           files: |
             artifacts/binary-*/language-check-*.tar.gz
             artifacts/vsix/*.vsix
+
+  publish-crate:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    needs: create-release
+    defaults:
+      run:
+        working-directory: rust-core
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Copy proto into crate
+        run: mkdir -p proto && cp ../proto/checker.proto proto/
+
+      - name: Publish
+        run: cargo publish --allow-dirty
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  publish-vsix:
+    name: Publish VS Code Extension
+    runs-on: ubuntu-latest
+    needs: create-release
+    steps:
+      - name: Download VSIX artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: vsix
+          path: vsix
+
+      - name: Publish to VS Code Marketplace
+        run: npx @vscode/vsce publish --packagePath vsix/*.vsix
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Publish to Open VSX (optional)
+        if: env.OVSX_PAT != ''
+        run: npx ovsx publish vsix/*.vsix -p "$OVSX_PAT"
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
+  update-homebrew:
+    name: Update Homebrew Tap
+    runs-on: ubuntu-latest
+    needs: create-release
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download binary artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Compute SHA256 checksums
+        id: sha
+        run: |
+          sha_linux_amd64=$(sha256sum artifacts/binary-x86_64-unknown-linux-gnu/language-check-x86_64-unknown-linux-gnu.tar.gz | awk '{print $1}')
+          sha_linux_arm64=$(sha256sum artifacts/binary-aarch64-unknown-linux-gnu/language-check-aarch64-unknown-linux-gnu.tar.gz | awk '{print $1}')
+          sha_macos_amd64=$(sha256sum artifacts/binary-x86_64-apple-darwin/language-check-x86_64-apple-darwin.tar.gz | awk '{print $1}')
+          sha_macos_arm64=$(sha256sum artifacts/binary-aarch64-apple-darwin/language-check-aarch64-apple-darwin.tar.gz | awk '{print $1}')
+          echo "linux_amd64=$sha_linux_amd64" >> "$GITHUB_OUTPUT"
+          echo "linux_arm64=$sha_linux_arm64" >> "$GITHUB_OUTPUT"
+          echo "macos_amd64=$sha_macos_amd64" >> "$GITHUB_OUTPUT"
+          echo "macos_arm64=$sha_macos_arm64" >> "$GITHUB_OUTPUT"
+
+      - name: Render formula
+        run: |
+          sed \
+            -e 's/@@VERSION@@/${{ steps.version.outputs.version }}/g' \
+            -e 's/@@SHA256_LINUX_AMD64@@/${{ steps.sha.outputs.linux_amd64 }}/g' \
+            -e 's/@@SHA256_LINUX_ARM64@@/${{ steps.sha.outputs.linux_arm64 }}/g' \
+            -e 's/@@SHA256_MACOS_AMD64@@/${{ steps.sha.outputs.macos_amd64 }}/g' \
+            -e 's/@@SHA256_MACOS_ARM64@@/${{ steps.sha.outputs.macos_arm64 }}/g' \
+            .github/homebrew-formula.rb > lang-check.rb
+
+      - name: Push formula to tap
+        run: |
+          git clone https://x-access-token:${{ secrets.HOMEBREW_TAP_TOKEN }}@github.com/KaiErikNiermann/homebrew-lang-check.git tap
+          cd tap
+          mkdir -p Formula
+          cp ../lang-check.rb Formula/lang-check.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/lang-check.rb
+          git commit -m "lang-check ${{ steps.version.outputs.version }}"
+          git push
