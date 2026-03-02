@@ -3,9 +3,9 @@ targets = []
 all-features = true
 
 [advisories]
-unmaintained = "workspace"
-unsound = "workspace"
-yanked = "workspace"
+unmaintained = "warn"
+unsound = "warn"
+yanked = "warn"
 
 [licenses]
 unlicensed = "deny"
