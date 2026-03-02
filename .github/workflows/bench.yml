@@ -44,7 +44,7 @@ jobs:
         run: cargo bench --bench benchmarks 2>&1 | tee bench-base.txt
 
       - name: Compare and comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
