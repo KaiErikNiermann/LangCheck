@@ -24,6 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: arduino/setup-protoc@v3
+
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2

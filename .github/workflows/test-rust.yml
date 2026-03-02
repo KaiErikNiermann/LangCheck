@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - "rust-core/**"
+      - "proto/**"
       - ".github/workflows/test-rust.yml"
   pull_request:
     branches: [main]
     paths:
       - "rust-core/**"
+      - "proto/**"
       - ".github/workflows/test-rust.yml"
 
 concurrency:
@@ -29,6 +31,8 @@ jobs:
         working-directory: rust-core
     steps:
       - uses: actions/checkout@v4
+
+      - uses: arduino/setup-protoc@v3
 
       - uses: dtolnay/rust-toolchain@stable
 

@@ -1709,7 +1709,7 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
                     else if (trimmed.startsWith('%')) kind = 'comment';
                     else if (/^\[.*\]\(.*\)$/.test(trimmed)) kind = 'link';
                     else if (trimmed.startsWith('[[') && trimmed.endsWith(']]')) kind = 'link';
-                    else if (/^[{}\[\]()]+$/.test(trimmed)) kind = 'delimiter';
+                    else if (/^[{}[\]()]+$/.test(trimmed)) kind = 'delimiter';
                     else if (trimmed === '') kind = 'whitespace';
 
                     return { startChar: excStartChar, endChar: excEndChar, kind, text: excText };

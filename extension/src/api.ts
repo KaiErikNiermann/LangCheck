@@ -107,7 +107,7 @@ export function createAPI(
 }
 
 /** Helper to retrieve the ignore ranges registered for a URI. */
-export function getRegisteredIgnoreRanges(api: ReturnType<typeof createAPI>, uri: vscode.Uri): IgnoreRange[] {
+export function getRegisteredIgnoreRanges(_api: ReturnType<typeof createAPI>, _uri: vscode.Uri): IgnoreRange[] {
     // The API object has a closure over ignoreRanges, so we expose a helper
     // This is used internally by the extension to check against API-registered ranges
     return [];
