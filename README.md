@@ -10,7 +10,7 @@ A fast, extensible grammar and style checker for Markdown, HTML, LaTeX, Typst, a
 
 <table>
 <tr>
-<td width="50%"><strong>VS Code</strong></td>
+<td width="47%"><strong>VS Code</strong></td>
 <td width="50%"><strong>Neovim</strong></td>
 </tr>
 <tr>
