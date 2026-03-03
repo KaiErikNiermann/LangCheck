@@ -75,7 +75,8 @@ impl WorkspaceIndex {
     }
 
     pub fn update_diagnostics(&self, file_path: &str, diagnostics: &[Diagnostic]) -> Result<()> {
-        let data = serde_cbor::to_vec(&diagnostics)?;
+        let mut data = Vec::new();
+        ciborium::into_writer(&diagnostics, &mut data)?;
         let write_txn = self.db.begin_write()?;
         {
             let mut table = write_txn.open_table(DIAGNOSTICS_TABLE)?;
@@ -86,7 +87,8 @@ impl WorkspaceIndex {
     }
 
     pub fn update_insights(&self, file_path: &str, insights: &ProseInsights) -> Result<()> {
-        let data = serde_cbor::to_vec(&insights)?;
+        let mut data = Vec::new();
+        ciborium::into_writer(&insights, &mut data)?;
         let write_txn = self.db.begin_write()?;
         {
             let mut table = write_txn.open_table(INSIGHTS_TABLE)?;
@@ -102,7 +104,7 @@ impl WorkspaceIndex {
         let result = table.get(file_path)?;
 
         if let Some(data) = result {
-            let diagnostics = serde_cbor::from_slice(data.value())?;
+            let diagnostics = ciborium::from_reader(data.value())?;
             Ok(Some(diagnostics))
         } else {
             Ok(None)
@@ -115,7 +117,7 @@ impl WorkspaceIndex {
         let result = table.get(file_path)?;
 
         if let Some(data) = result {
-            let insights = serde_cbor::from_slice(data.value())?;
+            let insights = ciborium::from_reader(data.value())?;
             Ok(Some(insights))
         } else {
             Ok(None)

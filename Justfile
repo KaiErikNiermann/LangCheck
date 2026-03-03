@@ -52,7 +52,7 @@ build-ts: install-ts
 
 # Type check extension
 typecheck-ts: install-ts
-    cd extension && npx tsc --noEmit
+    cd extension && pnpm run typecheck
 
 # Lint extension
 lint-ts: install-ts
@@ -185,9 +185,9 @@ publish-crate:
 publish-vsix-dry:
     cd extension && npx @vscode/vsce ls --no-dependencies
 
-# Publish VSIX to VS Code Marketplace
-publish-vsix:
-    cd extension && npx @vscode/vsce publish --no-dependencies
+# Build, package, and publish VSIX to VS Code Marketplace
+publish-vsix: build-ts
+    cd extension && npx @vscode/vsce package --no-dependencies && npx @vscode/vsce publish --packagePath *.vsix
 
 # Run all dry-run checks for publishing
 release-dry: publish-crate-dry publish-vsix-dry

@@ -205,9 +205,14 @@
   },
   "scripts": {
     "proto:gen": "pbjs -t static-module -w commonjs -o src/proto/checker.js ../proto/checker.proto && pbts -o src/proto/checker.d.ts src/proto/checker.js",
-    "build": "tsc -p . && mkdir -p out/proto && cp src/proto/checker.js src/proto/checker.d.ts out/proto/",
+    "build": "node esbuild.mjs --production",
+    "build:dev": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
-    "test": "vitest"
+    "test": "vitest",
+    "vsce:package": "pnpm run build && vsce package --no-dependencies",
+    "vsce:ls": "vsce ls --no-dependencies"
   },
   "keywords": [],
   "author": "",
@@ -222,6 +227,7 @@
     "@types/long": "^5.0.0",
     "@types/node": "^25.3.2",
     "@types/vscode": "^1.109.0",
+    "esbuild": "^0.27.3",
     "eslint": "^10.0.2",
     "protobufjs-cli": "^2.0.0",
     "ts-node": "^10.9.2",
