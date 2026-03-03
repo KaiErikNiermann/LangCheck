@@ -57,7 +57,7 @@ export async function downloadBinary(
     binDir: string,
     progress: vscode.Progress<{ message?: string; increment?: number }>,
 ): Promise<string> {
-    progress.report({ message: 'Fetching latest release info...' });
+    progress.report({ message: '(1/3) Fetching latest release info…' });
 
     const release = await fetchLatestRelease();
     const archiveName = getPlatformArchiveName();
@@ -78,15 +78,15 @@ export async function downloadBinary(
     const destPath = path.join(binDir, serverBinaryName());
     const archivePath = path.join(binDir, archiveName);
 
-    progress.report({ message: `Downloading ${archiveName}...`, increment: 10 });
+    progress.report({ message: '(2/3) Downloading…' });
 
     // Download archive
     await downloadFile(archiveAsset.browser_download_url, archivePath, (pct) => {
-        progress.report({ message: `Downloading… ${pct}%`, increment: 1 });
+        progress.report({ message: `(2/3) Downloading… ${pct}%` });
     });
 
     // Extract the server binary from the tar.gz archive
-    progress.report({ message: 'Extracting server binary...' });
+    progress.report({ message: '(3/3) Extracting binary…' });
     const binaryName = serverBinaryName();
     const extracted = await extractFileFromTarGz(archivePath, binaryName);
 
@@ -111,7 +111,7 @@ export async function downloadBinary(
     // Clean up the downloaded archive
     fs.unlinkSync(archivePath);
 
-    progress.report({ message: 'Done!', increment: 100 });
+    progress.report({ message: 'Installed successfully' });
     return destPath;
 }
 

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { LanguageClient } from './client';
 import { languagecheck } from './proto/checker';
 import { TraceLogger } from './trace';
@@ -240,41 +241,65 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push({ dispose: () => traceLogger?.dispose() });
 
     // Ensure the core binary is available before starting the client.
+    // In development mode, warn if the locally-built binary is missing.
     // In production mode, automatically download it from GitHub Releases if
     // missing — similar to how the Lean 4 extension bootstraps its server.
     const binDir = path.join(context.extensionPath, 'bin');
-    const needsDownload = context.extensionMode !== vscode.ExtensionMode.Development && !binaryExists(binDir);
 
     const bootClient = () => {
         startClient();
         initializeClient();
     };
 
-    if (needsDownload) {
-        vscode.window.withProgress(
+    if (isDev) {
+        const devBinaryPath = resolveBinaryPath();
+        if (!fs.existsSync(devBinaryPath)) {
+            const target = vscode.workspace.getConfiguration('languageCheck')
+                .get<string>('core.channel', 'stable') === 'debug' ? 'debug' : 'release';
+            log.warn('Dev binary not found', { expected: devBinaryPath });
+            const selection = await vscode.window.showWarningMessage(
+                vscode.l10n.t(
+                    'Language Check: core binary not found. Build it with `cargo build{0}` in rust-core/, or download a release.',
+                    target === 'release' ? ' --release' : '',
+                ),
+                vscode.l10n.t('Download Release'),
+            );
+            if (selection === vscode.l10n.t('Download Release')) {
+                vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${GITHUB_REPO}/releases`));
+            }
+        } else {
+            bootClient();
+        }
+    } else if (!binaryExists(binDir)) {
+        const result = await vscode.window.withProgress(
             {
                 location: vscode.ProgressLocation.Notification,
-                title: vscode.l10n.t('Language Check: Installing core binary…'),
+                title: vscode.l10n.t('Language Check'),
                 cancellable: false,
             },
             async (progress) => {
                 try {
                     await downloadBinary(binDir, progress);
-                    bootClient();
+                    return { ok: true as const };
                 } catch (err) {
-                    const selection = await vscode.window.showErrorMessage(
-                        vscode.l10n.t('Failed to download the core binary: {0}', String(err)),
-                        vscode.l10n.t('Retry'),
-                        vscode.l10n.t('Download Manually'),
-                    );
-                    if (selection === vscode.l10n.t('Retry')) {
-                        vscode.commands.executeCommand('language-check.downloadBinary');
-                    } else if (selection === vscode.l10n.t('Download Manually')) {
-                        vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${GITHUB_REPO}/releases`));
-                    }
+                    return { ok: false as const, error: String(err) };
                 }
             },
         );
+        if (result.ok) {
+            bootClient();
+        } else {
+            const selection = await vscode.window.showErrorMessage(
+                vscode.l10n.t('Failed to install core binary: {0}', result.error),
+                vscode.l10n.t('Retry'),
+                vscode.l10n.t('Download Manually'),
+            );
+            if (selection === vscode.l10n.t('Retry')) {
+                vscode.commands.executeCommand('language-check.downloadBinary');
+            } else if (selection === vscode.l10n.t('Download Manually')) {
+                vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${GITHUB_REPO}/releases`));
+            }
+        }
     } else {
         bootClient();
     }
@@ -635,32 +660,36 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.downloadBinary', async () => {
         const dir = path.join(context.extensionPath, 'bin');
-        await vscode.window.withProgress(
+        const result = await vscode.window.withProgress(
             {
                 location: vscode.ProgressLocation.Notification,
-                title: vscode.l10n.t('Language Check: Installing core binary…'),
+                title: vscode.l10n.t('Language Check'),
                 cancellable: false,
             },
             async (progress) => {
                 try {
                     await downloadBinary(dir, progress);
-                    vscode.window.showInformationMessage(vscode.l10n.t('Core binary installed successfully.'));
-                    startClient();
-                    initializeClient();
+                    return { ok: true as const };
                 } catch (err) {
-                    const selection = await vscode.window.showErrorMessage(
-                        vscode.l10n.t('Failed to download the core binary: {0}', String(err)),
-                        vscode.l10n.t('Retry'),
-                        vscode.l10n.t('Download Manually'),
-                    );
-                    if (selection === vscode.l10n.t('Retry')) {
-                        vscode.commands.executeCommand('language-check.downloadBinary');
-                    } else if (selection === vscode.l10n.t('Download Manually')) {
-                        vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${GITHUB_REPO}/releases`));
-                    }
+                    return { ok: false as const, error: String(err) };
                 }
             },
         );
+        if (result.ok) {
+            startClient();
+            initializeClient();
+        } else {
+            const selection = await vscode.window.showErrorMessage(
+                vscode.l10n.t('Failed to install core binary: {0}', result.error),
+                vscode.l10n.t('Retry'),
+                vscode.l10n.t('Download Manually'),
+            );
+            if (selection === vscode.l10n.t('Retry')) {
+                vscode.commands.executeCommand('language-check.downloadBinary');
+            } else if (selection === vscode.l10n.t('Download Manually')) {
+                vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${GITHUB_REPO}/releases`));
+            }
+        }
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.ignoreDiagnostic', async (diagnosticId: string) => {
