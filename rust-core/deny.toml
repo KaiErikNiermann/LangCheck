@@ -3,12 +3,11 @@ targets = []
 all-features = true
 
 [advisories]
-unmaintained = "workspace"
-unsound = "workspace"
+version = 2
 yanked = "warn"
 
 [licenses]
-unlicensed = "deny"
+version = 2
 allow = [
     "MIT",
     "Apache-2.0",
@@ -23,7 +22,6 @@ allow = [
     "BSL-1.0",
     "MPL-2.0",
 ]
-confidence-threshold = 0.8
 
 [[licenses.clarify]]
 name = "ring"
