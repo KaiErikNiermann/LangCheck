@@ -3,7 +3,7 @@
 project = "Language Check"
 copyright = "2025, KaiErikNiermann"
 author = "KaiErikNiermann"
-release = "0.2.4"
+release = "0.2.5"
 
 extensions = [
     "myst_parser",
