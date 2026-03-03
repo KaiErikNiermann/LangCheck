@@ -63,4 +63,65 @@ function M.platform_target()
   return target_arch .. "-" .. target_os
 end
 
+--- Download and install the language-check-server binary from GitHub Releases.
+--- @param opts? { version?: string } Version tag (default: latest)
+function M.install(opts)
+  opts = opts or {}
+  local target = M.platform_target()
+  if not target then
+    vim.notify("[lang-check] Unsupported platform", vim.log.levels.ERROR)
+    return
+  end
+
+  local dest = M.install_path()
+  local dir = vim.fn.fnamemodify(dest, ":h")
+  vim.fn.mkdir(dir, "p")
+
+  local asset = "language-check-" .. target .. ".tar.gz"
+  local version = opts.version or "latest"
+
+  -- Resolve "latest" to actual download URL via GitHub redirect
+  local base_url
+  if version == "latest" then
+    base_url = "https://github.com/KaiErikNiermann/LangCheck/releases/latest/download/"
+  else
+    base_url = "https://github.com/KaiErikNiermann/LangCheck/releases/download/" .. version .. "/"
+  end
+  local url = base_url .. asset
+
+  local tmp = vim.fn.tempname() .. ".tar.gz"
+
+  vim.notify("[lang-check] Downloading " .. asset .. " (" .. version .. ")…", vim.log.levels.INFO)
+
+  vim.system(
+    { "curl", "-fSL", "--max-time", "120", "-o", tmp, url },
+    {},
+    vim.schedule_wrap(function(result)
+      if result.code ~= 0 then
+        vim.notify(
+          "[lang-check] Download failed (exit " .. result.code .. "): " .. (result.stderr or ""),
+          vim.log.levels.ERROR
+        )
+        return
+      end
+
+      -- Extract the binary from the tarball
+      vim.system(
+        { "tar", "xzf", tmp, "-C", dir, "--strip-components=0" },
+        {},
+        vim.schedule_wrap(function(tar_result)
+          os.remove(tmp)
+          if tar_result.code ~= 0 then
+            vim.notify("[lang-check] Extraction failed", vim.log.levels.ERROR)
+            return
+          end
+          -- The tarball contains the binary directly; ensure it's executable
+          vim.fn.system({ "chmod", "+x", dest })
+          vim.notify("[lang-check] Installed to " .. dest, vim.log.levels.INFO)
+        end)
+      )
+    end)
+  )
+end
+
 return M
