@@ -95,7 +95,8 @@ fi
 printf '\n%s\n' "=== JSON output ==="
 
 json_output=$("$BIN" check --format json "$FIXTURES/errors.md" 2>&1) || true
-if echo "$json_output" | python3 -m json.tool >/dev/null 2>&1; then
+PYTHON="${PYTHON:-$(command -v python3 || command -v python || echo python3)}"
+if echo "$json_output" | "$PYTHON" -m json.tool >/dev/null 2>&1; then
     pass "JSON output is valid"
 else
     fail "JSON output is not valid JSON"
