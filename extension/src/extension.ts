@@ -1294,6 +1294,7 @@ export async function activate(context: vscode.ExtensionContext) {
                         await checkDocument(editorForCheck.document);
                     }
                     await updateInspectorData();
+                    inspectorPanel?.webview.postMessage({ type: 'setDockerAvailable', payload: hasDockerCompose() });
                     break;
                 }
                 case 'highlightRange': {
@@ -1516,6 +1517,13 @@ function severityToString(severity: number | null | undefined): 'error' | 'warni
 
 function sendSpeedFixLoading(loading: boolean) {
     speedFixPanel?.webview.postMessage({ type: 'loading', payload: loading });
+}
+
+/** Check if a docker-compose.yml exists in the workspace root. */
+function hasDockerCompose(): boolean {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders || folders.length === 0) return false;
+    return fs.existsSync(path.join(folders[0]!.uri.fsPath, 'docker-compose.yml'));
 }
 
 function setCheckingSpinner(active: boolean) {
@@ -2024,11 +2032,13 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
                 const ltHealth = engineHealthState.find(e => e.name === 'languagetool');
                 if (ltHealth && ltHealth.status === 'down' && !ltDownNotificationShown) {
                     ltDownNotificationShown = true;
+                    const hasDocker = hasDockerCompose();
+                    const actions = hasDocker
+                        ? ['Restart Docker', 'Open Inspector', 'Dismiss']
+                        : ['Open Inspector', 'Dismiss'];
                     const action = await vscode.window.showWarningMessage(
                         vscode.l10n.t('LanguageTool engine is down: {0}', ltHealth.lastError),
-                        'Restart Docker',
-                        'Open Inspector',
-                        'Dismiss',
+                        ...actions,
                     );
                     if (action === 'Restart Docker') {
                         vscode.commands.executeCommand('language-check.restartLTDocker');

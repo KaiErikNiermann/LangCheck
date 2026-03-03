@@ -62,6 +62,7 @@
   let checkInfo: CheckInfo | null = $state(null);
   let events: PipelineEvent[] = $state([]);
   let engineHealth: EngineHealth[] = $state([]);
+  let dockerAvailable = $state(false);
   let activeTab: Tab = $state('extraction');
   let fileName: string = $state('');
   let languageId: string = $state('');
@@ -97,6 +98,9 @@
           break;
         case 'setEngineHealth':
           engineHealth = message.payload ?? [];
+          break;
+        case 'setDockerAvailable':
+          dockerAvailable = message.payload;
           break;
       }
     });
@@ -541,9 +545,11 @@
               <button class="health-action-btn" onclick={() => vscode.postMessage({ type: 'healthCheckLT' })}>
                 Health Check
               </button>
-              <button class="health-action-btn health-action-restart" onclick={() => vscode.postMessage({ type: 'restartLTDocker' })}>
-                Restart Docker
-              </button>
+              {#if dockerAvailable}
+                <button class="health-action-btn health-action-restart" onclick={() => vscode.postMessage({ type: 'restartLTDocker' })}>
+                  Restart Docker
+                </button>
+              {/if}
             </div>
           {:else}
             <div class="health-ok-banner">All engines operational</div>

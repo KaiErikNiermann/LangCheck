@@ -101,7 +101,8 @@ export type ExtensionToInspectorMessage =
     | { type: 'setCheckInfo'; payload: InspectorCheckInfo }
     | { type: 'pushEvent'; payload: InspectorEvent }
     | { type: 'clearEvents' }
-    | { type: 'setEngineHealth'; payload: InspectorEngineHealth[] };
+    | { type: 'setEngineHealth'; payload: InspectorEngineHealth[] }
+    | { type: 'setDockerAvailable'; payload: boolean };
 
 // Messages from Inspector webview → extension
 export type InspectorToExtensionMessage =
