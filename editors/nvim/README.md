@@ -6,6 +6,8 @@ Grammar, style, and spelling diagnostics for Neovim via the
 Supports **Markdown**, **HTML**, **LaTeX**, **Typst**, **reStructuredText**,
 **Org**, **BibTeX**, and **Sweave**.
 
+![LangCheck in Neovim](https://raw.githubusercontent.com/KaiErikNiermann/LangCheck/main/assets/neovim_example.png)
+
 ## Installation
 
 ### lazy.nvim

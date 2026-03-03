@@ -8,6 +8,17 @@
 
 A fast, extensible grammar and style checker for Markdown, HTML, LaTeX, Typst, and more. Ships as a VS Code extension and Neovim plugin, backed by a Rust core binary with LSP and Protobuf server modes.
 
+<table>
+<tr>
+<td width="50%"><strong>VS Code</strong></td>
+<td width="50%"><strong>Neovim</strong></td>
+</tr>
+<tr>
+<td><img src="assets/vscode_example.png" alt="LangCheck in VS Code" /></td>
+<td><img src="assets/neovim_example.png" alt="LangCheck in Neovim" /></td>
+</tr>
+</table>
+
 ## Features
 
 - **Multi-engine checking** — local Harper engine for instant feedback, optional LanguageTool for deep grammar analysis, external binaries, and WASM plugins via Extism
