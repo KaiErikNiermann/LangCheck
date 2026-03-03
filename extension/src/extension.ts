@@ -84,14 +84,17 @@ const BUILTIN_SKIP_ENVS = new Set([
 // obviously contain text that should be checked.
 const PROSE_ENVS = new Set([
     "document",
-    "abstract",
+    "abstract", "acknowledgments", "acknowledgements",
     "itemize", "enumerate", "description",
     "figure", "figure*", "table", "table*",
     "minipage", "center", "flushleft", "flushright",
     "quote", "quotation", "verse",
     "theorem", "lemma", "proposition", "corollary", "definition",
     "example", "exercise", "remark", "note", "proof",
-    "frame",
+    "assumption", "conjecture", "observation", "claim", "fact",
+    "notation", "convention",
+    "frame", "block", "alertblock", "exampleblock",
+    "columns", "column",
 ]);
 
 // User-configured skip_environments from .languagecheck.yaml

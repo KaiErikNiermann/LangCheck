@@ -132,11 +132,35 @@ async function fetchLatestRelease(): Promise<ReleaseInfo> {
 }
 
 function collectJson<T>(res: NodeJS.ReadableStream & { statusCode?: number | undefined }, resolve: (val: T) => void, reject: (err: Error) => void): void {
+    if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
+        // Drain the stream so it doesn't hang, then reject
+        const chunks: Buffer[] = [];
+        res.on('data', (d: Buffer) => chunks.push(d));
+        res.on('end', () => {
+            const body = Buffer.concat(chunks).toString();
+            try {
+                const json = JSON.parse(body);
+                reject(new Error(`GitHub API error (${res.statusCode}): ${json.message ?? body}`));
+            } catch {
+                reject(new Error(`GitHub API error (${res.statusCode}): ${body}`));
+            }
+        });
+        res.on('error', reject);
+        return;
+    }
     const chunks: Buffer[] = [];
     res.on('data', (d: Buffer) => chunks.push(d));
     res.on('end', () => {
         try {
-            resolve(JSON.parse(Buffer.concat(chunks).toString()));
+            const parsed = JSON.parse(Buffer.concat(chunks).toString());
+            if (!parsed.assets) {
+                reject(new Error(
+                    `Unexpected GitHub API response (no assets field). ` +
+                    `This may mean no release exists yet. Response: ${JSON.stringify(parsed).slice(0, 200)}`
+                ));
+                return;
+            }
+            resolve(parsed);
         } catch (e) {
             reject(new Error(`Failed to parse release JSON: ${e}`));
         }
