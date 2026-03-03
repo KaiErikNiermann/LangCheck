@@ -1,0 +1,135 @@
+*lang-check.txt*  Grammar and style checking for Neovim
+
+Author:  KaiErikNiermann
+License: MIT
+Repository: https://github.com/KaiErikNiermann/lang-check.nvim
+
+==============================================================================
+CONTENTS                                            *lang-check-contents*
+
+    1. Introduction ........................... |lang-check-intro|
+    2. Requirements ........................... |lang-check-requirements|
+    3. Installation ........................... |lang-check-installation|
+    4. Configuration .......................... |lang-check-configuration|
+    5. Commands ............................... |lang-check-commands|
+    6. Health check ........................... |lang-check-health|
+    7. LSP settings ........................... |lang-check-lsp-settings|
+
+==============================================================================
+1. INTRODUCTION                                     *lang-check-intro*
+
+lang-check.nvim provides grammar, style, and spelling diagnostics for
+prose-heavy file types. It communicates with language-check-server via the
+Language Server Protocol (LSP).
+
+Supported file types: markdown, HTML, LaTeX, Typst, reStructuredText,
+Org, BibTeX, Sweave.
+
+==============================================================================
+2. REQUIREMENTS                                     *lang-check-requirements*
+
+- Neovim >= 0.10 (0.11+ recommended for native vim.lsp.config)
+- language-check-server binary (see |lang-check-installation|)
+- curl (for :LangCheck install)
+
+==============================================================================
+3. INSTALLATION                                     *lang-check-installation*
+
+With lazy.nvim: >lua
+    {
+      "KaiErikNiermann/lang-check.nvim",
+      ft = { "markdown", "html", "latex", "typst", "restructuredtext",
+             "org", "bibtex", "sweave" },
+      opts = {},
+    }
+<
+With packer.nvim: >lua
+    use {
+      "KaiErikNiermann/lang-check.nvim",
+      config = function()
+        require("lang_check").setup()
+      end,
+    }
+<
+With vim-plug: >vim
+    Plug 'KaiErikNiermann/lang-check.nvim'
+    " In after/plugin/lang_check.lua:
+    " require("lang_check").setup()
+<
+With Neovim 0.11+ native config (no plugin manager needed): >lua
+    -- Drop lsp/lang_check.lua into your config, then:
+    vim.lsp.enable("lang_check")
+<
+Binary installation~
+
+Option 1: `:LangCheck install` (downloads from GitHub Releases)
+Option 2: Mason.nvim (when available in registry)
+Option 3: `cargo install lang-check`
+Option 4: Download from https://github.com/KaiErikNiermann/LangCheck/releases
+
+==============================================================================
+4. CONFIGURATION                                    *lang-check-configuration*
+
+Configure via `vim.g.lang_check` or by passing options to `setup()`:
+>lua
+    require("lang_check").setup({
+      server = {
+        cmd = { "language-check-server", "--lsp" },
+        filetypes = { "markdown", "html", "latex", "typst",
+                      "restructuredtext", "org", "bibtex", "sweave" },
+      },
+      autostart = true,
+      settings = {
+        langCheck = {
+          engines = {
+            harper = true,
+            languagetool = false,
+            languagetool_url = "http://localhost:8081",
+          },
+          performance = {
+            high_performance_mode = false,
+          },
+        },
+      },
+    })
+<
+                                                    *g:lang_check*
+`vim.g.lang_check` is merged with defaults. Set it before `setup()` or
+the `FileType` autocmd fires.
+
+==============================================================================
+5. COMMANDS                                         *lang-check-commands*
+
+                                                    *:LangCheck*
+:LangCheck {subcommand}
+
+    install     Download and install the server binary for your platform.
+    info        Print current configuration and binary path.
+    start       Manually start the LSP client for matching buffers.
+
+==============================================================================
+6. HEALTH CHECK                                     *lang-check-health*
+
+Run `:checkhealth lang_check` to verify your setup:
+
+- Neovim version check
+- Binary discovery and version
+- Workspace config file detection
+- LanguageTool server reachability (if configured)
+
+==============================================================================
+7. LSP SETTINGS                                     *lang-check-lsp-settings*
+
+Settings under `langCheck` are sent to the server via
+`workspace/didChangeConfiguration`:
+
+    `langCheck.engines.harper`          boolean  Enable Harper engine
+    `langCheck.engines.languagetool`    boolean  Enable LanguageTool
+    `langCheck.engines.languagetool_url` string  LanguageTool server URL
+    `langCheck.engines.english_engine`  string   "harper" or "languagetool"
+    `langCheck.performance.high_performance_mode`  boolean  HPM toggle
+    `langCheck.performance.debounce_ms`  number   Debounce delay (ms)
+    `langCheck.performance.max_file_size` number  Max file size (bytes)
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:

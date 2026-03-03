@@ -6,7 +6,7 @@
   </picture>
 </p>
 
-A fast, extensible grammar and style checker for Markdown, HTML, LaTeX, Typst, and more. Ships as a VS Code extension backed by a Rust core binary that communicates over a length-prefixed Protobuf protocol.
+A fast, extensible grammar and style checker for Markdown, HTML, LaTeX, Typst, and more. Ships as a VS Code extension and Neovim plugin, backed by a Rust core binary with LSP and Protobuf server modes.
 
 ## Features
 
@@ -28,6 +28,23 @@ A fast, extensible grammar and style checker for Markdown, HTML, LaTeX, Typst, a
 1. Install the extension from the VS Code marketplace (publisher: `KaiErikNiermann`)
 2. Open a Markdown, HTML, LaTeX, or Typst file — checking starts automatically on save
 3. Press `Alt+F` to open the SpeedFix panel
+
+### Neovim
+
+```lua
+-- lazy.nvim
+{
+  "KaiErikNiermann/lang-check.nvim",
+  ft = { "markdown", "html", "latex", "typst", "restructuredtext",
+         "org", "bibtex", "sweave" },
+  opts = {},
+}
+
+-- Or with Neovim 0.11+ native LSP config:
+vim.lsp.enable("lang_check")
+```
+
+See [editors/nvim/README.md](editors/nvim/README.md) for full setup instructions.
 
 ### CLI
 
@@ -60,8 +77,12 @@ lang-check/
 │   │   ├── workspace.rs     redb-backed workspace indexing
 │   │   └── ...
 │   └── bin/
-│       ├── language-check-server.rs   Protobuf stdio server
+│       ├── language-check-server.rs   LSP + Protobuf stdio server
 │       └── language-check.rs          Standalone CLI
+├── editors/nvim/       Neovim plugin (lang-check.nvim)
+│   ├── lua/lang_check/   Plugin core (config, binary, health)
+│   ├── lsp/              Neovim 0.11+ native LSP config
+│   └── doc/              Vim help file
 ├── extension/          VS Code extension (TypeScript)
 │   ├── src/
 │   │   ├── extension.ts    Activation, commands, providers
