@@ -1,0 +1,43 @@
+---
+name: language-check-server
+description: Multilingual prose linter with tree-sitter extraction and pluggable checking engines
+homepage: https://github.com/KaiErikNiermann/LangCheck
+licenses:
+  - MIT
+languages:
+  - Markdown
+  - LaTeX
+  - Typst
+  - HTML
+  - reStructuredText
+  - Org
+  - BibTeX
+categories:
+  - LSP
+
+source:
+  id: pkg:github/KaiErikNiermann/LangCheck@{{version}}
+  asset:
+    - target: linux_x64
+      file: language-check-{{version}}-x86_64-unknown-linux-gnu.tar.gz
+    - target: linux_arm64
+      file: language-check-{{version}}-aarch64-unknown-linux-gnu.tar.gz
+    - target: darwin_x64
+      file: language-check-{{version}}-x86_64-apple-darwin.tar.gz
+    - target: darwin_arm64
+      file: language-check-{{version}}-aarch64-apple-darwin.tar.gz
+    - target: win_x64
+      file: language-check-{{version}}-x86_64-pc-windows-msvc.zip
+
+bin:
+  language-check-server:
+    - target: linux_x64
+      file: language-check-server
+    - target: linux_arm64
+      file: language-check-server
+    - target: darwin_x64
+      file: language-check-server
+    - target: darwin_arm64
+      file: language-check-server
+    - target: win_x64
+      file: language-check-server.exe
