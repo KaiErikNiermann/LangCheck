@@ -14,6 +14,7 @@ guide/installation
 guide/languagetool-setup
 guide/configuration
 guide/languages
+guide/localization
 ```
 
 ```{toctree}

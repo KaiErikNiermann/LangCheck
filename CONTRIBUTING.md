@@ -129,6 +129,12 @@ The extension spawns the core binary as a child process. They communicate via le
 4. Update `activationEvents` in `package.json` if needed
 5. Add snapshot tests for prose extraction
 
+## Translating
+
+We use [Crowdin](https://crowdin.com/project/language-check) for managing translations of both the VS Code extension UI and the documentation. See the [localization guide](https://kaierikniermann.github.io/lang-check/guide/localization.html) for details on how to contribute translations, add new languages, or translate `.po` files locally.
+
+Run `just check-l10n` to verify translation files are in sync before submitting.
+
 ## Submitting a Pull Request
 
 1. Ensure all tests pass locally

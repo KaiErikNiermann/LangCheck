@@ -1,0 +1,379 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-03 16:45+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: ja\n"
+"Language-Team: ja <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../../guide/localization.md:1
+msgid "Contributing Translations"
+msgstr ""
+
+#: ../../guide/localization.md:3
+msgid ""
+"Language Check uses [Crowdin](https://crowdin.com) for community "
+"translation management. This guide covers how to contribute translations "
+"for both the VS Code extension and the documentation."
+msgstr ""
+
+#: ../../guide/localization.md:5
+msgid "Translating via Crowdin (Recommended)"
+msgstr ""
+
+#: ../../guide/localization.md:7
+msgid ""
+"The easiest way to contribute translations is through the Crowdin web "
+"editor:"
+msgstr ""
+
+#: ../../guide/localization.md:9
+msgid ""
+"Visit the [Language Check Crowdin project](https://crowdin.com/project"
+"/language-check)"
+msgstr ""
+
+#: ../../guide/localization.md:10
+msgid "Select a target language"
+msgstr ""
+
+#: ../../guide/localization.md:11
+msgid "Browse the files and translate untranslated strings"
+msgstr ""
+
+#: ../../guide/localization.md:12
+msgid "Your translations will be automatically submitted as a pull request"
+msgstr ""
+
+#: ../../guide/localization.md:14
+msgid ""
+"No local setup is needed — Crowdin provides an in-browser editor with "
+"translation memory, glossaries, and machine translation suggestions."
+msgstr ""
+
+#: ../../guide/localization.md:16
+msgid "Extension Localization"
+msgstr ""
+
+#: ../../guide/localization.md:18
+msgid "The VS Code extension has two sets of translatable files:"
+msgstr ""
+
+#: ../../guide/localization.md:20
+msgid "Runtime strings (`extension/l10n/`)"
+msgstr ""
+
+#: ../../guide/localization.md:22
+msgid ""
+"These are user-facing messages shown in notifications, the status bar, "
+"SpeedFix panel, and dialogs."
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "File"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "Purpose"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "`bundle.l10n.json`"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "English source strings"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "`bundle.l10n.de.json`"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "German translations"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "`bundle.l10n.es.json`"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "Spanish translations"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "`bundle.l10n.fr.json`"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "French translations"
+msgstr ""
+
+#: ../../guide/localization.md:31
+msgid ""
+"Format: flat JSON with the English string as both key and value in the "
+"base file."
+msgstr ""
+
+#: ../../guide/localization.md:39
+#, python-brace-format
+msgid ""
+"Placeholders like `{0}` must be preserved in translations — they are "
+"replaced at runtime with dynamic values."
+msgstr ""
+
+#: ../../guide/localization.md:41
+msgid "UI metadata strings (`extension/package.nls.*.json`)"
+msgstr ""
+
+#: ../../guide/localization.md:43
+msgid ""
+"These define command palette names, configuration descriptions, and "
+"walkthrough content."
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "`package.nls.json`"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "`package.nls.de.json`"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "`package.nls.es.json`"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "`package.nls.fr.json`"
+msgstr ""
+
+#: ../../guide/localization.md:52
+msgid "Format: flat JSON with dot-notation keys."
+msgstr ""
+
+#: ../../guide/localization.md:61 ../../guide/localization.md:151
+msgid "Adding a new language"
+msgstr ""
+
+#: ../../guide/localization.md:63
+msgid "To add a new language for the extension:"
+msgstr ""
+
+#: ../../guide/localization.md:65
+msgid ""
+"Copy `extension/l10n/bundle.l10n.json` to "
+"`extension/l10n/bundle.l10n.<locale>.json`"
+msgstr ""
+
+#: ../../guide/localization.md:66
+msgid "Copy `extension/package.nls.json` to `extension/package.nls.<locale>.json`"
+msgstr ""
+
+#: ../../guide/localization.md:67
+msgid "Translate all values (keep keys unchanged)"
+msgstr ""
+
+#: ../../guide/localization.md:68
+msgid ""
+"Use [BCP 47](https://www.ietf.org/rfc/bcp/bcp47.txt) locale codes: `de`, "
+"`fr`, `ja`, `pt-BR`, `zh-CN`, etc."
+msgstr ""
+
+#: ../../guide/localization.md:70
+msgid "Testing locally"
+msgstr ""
+
+#: ../../guide/localization.md:72
+msgid "Set VS Code's display language to test your translations:"
+msgstr ""
+
+#: ../../guide/localization.md:78
+msgid "Or launch with a locale flag:"
+msgstr ""
+
+#: ../../guide/localization.md:84
+msgid "Documentation Localization"
+msgstr ""
+
+#: ../../guide/localization.md:86
+msgid ""
+"The documentation uses [Sphinx](https://www.sphinx-doc.org/) with gettext"
+" for internationalization."
+msgstr ""
+
+#: ../../guide/localization.md:88
+msgid "How it works"
+msgstr ""
+
+#: ../../guide/localization.md:90
+msgid "Source `.md` files are written in English"
+msgstr ""
+
+#: ../../guide/localization.md:91
+msgid ""
+"`sphinx-build -b gettext` extracts translatable strings into `.pot` "
+"template files"
+msgstr ""
+
+#: ../../guide/localization.md:92
+msgid "`sphinx-intl` generates `.po` files for each target language"
+msgstr ""
+
+#: ../../guide/localization.md:93
+msgid "Translators fill in `msgstr` entries in the `.po` files"
+msgstr ""
+
+#: ../../guide/localization.md:94
+msgid "Sphinx builds the translated documentation from the `.po` files"
+msgstr ""
+
+#: ../../guide/localization.md:96
+msgid "File structure"
+msgstr ""
+
+#: ../../guide/localization.md:113
+msgid "Translating .po files"
+msgstr ""
+
+#: ../../guide/localization.md:115
+msgid "Each `.po` file contains message pairs:"
+msgstr ""
+
+#: ../../guide/localization.md:123
+msgid "Fill in the `msgstr` with your translation:"
+msgstr ""
+
+#: ../../guide/localization.md:129
+msgid "**Tips:**"
+msgstr ""
+
+#: ../../guide/localization.md:131
+msgid ""
+"Leave `msgstr \"\"` empty for untranslated strings (Sphinx falls back to "
+"English)"
+msgstr ""
+
+#: ../../guide/localization.md:132
+msgid "Do not translate code blocks, command names, or file paths"
+msgstr ""
+
+#: ../../guide/localization.md:133
+msgid ""
+"Preserve reStructuredText/MyST markup (links, admonitions, code "
+"references)"
+msgstr ""
+
+#: ../../guide/localization.md:134
+msgid "Remove the `#, fuzzy` flag after reviewing a machine-suggested translation"
+msgstr ""
+
+#: ../../guide/localization.md:136
+msgid "Local preview"
+msgstr ""
+
+#: ../../guide/localization.md:138
+msgid "To preview translated docs locally:"
+msgstr ""
+
+#: ../../guide/localization.md:153
+msgid "Add the language code to the `languages` list in `docs/conf.py`"
+msgstr ""
+
+#: ../../guide/localization.md:154
+msgid ""
+"Generate `.po` files: `just docs-intl-update` (add `-l <code>` to the "
+"`sphinx-intl` command in the Justfile)"
+msgstr ""
+
+#: ../../guide/localization.md:155
+msgid "Translate the `.po` files"
+msgstr ""
+
+#: ../../guide/localization.md:156
+msgid "Submit a PR or contribute via Crowdin"
+msgstr ""
+
+#: ../../guide/localization.md:158
+msgid "CI Checks"
+msgstr ""
+
+#: ../../guide/localization.md:160
+msgid ""
+"A CI job verifies that all translation files have the same keys as their "
+"English base files. If you add a new translatable string to the "
+"extension, all existing translation files must be updated (you can use "
+"the English string as a placeholder and mark it for translation in "
+"Crowdin)."
+msgstr ""
+
+#: ../../guide/localization.md:162
+msgid "Run the check locally:"
+msgstr ""
+
+#: ../../guide/localization.md:168
+msgid "Current Languages"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "Language"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "Extension"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "Docs"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "English"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "Base"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "German (de)"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "Complete"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "Not started"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "Spanish (es)"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "French (fr)"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "Japanese (ja)"
+msgstr ""
+
+#: ../../guide/localization.md
+msgid "—"
+msgstr ""
+
