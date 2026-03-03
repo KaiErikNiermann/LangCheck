@@ -2,16 +2,16 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/titlecard-dark.png" />
     <source media="(prefers-color-scheme: light)" srcset="assets/titlecard-light.png" />
-    <img alt="LangCheck" src="assets/titlecard-light.png" height="72" />
+    <img alt="LangCheck" src="assets/titlecard-light.png" height="79" />
   </picture>
 </p>
 
-A fast, extensible grammar and style checker for Markdown, HTML, and LaTeX. Ships as a VS Code extension backed by a Rust core binary that communicates over a length-prefixed Protobuf protocol.
+A fast, extensible grammar and style checker for Markdown, HTML, LaTeX, Typst, and more. Ships as a VS Code extension backed by a Rust core binary that communicates over a length-prefixed Protobuf protocol.
 
 ## Features
 
 - **Multi-engine checking** — local Harper engine for instant feedback, optional LanguageTool for deep grammar analysis, external binaries, and WASM plugins via Extism
-- **Tree-sitter parsing** — extracts prose from Markdown, HTML, and LaTeX while skipping code blocks, math, and markup
+- **Tree-sitter parsing** — extracts prose from Markdown, HTML, LaTeX, Typst, and more while skipping code blocks, math, and markup
 - **SpeedFix panel** — keyboard-driven batch review: press `1`–`9` for suggestions, `a` to add to dictionary, `i` to ignore, `Space` to skip
 - **Inline suggestions** — inlay hints, ghost text completions, and quickfix code actions
 - **Standalone CLI** — `language-check check`, `fix`, `list-rules`, and `config` subcommands
@@ -26,7 +26,7 @@ A fast, extensible grammar and style checker for Markdown, HTML, and LaTeX. Ship
 ### VS Code Extension
 
 1. Install the extension from the VS Code marketplace (publisher: `KaiErikNiermann`)
-2. Open a Markdown, HTML, or LaTeX file — checking starts automatically on save
+2. Open a Markdown, HTML, LaTeX, or Typst file — checking starts automatically on save
 3. Press `Alt+F` to open the SpeedFix panel
 
 ### CLI

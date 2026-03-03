@@ -666,3 +666,181 @@ The tool works with the following formats:
 
     Ok(())
 }
+
+// ── Typst ──────────────────────────────────────────────────────────────
+
+/// Typst document with headings, emphasis, lists, code, and math.
+#[test]
+fn typst_mixed_document() -> Result<()> {
+    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let mut ex = ProseExtractor::new(lang)?;
+
+    let text = "\
+#import \"template.typ\": *
+#set text(size: 12pt)
+#show heading: set text(blue)
+
+= Introduction
+
+This is the opening paragraph with *bold* and _italic_ text.
+
+The formula $E = m c^2$ is famous in physics.
+
+== Methods
+
+We use the following approach:
+
+- First method involves careful analysis.
+- Second method uses statistical tools.
+- Third method combines both approaches.
+
++ Step one in the procedure.
++ Step two follows naturally.
+
+#let alpha = 0.05
+
+The significance level is $alpha$.
+
+```rust
+fn main() {
+    println!(\"Hello\");
+}
+```
+
+The code above is just an example.
+
+/ Hypothesis: The treatment has a significant effect.
+/ Control: No treatment is applied.
+
+$ integral_0^1 f(x) dif x = F(1) - F(0) $
+
+The integral above represents the area under the curve.
+
+= Conclusion <conclusion>
+
+See @conclusion for the final remarks.
+
+// This is a comment that should not appear.
+";
+
+    let texts = extract_texts(&mut ex, text, "typst")?;
+
+    // Prose should be extracted
+    assert!(
+        texts.iter().any(|t| t.contains("opening paragraph")),
+        "Opening paragraph should be extracted, got: {texts:?}"
+    );
+    assert!(
+        texts.iter().any(|t| t.contains("careful analysis")),
+        "List items should be extracted"
+    );
+    assert!(
+        texts.iter().any(|t| t.contains("code above")),
+        "Prose after code block should be extracted"
+    );
+    assert!(
+        texts.iter().any(|t| t.contains("area under the curve")),
+        "Prose after display math should be extracted"
+    );
+    assert!(
+        texts.iter().any(|t| t.contains("Hypothesis")),
+        "Term list terms should be extracted"
+    );
+    assert!(
+        texts.iter().any(|t| t.contains("significant effect")),
+        "Term list definitions should be extracted"
+    );
+
+    // Code should NOT be extracted
+    assert!(
+        !texts.iter().any(|t| t.contains("println")),
+        "Code block content should not be in prose"
+    );
+
+    // Math should NOT be in prose (inline or display)
+    assert!(
+        !texts.iter().any(|t| t.contains("E = m")),
+        "Inline math should not be in prose"
+    );
+    assert!(
+        !texts.iter().any(|t| t.contains("F(1) - F(0)")),
+        "Display math should not be in prose"
+    );
+
+    // Structural commands should NOT be extracted
+    assert!(
+        !texts.iter().any(|t| t.contains("template.typ")),
+        "Import path should not be in prose"
+    );
+    assert!(
+        !texts.iter().any(|t| t.contains("12pt")),
+        "Set rule content should not be in prose"
+    );
+    assert!(
+        !texts.iter().any(|t| t.contains("blue")),
+        "Show rule content should not be in prose"
+    );
+    assert!(
+        !texts.iter().any(|t| t.contains("alpha = 0.05")),
+        "Let binding should not be in prose"
+    );
+
+    // Comments should NOT be extracted
+    assert!(
+        !texts.iter().any(|t| t.contains("comment that should")),
+        "Comments should not be in prose"
+    );
+
+    Ok(())
+}
+
+/// Typst with Unicode, CJK, and nested markup.
+#[test]
+fn typst_unicode_and_nested_markup() -> Result<()> {
+    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let mut ex = ProseExtractor::new(lang)?;
+
+    let text = "\
+= Einleitung
+
+Dies ist ein Beispiel mit Umlauten: ä, ö, ü und ß.
+
+这是一个中文段落，用于测试多语言支持。
+
+= Formatting
+
+This has *strongly _emphasized_ nested* markup in a sentence.
+
+Visit https://example.com for more details.
+
+An escaped character like \\# should not break extraction.
+";
+
+    let texts = extract_texts(&mut ex, text, "typst")?;
+
+    // German text with umlauts
+    assert!(
+        texts.iter().any(|t| t.contains("Umlauten")),
+        "German text should be extracted"
+    );
+
+    // CJK text
+    assert!(
+        texts.iter().any(|t| t.contains("中文")),
+        "CJK text should be extracted"
+    );
+
+    // Nested markup should bridge properly
+    assert!(
+        texts.iter().any(|t| t.contains("nested")),
+        "Nested markup should bridge, got: {texts:?}"
+    );
+
+    // URLs should be excluded
+    assert!(
+        !texts.iter().any(|t| t.contains("https://example.com")),
+        "URLs should not be in prose"
+    );
+
+    Ok(())
+}

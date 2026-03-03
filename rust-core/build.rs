@@ -13,7 +13,7 @@ fn main() {
 
     // Compile vendored tree-sitter parsers.
     // rerun-if-changed ensures cargo rebuilds the C libs when grammar is regenerated.
-    for name in ["forester", "tinylang", "org"] {
+    for name in ["forester", "tinylang", "org", "typst"] {
         let dir = format!("tree-sitter-{name}/src");
         let parser = format!("{dir}/parser.c");
         let scanner = format!("{dir}/scanner.c");

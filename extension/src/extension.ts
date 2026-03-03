@@ -295,7 +295,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Canonical language IDs with built-in tree-sitter support, plus
     // known VS Code language ID aliases that map to a canonical ID.
-    const supportedLanguages = ['markdown', 'html', 'latex', 'forester', 'tinylang', 'rst', 'sweave', 'bibtex', 'org', 'mdx', 'xhtml'];
+    const supportedLanguages = ['markdown', 'html', 'latex', 'forester', 'tinylang', 'rst', 'sweave', 'bibtex', 'org', 'typst', 'mdx', 'xhtml'];
 
     /** Re-initialize the server, clear stale diagnostics, and recheck open documents. */
     const reinitializeAndRecheck = async () => {

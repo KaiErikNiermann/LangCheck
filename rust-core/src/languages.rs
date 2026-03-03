@@ -21,6 +21,7 @@ const BUILTIN_EXTENSIONS: &[(&str, &str)] = &[
     ("rnw", "sweave"),
     ("bib", "bibtex"),
     ("org", "org"),
+    ("typ", "typst"),
 ];
 
 /// Language ID aliases: VS Code may send these as `language_id`,
@@ -30,7 +31,7 @@ const LANGUAGE_ID_ALIASES: &[(&str, &str)] = &[("mdx", "markdown"), ("xhtml", "h
 
 /// The set of canonical language IDs with built-in tree-sitter support.
 pub const SUPPORTED_LANGUAGE_IDS: &[&str] = &[
-    "markdown", "html", "latex", "forester", "tinylang", "rst", "sweave", "bibtex", "org",
+    "markdown", "html", "latex", "forester", "tinylang", "rst", "sweave", "bibtex", "org", "typst",
 ];
 
 /// Look up the built-in canonical language ID for a file extension.
@@ -172,6 +173,7 @@ pub fn resolve_ts_language(lang: &str) -> tree_sitter::Language {
         "rst" => tree_sitter_rst::LANGUAGE.into(),
         "bibtex" => crate::bibtex_ts::LANGUAGE.into(),
         "org" => crate::org_ts::LANGUAGE.into(),
+        "typst" => crate::typst_ts::LANGUAGE.into(),
         _ => tree_sitter_md::LANGUAGE.into(),
     }
 }

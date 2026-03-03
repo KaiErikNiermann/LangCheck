@@ -1,0 +1,9 @@
+---
+source: tests/snapshot_diagnostics.rs
+assertion_line: 386
+expression: extracted
+---
+- Introduction
+- This is a simple paragraph with some text.
+- Background
+- Another paragraph here.

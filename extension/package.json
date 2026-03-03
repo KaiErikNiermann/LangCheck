@@ -31,7 +31,8 @@
     "onLanguage:mdx",
     "onLanguage:xhtml",
     "onLanguage:bibtex",
-    "onLanguage:org"
+    "onLanguage:org",
+    "onLanguage:typst"
   ],
   "main": "./out/extension.js",
   "l10n": "./l10n",

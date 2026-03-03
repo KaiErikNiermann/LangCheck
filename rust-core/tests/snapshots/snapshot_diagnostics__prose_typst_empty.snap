@@ -1,0 +1,6 @@
+---
+source: tests/snapshot_diagnostics.rs
+assertion_line: 486
+expression: extracted
+---
+[]

@@ -1,0 +1,18 @@
+---
+source: tests/snapshot_diagnostics.rs
+assertion_line: 472
+expression: extracted
+---
+- Chapter One
+- This paragraph has *bold* and _italic_ text.
+- First list item
+- Second list item
+- The value of
+- is important.
+- Numbered one
+- Numbered two
+- Term
+- Definition goes here
+- Final paragraph with a label.
+- See
+- for details.

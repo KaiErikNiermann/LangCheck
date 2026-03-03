@@ -15,6 +15,7 @@ Language Check extracts prose from these file formats using tree-sitter parsers:
 | reStructuredText    | `rst`       | `.rst`, `.rest`           | tree-sitter-rst                          |
 | Org mode            | `org`       | `.org`                    | tree-sitter-org (vendored)               |
 | BibTeX              | `bibtex`    | `.bib`                    | tree-sitter-bibtex                       |
+| Typst               | `typst`     | `.typ`                    | tree-sitter-typst (vendored)             |
 | Forester            | `forester`  | `.tree`                   | tree-sitter-forester (vendored)          |
 
 ### Prose extraction details
@@ -27,6 +28,7 @@ Each language has a custom prose extractor that understands which parts of a doc
 - **reStructuredText** — Extracts `paragraph` and `title` nodes. Skips code-block, math, raw, and similar directives. Inline literals are marked as exclusion zones.
 - **Org mode** — Extracts paragraph text and heading titles. Skips `#+begin_src` blocks, drawers (`:PROPERTIES:`), LaTeX environments, comments, and tables.
 - **BibTeX** — Extracts prose from specific fields: `title`, `booktitle`, `abstract`, `note`, `annote`, `annotation`, `howpublished`, and `series`. Other fields (author, journal, year, etc.) are ignored. LaTeX commands inside values (e.g. `\emph{...}`) are handled via exclusion zones.
+- **Typst** — Collects `text` nodes from paragraphs, headings, and list items. Skips code blocks (`` ``` ``), inline code (`` ` ``), math (`$...$` and `$ ... $`), `#code` expressions, set/show rules, let bindings, imports, includes, labels, references, URLs, escapes, and comments. Inline markup (`*bold*`, `_italic_`) is bridged through.
 - **Forester** — Collects `text` and `escape` nodes, skipping math (`#{...}`, `##{...}`), verbatim fences, wiki links, comments, and structural commands (`\import`, `\ref`, `\def`, etc.). Display math bridges as an exclusion zone.
 
 ### Adding more file types

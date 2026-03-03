@@ -1,0 +1,9 @@
+---
+source: tests/snapshot_diagnostics.rs
+assertion_line: 411
+expression: extracted
+---
+- Some prose before code.
+- Prose after code block.
+- Use the
+- macro here.

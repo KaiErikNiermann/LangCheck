@@ -360,3 +360,131 @@ fn insights_single_word() {
     let insights = ProseInsights::analyze("Hello");
     insta::assert_yaml_snapshot!("insights_single_word", insights);
 }
+
+// ── Typst prose extraction snapshots ────────────────────────────────
+
+#[test]
+fn prose_extraction_typst_basic() {
+    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let mut ext = ProseExtractor::new(lang).unwrap();
+    let text = "\
+= Introduction
+
+This is a simple paragraph with some text.
+
+== Background
+
+Another paragraph here.
+";
+    let ranges = ext.extract(text, "typst", &LatexExtras::default()).unwrap();
+    let extracted: Vec<&str> = ranges
+        .iter()
+        .map(|r| &text[r.start_byte..r.end_byte])
+        .collect();
+    insta::assert_yaml_snapshot!("prose_typst_basic", extracted);
+}
+
+#[test]
+fn prose_extraction_typst_code_excluded() {
+    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let mut ext = ProseExtractor::new(lang).unwrap();
+    let text = "\
+Some prose before code.
+
+```rust
+fn main() {}
+```
+
+Prose after code block.
+
+Use the `println` macro here.
+";
+    let ranges = ext.extract(text, "typst", &LatexExtras::default()).unwrap();
+    let extracted: Vec<&str> = ranges
+        .iter()
+        .map(|r| &text[r.start_byte..r.end_byte])
+        .collect();
+    insta::assert_yaml_snapshot!("prose_typst_code_excluded", extracted);
+}
+
+#[test]
+fn prose_extraction_typst_math_excluded() {
+    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let mut ext = ProseExtractor::new(lang).unwrap();
+    let text = "\
+The formula $E = m c^2$ is famous.
+
+$ integral_0^1 f(x) dif x $
+
+After display math.
+";
+    let ranges = ext.extract(text, "typst", &LatexExtras::default()).unwrap();
+    let extracted: Vec<&str> = ranges
+        .iter()
+        .map(|r| &text[r.start_byte..r.end_byte])
+        .collect();
+    insta::assert_yaml_snapshot!("prose_typst_math_excluded", extracted);
+}
+
+#[test]
+fn prose_extraction_typst_mixed_content() {
+    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let mut ext = ProseExtractor::new(lang).unwrap();
+    let text = "\
+#import \"template.typ\": *
+
+#set text(size: 12pt)
+#show heading: set text(blue)
+
+= Chapter One
+
+This paragraph has *bold* and _italic_ text.
+
+- First list item
+- Second list item
+
+#let x = 42
+
+The value of $x$ is important.
+
++ Numbered one
++ Numbered two
+
+/ Term: Definition goes here
+
+Final paragraph with a label. <conclusion>
+
+See @conclusion for details.
+";
+    let ranges = ext.extract(text, "typst", &LatexExtras::default()).unwrap();
+    let extracted: Vec<&str> = ranges
+        .iter()
+        .map(|r| &text[r.start_byte..r.end_byte])
+        .collect();
+    insta::assert_yaml_snapshot!("prose_typst_mixed_content", extracted);
+}
+
+#[test]
+fn prose_extraction_typst_empty() {
+    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let mut ext = ProseExtractor::new(lang).unwrap();
+    let ranges = ext.extract("", "typst", &LatexExtras::default()).unwrap();
+    let extracted: Vec<&str> = ranges
+        .iter()
+        .map(|r| &""[r.start_byte..r.end_byte])
+        .collect();
+    insta::assert_yaml_snapshot!("prose_typst_empty", extracted);
+}
+
+#[test]
+fn prose_extraction_typst_code_only() {
+    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let mut ext = ProseExtractor::new(lang).unwrap();
+    let text = "#set text(size: 12pt)\n#show heading: set text(blue)\n#let x = 1\n";
+    let ranges = ext.extract(text, "typst", &LatexExtras::default()).unwrap();
+    let extracted: Vec<&str> = ranges
+        .iter()
+        .map(|r| &text[r.start_byte..r.end_byte])
+        .collect();
+    insta::assert_yaml_snapshot!("prose_typst_code_only", extracted);
+}

@@ -14,7 +14,7 @@ A fast, extensible grammar and style checker for Markdown, HTML, LaTeX, and more
 
 ### Supported Languages
 
-Markdown, HTML, LaTeX, reStructuredText, BibTeX, Org-mode, MDX, XHTML, Sweave, and Forester — plus any language with a Schema Language Specification (SLS) file.
+Markdown, HTML, LaTeX, Typst, reStructuredText, BibTeX, Org-mode, MDX, XHTML, Sweave, and Forester — plus any language with a Schema Language Specification (SLS) file.
 
 ## Getting Started
 

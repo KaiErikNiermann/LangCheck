@@ -7,6 +7,7 @@ mod rst;
 mod shared;
 mod sweave;
 mod tinylang;
+mod typst;
 
 use anyhow::{Result, anyhow};
 use std::ops::Range;
@@ -50,6 +51,7 @@ impl ProseExtractor {
             "rst" => Ok(rst::extract(text, root)),
             "bibtex" => Ok(bibtex::extract(text, root)),
             "org" => Ok(org::extract(text, root)),
+            "typst" => Ok(typst::extract(text, root)),
             lang => query::extract(text, root, &self.language, lang),
         }
     }

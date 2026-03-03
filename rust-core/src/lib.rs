@@ -31,4 +31,5 @@ pub mod scoping;
 pub mod sls;
 pub mod style_rules;
 pub mod tinylang_ts;
+pub mod typst_ts;
 pub mod workspace;
