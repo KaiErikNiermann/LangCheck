@@ -31,6 +31,20 @@ html_theme_options = {
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 
+# Sidebar: insert language picker after brand, before search
+html_sidebars = {
+    "**": [
+        "sidebar/brand.html",
+        "selectlang.html",
+        "sidebar/search.html",
+        "sidebar/scroll-start.html",
+        "sidebar/navigation.html",
+        "sidebar/ethical-ads.html",
+        "sidebar/scroll-end.html",
+        "sidebar/variant-selector.html",
+    ],
+}
+
 # Internationalization
 language = "en"
 locale_dirs = ["locale/"]
@@ -43,10 +57,14 @@ languages = [
     ("ja", "日本語"),
 ]
 
+# Languages with enough translations to deploy (add codes as translations land)
+supported_languages = {"en"}
+
 # Context for templates
 html_context = {
     "languages": languages,
     "current_language": language,
+    "supported_languages": supported_languages,
 }
 
 # Source file suffixes

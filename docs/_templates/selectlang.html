@@ -1,16 +1,22 @@
 {# docs/_templates/selectlang.html #}
 <div class="lang-switcher">
-    <i class="fa fa-language"></i>
+    <span class="lang-label">&#127760; Language</span>
     <ul class="languages">
         {% for lang_code, lang_name in languages %}
-        <li class="{{ 'current' if lang_code == language else 'unsupported' }}">
-            {% if lang_code == language %}
+        {% if lang_code == current_language %}
+        <li class="current">
             <span>{{ lang_name }}</span>
-            {% else %}
-            {# Links are technically active, but styled as greyed out for "unsupported" #}
-            <a href="#">{{ lang_name }}</a>
-            {% endif %}
         </li>
+        {% elif lang_code in supported_languages %}
+        <li class="supported">
+            <a href="/{{ lang_code }}/">{{ lang_name }}</a>
+        </li>
+        {% else %}
+        <li class="unsupported">
+            <a href="{{ pathto('guide/localization') }}"
+               title="Help translate to {{ lang_name }}!">{{ lang_name }}</a>
+        </li>
+        {% endif %}
         {% endfor %}
     </ul>
 </div>

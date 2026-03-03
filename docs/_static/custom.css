@@ -6,9 +6,11 @@
     font-size: 0.9em;
 }
 
-.lang-switcher .fa-language {
-    margin-right: 5px;
+.lang-switcher .lang-label {
     opacity: 0.6;
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
 .lang-switcher ul.languages {
@@ -24,14 +26,16 @@
     display: inline-block;
 }
 
-.lang-switcher ul.languages li.current {
+.lang-switcher ul.languages li.current span {
     font-weight: bold;
+    border-bottom: 2px solid var(--color-brand-primary, currentColor);
 }
 
 .lang-switcher ul.languages li.unsupported a {
-    opacity: 0.5;
-    text-decoration: none;
-    cursor: not-allowed;
+    opacity: 0.45;
+    text-decoration: underline dashed;
+    text-underline-offset: 3px;
+    cursor: help;
 }
 
 /* ── Typography & spacing ────────────────────────────────────── */

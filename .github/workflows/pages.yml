@@ -33,9 +33,26 @@ jobs:
       - name: Install dependencies
         run: pip install -r docs/requirements.txt
 
-      - name: Build HTML
+      - name: Build HTML (English)
         working-directory: docs
         run: sphinx-build -b html . _build/html
+
+      # ── Multi-language builds ──────────────────────────────────
+      # When a language is added to supported_languages in conf.py,
+      # uncomment its block below to build translated docs into
+      # _build/html/{lang}/.
+      #
+      # - name: Build HTML (French)
+      #   working-directory: docs
+      #   run: sphinx-build -b html -D language=fr . _build/html/fr
+      #
+      # - name: Build HTML (Spanish)
+      #   working-directory: docs
+      #   run: sphinx-build -b html -D language=es . _build/html/es
+      #
+      # - name: Build HTML (Japanese)
+      #   working-directory: docs
+      #   run: sphinx-build -b html -D language=ja . _build/html/ja
 
       - uses: actions/upload-pages-artifact@v4
         with:
