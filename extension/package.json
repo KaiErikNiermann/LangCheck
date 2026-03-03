@@ -1,7 +1,7 @@
 {
   "name": "language-check",
   "displayName": "Language Check",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Multilingual prose linter powered by tree-sitter extraction and pluggable checking engines",
   "publisher": "KaiErikNiermann",
   "license": "MIT",
