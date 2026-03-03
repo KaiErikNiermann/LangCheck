@@ -80,7 +80,15 @@ export class LanguageClient {
             if (this.stopped) return;
             this.process = null;
             this.start();
-            this.restartAttempts = 0; // Reset on successful start
+            // Only reset attempts and fire callbacks after the process
+            // survives for a reasonable duration (not an instant crash).
+            const resetTimer = setTimeout(() => {
+                if (this.process && !this.stopped) {
+                    this.restartAttempts = 0;
+                }
+            }, 5000);
+            // Don't let this timer keep the process alive
+            resetTimer.unref?.();
             for (const cb of this.onRestartCallbacks) {
                 try { cb(); } catch { /* ignore callback errors */ }
             }
