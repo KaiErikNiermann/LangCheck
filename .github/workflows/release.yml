@@ -118,6 +118,12 @@ jobs:
             tar xzf "$archive" -C "native/$target"
           done
 
+      - name: Build webview assets
+        run: |
+          cd webview
+          pnpm install --frozen-lockfile
+          pnpm run build
+
       - name: Build extension
         run: pnpm run build
 
