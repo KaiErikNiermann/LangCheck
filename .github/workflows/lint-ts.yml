@@ -47,6 +47,15 @@ jobs:
       - name: ESLint
         run: pnpm run lint
 
+  l10n-check:
+    name: L10n Key Sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check l10n key completeness
+        run: ./scripts/check-l10n-keys.sh
+
   proto-check:
     name: Proto Sync Check
     runs-on: ubuntu-latest

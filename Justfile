@@ -62,8 +62,12 @@ lint-ts: install-ts
 lint-ts-fix: install-ts
     cd extension && pnpm run lint -- --fix
 
+# Check l10n key completeness
+check-l10n:
+    ./scripts/check-l10n-keys.sh
+
 # Run all TypeScript checks
-check-ts: typecheck-ts lint-ts build-ts
+check-ts: typecheck-ts lint-ts build-ts check-l10n
 
 # --- Docs ---
 
