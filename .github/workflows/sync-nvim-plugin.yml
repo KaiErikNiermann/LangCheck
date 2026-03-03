@@ -1,0 +1,47 @@
+name: Sync Neovim Plugin
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Sync editors/nvim → lang-check.nvim
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push subtree to lang-check.nvim
+        env:
+          DEPLOY_KEY: ${{ secrets.NVIM_PLUGIN_DEPLOY_KEY }}
+        run: |
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Set up deploy key for the target repo
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+
+          TAG="${GITHUB_REF_NAME}"
+          TARGET_REPO="git@github.com:KaiErikNiermann/lang-check.nvim.git"
+
+          # Create a temporary branch with only editors/nvim/ contents at root
+          SPLIT_BRANCH="nvim-split-${TAG}"
+          git subtree split --prefix=editors/nvim -b "$SPLIT_BRANCH"
+
+          # Push to the target repo
+          git push "$TARGET_REPO" "${SPLIT_BRANCH}:refs/heads/main" --force
+          git tag -f "$TAG" "$SPLIT_BRANCH"
+          git push "$TARGET_REPO" "$TAG" --force
+
+          echo "Synced editors/nvim/ to lang-check.nvim @ ${TAG}"
