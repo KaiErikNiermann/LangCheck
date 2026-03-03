@@ -29,6 +29,7 @@ let ltDownNotificationShown = false;
 
 // Inlay hint invalidation
 const inlayHintEmitter = new vscode.EventEmitter<void>();
+let inlayHintsEnabled = true;
 
 // Check-on-change debounce timer per document
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -352,6 +353,7 @@ export async function activate(context: vscode.ExtensionContext) {
         {
             onDidChangeInlayHints: inlayHintEmitter.event,
             provideInlayHints(document, _range, _token) {
+                if (!inlayHintsEnabled) return [];
                 const diagnostics = diagnosticsMap.get(document.uri.toString());
                 if (!diagnostics) return [];
 
@@ -413,6 +415,7 @@ export async function activate(context: vscode.ExtensionContext) {
         {
             onDidChangeInlayHints: inlayHintEmitter.event,
             provideInlayHints(document, _range, _token) {
+                if (!inlayHintsEnabled) return [];
                 const text = document.getText();
                 const hints: vscode.InlayHint[] = [];
                 const re = /\\begin\{([^}]+)\}/g;
@@ -447,6 +450,7 @@ export async function activate(context: vscode.ExtensionContext) {
         {
             onDidChangeInlayHints: inlayHintEmitter.event,
             provideInlayHints(document, _range, _token) {
+                if (!inlayHintsEnabled) return [];
                 const diagnostics = diagnosticsMap.get(document.uri.toString());
                 if (!diagnostics || diagnostics.length === 0) return [];
                 const text = document.getText();
@@ -696,6 +700,12 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${GITHUB_REPO}/releases`));
             }
         }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.toggleInlayHints', () => {
+        inlayHintsEnabled = !inlayHintsEnabled;
+        inlayHintEmitter.fire();
+        vscode.window.showInformationMessage(`Language Check inlay hints ${inlayHintsEnabled ? 'enabled' : 'disabled'}`);
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.restartLanguageServer', () => {

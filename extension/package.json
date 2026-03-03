@@ -93,6 +93,10 @@
       {
         "command": "language-check.restartLanguageServer",
         "title": "%command.restartLanguageServer%"
+      },
+      {
+        "command": "language-check.toggleInlayHints",
+        "title": "%command.toggleInlayHints%"
       }
     ],
     "keybindings": [

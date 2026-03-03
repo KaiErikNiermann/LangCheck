@@ -13,6 +13,7 @@
   "command.downloadBinary": "Language Check : Télécharger le binaire core",
   "command.restartLTDocker": "Language Check : Redémarrer Docker LanguageTool",
   "command.restartLanguageServer": "Language Check : Redémarrer le serveur de langue",
+  "command.toggleInlayHints": "Language Check : Activer/désactiver les indications en ligne",
   "config.title": "Language Check",
   "config.core.channel": "Quel canal de binaire core utiliser.",
   "config.core.channel.stable": "Version stable",
