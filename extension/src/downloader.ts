@@ -52,14 +52,30 @@ export function binaryExists(binDir: string): boolean {
     return fs.existsSync(path.join(binDir, serverBinaryName()));
 }
 
-/** Download the core binary for the current platform from GitHub Releases. */
+/** Download the core binary for the current platform from GitHub Releases.
+ *  Pass `extensionVersion` to warn when the extension is newer than the latest release. */
 export async function downloadBinary(
     binDir: string,
     progress: vscode.Progress<{ message?: string; increment?: number }>,
+    extensionVersion?: string,
 ): Promise<string> {
     progress.report({ message: '(1/3) Fetching latest release info…' });
 
     const release = await fetchLatestRelease();
+
+    // Warn if the extension version is ahead of the latest release binary.
+    // This typically happens when installing a locally-built extension before
+    // release binaries have been published.
+    if (extensionVersion) {
+        const releaseVersion = release.tag_name.replace(/^v/, '');
+        if (extensionVersion !== releaseVersion && isNewerVersion(extensionVersion, releaseVersion)) {
+            vscode.window.showWarningMessage(
+                `Extension v${extensionVersion} is newer than the latest release binary (v${releaseVersion}). ` +
+                `There may be version incompatibilities. The release binaries may not have synced yet.`,
+            );
+        }
+    }
+
     const archiveName = getPlatformArchiveName();
 
     const archiveAsset = release.assets.find(a => a.name === archiveName);
@@ -268,6 +284,17 @@ function extractFromTar(tar: Buffer, fileName: string): Buffer | null {
     }
 
     return null;
+}
+
+/** Returns true if `a` is a newer semver than `b`. */
+function isNewerVersion(a: string, b: string): boolean {
+    const pa = a.split('.').map(Number);
+    const pb = b.split('.').map(Number);
+    for (let i = 0; i < 3; i++) {
+        if ((pa[i] ?? 0) > (pb[i] ?? 0)) return true;
+        if ((pa[i] ?? 0) < (pb[i] ?? 0)) return false;
+    }
+    return false;
 }
 
 /** Compute SHA-256 hash of a file. */

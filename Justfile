@@ -91,6 +91,18 @@ docs-intl-update: docs-gettext
 docs-lang lang:
     cd docs && source .venv/bin/activate && sphinx-build -b html -D language={{lang}} . _build/html/{{lang}}
 
+# --- Local install ---
+
+# Package the extension and install it locally in VS Code
+install-local: build-ts
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd extension
+    npx @vscode/vsce package --no-dependencies
+    vsix=$(ls -t *.vsix | head -1)
+    code --install-extension "$vsix" --force
+    echo "Installed $vsix"
+
 # --- Combined ---
 
 # Run all checks (rust + TypeScript)

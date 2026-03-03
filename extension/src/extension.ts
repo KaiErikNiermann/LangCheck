@@ -290,7 +290,7 @@ export async function activate(context: vscode.ExtensionContext) {
             },
             async (progress) => {
                 try {
-                    await downloadBinary(binDir, progress);
+                    await downloadBinary(binDir, progress, context.extension.packageJSON.version);
                     return { ok: true as const };
                 } catch (err) {
                     return { ok: false as const, error: String(err) };
@@ -682,7 +682,7 @@ export async function activate(context: vscode.ExtensionContext) {
             },
             async (progress) => {
                 try {
-                    await downloadBinary(dir, progress);
+                    await downloadBinary(dir, progress, context.extension.packageJSON.version);
                     return { ok: true as const };
                 } catch (err) {
                     return { ok: false as const, error: String(err) };
