@@ -15,4 +15,7 @@ return {
     "sweave",
   },
   root_markers = { ".languagecheck.yaml", ".git" },
+  settings = {
+    langCheck = {},
+  },
 }

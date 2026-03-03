@@ -41,6 +41,7 @@ function M.start()
         name = "lang-check",
         cmd = cmd,
         root_dir = vim.fs.root(ev.buf, { ".languagecheck.yaml", ".git" }),
+        settings = cfg.settings or {},
       }, { bufnr = ev.buf })
     end,
   })

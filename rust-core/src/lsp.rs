@@ -14,11 +14,11 @@ use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeActionProviderCapability,
-    CodeActionResponse, Command, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DidSaveTextDocumentParams, Diagnostic, DiagnosticSeverity,
-    ExecuteCommandOptions, ExecuteCommandParams, InitializeParams, InitializeResult,
-    InitializedParams, NumberOrString, Position, Range, ServerCapabilities, ServerInfo,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
+    CodeActionResponse, Command, DidChangeConfigurationParams, DidChangeTextDocumentParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams, Diagnostic,
+    DiagnosticSeverity, ExecuteCommandOptions, ExecuteCommandParams, InitializeParams,
+    InitializeResult, InitializedParams, NumberOrString, Position, Range, ServerCapabilities,
+    ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 use tracing::{debug, info, warn};
@@ -31,10 +31,45 @@ use crate::orchestrator::Orchestrator;
 use crate::prose;
 use crate::sls::SchemaRegistry;
 
+// ── LSP settings ────────────────────────────────────────────────────────────
+
+/// Settings received via `workspace/didChangeConfiguration`.
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default)]
+struct LspSettings {
+    #[serde(alias = "langCheck")]
+    lang_check: LangCheckSettings,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default)]
+struct LangCheckSettings {
+    engines: Option<EngineSettings>,
+    performance: Option<PerformanceSettings>,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default)]
+struct EngineSettings {
+    harper: Option<bool>,
+    languagetool: Option<bool>,
+    languagetool_url: Option<String>,
+    english_engine: Option<String>,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default)]
+struct PerformanceSettings {
+    high_performance_mode: Option<bool>,
+    debounce_ms: Option<u64>,
+    max_file_size: Option<usize>,
+}
+
 // ── Document store ──────────────────────────────────────────────────────────
 
 /// In-memory text of open documents (keyed by URI string).
-type DocumentStore = DashMap<String, String>;
+/// Value is `(text, language_id)`.
+type DocumentStore = DashMap<String, (String, String)>;
 
 // ── Backend ─────────────────────────────────────────────────────────────────
 
@@ -98,6 +133,55 @@ impl Backend {
         }
 
         *self.workspace_root.lock().await = Some(root.to_path_buf());
+    }
+
+    /// Apply LSP settings on top of the workspace config.
+    async fn apply_settings(&self, settings: &LangCheckSettings) {
+        let mut config = self.config.lock().await;
+        if let Some(ref eng) = settings.engines {
+            if let Some(v) = eng.harper {
+                config.engines.harper = v;
+            }
+            if let Some(v) = eng.languagetool {
+                config.engines.languagetool = v;
+            }
+            if let Some(ref v) = eng.languagetool_url {
+                config.engines.languagetool_url.clone_from(v);
+            }
+            if let Some(ref v) = eng.english_engine {
+                config.engines.english_engine.clone_from(v);
+            }
+        }
+        if let Some(ref perf) = settings.performance {
+            if let Some(v) = perf.high_performance_mode {
+                config.performance.high_performance_mode = v;
+            }
+            if let Some(v) = perf.debounce_ms {
+                config.performance.debounce_ms = v;
+            }
+            if let Some(v) = perf.max_file_size {
+                config.performance.max_file_size = v;
+            }
+        }
+        self.orchestrator.lock().await.update_config(config.clone());
+        info!("LSP: config updated via didChangeConfiguration");
+    }
+
+    /// Re-diagnose all currently open documents.
+    async fn rediagnose_all(&self) {
+        let entries: Vec<(String, String, String)> = self
+            .documents
+            .iter()
+            .map(|r| {
+                let (text, lang_id) = r.value();
+                (r.key().clone(), text.clone(), lang_id.clone())
+            })
+            .collect();
+        for (uri_str, text, lang_id) in entries {
+            if let Ok(uri) = Url::parse(&uri_str) {
+                self.diagnose(&uri, &text, &lang_id).await;
+            }
+        }
     }
 
     /// Run diagnostics on a document and publish them.
@@ -220,15 +304,17 @@ impl LanguageServer for Backend {
         let uri = params.text_document.uri;
         let text = params.text_document.text;
         let lang_id = params.text_document.language_id.clone();
-        self.documents.insert(uri.to_string(), text.clone());
+        self.documents
+            .insert(uri.to_string(), (text.clone(), lang_id.clone()));
         self.diagnose(&uri, &text, &lang_id).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let uri = params.text_document.uri;
         if let Some(change) = params.content_changes.into_iter().last() {
-            self.documents.insert(uri.to_string(), change.text.clone());
             let lang_id = guess_lang_id(&uri);
+            self.documents
+                .insert(uri.to_string(), (change.text.clone(), lang_id.clone()));
             self.diagnose(&uri, &change.text, &lang_id).await;
         }
     }
@@ -236,17 +322,24 @@ impl LanguageServer for Backend {
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         let uri = params.text_document.uri;
         let key = uri.to_string();
-        let text = {
-            self.documents.get(&key).map(|r| r.value().clone())
-        };
-        if let Some(text) = text {
-            let lang_id = guess_lang_id(&uri);
+        let entry = self
+            .documents
+            .get(&key)
+            .map(|r| r.value().clone());
+        if let Some((text, lang_id)) = entry {
             self.diagnose(&uri, &text, &lang_id).await;
         }
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         self.documents.remove(&params.text_document.uri.to_string());
+    }
+
+    async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
+        let settings: LspSettings =
+            serde_json::from_value(params.settings).unwrap_or_default();
+        self.apply_settings(&settings.lang_check).await;
+        self.rediagnose_all().await;
     }
 
     async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
@@ -294,7 +387,7 @@ impl LanguageServer for Backend {
                     || rule_id.contains("spelling"))
                 && let Some(doc) = self.documents.get(&uri.to_string())
             {
-                let word = extract_word_at_range(&doc, diag.range).unwrap_or_default();
+                let word = extract_word_at_range(&doc.value().0, diag.range).unwrap_or_default();
                 if !word.is_empty() {
                     actions.push(CodeActionOrCommand::CodeAction(CodeAction {
                         title: format!("Add \"{word}\" to dictionary"),
