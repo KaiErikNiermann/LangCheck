@@ -89,6 +89,10 @@
       {
         "command": "language-check.restartLTDocker",
         "title": "%command.restartLTDocker%"
+      },
+      {
+        "command": "language-check.restartLanguageServer",
+        "title": "%command.restartLanguageServer%"
       }
     ],
     "keybindings": [

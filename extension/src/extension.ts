@@ -698,6 +698,14 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.restartLanguageServer', () => {
+        log.info('Restarting language server');
+        pushInspectorEvent('info', 'restartServer', 'Restarting language server');
+        startClient();
+        initializeClient();
+        vscode.window.showInformationMessage('Language Check server restarted');
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('language-check.restartLTDocker', async () => {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders || workspaceFolders.length === 0) {
