@@ -10,6 +10,7 @@
   "command.toggleEnglishEngine": "Language Check: Toggle English Engine",
   "command.skipLatexEnv": "Language Check: Skip LaTeX Environment",
   "command.skipLatexCommand": "Language Check: Skip LaTeX Command",
+  "command.downloadBinary": "Language Check: Download Core Binary",
   "config.title": "Language Check",
   "config.core.channel": "Which core binary channel to use.",
   "config.core.channel.stable": "Production release",

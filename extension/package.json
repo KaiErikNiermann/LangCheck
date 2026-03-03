@@ -80,6 +80,10 @@
       {
         "command": "language-check.skipLatexCommand",
         "title": "%command.skipLatexCommand%"
+      },
+      {
+        "command": "language-check.downloadBinary",
+        "title": "%command.downloadBinary%"
       }
     ],
     "keybindings": [

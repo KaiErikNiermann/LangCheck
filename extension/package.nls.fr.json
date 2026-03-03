@@ -21,5 +21,6 @@
   "config.dictionaries.bundled": "Charger les dictionnaires techniques intégrés (termes logiciels, TypeScript, entreprises, jargon). Désactiver pour réduire les faux négatifs orthographiques.",
   "config.dictionaries.paths": "Chemins vers des fichiers de listes de mots supplémentaires (un mot par ligne). Les chemins relatifs sont résolus depuis la racine de l'espace de travail.",
   "walkthrough.title": "Premiers pas avec Language Check",
-  "walkthrough.description": "Apprenez à vérifier et corriger la prose dans vos documents."
+  "walkthrough.description": "Apprenez à vérifier et corriger la prose dans vos documents.",
+  "command.downloadBinary": "Language Check : Télécharger le binaire core"
 }

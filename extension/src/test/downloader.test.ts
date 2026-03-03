@@ -13,44 +13,44 @@ vi.mock('os', async (importOriginal) => {
 });
 
 // Import after mocking
-import { getPlatformBinaryName, binaryExists } from '../downloader';
+import { getPlatformArchiveName, binaryExists } from '../downloader';
 
 describe('downloader', () => {
-    describe('getPlatformBinaryName', () => {
-        it('should return linux x86_64 binary name', () => {
+    describe('getPlatformArchiveName', () => {
+        it('should return linux x86_64 archive name', () => {
             vi.mocked(os.platform).mockReturnValue('linux');
             vi.mocked(os.arch).mockReturnValue('x64');
-            expect(getPlatformBinaryName()).toBe('language-check-server-x86_64-unknown-linux-gnu');
+            expect(getPlatformArchiveName()).toBe('language-check-x86_64-unknown-linux-gnu.tar.gz');
         });
 
-        it('should return linux aarch64 binary name', () => {
+        it('should return linux aarch64 archive name', () => {
             vi.mocked(os.platform).mockReturnValue('linux');
             vi.mocked(os.arch).mockReturnValue('arm64');
-            expect(getPlatformBinaryName()).toBe('language-check-server-aarch64-unknown-linux-gnu');
+            expect(getPlatformArchiveName()).toBe('language-check-aarch64-unknown-linux-gnu.tar.gz');
         });
 
-        it('should return macOS arm64 binary name', () => {
+        it('should return macOS arm64 archive name', () => {
             vi.mocked(os.platform).mockReturnValue('darwin');
             vi.mocked(os.arch).mockReturnValue('arm64');
-            expect(getPlatformBinaryName()).toBe('language-check-server-aarch64-apple-darwin');
+            expect(getPlatformArchiveName()).toBe('language-check-aarch64-apple-darwin.tar.gz');
         });
 
-        it('should return macOS x86_64 binary name', () => {
+        it('should return macOS x86_64 archive name', () => {
             vi.mocked(os.platform).mockReturnValue('darwin');
             vi.mocked(os.arch).mockReturnValue('x64');
-            expect(getPlatformBinaryName()).toBe('language-check-server-x86_64-apple-darwin');
+            expect(getPlatformArchiveName()).toBe('language-check-x86_64-apple-darwin.tar.gz');
         });
 
-        it('should return windows binary name with .exe', () => {
+        it('should return windows archive name', () => {
             vi.mocked(os.platform).mockReturnValue('win32');
             vi.mocked(os.arch).mockReturnValue('x64');
-            expect(getPlatformBinaryName()).toBe('language-check-server-x86_64-pc-windows-msvc.exe');
+            expect(getPlatformArchiveName()).toBe('language-check-x86_64-pc-windows-msvc.tar.gz');
         });
 
         it('should throw for unsupported platform', () => {
             vi.mocked(os.platform).mockReturnValue('freebsd' as NodeJS.Platform);
             vi.mocked(os.arch).mockReturnValue('x64');
-            expect(() => getPlatformBinaryName()).toThrow('Unsupported platform');
+            expect(() => getPlatformArchiveName()).toThrow('Unsupported platform');
         });
     });
 
