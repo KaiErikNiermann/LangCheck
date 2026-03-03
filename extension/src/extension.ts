@@ -9,7 +9,7 @@ import { TraceLogger } from './trace';
 import { createAPI } from './api';
 import { binaryExists, downloadBinary } from './downloader';
 import type { LanguageCheckDiagnostic } from './api';
-import type { SpeedFixDiagnostic, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth } from './events';
+import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth } from './events';
 import { Logger } from './logger';
 
 const GITHUB_REPO = 'KaiErikNiermann/LangCheck';
@@ -22,6 +22,10 @@ let speedFixPanel: vscode.WebviewPanel | null = null;
 let inspectorPanel: vscode.WebviewPanel | null = null;
 let languageStatusBarItem: vscode.StatusBarItem;
 let insightsStatusBarItem: vscode.StatusBarItem;
+
+// SpeedFix scope (file vs workspace)
+let speedFixScope: SpeedFixScope = 'file';
+let speedFixTargetUri: string | null = null;
 
 // Engine health tracking
 let engineHealthState: InspectorEngineHealth[] = [];
@@ -1185,6 +1189,9 @@ export async function activate(context: vscode.ExtensionContext) {
                     const hpm = vscode.workspace.getConfiguration('languageCheck')
                         .get<boolean>('performance.highPerformanceMode', false);
                     speedFixPanel?.webview.postMessage({ type: 'setLowResource', payload: hpm });
+                    speedFixPanel?.webview.postMessage({ type: 'setScope', payload: speedFixScope });
+                    // Track which file SpeedFix is targeting
+                    speedFixTargetUri = (originEditor ?? vscode.window.activeTextEditor)?.document.uri.toString() ?? null;
                     // If we already have diagnostics, send them immediately
                     updateSpeedFixDiagnostics();
                     // If no diagnostics exist yet, auto-run a check using the
@@ -1210,7 +1217,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     speedFixPanel?.reveal(vscode.ViewColumn.Beside, false);
                     break;
                 case 'goToLocation': {
-                    const editor = vscode.window.activeTextEditor;
+                    const editor = findEditorWithDiagnostics();
                     if (!editor) break;
                     const diagnostics = diagnosticsMap.get(editor.document.uri.toString());
                     if (!diagnostics) break;
@@ -1228,7 +1235,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     // Navigation is handled client-side in the webview
                     break;
                 case 'refresh': {
-                    const editor = vscode.window.activeTextEditor;
+                    const editor = findEditorWithDiagnostics() ?? vscode.window.activeTextEditor;
                     if (editor) {
                         sendSpeedFixLoading(true);
                         await checkDocument(editor.document);
@@ -1236,6 +1243,10 @@ export async function activate(context: vscode.ExtensionContext) {
                     }
                     break;
                 }
+                case 'setScope':
+                    speedFixScope = message.payload;
+                    updateSpeedFixDiagnostics();
+                    break;
                 case 'close':
                     speedFixPanel?.dispose();
                     break;
@@ -1244,6 +1255,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         speedFixPanel.onDidDispose(() => {
             speedFixPanel = null;
+            speedFixTargetUri = null;
         }, null, context.subscriptions);
     }));
 
@@ -1631,8 +1643,16 @@ async function updateInspectorData() {
 }
 
 /** Find a text editor that has diagnostics, preferring activeTextEditor.
- *  Falls back to visibleTextEditors when a webview panel has stolen focus. */
+ *  Falls back to visibleTextEditors when a webview panel has stolen focus.
+ *  When a SpeedFix target URI is set, prefer that editor. */
 function findEditorWithDiagnostics(): vscode.TextEditor | undefined {
+    // Prefer the SpeedFix target (set by workspace-mode auto-advance)
+    if (speedFixTargetUri) {
+        const target = vscode.window.visibleTextEditors.find(
+            e => e.document.uri.toString() === speedFixTargetUri
+        );
+        if (target && diagnosticsMap.has(speedFixTargetUri)) return target;
+    }
     const active = vscode.window.activeTextEditor;
     if (active && diagnosticsMap.has(active.document.uri.toString())) return active;
     // Fallback: find a visible editor that has diagnostics
@@ -1746,26 +1766,81 @@ const diagnosticsMap = new Map<string, ExtendedDiagnostic[]>();
 function updateSpeedFixDiagnostics() {
     if (!speedFixPanel) return;
     const editor = findEditorWithDiagnostics() ?? vscode.window.activeTextEditor;
-    if (!editor) return;
 
-    const diagnostics = diagnosticsMap.get(editor.document.uri.toString());
-    const fileName = path.basename(editor.document.uri.fsPath);
+    if (editor) {
+        const diagnostics = diagnosticsMap.get(editor.document.uri.toString());
+        if (diagnostics && diagnostics.length > 0) {
+            speedFixTargetUri = editor.document.uri.toString();
+            const fileName = path.basename(editor.document.uri.fsPath);
+            const payload: SpeedFixDiagnostic[] = diagnostics.map((d, i) => ({
+                id: `diag-${i}`,
+                message: d.message,
+                suggestions: d.suggestions || [],
+                text: editor.document.getText(d.range),
+                context: editor.document.lineAt(d.range.start.line).text.trim(),
+                ruleId: d.code as string || 'unknown',
+                fileName,
+                lineNumber: d.range.start.line + 1,
+            }));
+            speedFixPanel.webview.postMessage({ type: 'setDiagnostics', payload });
+            sendWorkspaceProgress();
+            return;
+        }
+    }
 
-    if (diagnostics && diagnostics.length > 0) {
-        const payload: SpeedFixDiagnostic[] = diagnostics.map((d, i) => ({
+    // Current file has no diagnostics — try workspace advance
+    if (speedFixScope === 'workspace') {
+        const currentUri = editor?.document.uri.toString();
+        advanceToNextFileWithDiagnostics(currentUri);
+        return;
+    }
+
+    speedFixPanel.webview.postMessage({ type: 'setDiagnostics', payload: [] });
+    sendWorkspaceProgress();
+}
+
+/** In workspace mode, find and open the next file that has diagnostics. */
+async function advanceToNextFileWithDiagnostics(currentUri?: string): Promise<void> {
+    for (const [uriStr, diags] of diagnosticsMap) {
+        if (uriStr === currentUri || diags.length === 0) continue;
+
+        const uri = vscode.Uri.parse(uriStr);
+        const doc = await vscode.workspace.openTextDocument(uri);
+        await vscode.window.showTextDocument(doc, vscode.ViewColumn.One, false);
+        speedFixTargetUri = uriStr;
+
+        const fileName = path.basename(doc.uri.fsPath);
+        const payload: SpeedFixDiagnostic[] = diags.map((d, i) => ({
             id: `diag-${i}`,
             message: d.message,
             suggestions: d.suggestions || [],
-            text: editor.document.getText(d.range),
-            context: editor.document.lineAt(d.range.start.line).text.trim(),
+            text: doc.getText(d.range),
+            context: doc.lineAt(d.range.start.line).text.trim(),
             ruleId: d.code as string || 'unknown',
             fileName,
             lineNumber: d.range.start.line + 1,
         }));
-        speedFixPanel.webview.postMessage({ type: 'setDiagnostics', payload });
-    } else {
-        speedFixPanel.webview.postMessage({ type: 'setDiagnostics', payload: [] });
+        speedFixPanel?.webview.postMessage({ type: 'setDiagnostics', payload });
+        sendWorkspaceProgress();
+        speedFixPanel?.reveal(vscode.ViewColumn.Beside, false);
+        return;
     }
+
+    // No more files with diagnostics — all done across workspace
+    speedFixPanel?.webview.postMessage({ type: 'setDiagnostics', payload: [] });
+    sendWorkspaceProgress();
+}
+
+function sendWorkspaceProgress() {
+    if (!speedFixPanel || speedFixScope !== 'workspace') return;
+    let filesWithIssues = 0;
+    for (const [, diags] of diagnosticsMap) {
+        if (diags.length > 0) filesWithIssues++;
+    }
+    speedFixPanel.webview.postMessage({
+        type: 'setWorkspaceProgress',
+        payload: { filesWithIssues },
+    });
 }
 
 /** Returns the number of issues found, or -1 on error. */

@@ -13,12 +13,16 @@ export interface SpeedFixDiagnostic {
     lineNumber: number;
 }
 
+export type SpeedFixScope = 'file' | 'workspace';
+
 // Messages from extension → SpeedFix webview
 export type ExtensionToWebviewMessage =
     | { type: 'setDiagnostics'; payload: SpeedFixDiagnostic[] }
     | { type: 'setLowResource'; payload: boolean }
     | { type: 'loading'; payload: boolean }
-    | { type: 'allDone' };
+    | { type: 'allDone' }
+    | { type: 'setScope'; payload: SpeedFixScope }
+    | { type: 'setWorkspaceProgress'; payload: { filesWithIssues: number } };
 
 // Messages from SpeedFix webview → extension
 export type WebviewToExtensionMessage =
@@ -31,7 +35,8 @@ export type WebviewToExtensionMessage =
     | { type: 'prev' }
     | { type: 'next' }
     | { type: 'refresh' }
-    | { type: 'close' };
+    | { type: 'close' }
+    | { type: 'setScope'; payload: SpeedFixScope };
 
 // ── Inspector ──
 

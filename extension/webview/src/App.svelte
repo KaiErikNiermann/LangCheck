@@ -12,12 +12,16 @@
     lineNumber: number;
   }
 
+  type Scope = 'file' | 'workspace';
+
   let diagnostics: Diagnostic[] = $state([]);
   let currentIndex = $state(0);
   let lowResource = $state(false);
   let loading = $state(false);
   let selectedAction = $state(0);
   let allDone = $state(false);
+  let scope: Scope = $state('file');
+  let filesWithIssues = $state(0);
 
   const vscode = (window as any).acquireVsCodeApi();
 
@@ -45,6 +49,12 @@
         case 'allDone':
           allDone = true;
           break;
+        case 'setScope':
+          scope = message.payload;
+          break;
+        case 'setWorkspaceProgress':
+          filesWithIssues = message.payload.filesWithIssues;
+          break;
       }
     });
 
@@ -55,6 +65,12 @@
     // Escape always works
     if (event.key === 'Escape') {
       vscode.postMessage({ type: 'close' });
+      return;
+    }
+
+    // Scope toggle works even with no diagnostics
+    if (event.key === 'w' || event.key === 'W') {
+      toggleScope();
       return;
     }
 
@@ -186,6 +202,11 @@
     vscode.postMessage({ type: 'goToLocation', payload: { diagnosticId: diag.id } });
   }
 
+  function toggleScope() {
+    scope = scope === 'file' ? 'workspace' : 'file';
+    vscode.postMessage({ type: 'setScope', payload: scope });
+  }
+
   function highlightInContext(context: string, errorText: string): string {
     if (!errorText || !context) return escapeHtml(context || '');
     const escaped = escapeHtml(context);
@@ -223,7 +244,16 @@
   <header class="header">
     <div class="header-top">
       <div class="header-left">
-        <div class="progress-text">{diagnostics.length > 0 ? currentIndex + 1 : 0} / {diagnostics.length}</div>
+        <div class="scope-toggle">
+          <button class="scope-btn" class:active={scope === 'file'} onclick={() => { scope = 'file'; vscode.postMessage({ type: 'setScope', payload: 'file' }); }} type="button">File</button>
+          <button class="scope-btn" class:active={scope === 'workspace'} onclick={() => { scope = 'workspace'; vscode.postMessage({ type: 'setScope', payload: 'workspace' }); }} type="button">Workspace</button>
+        </div>
+        <div class="progress-text">
+          {diagnostics.length > 0 ? currentIndex + 1 : 0} / {diagnostics.length}
+          {#if scope === 'workspace' && filesWithIssues > 0}
+            <span class="files-remaining">({filesWithIssues} {filesWithIssues === 1 ? 'file' : 'files'})</span>
+          {/if}
+        </div>
         {#if diagnostics.length > 0}
           <div class="progress-bar">
             <div class="progress-fill" style="width: {progressPercent}%"></div>
@@ -231,7 +261,7 @@
         {/if}
       </div>
       <div class="shortcuts">
-        <kbd>&uarr;&darr;</kbd> select &middot; <kbd>Enter</kbd> apply &middot; <kbd>A</kbd> dict &middot; <kbd>S</kbd> skip &middot; <kbd>&larr;&rarr;</kbd> nav &middot; <kbd>Esc</kbd> close
+        <kbd>&uarr;&darr;</kbd> select &middot; <kbd>Enter</kbd> apply &middot; <kbd>A</kbd> dict &middot; <kbd>S</kbd> skip &middot; <kbd>W</kbd> scope &middot; <kbd>Esc</kbd> close
       </div>
     </div>
   </header>
@@ -240,7 +270,7 @@
     <!-- All done state -->
     <div class="all-done">
       <div class="all-done-icon">&#10024;</div>
-      <div class="all-done-text">All done! No more issues to fix.</div>
+      <div class="all-done-text">{scope === 'workspace' ? 'All done! No more issues across the workspace.' : 'All done! No more issues to fix.'}</div>
       <button class="nav-btn" onclick={() => vscode.postMessage({ type: 'close' })} type="button">
         <kbd class="key-badge">Esc</kbd> Close
       </button>
@@ -440,6 +470,40 @@
     padding: 1px 5px;
     font-size: 11px;
     font-family: var(--vscode-font-family);
+  }
+
+  /* ── Scope toggle ── */
+  .scope-toggle {
+    display: flex;
+    border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.3));
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .scope-btn {
+    padding: 3px 10px;
+    font-size: 11px;
+    font-family: var(--vscode-font-family);
+    border: none;
+    cursor: pointer;
+    background: transparent;
+    color: var(--vscode-descriptionForeground, var(--vscode-editor-foreground));
+    transition: background 0.1s, color 0.1s;
+  }
+
+  .scope-btn:hover:not(.active) {
+    background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.1));
+  }
+
+  .scope-btn.active {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+  }
+
+  .files-remaining {
+    opacity: 0.6;
+    font-size: 12px;
   }
 
   /* ── Main content ── */
