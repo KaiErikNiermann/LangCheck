@@ -7,10 +7,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/KaiErikNiermann/lang-check"
+    "url": "https://github.com/KaiErikNiermann/LangCheck"
   },
   "bugs": {
-    "url": "https://github.com/KaiErikNiermann/lang-check/issues"
+    "url": "https://github.com/KaiErikNiermann/LangCheck/issues"
   },
   "categories": [
     "Linters",

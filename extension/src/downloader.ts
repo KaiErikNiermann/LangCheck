@@ -6,7 +6,7 @@ import * as crypto from 'crypto';
 import * as os from 'os';
 import * as zlib from 'zlib';
 
-const GITHUB_REPO = 'KaiErikNiermann/lang-check';
+const GITHUB_REPO = 'KaiErikNiermann/LangCheck';
 const BINARY_NAME = 'language-check-server';
 
 interface ReleaseAsset {

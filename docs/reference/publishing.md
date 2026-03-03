@@ -24,25 +24,25 @@ cargo publish
 ```ruby
 class LanguageCheck < Formula
   desc "Fast multi-engine prose linter for Markdown, HTML, and LaTeX"
-  homepage "https://github.com/KaiErikNiermann/lang-check"
+  homepage "https://github.com/KaiErikNiermann/LangCheck"
   version "0.1.0"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/KaiErikNiermann/lang-check/releases/download/v0.1.0/language-check-server-aarch64-apple-darwin.tar.gz"
+      url "https://github.com/KaiErikNiermann/LangCheck/releases/download/v0.1.0/language-check-server-aarch64-apple-darwin.tar.gz"
       sha256 "PLACEHOLDER"
     else
-      url "https://github.com/KaiErikNiermann/lang-check/releases/download/v0.1.0/language-check-server-x86_64-apple-darwin.tar.gz"
+      url "https://github.com/KaiErikNiermann/LangCheck/releases/download/v0.1.0/language-check-server-x86_64-apple-darwin.tar.gz"
       sha256 "PLACEHOLDER"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/KaiErikNiermann/lang-check/releases/download/v0.1.0/language-check-server-aarch64-unknown-linux-gnu.tar.gz"
+      url "https://github.com/KaiErikNiermann/LangCheck/releases/download/v0.1.0/language-check-server-aarch64-unknown-linux-gnu.tar.gz"
       sha256 "PLACEHOLDER"
     else
-      url "https://github.com/KaiErikNiermann/lang-check/releases/download/v0.1.0/language-check-server-x86_64-unknown-linux-gnu.tar.gz"
+      url "https://github.com/KaiErikNiermann/LangCheck/releases/download/v0.1.0/language-check-server-x86_64-unknown-linux-gnu.tar.gz"
       sha256 "PLACEHOLDER"
     end
   end
@@ -82,7 +82,7 @@ ShortDescription: Fast multi-engine prose linter
 InstallerType: portable
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/KaiErikNiermann/lang-check/releases/download/v0.1.0/language-check-server-x86_64-pc-windows-msvc.exe
+    InstallerUrl: https://github.com/KaiErikNiermann/LangCheck/releases/download/v0.1.0/language-check-server-x86_64-pc-windows-msvc.exe
     InstallerSha256: PLACEHOLDER
 ManifestType: singleton
 ManifestVersion: 1.6.0
@@ -101,7 +101,7 @@ pkgver=0.1.0
 pkgrel=1
 pkgdesc="Fast multi-engine prose linter for Markdown, HTML, and LaTeX"
 arch=('x86_64' 'aarch64')
-url="https://github.com/KaiErikNiermann/lang-check"
+url="https://github.com/KaiErikNiermann/LangCheck"
 license=('ISC')
 provides=('language-check')
 

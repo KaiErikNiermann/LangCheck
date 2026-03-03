@@ -65,7 +65,7 @@ msgstr ""
 #: ../../guide/installation.md:18
 msgid ""
 "Download the latest release for your platform from [GitHub "
-"Releases](https://github.com/KaiErikNiermann/lang-check/releases)."
+"Releases](https://github.com/KaiErikNiermann/LangCheck/releases)."
 msgstr ""
 
 #: ../../guide/installation.md:20

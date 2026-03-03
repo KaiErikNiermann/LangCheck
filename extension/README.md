@@ -92,4 +92,4 @@ language-check list-rules
 
 ## License
 
-[MIT](https://github.com/KaiErikNiermann/lang-check/blob/main/LICENSE)
+[MIT](https://github.com/KaiErikNiermann/LangCheck/blob/main/LICENSE)

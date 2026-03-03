@@ -71,7 +71,7 @@ msgstr ""
 #: ../../reference/troubleshooting.md:20
 msgid ""
 "Or download manually from [GitHub "
-"Releases](https://github.com/KaiErikNiermann/lang-check/releases)."
+"Releases](https://github.com/KaiErikNiermann/LangCheck/releases)."
 msgstr ""
 
 #: ../../reference/troubleshooting.md:21

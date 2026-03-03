@@ -10,7 +10,7 @@ import type { LanguageCheckDiagnostic } from './api';
 import type { SpeedFixDiagnostic, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent } from './events';
 import { Logger } from './logger';
 
-const GITHUB_REPO = 'KaiErikNiermann/lang-check';
+const GITHUB_REPO = 'KaiErikNiermann/LangCheck';
 
 let client: LanguageClient | null = null;
 let traceLogger: TraceLogger | null = null;
