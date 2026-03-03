@@ -53,6 +53,8 @@ extism = "1"
 dirs = "6"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tower-lsp = "0.20"
+dashmap = "6"
 
 [dev-dependencies]
 insta = { version = "1.42", features = ["yaml"] }

@@ -151,6 +151,13 @@ async fn main() -> Result<()> {
         .with_target(false)
         .init();
 
+    // --lsp flag: start the standard LSP JSON-RPC server instead of the
+    // custom protobuf protocol.
+    if std::env::args().any(|a| a == "--lsp") {
+        lang_check::lsp::run_lsp().await;
+        return Ok(());
+    }
+
     let stdin = tokio::io::stdin();
     let mut buffer = BytesMut::with_capacity(4096);
 
