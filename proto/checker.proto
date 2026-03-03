@@ -19,6 +19,9 @@ message InitializeRequest {
   // The server uses this as a fallback when .languagecheck.yaml doesn't
   // set workspace.index_on_open.
   optional bool index_on_open = 2;
+  // Custom path for the workspace database file. When empty, the server
+  // stores databases in the user data directory (~/.local/share/language-check/dbs/).
+  optional string db_path = 3;
 }
 
 message IgnoreRequest {

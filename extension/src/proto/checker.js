@@ -433,6 +433,7 @@ $root.languagecheck = (function() {
          * @interface IInitializeRequest
          * @property {string|null} [workspaceRoot] InitializeRequest workspaceRoot
          * @property {boolean|null} [indexOnOpen] InitializeRequest indexOnOpen
+         * @property {string|null} [dbPath] InitializeRequest dbPath
          */
 
         /**
@@ -466,12 +467,26 @@ $root.languagecheck = (function() {
          */
         InitializeRequest.prototype.indexOnOpen = null;
 
+        /**
+         * InitializeRequest dbPath.
+         * @member {string|null|undefined} dbPath
+         * @memberof languagecheck.InitializeRequest
+         * @instance
+         */
+        InitializeRequest.prototype.dbPath = null;
+
         // OneOf field names bound to virtual getters and setters
         var $oneOfFields;
 
         // Virtual OneOf for proto3 optional field
         Object.defineProperty(InitializeRequest.prototype, "_indexOnOpen", {
             get: $util.oneOfGetter($oneOfFields = ["indexOnOpen"]),
+            set: $util.oneOfSetter($oneOfFields)
+        });
+
+        // Virtual OneOf for proto3 optional field
+        Object.defineProperty(InitializeRequest.prototype, "_dbPath", {
+            get: $util.oneOfGetter($oneOfFields = ["dbPath"]),
             set: $util.oneOfSetter($oneOfFields)
         });
 
@@ -503,6 +518,8 @@ $root.languagecheck = (function() {
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.workspaceRoot);
             if (message.indexOnOpen != null && Object.hasOwnProperty.call(message, "indexOnOpen"))
                 writer.uint32(/* id 2, wireType 0 =*/16).bool(message.indexOnOpen);
+            if (message.dbPath != null && Object.hasOwnProperty.call(message, "dbPath"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.dbPath);
             return writer;
         };
 
@@ -545,6 +562,10 @@ $root.languagecheck = (function() {
                     }
                 case 2: {
                         message.indexOnOpen = reader.bool();
+                        break;
+                    }
+                case 3: {
+                        message.dbPath = reader.string();
                         break;
                     }
                 default:
@@ -591,6 +612,11 @@ $root.languagecheck = (function() {
                 if (typeof message.indexOnOpen !== "boolean")
                     return "indexOnOpen: boolean expected";
             }
+            if (message.dbPath != null && message.hasOwnProperty("dbPath")) {
+                properties._dbPath = 1;
+                if (!$util.isString(message.dbPath))
+                    return "dbPath: string expected";
+            }
             return null;
         };
 
@@ -610,6 +636,8 @@ $root.languagecheck = (function() {
                 message.workspaceRoot = String(object.workspaceRoot);
             if (object.indexOnOpen != null)
                 message.indexOnOpen = Boolean(object.indexOnOpen);
+            if (object.dbPath != null)
+                message.dbPath = String(object.dbPath);
             return message;
         };
 
@@ -634,6 +662,11 @@ $root.languagecheck = (function() {
                 object.indexOnOpen = message.indexOnOpen;
                 if (options.oneofs)
                     object._indexOnOpen = "indexOnOpen";
+            }
+            if (message.dbPath != null && message.hasOwnProperty("dbPath")) {
+                object.dbPath = message.dbPath;
+                if (options.oneofs)
+                    object._dbPath = "dbPath";
             }
             return object;
         };

@@ -16,8 +16,25 @@ pub struct WorkspaceIndex {
 }
 
 impl WorkspaceIndex {
-    pub fn new(path: &Path) -> Result<Self> {
-        let db = Database::create(path.join(".languagecheck.db"))?;
+    /// Create or open a workspace index.
+    ///
+    /// If `db_path` is provided, the database is created at that exact path.
+    /// Otherwise, the database is stored in the user data directory
+    /// (`~/.local/share/language-check/dbs/` on Linux,
+    ///  `~/Library/Application Support/language-check/dbs/` on macOS,
+    ///  `%APPDATA%/language-check/dbs/` on Windows),
+    /// named by a hash of the workspace root to avoid collisions.
+    pub fn new(workspace_root: &Path, db_path: Option<&Path>) -> Result<Self> {
+        let resolved_path = match db_path {
+            Some(p) => p.to_path_buf(),
+            None => default_db_path(workspace_root)?,
+        };
+
+        if let Some(parent) = resolved_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let db = Database::create(&resolved_path)?;
 
         let write_txn = db.begin_write()?;
         {
@@ -29,7 +46,7 @@ impl WorkspaceIndex {
 
         Ok(Self {
             db,
-            root_path: path.to_path_buf(),
+            root_path: workspace_root.to_path_buf(),
         })
     }
 
@@ -125,6 +142,28 @@ impl WorkspaceIndex {
     }
 }
 
+/// Compute the default database path for a workspace.
+///
+/// Uses `dirs::data_dir()` (`~/.local/share` on Linux, `~/Library/Application Support`
+/// on macOS, `%APPDATA%` on Windows) as the base, then appends
+/// `language-check/dbs/<hex-hash>.db` where the hash is derived from the
+/// canonical workspace root path.
+fn default_db_path(workspace_root: &Path) -> Result<PathBuf> {
+    let data_dir = dirs::data_dir()
+        .ok_or_else(|| anyhow::anyhow!("Could not determine user data directory"))?;
+
+    let canonical = workspace_root
+        .canonicalize()
+        .unwrap_or_else(|_| workspace_root.to_path_buf());
+
+    let mut hasher = DefaultHasher::new();
+    canonical.to_string_lossy().hash(&mut hasher);
+    let hash = hasher.finish();
+
+    let db_dir = data_dir.join("language-check").join("dbs");
+    Ok(db_dir.join(format!("{hash:016x}.db")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,7 +172,9 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("lang_check_ws_{}", name));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let idx = WorkspaceIndex::new(&dir).unwrap();
+        // Tests use explicit db_path in temp dir to avoid polluting user data dir
+        let db_path = dir.join(".languagecheck.db");
+        let idx = WorkspaceIndex::new(&dir, Some(&db_path)).unwrap();
         (idx, dir)
     }
 

@@ -141,6 +141,9 @@ export namespace languagecheck {
 
         /** InitializeRequest indexOnOpen */
         indexOnOpen?: (boolean|null);
+
+        /** InitializeRequest dbPath */
+        dbPath?: (string|null);
     }
 
     /** Represents an InitializeRequest. */
@@ -157,6 +160,9 @@ export namespace languagecheck {
 
         /** InitializeRequest indexOnOpen. */
         public indexOnOpen?: (boolean|null);
+
+        /** InitializeRequest dbPath. */
+        public dbPath?: (string|null);
 
         /**
          * Creates a new InitializeRequest instance using the specified properties.

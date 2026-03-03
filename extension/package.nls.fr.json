@@ -28,6 +28,7 @@
   "config.dictionaries.bundled": "Charger les dictionnaires techniques intégrés (termes logiciels, TypeScript, entreprises, jargon). Désactiver pour réduire les faux négatifs orthographiques.",
   "config.dictionaries.paths": "Chemins vers des fichiers de listes de mots supplémentaires (un mot par ligne). Les chemins relatifs sont résolus depuis la racine de l'espace de travail.",
   "config.workspace.indexOnOpen": "Exécuter une indexation complète de l'espace de travail à l'ouverture du projet. Lorsque désactivé (par défaut), seul le document actif est vérifié à l'ouverture/modification. Peut être configuré par projet dans .languagecheck.yaml.",
+  "config.workspace.dbPath": "Chemin personnalisé pour le fichier de base de données de l'espace de travail. Lorsque vide (par défaut), les bases de données sont stockées dans le répertoire de données utilisateur (~/.local/share/language-check/dbs/ sous Linux).",
   "walkthrough.title": "Premiers pas avec Language Check",
   "walkthrough.description": "Apprenez à vérifier et corriger la prose dans vos documents.",
   "walkthrough.check.title": "Vérifier votre écriture",

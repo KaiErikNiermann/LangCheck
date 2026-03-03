@@ -28,6 +28,7 @@
   "config.dictionaries.bundled": "Load bundled domain-specific dictionaries (software terms, TypeScript, companies, jargon). Disable to reduce false-negative spelling suggestions.",
   "config.dictionaries.paths": "Paths to additional wordlist files (one word per line). Relative paths resolve from the workspace root.",
   "config.workspace.indexOnOpen": "Run a full workspace index when the project is opened. When disabled (default), only the active document is checked on open/change. Can be overridden per-project in .languagecheck.yaml.",
+  "config.workspace.dbPath": "Custom path for the workspace database file. When empty (default), databases are stored in the user data directory (~/.local/share/language-check/dbs/ on Linux).",
   "walkthrough.title": "Get Started with Language Check",
   "walkthrough.description": "Learn how to check and fix prose in your documents.",
   "walkthrough.check.title": "Check Your Writing",

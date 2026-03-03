@@ -170,6 +170,11 @@
           "type": "boolean",
           "default": false,
           "description": "%config.workspace.indexOnOpen%"
+        },
+        "languageCheck.workspace.dbPath": {
+          "type": "string",
+          "default": "",
+          "description": "%config.workspace.dbPath%"
         }
       }
     },

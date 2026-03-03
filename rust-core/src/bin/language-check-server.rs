@@ -421,7 +421,12 @@ async fn main() -> Result<()> {
                             info!(count = schema_registry.len(), "Loaded SLS schemas");
                             *schema_registry_arc.lock().await = schema_registry;
 
-                            match WorkspaceIndex::new(&root_path) {
+                            let db_path = req.db_path
+                                .as_deref()
+                                .filter(|p| !p.is_empty())
+                                .or(config.workspace.db_path.as_deref())
+                                .map(PathBuf::from);
+                            match WorkspaceIndex::new(&root_path, db_path.as_deref()) {
                                 Ok(index) => {
                                     let mut idx_lock = workspace_index_arc.lock().await;
                                     *idx_lock = Some(index);

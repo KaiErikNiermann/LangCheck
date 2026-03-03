@@ -79,6 +79,10 @@ pub struct WorkspaceConfig {
     /// Default: false (only check documents on open/change).
     #[serde(default)]
     pub index_on_open: bool,
+    /// Custom path for the workspace database file. When empty (default),
+    /// databases are stored in the user data directory.
+    #[serde(default)]
+    pub db_path: Option<String>,
 }
 
 /// Performance tuning options. High Performance Mode (HPM) disables

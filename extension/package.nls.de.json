@@ -28,6 +28,7 @@
   "config.dictionaries.bundled": "Mitgelieferte Fachwörterbücher laden (Software-Begriffe, TypeScript, Firmennamen, Fachsprache). Deaktivieren, um falsch-negative Rechtschreibvorschläge zu reduzieren.",
   "config.dictionaries.paths": "Pfade zu zusätzlichen Wortlistendateien (ein Wort pro Zeile). Relative Pfade werden vom Arbeitsbereich aus aufgelöst.",
   "config.workspace.indexOnOpen": "Beim Öffnen des Projekts eine vollständige Arbeitsbereich-Indizierung ausführen. Wenn deaktiviert (Standard), wird nur das aktive Dokument beim Öffnen/Ändern geprüft. Kann pro Projekt in .languagecheck.yaml überschrieben werden.",
+  "config.workspace.dbPath": "Benutzerdefinierter Pfad für die Arbeitsbereich-Datenbankdatei. Wenn leer (Standard), werden Datenbanken im Benutzerdatenverzeichnis gespeichert (~/.local/share/language-check/dbs/ unter Linux).",
   "walkthrough.title": "Erste Schritte mit Language Check",
   "walkthrough.description": "Erfahren Sie, wie Sie Prosa in Ihren Dokumenten prüfen und korrigieren.",
   "walkthrough.check.title": "Texte prüfen",

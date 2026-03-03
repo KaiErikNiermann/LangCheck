@@ -220,13 +220,14 @@ export async function activate(context: vscode.ExtensionContext) {
     const initializeClient = async () => {
         if (client && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
             const root = vscode.workspace.workspaceFolders[0]!.uri.fsPath;
-            const indexOnOpen = vscode.workspace.getConfiguration('languageCheck')
-                .get<boolean>('workspace.indexOnOpen', false);
-            log.debug('Sending Initialize request', { workspaceRoot: root, indexOnOpen });
+            const wsConfig = vscode.workspace.getConfiguration('languageCheck');
+            const indexOnOpen = wsConfig.get<boolean>('workspace.indexOnOpen', false);
+            const dbPath = wsConfig.get<string>('workspace.dbPath', '') || null;
+            log.debug('Sending Initialize request', { workspaceRoot: root, indexOnOpen, dbPath });
             pushInspectorEvent('info', 'initialize', `Initializing (indexOnOpen=${indexOnOpen})`);
             const t0 = performance.now();
             await client.sendRequest({
-                initialize: { workspaceRoot: root, indexOnOpen }
+                initialize: { workspaceRoot: root, indexOnOpen, dbPath }
             });
             pushInspectorEvent('info', 'initialize', 'Server initialized', { durationMs: performance.now() - t0 });
             log.debug('Initialize response received');
