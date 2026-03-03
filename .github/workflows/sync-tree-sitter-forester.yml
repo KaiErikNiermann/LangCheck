@@ -1,0 +1,43 @@
+name: Sync tree-sitter-forester
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Sync rust-core/tree-sitter-forester → tree-sitter-forester
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push subtree to tree-sitter-forester
+        env:
+          DEPLOY_KEY: ${{ secrets.TS_FORESTER_DEPLOY_KEY }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+
+          TAG="${GITHUB_REF_NAME}"
+          TARGET_REPO="git@github.com:KaiErikNiermann/tree-sitter-forester.git"
+
+          SPLIT_BRANCH="forester-split-${TAG}"
+          git subtree split --prefix=rust-core/tree-sitter-forester -b "$SPLIT_BRANCH"
+
+          git push "$TARGET_REPO" "${SPLIT_BRANCH}:refs/heads/main" --force
+          git tag -f "$TAG" "$SPLIT_BRANCH"
+          git push "$TARGET_REPO" "$TAG" --force
+
+          echo "Synced rust-core/tree-sitter-forester/ to tree-sitter-forester @ ${TAG}"
