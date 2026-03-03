@@ -22,6 +22,7 @@ Language Check catches grammar, spelling, and style issues in Markdown, HTML, La
 :maxdepth: 2
 :caption: User Guide
 
+guide/motivation
 guide/installation
 guide/languagetool-setup
 guide/configuration
