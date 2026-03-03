@@ -1,15 +1,26 @@
-use crate::checker::{Diagnostic, Severity};
+use crate::checker::{Diagnostic, EngineHealth, Severity};
 use crate::config::Config;
 use crate::engines::{Engine, ExternalEngine, HarperEngine, LanguageToolEngine, WasmEngine};
 use crate::ignore_rules::IgnoreParser;
 use crate::rules::RuleNormalizer;
 use anyhow::Result;
+use std::collections::HashMap;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tracing::warn;
+
+#[derive(Default)]
+struct EngineHealthTracker {
+    consecutive_failures: u32,
+    last_error: Option<String>,
+    last_success: Option<Instant>,
+    last_success_epoch_ms: u64,
+}
 
 pub struct Orchestrator {
     engines: Vec<Box<dyn Engine + Send>>,
     normalizer: RuleNormalizer,
     config: Config,
+    engine_health: HashMap<String, EngineHealthTracker>,
 }
 
 impl Orchestrator {
@@ -19,6 +30,7 @@ impl Orchestrator {
             engines: Vec::new(),
             normalizer: RuleNormalizer::new(),
             config,
+            engine_health: HashMap::new(),
         };
 
         orchestrator.initialize_engines();
@@ -68,6 +80,7 @@ impl Orchestrator {
     pub fn update_config(&mut self, config: Config) {
         self.config = config;
         self.initialize_engines();
+        // Preserve health state across config changes — don't clear engine_health
     }
 
     #[must_use]
@@ -75,6 +88,31 @@ impl Orchestrator {
         &self.config
     }
 
+    /// Returns health status for each engine that has been tracked.
+    #[must_use]
+    pub fn engine_health_report(&self) -> Vec<EngineHealth> {
+        self.engine_health
+            .iter()
+            .map(|(name, tracker)| {
+                let status = if tracker.consecutive_failures == 0 {
+                    "ok"
+                } else if tracker.consecutive_failures <= 2 {
+                    "degraded"
+                } else {
+                    "down"
+                };
+                EngineHealth {
+                    name: name.clone(),
+                    status: status.to_string(),
+                    consecutive_failures: tracker.consecutive_failures,
+                    last_error: tracker.last_error.clone().unwrap_or_default(),
+                    last_success_epoch_ms: tracker.last_success_epoch_ms,
+                }
+            })
+            .collect()
+    }
+
+    #[allow(clippy::too_many_lines)]
     pub async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
         // Skip checking if file exceeds max_file_size
         let max = self.config.performance.max_file_size;
@@ -103,6 +141,23 @@ impl Orchestrator {
             engines_ran += 1;
             match engine.check(text, language_id).await {
                 Ok(mut diagnostics) => {
+                    // Update health tracker: success
+                    let tracker = self
+                        .engine_health
+                        .entry(engine_name.to_string())
+                        .or_default();
+                    tracker.consecutive_failures = 0;
+                    tracker.last_error = None;
+                    tracker.last_success = Some(Instant::now());
+                    #[allow(clippy::cast_possible_truncation)]
+                    {
+                        tracker.last_success_epoch_ms = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis()
+                            as u64;
+                    }
+
                     // Normalize and filter based on config
                     for d in &mut diagnostics {
                         let provider = if d.rule_id.starts_with("harper") {
@@ -134,7 +189,17 @@ impl Orchestrator {
                     diagnostics.retain(|d| d.severity != -1);
                     all_diagnostics.extend(diagnostics);
                 }
-                Err(e) => warn!(engine = engine_name, "Engine error: {e}"),
+                Err(e) => {
+                    // Update health tracker: failure
+                    let tracker = self
+                        .engine_health
+                        .entry(engine_name.to_string())
+                        .or_default();
+                    tracker.consecutive_failures += 1;
+                    tracker.last_error = Some(e.to_string());
+
+                    warn!(engine = engine_name, "Engine error: {e}");
+                }
             }
         }
 

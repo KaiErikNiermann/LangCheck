@@ -174,7 +174,7 @@ impl Engine for LanguageToolEngine {
                         body = %body,
                         "LanguageTool returned non-200"
                     );
-                    return Ok(vec![]);
+                    return Err(anyhow::anyhow!("LanguageTool HTTP {status}: {body}"));
                 }
                 r
             }
@@ -183,7 +183,7 @@ impl Engine for LanguageToolEngine {
                     elapsed_ms = request_start.elapsed().as_millis() as u64,
                     "LanguageTool connection error: {e}"
                 );
-                return Ok(vec![]);
+                return Err(anyhow::anyhow!("LanguageTool connection error: {e}"));
             }
         };
 
@@ -191,7 +191,7 @@ impl Engine for LanguageToolEngine {
             Ok(r) => r,
             Err(e) => {
                 warn!("LanguageTool JSON parse error: {e}");
-                return Ok(vec![]);
+                return Err(anyhow::anyhow!("LanguageTool JSON parse error: {e}"));
             }
         };
 

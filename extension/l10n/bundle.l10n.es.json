@@ -32,5 +32,8 @@
   "Failed to communicate with language-check core: {0}": "Error de comunicación con el core language-check: {0}",
   "No language issues found in the current scope.": "No se encontraron problemas de idioma en el ámbito actual.",
   "Fix all \"{0}\" in this file": "Corregir todos los \"{0}\" en este archivo",
-  "Fix all \"{0}\" in workspace": "Corregir todos los \"{0}\" en el espacio de trabajo"
+  "Fix all \"{0}\" in workspace": "Corregir todos los \"{0}\" en el espacio de trabajo",
+  "LanguageTool engine is down: {0}": "El motor LanguageTool no funciona: {0}",
+  "Restart Docker": "Reiniciar Docker",
+  "Open Inspector": "Abrir Inspector"
 }

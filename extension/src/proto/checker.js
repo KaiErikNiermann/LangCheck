@@ -2153,6 +2153,7 @@ $root.languagecheck = (function() {
          * @interface ICheckResponse
          * @property {Array.<languagecheck.IDiagnostic>|null} [diagnostics] CheckResponse diagnostics
          * @property {languagecheck.IExtractionInfo|null} [extraction] CheckResponse extraction
+         * @property {Array.<languagecheck.IEngineHealth>|null} [engineHealth] CheckResponse engineHealth
          */
 
         /**
@@ -2165,6 +2166,7 @@ $root.languagecheck = (function() {
          */
         function CheckResponse(properties) {
             this.diagnostics = [];
+            this.engineHealth = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -2186,6 +2188,14 @@ $root.languagecheck = (function() {
          * @instance
          */
         CheckResponse.prototype.extraction = null;
+
+        /**
+         * CheckResponse engineHealth.
+         * @member {Array.<languagecheck.IEngineHealth>} engineHealth
+         * @memberof languagecheck.CheckResponse
+         * @instance
+         */
+        CheckResponse.prototype.engineHealth = $util.emptyArray;
 
         /**
          * Creates a new CheckResponse instance using the specified properties.
@@ -2216,6 +2226,9 @@ $root.languagecheck = (function() {
                     $root.languagecheck.Diagnostic.encode(message.diagnostics[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
             if (message.extraction != null && Object.hasOwnProperty.call(message, "extraction"))
                 $root.languagecheck.ExtractionInfo.encode(message.extraction, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+            if (message.engineHealth != null && message.engineHealth.length)
+                for (var i = 0; i < message.engineHealth.length; ++i)
+                    $root.languagecheck.EngineHealth.encode(message.engineHealth[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
             return writer;
         };
 
@@ -2260,6 +2273,12 @@ $root.languagecheck = (function() {
                     }
                 case 2: {
                         message.extraction = $root.languagecheck.ExtractionInfo.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 3: {
+                        if (!(message.engineHealth && message.engineHealth.length))
+                            message.engineHealth = [];
+                        message.engineHealth.push($root.languagecheck.EngineHealth.decode(reader, reader.uint32()));
                         break;
                     }
                 default:
@@ -2311,6 +2330,15 @@ $root.languagecheck = (function() {
                 if (error)
                     return "extraction." + error;
             }
+            if (message.engineHealth != null && message.hasOwnProperty("engineHealth")) {
+                if (!Array.isArray(message.engineHealth))
+                    return "engineHealth: array expected";
+                for (var i = 0; i < message.engineHealth.length; ++i) {
+                    var error = $root.languagecheck.EngineHealth.verify(message.engineHealth[i]);
+                    if (error)
+                        return "engineHealth." + error;
+                }
+            }
             return null;
         };
 
@@ -2341,6 +2369,16 @@ $root.languagecheck = (function() {
                     throw TypeError(".languagecheck.CheckResponse.extraction: object expected");
                 message.extraction = $root.languagecheck.ExtractionInfo.fromObject(object.extraction);
             }
+            if (object.engineHealth) {
+                if (!Array.isArray(object.engineHealth))
+                    throw TypeError(".languagecheck.CheckResponse.engineHealth: array expected");
+                message.engineHealth = [];
+                for (var i = 0; i < object.engineHealth.length; ++i) {
+                    if (typeof object.engineHealth[i] !== "object")
+                        throw TypeError(".languagecheck.CheckResponse.engineHealth: object expected");
+                    message.engineHealth[i] = $root.languagecheck.EngineHealth.fromObject(object.engineHealth[i]);
+                }
+            }
             return message;
         };
 
@@ -2357,8 +2395,10 @@ $root.languagecheck = (function() {
             if (!options)
                 options = {};
             var object = {};
-            if (options.arrays || options.defaults)
+            if (options.arrays || options.defaults) {
                 object.diagnostics = [];
+                object.engineHealth = [];
+            }
             if (options.defaults)
                 object.extraction = null;
             if (message.diagnostics && message.diagnostics.length) {
@@ -2368,6 +2408,11 @@ $root.languagecheck = (function() {
             }
             if (message.extraction != null && message.hasOwnProperty("extraction"))
                 object.extraction = $root.languagecheck.ExtractionInfo.toObject(message.extraction, options);
+            if (message.engineHealth && message.engineHealth.length) {
+                object.engineHealth = [];
+                for (var j = 0; j < message.engineHealth.length; ++j)
+                    object.engineHealth[j] = $root.languagecheck.EngineHealth.toObject(message.engineHealth[j], options);
+            }
             return object;
         };
 
@@ -2398,6 +2443,318 @@ $root.languagecheck = (function() {
         };
 
         return CheckResponse;
+    })();
+
+    languagecheck.EngineHealth = (function() {
+
+        /**
+         * Properties of an EngineHealth.
+         * @memberof languagecheck
+         * @interface IEngineHealth
+         * @property {string|null} [name] EngineHealth name
+         * @property {string|null} [status] EngineHealth status
+         * @property {number|null} [consecutiveFailures] EngineHealth consecutiveFailures
+         * @property {string|null} [lastError] EngineHealth lastError
+         * @property {number|Long|null} [lastSuccessEpochMs] EngineHealth lastSuccessEpochMs
+         */
+
+        /**
+         * Constructs a new EngineHealth.
+         * @memberof languagecheck
+         * @classdesc Represents an EngineHealth.
+         * @implements IEngineHealth
+         * @constructor
+         * @param {languagecheck.IEngineHealth=} [properties] Properties to set
+         */
+        function EngineHealth(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * EngineHealth name.
+         * @member {string} name
+         * @memberof languagecheck.EngineHealth
+         * @instance
+         */
+        EngineHealth.prototype.name = "";
+
+        /**
+         * EngineHealth status.
+         * @member {string} status
+         * @memberof languagecheck.EngineHealth
+         * @instance
+         */
+        EngineHealth.prototype.status = "";
+
+        /**
+         * EngineHealth consecutiveFailures.
+         * @member {number} consecutiveFailures
+         * @memberof languagecheck.EngineHealth
+         * @instance
+         */
+        EngineHealth.prototype.consecutiveFailures = 0;
+
+        /**
+         * EngineHealth lastError.
+         * @member {string} lastError
+         * @memberof languagecheck.EngineHealth
+         * @instance
+         */
+        EngineHealth.prototype.lastError = "";
+
+        /**
+         * EngineHealth lastSuccessEpochMs.
+         * @member {number|Long} lastSuccessEpochMs
+         * @memberof languagecheck.EngineHealth
+         * @instance
+         */
+        EngineHealth.prototype.lastSuccessEpochMs = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Creates a new EngineHealth instance using the specified properties.
+         * @function create
+         * @memberof languagecheck.EngineHealth
+         * @static
+         * @param {languagecheck.IEngineHealth=} [properties] Properties to set
+         * @returns {languagecheck.EngineHealth} EngineHealth instance
+         */
+        EngineHealth.create = function create(properties) {
+            return new EngineHealth(properties);
+        };
+
+        /**
+         * Encodes the specified EngineHealth message. Does not implicitly {@link languagecheck.EngineHealth.verify|verify} messages.
+         * @function encode
+         * @memberof languagecheck.EngineHealth
+         * @static
+         * @param {languagecheck.IEngineHealth} message EngineHealth message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        EngineHealth.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.name);
+            if (message.status != null && Object.hasOwnProperty.call(message, "status"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.status);
+            if (message.consecutiveFailures != null && Object.hasOwnProperty.call(message, "consecutiveFailures"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint32(message.consecutiveFailures);
+            if (message.lastError != null && Object.hasOwnProperty.call(message, "lastError"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.lastError);
+            if (message.lastSuccessEpochMs != null && Object.hasOwnProperty.call(message, "lastSuccessEpochMs"))
+                writer.uint32(/* id 5, wireType 0 =*/40).uint64(message.lastSuccessEpochMs);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified EngineHealth message, length delimited. Does not implicitly {@link languagecheck.EngineHealth.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof languagecheck.EngineHealth
+         * @static
+         * @param {languagecheck.IEngineHealth} message EngineHealth message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        EngineHealth.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an EngineHealth message from the specified reader or buffer.
+         * @function decode
+         * @memberof languagecheck.EngineHealth
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {languagecheck.EngineHealth} EngineHealth
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        EngineHealth.decode = function decode(reader, length, error) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.EngineHealth();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                if (tag === error)
+                    break;
+                switch (tag >>> 3) {
+                case 1: {
+                        message.name = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.status = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.consecutiveFailures = reader.uint32();
+                        break;
+                    }
+                case 4: {
+                        message.lastError = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.lastSuccessEpochMs = reader.uint64();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an EngineHealth message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof languagecheck.EngineHealth
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {languagecheck.EngineHealth} EngineHealth
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        EngineHealth.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an EngineHealth message.
+         * @function verify
+         * @memberof languagecheck.EngineHealth
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        EngineHealth.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.name != null && message.hasOwnProperty("name"))
+                if (!$util.isString(message.name))
+                    return "name: string expected";
+            if (message.status != null && message.hasOwnProperty("status"))
+                if (!$util.isString(message.status))
+                    return "status: string expected";
+            if (message.consecutiveFailures != null && message.hasOwnProperty("consecutiveFailures"))
+                if (!$util.isInteger(message.consecutiveFailures))
+                    return "consecutiveFailures: integer expected";
+            if (message.lastError != null && message.hasOwnProperty("lastError"))
+                if (!$util.isString(message.lastError))
+                    return "lastError: string expected";
+            if (message.lastSuccessEpochMs != null && message.hasOwnProperty("lastSuccessEpochMs"))
+                if (!$util.isInteger(message.lastSuccessEpochMs) && !(message.lastSuccessEpochMs && $util.isInteger(message.lastSuccessEpochMs.low) && $util.isInteger(message.lastSuccessEpochMs.high)))
+                    return "lastSuccessEpochMs: integer|Long expected";
+            return null;
+        };
+
+        /**
+         * Creates an EngineHealth message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof languagecheck.EngineHealth
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {languagecheck.EngineHealth} EngineHealth
+         */
+        EngineHealth.fromObject = function fromObject(object) {
+            if (object instanceof $root.languagecheck.EngineHealth)
+                return object;
+            var message = new $root.languagecheck.EngineHealth();
+            if (object.name != null)
+                message.name = String(object.name);
+            if (object.status != null)
+                message.status = String(object.status);
+            if (object.consecutiveFailures != null)
+                message.consecutiveFailures = object.consecutiveFailures >>> 0;
+            if (object.lastError != null)
+                message.lastError = String(object.lastError);
+            if (object.lastSuccessEpochMs != null)
+                if ($util.Long)
+                    (message.lastSuccessEpochMs = $util.Long.fromValue(object.lastSuccessEpochMs)).unsigned = true;
+                else if (typeof object.lastSuccessEpochMs === "string")
+                    message.lastSuccessEpochMs = parseInt(object.lastSuccessEpochMs, 10);
+                else if (typeof object.lastSuccessEpochMs === "number")
+                    message.lastSuccessEpochMs = object.lastSuccessEpochMs;
+                else if (typeof object.lastSuccessEpochMs === "object")
+                    message.lastSuccessEpochMs = new $util.LongBits(object.lastSuccessEpochMs.low >>> 0, object.lastSuccessEpochMs.high >>> 0).toNumber(true);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an EngineHealth message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof languagecheck.EngineHealth
+         * @static
+         * @param {languagecheck.EngineHealth} message EngineHealth
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        EngineHealth.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.name = "";
+                object.status = "";
+                object.consecutiveFailures = 0;
+                object.lastError = "";
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.lastSuccessEpochMs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.lastSuccessEpochMs = options.longs === String ? "0" : 0;
+            }
+            if (message.name != null && message.hasOwnProperty("name"))
+                object.name = message.name;
+            if (message.status != null && message.hasOwnProperty("status"))
+                object.status = message.status;
+            if (message.consecutiveFailures != null && message.hasOwnProperty("consecutiveFailures"))
+                object.consecutiveFailures = message.consecutiveFailures;
+            if (message.lastError != null && message.hasOwnProperty("lastError"))
+                object.lastError = message.lastError;
+            if (message.lastSuccessEpochMs != null && message.hasOwnProperty("lastSuccessEpochMs"))
+                if (typeof message.lastSuccessEpochMs === "number")
+                    object.lastSuccessEpochMs = options.longs === String ? String(message.lastSuccessEpochMs) : message.lastSuccessEpochMs;
+                else
+                    object.lastSuccessEpochMs = options.longs === String ? $util.Long.prototype.toString.call(message.lastSuccessEpochMs) : options.longs === Number ? new $util.LongBits(message.lastSuccessEpochMs.low >>> 0, message.lastSuccessEpochMs.high >>> 0).toNumber(true) : message.lastSuccessEpochMs;
+            return object;
+        };
+
+        /**
+         * Converts this EngineHealth to JSON.
+         * @function toJSON
+         * @memberof languagecheck.EngineHealth
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        EngineHealth.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for EngineHealth
+         * @function getTypeUrl
+         * @memberof languagecheck.EngineHealth
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        EngineHealth.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/languagecheck.EngineHealth";
+        };
+
+        return EngineHealth;
     })();
 
     languagecheck.ExtractionExclusion = (function() {

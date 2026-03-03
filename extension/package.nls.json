@@ -11,6 +11,7 @@
   "command.skipLatexEnv": "Language Check: Skip LaTeX Environment",
   "command.skipLatexCommand": "Language Check: Skip LaTeX Command",
   "command.downloadBinary": "Language Check: Download Core Binary",
+  "command.restartLTDocker": "Language Check: Restart LanguageTool Docker",
   "config.title": "Language Check",
   "config.core.channel": "Which core binary channel to use.",
   "config.core.channel.stable": "Production release",

@@ -62,6 +62,15 @@ message CheckRequest {
 message CheckResponse {
   repeated Diagnostic diagnostics = 1;
   ExtractionInfo extraction = 2;
+  repeated EngineHealth engine_health = 3;
+}
+
+message EngineHealth {
+  string name = 1;
+  string status = 2;
+  uint32 consecutive_failures = 3;
+  string last_error = 4;
+  uint64 last_success_epoch_ms = 5;
 }
 
 message ExtractionExclusion {

@@ -580,9 +580,13 @@ async fn main() -> Result<()> {
                                         warn!(file = file_path, "Error updating insights: {e}");
                                     });
                             }
+                            let engine_health =
+                                orchestrator_arc.lock().await.engine_health_report();
+
                             Some(response::Payload::CheckProse(CheckResponse {
                                 diagnostics: all_diagnostics,
                                 extraction: Some(extraction_info),
+                                engine_health,
                             }))
                         }
                         Err(e) => Some(response::Payload::Error(ErrorResponse {

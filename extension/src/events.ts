@@ -80,6 +80,14 @@ export interface InspectorEvent {
     details?: string;       // optional extra context
 }
 
+export interface InspectorEngineHealth {
+    name: string;
+    status: 'ok' | 'degraded' | 'down';
+    consecutiveFailures: number;
+    lastError: string;
+    lastSuccessEpochMs: number;
+}
+
 // Messages from extension → Inspector webview
 export type ExtensionToInspectorMessage =
     | { type: 'setExtraction'; payload: { prose: InspectorProseRange[]; fileName: string; languageId: string } }
@@ -87,9 +95,12 @@ export type ExtensionToInspectorMessage =
     | { type: 'setDiagnosticSummary'; payload: InspectorDiagnosticSummary }
     | { type: 'setCheckInfo'; payload: InspectorCheckInfo }
     | { type: 'pushEvent'; payload: InspectorEvent }
-    | { type: 'clearEvents' };
+    | { type: 'clearEvents' }
+    | { type: 'setEngineHealth'; payload: InspectorEngineHealth[] };
 
 // Messages from Inspector webview → extension
 export type InspectorToExtensionMessage =
     | { type: 'inspectorReady' }
-    | { type: 'highlightRange'; payload: { startByte: number; endByte: number } };
+    | { type: 'highlightRange'; payload: { startByte: number; endByte: number } }
+    | { type: 'healthCheckLT' }
+    | { type: 'restartLTDocker' };

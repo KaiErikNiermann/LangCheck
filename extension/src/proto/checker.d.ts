@@ -858,6 +858,9 @@ export namespace languagecheck {
 
         /** CheckResponse extraction */
         extraction?: (languagecheck.IExtractionInfo|null);
+
+        /** CheckResponse engineHealth */
+        engineHealth?: (languagecheck.IEngineHealth[]|null);
     }
 
     /** Represents a CheckResponse. */
@@ -874,6 +877,9 @@ export namespace languagecheck {
 
         /** CheckResponse extraction. */
         public extraction?: (languagecheck.IExtractionInfo|null);
+
+        /** CheckResponse engineHealth. */
+        public engineHealth: languagecheck.IEngineHealth[];
 
         /**
          * Creates a new CheckResponse instance using the specified properties.
@@ -947,6 +953,127 @@ export namespace languagecheck {
 
         /**
          * Gets the default type url for CheckResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of an EngineHealth. */
+    interface IEngineHealth {
+
+        /** EngineHealth name */
+        name?: (string|null);
+
+        /** EngineHealth status */
+        status?: (string|null);
+
+        /** EngineHealth consecutiveFailures */
+        consecutiveFailures?: (number|null);
+
+        /** EngineHealth lastError */
+        lastError?: (string|null);
+
+        /** EngineHealth lastSuccessEpochMs */
+        lastSuccessEpochMs?: (number|Long|null);
+    }
+
+    /** Represents an EngineHealth. */
+    class EngineHealth implements IEngineHealth {
+
+        /**
+         * Constructs a new EngineHealth.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: languagecheck.IEngineHealth);
+
+        /** EngineHealth name. */
+        public name: string;
+
+        /** EngineHealth status. */
+        public status: string;
+
+        /** EngineHealth consecutiveFailures. */
+        public consecutiveFailures: number;
+
+        /** EngineHealth lastError. */
+        public lastError: string;
+
+        /** EngineHealth lastSuccessEpochMs. */
+        public lastSuccessEpochMs: (number|Long);
+
+        /**
+         * Creates a new EngineHealth instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns EngineHealth instance
+         */
+        public static create(properties?: languagecheck.IEngineHealth): languagecheck.EngineHealth;
+
+        /**
+         * Encodes the specified EngineHealth message. Does not implicitly {@link languagecheck.EngineHealth.verify|verify} messages.
+         * @param message EngineHealth message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: languagecheck.IEngineHealth, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified EngineHealth message, length delimited. Does not implicitly {@link languagecheck.EngineHealth.verify|verify} messages.
+         * @param message EngineHealth message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: languagecheck.IEngineHealth, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an EngineHealth message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns EngineHealth
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): languagecheck.EngineHealth;
+
+        /**
+         * Decodes an EngineHealth message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns EngineHealth
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): languagecheck.EngineHealth;
+
+        /**
+         * Verifies an EngineHealth message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an EngineHealth message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns EngineHealth
+         */
+        public static fromObject(object: { [k: string]: any }): languagecheck.EngineHealth;
+
+        /**
+         * Creates a plain object from an EngineHealth message. Also converts values to other types if specified.
+         * @param message EngineHealth
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: languagecheck.EngineHealth, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this EngineHealth to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for EngineHealth
          * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
          * @returns The default type url
          */

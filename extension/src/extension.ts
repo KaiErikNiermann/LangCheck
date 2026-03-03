@@ -1,13 +1,15 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as http from 'http';
+import { execSync } from 'child_process';
 import { LanguageClient } from './client';
 import { languagecheck } from './proto/checker';
 import { TraceLogger } from './trace';
 import { createAPI } from './api';
 import { binaryExists, downloadBinary } from './downloader';
 import type { LanguageCheckDiagnostic } from './api';
-import type { SpeedFixDiagnostic, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent } from './events';
+import type { SpeedFixDiagnostic, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth } from './events';
 import { Logger } from './logger';
 
 const GITHUB_REPO = 'KaiErikNiermann/LangCheck';
@@ -20,6 +22,10 @@ let speedFixPanel: vscode.WebviewPanel | null = null;
 let inspectorPanel: vscode.WebviewPanel | null = null;
 let languageStatusBarItem: vscode.StatusBarItem;
 let insightsStatusBarItem: vscode.StatusBarItem;
+
+// Engine health tracking
+let engineHealthState: InspectorEngineHealth[] = [];
+let ltDownNotificationShown = false;
 
 // Inlay hint invalidation
 const inlayHintEmitter = new vscode.EventEmitter<void>();
@@ -692,6 +698,60 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.restartLTDocker', async () => {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            vscode.window.showErrorMessage('No workspace folder open');
+            return;
+        }
+        const rootPath = workspaceFolders[0]!.uri.fsPath;
+        const composePath = path.join(rootPath, 'docker-compose.yml');
+        if (!fs.existsSync(composePath)) {
+            vscode.window.showErrorMessage('No docker-compose.yml found in workspace root');
+            return;
+        }
+
+        await vscode.window.withProgress(
+            { location: vscode.ProgressLocation.Notification, title: 'Restarting LanguageTool Docker…', cancellable: false },
+            async (progress) => {
+                const MAX_ATTEMPTS = 2;
+                for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+                    progress.report({ message: `Attempt ${attempt}/${MAX_ATTEMPTS}: stopping…` });
+                    try {
+                        execSync('docker compose down', { cwd: rootPath, timeout: 30_000, stdio: 'pipe' });
+                    } catch { /* ignore stop errors */ }
+
+                    progress.report({ message: `Attempt ${attempt}/${MAX_ATTEMPTS}: starting…` });
+                    try {
+                        execSync('docker compose up -d', { cwd: rootPath, timeout: 30_000, stdio: 'pipe' });
+                    } catch (e) {
+                        if (attempt === MAX_ATTEMPTS) {
+                            vscode.window.showErrorMessage(`Failed to start LanguageTool Docker: ${e}`);
+                            return;
+                        }
+                        continue;
+                    }
+
+                    // Poll for readiness
+                    progress.report({ message: `Waiting for LanguageTool to be ready…` });
+                    const ready = await pollLTReady(15_000);
+                    if (ready) {
+                        vscode.window.showInformationMessage('LanguageTool Docker restarted successfully');
+                        // Re-check active document to refresh health
+                        const editor = vscode.window.activeTextEditor;
+                        if (editor) {
+                            checkDocument(editor.document);
+                        }
+                        return;
+                    }
+                    if (attempt === MAX_ATTEMPTS) {
+                        vscode.window.showErrorMessage('LanguageTool Docker started but not responding after 15s');
+                    }
+                }
+            },
+        );
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('language-check.ignoreDiagnostic', async (diagnosticId: string) => {
         await ignoreDiagnostic(diagnosticId);
     }));
@@ -1217,6 +1277,17 @@ export async function activate(context: vscode.ExtensionContext) {
                     }
                     break;
                 }
+                case 'healthCheckLT': {
+                    const editor = vscode.window.activeTextEditor;
+                    if (editor) {
+                        await checkDocument(editor.document);
+                    }
+                    break;
+                }
+                case 'restartLTDocker': {
+                    vscode.commands.executeCommand('language-check.restartLTDocker');
+                    break;
+                }
             }
         }, undefined, context.subscriptions);
 
@@ -1531,6 +1602,14 @@ async function updateInspectorData() {
             payload: summary,
         });
     }
+
+    // Send engine health state
+    if (engineHealthState.length > 0) {
+        inspectorPanel.webview.postMessage({
+            type: 'setEngineHealth',
+            payload: engineHealthState,
+        });
+    }
 }
 
 /** Find a text editor that has diagnostics, preferring activeTextEditor.
@@ -1826,6 +1905,48 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
                 });
             }
 
+            // Process engine health from response
+            const protoHealth = response.checkProse.engineHealth ?? [];
+            if (protoHealth.length > 0) {
+                engineHealthState = protoHealth.map(h => ({
+                    name: h.name as string,
+                    status: (h.status as string) as 'ok' | 'degraded' | 'down',
+                    consecutiveFailures: (h.consecutiveFailures as number) ?? 0,
+                    lastError: (h.lastError as string) ?? '',
+                    lastSuccessEpochMs: Number(h.lastSuccessEpochMs ?? 0),
+                }));
+
+                // Post health to Inspector
+                if (inspectorPanel) {
+                    inspectorPanel.webview.postMessage({
+                        type: 'setEngineHealth',
+                        payload: engineHealthState,
+                    });
+                }
+
+                // Update status bar with health indicator
+                updateHealthStatusBar();
+
+                // Show warning notification on first LT down detection
+                const ltHealth = engineHealthState.find(e => e.name === 'languagetool');
+                if (ltHealth && ltHealth.status === 'down' && !ltDownNotificationShown) {
+                    ltDownNotificationShown = true;
+                    const action = await vscode.window.showWarningMessage(
+                        vscode.l10n.t('LanguageTool engine is down: {0}', ltHealth.lastError),
+                        'Restart Docker',
+                        'Open Inspector',
+                        'Dismiss',
+                    );
+                    if (action === 'Restart Docker') {
+                        vscode.commands.executeCommand('language-check.restartLTDocker');
+                    } else if (action === 'Open Inspector') {
+                        vscode.commands.executeCommand('language-check.openInspector');
+                    }
+                } else if (ltHealth && ltHealth.status === 'ok') {
+                    ltDownNotificationShown = false;
+                }
+            }
+
             pushInspectorEvent('info', 'checkDocument', `${extendedDiagnostics.length} issues in ${shortName}`, { durationMs: performance.now() - t0 });
             return extendedDiagnostics.length;
         } else if (response.error) {
@@ -1849,6 +1970,39 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
     }
 
     return 0;
+}
+
+async function pollLTReady(timeoutMs: number): Promise<boolean> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        const ok = await new Promise<boolean>(resolve => {
+            const req = http.get('http://localhost:8010/v2/languages', { timeout: 2000 }, (res) => {
+                resolve(res.statusCode === 200);
+                res.resume();
+            });
+            req.on('error', () => resolve(false));
+            req.on('timeout', () => { req.destroy(); resolve(false); });
+        });
+        if (ok) return true;
+        await new Promise(r => setTimeout(r, 2000));
+    }
+    return false;
+}
+
+function updateHealthStatusBar() {
+    const ltHealth = engineHealthState.find(e => e.name === 'languagetool');
+    if (!ltHealth || ltHealth.status === 'ok') {
+        // Remove any health suffix — let updateInsightsStatusBar handle the text
+        insightsStatusBarItem.backgroundColor = undefined;
+        return;
+    }
+    if (ltHealth.status === 'degraded') {
+        insightsStatusBarItem.text += ' $(warning) LT degraded';
+        insightsStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+    } else {
+        insightsStatusBarItem.text += ' $(error) LT down';
+        insightsStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+    }
 }
 
 function updateInsightsStatusBar(editor?: vscode.TextEditor) {

@@ -46,13 +46,22 @@
     details?: string;
   }
 
-  type Tab = 'extraction' | 'cleantext' | 'latency' | 'diagnostics' | 'events';
+  interface EngineHealth {
+    name: string;
+    status: 'ok' | 'degraded' | 'down';
+    consecutiveFailures: number;
+    lastError: string;
+    lastSuccessEpochMs: number;
+  }
+
+  type Tab = 'extraction' | 'cleantext' | 'latency' | 'diagnostics' | 'events' | 'health';
 
   let proseRanges: ProseRange[] = $state([]);
   let latencyStages: LatencyStage[] = $state([]);
   let diagnosticSummary: DiagnosticSummary | null = $state(null);
   let checkInfo: CheckInfo | null = $state(null);
   let events: PipelineEvent[] = $state([]);
+  let engineHealth: EngineHealth[] = $state([]);
   let activeTab: Tab = $state('extraction');
   let fileName: string = $state('');
   let languageId: string = $state('');
@@ -85,6 +94,9 @@
           break;
         case 'clearEvents':
           events = [];
+          break;
+        case 'setEngineHealth':
+          engineHealth = message.payload ?? [];
           break;
       }
     });
@@ -182,6 +194,27 @@
     return d.toLocaleTimeString('en-GB', { hour12: false }) + '.' + String(d.getMilliseconds()).padStart(3, '0');
   }
 
+  function healthStatusColor(status: string): string {
+    switch (status) {
+      case 'ok': return 'var(--vscode-testing-iconPassed, #4caf50)';
+      case 'degraded': return 'var(--vscode-editorWarning-foreground, #fa4)';
+      case 'down': return 'var(--vscode-editorError-foreground, #f44)';
+      default: return 'var(--vscode-editorHint-foreground, #aaa)';
+    }
+  }
+
+  function formatTimeSince(epochMs: number): string {
+    if (epochMs === 0) return 'never';
+    const seconds = Math.floor((Date.now() - epochMs) / 1000);
+    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    return `${Math.floor(seconds / 3600)}h ago`;
+  }
+
+  function hasUnhealthyEngine(): boolean {
+    return engineHealth.some(e => e.status !== 'ok');
+  }
+
   /** Build HTML segments for range text with exclusion zones highlighted. */
   function renderSegments(range: ProseRange): { text: string; isExclusion: boolean; kind: string }[] {
     if (range.exclusions.length === 0) {
@@ -221,6 +254,9 @@
     </button>
     <button class="tab" class:active={activeTab === 'events'} onclick={() => activeTab = 'events'}>
       Events{events.length > 0 ? ` (${events.length})` : ''}
+    </button>
+    <button class="tab" class:active={activeTab === 'health'} class:tab-health-warn={hasUnhealthyEngine()} onclick={() => activeTab = 'health'}>
+      Health
     </button>
     {#if fileName}
       <span class="tab-filename">{fileName}</span>
@@ -457,6 +493,64 @@
         </div>
       {:else}
         <div class="empty-state">No events captured yet. Interact with the extension to see pipeline events.</div>
+      {/if}
+
+    {:else if activeTab === 'health'}
+      <!-- Engine Health -->
+      {#if engineHealth.length > 0}
+        <div class="section-list">
+          <div class="section-header">
+            <span class="section-title">Engine Health</span>
+            <span class="section-count">{engineHealth.length} engines</span>
+          </div>
+
+          <div class="health-grid">
+            {#each engineHealth as engine}
+              <div class="health-card" class:health-card-warn={engine.status === 'degraded'} class:health-card-error={engine.status === 'down'}>
+                <div class="health-card-header">
+                  <span class="health-dot" style="background: {healthStatusColor(engine.status)}"></span>
+                  <span class="health-name">{engine.name}</span>
+                  <span class="health-status" style="color: {healthStatusColor(engine.status)}">{engine.status}</span>
+                </div>
+                {#if engine.status !== 'ok'}
+                  <div class="health-details">
+                    <div class="health-detail-row">
+                      <span class="health-detail-label">Failures</span>
+                      <span class="health-detail-value">{engine.consecutiveFailures}</span>
+                    </div>
+                    {#if engine.lastError}
+                      <div class="health-detail-row">
+                        <span class="health-detail-label">Error</span>
+                        <span class="health-detail-value health-error-text" title={engine.lastError}>
+                          {engine.lastError.length > 80 ? engine.lastError.substring(0, 77) + '...' : engine.lastError}
+                        </span>
+                      </div>
+                    {/if}
+                    <div class="health-detail-row">
+                      <span class="health-detail-label">Last OK</span>
+                      <span class="health-detail-value">{formatTimeSince(engine.lastSuccessEpochMs)}</span>
+                    </div>
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
+
+          {#if hasUnhealthyEngine()}
+            <div class="health-actions">
+              <button class="health-action-btn" onclick={() => vscode.postMessage({ type: 'healthCheckLT' })}>
+                Health Check
+              </button>
+              <button class="health-action-btn health-action-restart" onclick={() => vscode.postMessage({ type: 'restartLTDocker' })}>
+                Restart Docker
+              </button>
+            </div>
+          {:else}
+            <div class="health-ok-banner">All engines operational</div>
+          {/if}
+        </div>
+      {:else}
+        <div class="empty-state">Run a check to see engine health status.</div>
       {/if}
     {/if}
   </div>
@@ -965,6 +1059,136 @@
 
   .clear-btn:hover {
     background: var(--vscode-list-hoverBackground, rgba(128,128,128,0.15));
+  }
+
+  /* -- Health tab -- */
+  .tab-health-warn {
+    color: var(--vscode-editorWarning-foreground, #fa4) !important;
+    opacity: 0.9 !important;
+  }
+
+  .health-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .health-card {
+    background: var(--vscode-textCodeBlock-background, rgba(128,128,128,0.08));
+    border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.15));
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+
+  .health-card-warn {
+    border-color: rgba(255, 170, 60, 0.3);
+    background: rgba(255, 170, 60, 0.05);
+  }
+
+  .health-card-error {
+    border-color: rgba(255, 60, 60, 0.3);
+    background: rgba(255, 60, 60, 0.05);
+  }
+
+  .health-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .health-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .health-name {
+    font-size: 13px;
+    font-weight: 600;
+    flex: 1;
+    text-transform: capitalize;
+  }
+
+  .health-status {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+
+  .health-details {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.15));
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .health-detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 11px;
+  }
+
+  .health-detail-label {
+    opacity: 0.5;
+    flex-shrink: 0;
+    min-width: 60px;
+  }
+
+  .health-detail-value {
+    font-family: var(--vscode-editor-font-family, monospace);
+    text-align: right;
+    word-break: break-all;
+  }
+
+  .health-error-text {
+    color: var(--vscode-editorError-foreground, #f44);
+    opacity: 0.8;
+  }
+
+  .health-actions {
+    display: flex;
+    gap: 8px;
+    padding-top: 8px;
+  }
+
+  .health-action-btn {
+    border: 1px solid var(--vscode-button-border, var(--vscode-panel-border, rgba(128,128,128,0.3)));
+    background: var(--vscode-button-secondaryBackground, rgba(128,128,128,0.15));
+    color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+  }
+
+  .health-action-btn:hover {
+    background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,0.25));
+  }
+
+  .health-action-restart {
+    background: var(--vscode-button-background, #0078d4);
+    color: var(--vscode-button-foreground, #fff);
+    border-color: transparent;
+  }
+
+  .health-action-restart:hover {
+    background: var(--vscode-button-hoverBackground, #026ec1);
+  }
+
+  .health-ok-banner {
+    text-align: center;
+    padding: 12px;
+    font-size: 12px;
+    opacity: 0.5;
+    border-top: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.15));
+    margin-top: 4px;
   }
 
   /* -- Empty state -- */

@@ -85,6 +85,10 @@
       {
         "command": "language-check.downloadBinary",
         "title": "%command.downloadBinary%"
+      },
+      {
+        "command": "language-check.restartLTDocker",
+        "title": "%command.restartLTDocker%"
       }
     ],
     "keybindings": [
