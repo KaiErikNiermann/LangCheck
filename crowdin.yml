@@ -1,0 +1,23 @@
+# Crowdin configuration for lang-check localization
+# Credentials are injected via CROWDIN_PROJECT_ID and CROWDIN_PERSONAL_TOKEN
+# environment variables (set as GitHub repository secrets).
+
+project_id_env: CROWDIN_PROJECT_ID
+api_token_env: CROWDIN_PERSONAL_TOKEN
+
+preserve_hierarchy: true
+
+files:
+  # VS Code extension: runtime l10n strings
+  - source: /extension/l10n/bundle.l10n.json
+    translation: /extension/l10n/bundle.l10n.%two_letters_code%.json
+
+  # VS Code extension: package.json UI metadata strings
+  - source: /extension/package.nls.json
+    translation: /extension/package.nls.%two_letters_code%.json
+
+  # Sphinx docs: gettext .pot → .po
+  # .pot files are built by CI (not committed), so the upload job
+  # runs sphinx-build -b gettext before uploading.
+  - source: /docs/_build/gettext/**/*.pot
+    translation: /docs/locale/%two_letters_code%/LC_MESSAGES/**/%original_file_name%.po
