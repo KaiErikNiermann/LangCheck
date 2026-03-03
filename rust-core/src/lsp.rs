@@ -13,12 +13,13 @@ use dashmap::DashMap;
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{
-    CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeActionProviderCapability,
-    CodeActionResponse, Command, DidChangeConfigurationParams, DidChangeTextDocumentParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams, Diagnostic,
-    DiagnosticSeverity, ExecuteCommandOptions, ExecuteCommandParams, InitializeParams,
-    InitializeResult, InitializedParams, NumberOrString, Position, Range, ServerCapabilities,
-    ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
+    CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams,
+    CodeActionProviderCapability, CodeActionResponse, Command, Diagnostic, DiagnosticSeverity,
+    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DidSaveTextDocumentParams, ExecuteCommandOptions,
+    ExecuteCommandParams, InitializeParams, InitializeResult, InitializedParams, NumberOrString,
+    Position, Range, ServerCapabilities, ServerInfo, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 use tracing::{debug, info, warn};
@@ -163,7 +164,9 @@ impl Backend {
                 config.performance.max_file_size = v;
             }
         }
-        self.orchestrator.lock().await.update_config(config.clone());
+        let updated = config.clone();
+        drop(config);
+        self.orchestrator.lock().await.update_config(updated);
         info!("LSP: config updated via didChangeConfiguration");
     }
 
@@ -195,8 +198,13 @@ impl Backend {
                 skip_envs: &cfg.languages.latex.skip_environments,
                 skip_commands: &cfg.languages.latex.skip_commands,
             };
-            let result =
-                prose::extract_with_fallback(text, canonical, None, Some(&schema_reg), &latex_extras);
+            let result = prose::extract_with_fallback(
+                text,
+                canonical,
+                None,
+                Some(&schema_reg),
+                &latex_extras,
+            );
             drop(cfg);
             drop(schema_reg);
             result
@@ -322,10 +330,7 @@ impl LanguageServer for Backend {
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         let uri = params.text_document.uri;
         let key = uri.to_string();
-        let entry = self
-            .documents
-            .get(&key)
-            .map(|r| r.value().clone());
+        let entry = self.documents.get(&key).map(|r| r.value().clone());
         if let Some((text, lang_id)) = entry {
             self.diagnose(&uri, &text, &lang_id).await;
         }
@@ -336,8 +341,7 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
-        let settings: LspSettings =
-            serde_json::from_value(params.settings).unwrap_or_default();
+        let settings: LspSettings = serde_json::from_value(params.settings).unwrap_or_default();
         self.apply_settings(&settings.lang_check).await;
         self.rediagnose_all().await;
     }
