@@ -19,7 +19,7 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "language-check")]
+#[command(name = "language-check", version)]
 #[command(about = "Standalone CLI for the Ultimate Language Checker", long_about = None)]
 struct Cli {
     #[command(subcommand)]
