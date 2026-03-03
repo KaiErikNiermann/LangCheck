@@ -7,6 +7,10 @@
   "command.switchCore": "Language Check: Cambiar binario core",
   "command.toggleTrace": "Language Check: Alternar traza Protobuf",
   "command.showTrace": "Language Check: Mostrar traza Protobuf",
+  "command.toggleEnglishEngine": "Language Check: Alternar motor de inglés",
+  "command.skipLatexEnv": "Language Check: Omitir entorno LaTeX",
+  "command.skipLatexCommand": "Language Check: Omitir comando LaTeX",
+  "command.downloadBinary": "Language Check: Descargar binario core",
   "config.title": "Language Check",
   "config.core.channel": "Qué canal de binario core utilizar.",
   "config.core.channel.stable": "Versión estable",
@@ -20,7 +24,15 @@
   "config.performance.hpm": "Modo de bajo consumo: desactiva LanguageTool y proveedores externos, simplifica la interfaz de SpeedFix.",
   "config.dictionaries.bundled": "Cargar diccionarios técnicos incluidos (términos de software, TypeScript, empresas, jerga). Desactivar para reducir falsos negativos ortográficos.",
   "config.dictionaries.paths": "Rutas a archivos de listas de palabras adicionales (una palabra por línea). Las rutas relativas se resuelven desde la raíz del espacio de trabajo.",
+  "config.workspace.indexOnOpen": "Ejecutar una indexación completa del espacio de trabajo al abrir el proyecto. Cuando está desactivado (por defecto), solo se comprueba el documento activo al abrir/cambiar. Se puede configurar por proyecto en .languagecheck.yaml.",
   "walkthrough.title": "Primeros pasos con Language Check",
   "walkthrough.description": "Aprenda a verificar y corregir la prosa en sus documentos.",
-  "command.downloadBinary": "Language Check: Descargar binario core"
+  "walkthrough.check.title": "Revisar su escritura",
+  "walkthrough.check.description": "Abra un archivo Markdown, HTML o LaTeX y guárdelo para comprobar automáticamente errores de gramática, ortografía y estilo.\n\n[Comprobar documento actual](command:language-check.checkDocument)",
+  "walkthrough.speedfix.title": "SpeedFix: Corrección por lotes",
+  "walkthrough.speedfix.description": "Pulse **Alt+F** para abrir el panel SpeedFix y revisar todos los diagnósticos a la vez. Aplique correcciones, ignore problemas o añada palabras al diccionario.\n\n[Abrir SpeedFix](command:language-check.openSpeedFix)",
+  "walkthrough.language.title": "Cambiar idioma",
+  "walkthrough.language.description": "Haga clic en el indicador de idioma en la barra de estado (esquina inferior derecha) para cambiar entre inglés, alemán, francés y español.\n\n[Seleccionar idioma](command:language-check.selectLanguage)",
+  "walkthrough.configure.title": "Configurar reglas",
+  "walkthrough.configure.description": "Cree un archivo `.languagecheck.yaml` en la raíz de su espacio de trabajo para desactivar reglas, añadir patrones de corrección automática o configurar motores. Consulte la [documentación](https://github.com) para más detalles."
 }
