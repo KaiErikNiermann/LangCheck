@@ -142,11 +142,16 @@ fn collect_prose_nodes(
             return;
         }
 
-        // Block-level commands: create scope boundaries, enable prose collection
+        // Block-level commands: create scope boundaries, enable prose collection.
+        // Skip bracket_group children — they carry identifiers/addresses
+        // (e.g. \subtree[006s]{...}), not prose.
         if cmd_name.is_some_and(|n| BLOCK_COMMANDS.contains(&n)) {
             scopes.push(vec![]);
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
+                if child.kind() == "bracket_group" {
+                    continue;
+                }
                 collect_prose_nodes(child, text, scopes, skips, true);
             }
             // New scope after so subsequent siblings don't merge with this block
@@ -1315,6 +1320,38 @@ so the result follows.}";
         assert!(
             all_clean.contains("defines the syntax"),
             "Prose should be extracted, got: {all_clean:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_subtree_bracket_id_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\subtree[006s]{
+  \taxon{Definition}
+  \title{Local truth}
+  \p{Some prose about local truth.}
+}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let all_clean: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text).into_owned())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        assert!(
+            !all_clean.contains("006s"),
+            "Subtree ID should not appear in prose, got: {all_clean:?}"
+        );
+        assert!(
+            all_clean.contains("Local truth"),
+            "Title should be extracted, got: {all_clean:?}"
+        );
+        assert!(
+            all_clean.contains("local truth"),
+            "Paragraph should be extracted, got: {all_clean:?}"
         );
 
         Ok(())
