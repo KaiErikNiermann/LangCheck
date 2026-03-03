@@ -1,0 +1,110 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-03 16:38+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../../guide/installation.md:1
+msgid "Installation"
+msgstr ""
+
+#: ../../guide/installation.md:3
+msgid "VS Code Extension"
+msgstr ""
+
+#: ../../guide/installation.md:5
+msgid "Install from the VS Code marketplace:"
+msgstr ""
+
+#: ../../guide/installation.md:7
+msgid "Open VS Code"
+msgstr ""
+
+#: ../../guide/installation.md:8
+msgid "Press `Ctrl+Shift+X` (or `Cmd+Shift+X` on macOS)"
+msgstr ""
+
+#: ../../guide/installation.md:9
+msgid "Search for **Language Check**"
+msgstr ""
+
+#: ../../guide/installation.md:10
+msgid "Click **Install**"
+msgstr ""
+
+#: ../../guide/installation.md:12
+msgid ""
+"On first activation, the extension will prompt you to download the core "
+"binary for your platform. You can also install it manually."
+msgstr ""
+
+#: ../../guide/installation.md:14
+msgid "CLI Binary"
+msgstr ""
+
+#: ../../guide/installation.md:16
+msgid "Pre-built binaries"
+msgstr ""
+
+#: ../../guide/installation.md:18
+msgid ""
+"Download the latest release for your platform from [GitHub "
+"Releases](https://github.com/KaiErikNiermann/lang-check/releases)."
+msgstr ""
+
+#: ../../guide/installation.md:20
+msgid "Available targets:"
+msgstr ""
+
+#: ../../guide/installation.md:21
+msgid "`x86_64-unknown-linux-gnu` — Linux x86_64"
+msgstr ""
+
+#: ../../guide/installation.md:22
+msgid "`aarch64-unknown-linux-gnu` — Linux ARM64"
+msgstr ""
+
+#: ../../guide/installation.md:23
+msgid "`x86_64-apple-darwin` — macOS Intel"
+msgstr ""
+
+#: ../../guide/installation.md:24
+msgid "`aarch64-apple-darwin` — macOS Apple Silicon"
+msgstr ""
+
+#: ../../guide/installation.md:25
+msgid "`x86_64-pc-windows-msvc.exe` — Windows x86_64"
+msgstr ""
+
+#: ../../guide/installation.md:27
+msgid "From source"
+msgstr ""
+
+#: ../../guide/installation.md:35
+msgid "The binary will be at `target/release/language-check-server`."
+msgstr ""
+
+#: ../../guide/installation.md:37
+msgid "Verify the download"
+msgstr ""
+
+#: ../../guide/installation.md:39
+msgid "Each release includes `.sha256` checksum files:"
+msgstr ""
+

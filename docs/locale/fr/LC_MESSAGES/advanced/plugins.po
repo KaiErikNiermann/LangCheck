@@ -1,0 +1,139 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-03 16:38+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../../advanced/plugins.md:1
+msgid "WASM Plugins"
+msgstr ""
+
+#: ../../advanced/plugins.md:3
+msgid ""
+"Language Check supports WebAssembly plugins loaded via "
+"[Extism](https://extism.org/)."
+msgstr ""
+
+#: ../../advanced/plugins.md:5
+msgid "Configuration"
+msgstr ""
+
+#: ../../advanced/plugins.md:7
+msgid "Register WASM plugins in `.languagecheck.yaml`:"
+msgstr ""
+
+#: ../../advanced/plugins.md:19
+msgid "Plugin Interface"
+msgstr ""
+
+#: ../../advanced/plugins.md:21
+msgid "Plugins must export a `check` function with the following contract:"
+msgstr ""
+
+#: ../../advanced/plugins.md:23
+msgid "Input"
+msgstr ""
+
+#: ../../advanced/plugins.md:25
+msgid "A JSON string passed as the function argument:"
+msgstr ""
+
+#: ../../advanced/plugins.md:34
+msgid "Output"
+msgstr ""
+
+#: ../../advanced/plugins.md:36
+msgid "A JSON string returned as the function result — an array of diagnostics:"
+msgstr ""
+
+#: ../../advanced/plugins.md:52
+msgid "The diagnostic schema is identical to [external providers](providers.md)."
+msgstr ""
+
+#: ../../advanced/plugins.md:54
+msgid "Plugin Discovery"
+msgstr ""
+
+#: ../../advanced/plugins.md:56
+msgid "Plugins can also be auto-discovered from a directory:"
+msgstr ""
+
+#: ../../advanced/plugins.md:65
+msgid ""
+"Any `.wasm` file in the plugins directory is loaded automatically, with "
+"the filename (minus extension) used as the plugin name."
+msgstr ""
+
+#: ../../advanced/plugins.md:67
+msgid "Building Plugins"
+msgstr ""
+
+#: ../../advanced/plugins.md:69
+msgid ""
+"Plugins can be built with the [Extism "
+"PDK](https://extism.org/docs/write-a-plugin/) in any language that "
+"compiles to WebAssembly:"
+msgstr ""
+
+#: ../../advanced/plugins.md:71
+msgid "**Rust**: `extism-pdk` crate"
+msgstr ""
+
+#: ../../advanced/plugins.md:72
+msgid "**Go**: `extism-pdk-go`"
+msgstr ""
+
+#: ../../advanced/plugins.md:73
+msgid "**JavaScript**: `@nicolo-ribaudo/extism-pdk`"
+msgstr ""
+
+#: ../../advanced/plugins.md:74
+msgid "**AssemblyScript**, **Zig**, **C/C++**, **Haskell**"
+msgstr ""
+
+#: ../../advanced/plugins.md:76
+msgid "Example (Rust)"
+msgstr ""
+
+#: ../../advanced/plugins.md:110
+msgid "Error Handling"
+msgstr ""
+
+#: ../../advanced/plugins.md:112
+msgid "Invalid WASM modules are logged and skipped during initialization."
+msgstr ""
+
+#: ../../advanced/plugins.md:113
+msgid "Runtime errors during `check()` calls return empty diagnostics."
+msgstr ""
+
+#: ../../advanced/plugins.md:114
+msgid "WASM plugins are skipped in High Performance Mode."
+msgstr ""
+
+#: ../../advanced/plugins.md:116
+msgid "Rule ID Namespacing"
+msgstr ""
+
+#: ../../advanced/plugins.md:118
+msgid ""
+"Rule IDs from WASM plugins are prefixed with `wasm.<plugin-name>.` for "
+"disambiguation."
+msgstr ""
+

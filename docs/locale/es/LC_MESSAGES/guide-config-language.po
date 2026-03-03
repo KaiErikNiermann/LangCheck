@@ -1,0 +1,341 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-03 16:38+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../../guide-config-language.md:1
+msgid "Adding Language Support via Config (No Code Required)"
+msgstr ""
+
+#: ../../guide-config-language.md:3
+msgid "lang-check supports two no-code ways to recognize additional file formats:"
+msgstr ""
+
+#: ../../guide-config-language.md:5
+msgid "map a new extension onto an existing built-in language, or"
+msgstr ""
+
+#: ../../guide-config-language.md:6
+msgid ""
+"define a **Simplified Language Schema (SLS)** in YAML for a format that "
+"does not have a built-in tree-sitter extractor."
+msgstr ""
+
+#: ../../guide-config-language.md:9
+msgid "This page focuses on the SLS workflow."
+msgstr ""
+
+#: ../../guide-config-language.md:11
+msgid "When to use an SLS schema"
+msgstr ""
+
+#: ../../guide-config-language.md:13
+msgid "Use an SLS schema when:"
+msgstr ""
+
+#: ../../guide-config-language.md:15
+msgid "the format is mostly line-oriented markup or config,"
+msgstr ""
+
+#: ../../guide-config-language.md:16
+msgid "you can describe prose lines with regular expressions,"
+msgstr ""
+
+#: ../../guide-config-language.md:17
+msgid ""
+"code blocks or metadata can be skipped with simple line or block rules, "
+"and"
+msgstr ""
+
+#: ../../guide-config-language.md:18
+msgid "you do not want to write Rust or add a tree-sitter grammar."
+msgstr ""
+
+#: ../../guide-config-language.md:20
+msgid ""
+"Common examples include AsciiDoc, TOML-with-comments, INI-like formats, "
+"and project-specific note formats."
+msgstr ""
+
+#: ../../guide-config-language.md:23
+msgid "Where schema files live"
+msgstr ""
+
+#: ../../guide-config-language.md:25
+msgid "Create schema files in your workspace at:"
+msgstr ""
+
+#: ../../guide-config-language.md:31
+msgid ""
+"lang-check loads every `.yaml` and `.yml` file from that directory in "
+"both the CLI and the language-check server."
+msgstr ""
+
+#: ../../guide-config-language.md:34
+msgid "Example layout:"
+msgstr ""
+
+#: ../../guide-config-language.md:45
+msgid "Schema file format"
+msgstr ""
+
+#: ../../guide-config-language.md:47
+msgid "Each schema file is a YAML object with these fields:"
+msgstr ""
+
+#: ../../guide-config-language.md:49
+msgid "`name`: a human-readable language ID for the schema."
+msgstr ""
+
+#: ../../guide-config-language.md:50
+msgid "`extensions`: file extensions handled by the schema, without leading dots."
+msgstr ""
+
+#: ../../guide-config-language.md:51
+msgid "`prose_patterns`: regex rules for lines that count as prose."
+msgstr ""
+
+#: ../../guide-config-language.md:52
+msgid "`skip_patterns`: regex rules for lines that should be ignored."
+msgstr ""
+
+#: ../../guide-config-language.md:53
+msgid ""
+"`skip_blocks`: start/end regex pairs for multi-line blocks that should be"
+" ignored entirely."
+msgstr ""
+
+#: ../../guide-config-language.md:56
+msgid "Minimal shape:"
+msgstr ""
+
+#: ../../guide-config-language.md:71
+msgid "`prose_patterns`"
+msgstr ""
+
+#: ../../guide-config-language.md:73
+msgid ""
+"`prose_patterns` is a list of line-level regexes. A non-empty line is "
+"treated as prose only if it matches at least one pattern."
+msgstr ""
+
+#: ../../guide-config-language.md:76
+msgid ""
+"If you leave `prose_patterns` empty, every non-empty line is treated as "
+"prose unless it is excluded by `skip_patterns` or `skip_blocks`."
+msgstr ""
+
+#: ../../guide-config-language.md:79
+msgid "`skip_patterns`"
+msgstr ""
+
+#: ../../guide-config-language.md:81
+msgid ""
+"`skip_patterns` is a list of line-level regexes. If a line matches any of"
+" them, that line is excluded from checking."
+msgstr ""
+
+#: ../../guide-config-language.md:84 ../../guide-config-language.md:102
+msgid "Use this for:"
+msgstr ""
+
+#: ../../guide-config-language.md:86
+msgid "headings,"
+msgstr ""
+
+#: ../../guide-config-language.md:87
+msgid "directive lines,"
+msgstr ""
+
+#: ../../guide-config-language.md:88
+msgid "comments,"
+msgstr ""
+
+#: ../../guide-config-language.md:89
+msgid "key/value assignments,"
+msgstr ""
+
+#: ../../guide-config-language.md:90
+msgid "delimiter lines."
+msgstr ""
+
+#: ../../guide-config-language.md:92
+msgid "`skip_blocks`"
+msgstr ""
+
+#: ../../guide-config-language.md:94
+msgid "`skip_blocks` defines multi-line regions to exclude. Each entry has:"
+msgstr ""
+
+#: ../../guide-config-language.md:96
+msgid "`start`: regex for the opening line,"
+msgstr ""
+
+#: ../../guide-config-language.md:97
+msgid "`end`: regex for the closing line."
+msgstr ""
+
+#: ../../guide-config-language.md:99
+msgid ""
+"Once a `start` line matches, lang-check skips that line, everything "
+"inside the block, and the closing delimiter line."
+msgstr ""
+
+#: ../../guide-config-language.md:104
+msgid "fenced code blocks,"
+msgstr ""
+
+#: ../../guide-config-language.md:105
+msgid "literal blocks,"
+msgstr ""
+
+#: ../../guide-config-language.md:106
+msgid "embedded scripts,"
+msgstr ""
+
+#: ../../guide-config-language.md:107
+msgid "heredoc-style regions."
+msgstr ""
+
+#: ../../guide-config-language.md:109
+msgid "Worked Example: AsciiDoc"
+msgstr ""
+
+#: ../../guide-config-language.md:111
+msgid ""
+"This schema treats normal text as prose, skips headings, and ignores "
+"fenced listing blocks delimited by `----`."
+msgstr ""
+
+#: ../../guide-config-language.md:114
+msgid "Create `.langcheck/schemas/asciidoc.yaml` in your workspace with:"
+msgstr ""
+
+#: ../../guide-config-language.md:129
+msgid "Sample file:"
+msgstr ""
+
+#: ../../guide-config-language.md:141
+msgid "With the schema above:"
+msgstr ""
+
+#: ../../guide-config-language.md:143
+msgid "the heading line is skipped by `skip_patterns`,"
+msgstr ""
+
+#: ../../guide-config-language.md:144
+msgid "the fenced block is skipped by `skip_blocks`,"
+msgstr ""
+
+#: ../../guide-config-language.md:145
+msgid "`This is an test.` is treated as prose and checked."
+msgstr ""
+
+#: ../../guide-config-language.md:147
+msgid "Verify it with:"
+msgstr ""
+
+#: ../../guide-config-language.md:153
+msgid "Worked Example: TOML Notes"
+msgstr ""
+
+#: ../../guide-config-language.md:155
+msgid "For a TOML-like file where only free-form comment lines should be checked:"
+msgstr ""
+
+#: ../../guide-config-language.md:168
+msgid ""
+"This will ignore tables and assignments while still checking plain text "
+"lines that do not match those patterns."
+msgstr ""
+
+#: ../../guide-config-language.md:171
+msgid "Built-in languages still win"
+msgstr ""
+
+#: ../../guide-config-language.md:173
+msgid ""
+"SLS schemas are a fallback only. If a file extension already has a built-"
+"in tree-sitter extractor, lang-check keeps using the built-in extractor "
+"for that extension."
+msgstr ""
+
+#: ../../guide-config-language.md:177
+msgid "That means:"
+msgstr ""
+
+#: ../../guide-config-language.md:179
+msgid ""
+"a custom `.rst` schema will not replace the built-in reStructuredText "
+"extractor,"
+msgstr ""
+
+#: ../../guide-config-language.md:181
+msgid "a custom `.md` schema will not replace Markdown,"
+msgstr ""
+
+#: ../../guide-config-language.md:182
+msgid ""
+"schemas are primarily for new extensions that do not already have first-"
+"class support."
+msgstr ""
+
+#: ../../guide-config-language.md:185
+msgid "When to use extension aliases instead"
+msgstr ""
+
+#: ../../guide-config-language.md:187
+msgid ""
+"If the new format is truly the same as an existing built-in format, a "
+"simple extension alias in `.languagecheck.yaml` is usually better:"
+msgstr ""
+
+#: ../../guide-config-language.md:197
+msgid ""
+"That reuses the target language's full tree-sitter extractor instead of "
+"the regex-based SLS fallback."
+msgstr ""
+
+#: ../../guide-config-language.md:200
+msgid "Limitations"
+msgstr ""
+
+#: ../../guide-config-language.md:202
+msgid "SLS extraction is regex-based, not AST-aware."
+msgstr ""
+
+#: ../../guide-config-language.md:203
+msgid "Matching is line-oriented; nested syntax is not understood."
+msgstr ""
+
+#: ../../guide-config-language.md:204
+msgid "Block skipping depends entirely on your `start`/`end` patterns."
+msgstr ""
+
+#: ../../guide-config-language.md:205
+msgid "If a format needs structural parsing, use the plugin workflow instead."
+msgstr ""
+
+#: ../../guide-config-language.md:207
+msgid ""
+"For a dedicated tree-sitter-based language integration, see [guide-"
+"plugin-language.md](guide-plugin-language.md)."
+msgstr ""
+

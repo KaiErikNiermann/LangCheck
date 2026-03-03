@@ -1,0 +1,296 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-03 16:38+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../../guide/languagetool-setup.md:1
+msgid "LanguageTool Setup"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:3
+msgid ""
+"Language Check ships with [Harper](https://github.com/elijah-"
+"potter/harper) for fast, offline grammar checking. For deeper analysis — "
+"advanced grammar rules, style suggestions, and multilingual support — you"
+" can optionally connect a [LanguageTool](https://languagetool.org/) "
+"server."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:5
+msgid ""
+"This guide walks through every way to get a LanguageTool server running "
+"locally."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:7
+msgid "Quick Start (Docker)"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:9
+msgid ""
+"The fastest path. Requires [Docker](https://docs.docker.com/get-docker/) "
+"installed."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:16
+msgid ""
+"LanguageTool is now running at `http://localhost:8010`. Skip to [Connect "
+"to Language Check](connect-to-language-check)."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:18
+msgid "Install LanguageTool"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:20
+msgid "Pick the method that matches your system."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:22
+msgid "Option A: Docker"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:24
+msgid "Best for most users — no Java required, isolated, easy to update."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md
+msgid "Linux"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md
+msgid "macOS"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md
+msgid "Windows"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:51
+msgid "Verify it's running:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:57
+msgid "Option B: Package Manager"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:59
+msgid "Install the standalone Java server via your system package manager."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md
+msgid "Linux (apt)"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md
+msgid "Linux (Arch)"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md
+msgid "macOS (Homebrew)"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md
+msgid "Windows (Scoop)"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:94
+msgid "Option C: Manual (JAR)"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:96
+msgid "Works anywhere with Java 11+."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md
+msgid "Linux / macOS"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:102
+msgid "Install Java if needed:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:108
+msgid "If not:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:118 ../../guide/languagetool-setup.md:135
+msgid "Download and run LanguageTool:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:133
+msgid ""
+"Install Java if needed — download from [Adoptium](https://adoptium.net/) "
+"(Temurin JRE 11+)."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:150
+msgid "Run as a System Service"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:152
+msgid "To have LanguageTool start automatically on boot:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md
+msgid "Linux (systemd)"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:158
+msgid "Create `/etc/systemd/system/languagetool.service`:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:176
+msgid "Then enable it:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md
+msgid "macOS (launchd)"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:185
+msgid "Create `~/Library/LaunchAgents/org.languagetool.server.plist`:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:214
+msgid "Then load it:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md
+msgid "Docker (auto-restart)"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:222
+msgid ""
+"The Docker method already handles this with `--restart unless-stopped`. "
+"To start it after a reboot, just make sure Docker itself starts on boot:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:231
+msgid "Connect to Language Check"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:233
+msgid "Once LanguageTool is running, enable it in your `.languagecheck.yaml`:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:242
+msgid "Or change the URL in VS Code settings:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:244
+msgid "Open Settings (`Ctrl+,`)"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:245
+msgid "Search for **Language Check**"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:246
+msgid "Set **Engines > LanguageTool** to `true`"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:247
+msgid "Set **Engines > LanguageTool URL** to `http://localhost:8010`"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:249
+msgid "English Engine Toggle"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:251
+msgid ""
+"By default, Harper handles all English checking. If you prefer "
+"LanguageTool's deeper analysis for English, set `english_engine`:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:260
+msgid ""
+"When set to `\"languagetool\"`, Harper is skipped entirely (since it only"
+" supports English). When set to `\"harper\"` (the default), LanguageTool "
+"is skipped for English content but still runs for other languages."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:262
+msgid "Verify the Connection"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:264
+msgid "Run a quick check to confirm everything is wired up:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:272
+msgid ""
+"You should see a JSON response with a match for the misspelling "
+"\"sentnce\"."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:274
+msgid ""
+"In VS Code, open any Markdown file — diagnostics from both Harper and "
+"LanguageTool will now appear."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:276
+msgid "Troubleshooting"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:278
+msgid "Connection refused"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:279
+msgid "Make sure the server is actually running on the expected port:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:285
+msgid ""
+"If this fails, the server isn't running. Restart it using the method you "
+"chose above."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:287
+msgid "Slow first check"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:288
+msgid ""
+"LanguageTool loads language models on the first request. The first check "
+"can take 5-10 seconds; subsequent checks are fast."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:290
+msgid "Port conflict"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:291
+msgid ""
+"If port `8010` is taken, pick another port and update both the server "
+"command and your `.languagecheck.yaml`:"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:303
+msgid "Java version errors"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:304
+msgid "LanguageTool requires Java 11+. Check your version with `java -version`."
+msgstr ""
+

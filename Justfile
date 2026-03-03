@@ -79,6 +79,18 @@ docs:
 docs-serve:
     cd docs && pip install -q -r requirements.txt sphinx-autobuild && sphinx-autobuild . _build/html
 
+# Extract translatable strings from docs into .pot files
+docs-gettext:
+    cd docs && source .venv/bin/activate && sphinx-build -b gettext . _build/gettext
+
+# Update .po files for all doc languages from .pot files
+docs-intl-update: docs-gettext
+    cd docs && source .venv/bin/activate && sphinx-intl update -p _build/gettext -l fr -l es -l ja
+
+# Build docs for a specific language (e.g. just docs-lang fr)
+docs-lang lang:
+    cd docs && source .venv/bin/activate && sphinx-build -b html -D language={{lang}} . _build/html/{{lang}}
+
 # --- Combined ---
 
 # Run all checks (rust + TypeScript)

@@ -1,0 +1,124 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-03 16:38+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../../reference/publishing.md:1
+msgid "Package Registry Publishing"
+msgstr ""
+
+#: ../../reference/publishing.md:3
+msgid ""
+"Distribution plan for the Language Check CLI binary across package "
+"registries."
+msgstr ""
+
+#: ../../reference/publishing.md:5
+msgid "crates.io"
+msgstr ""
+
+#: ../../reference/publishing.md:7
+msgid "The Rust crate is published directly from the `rust-core` directory."
+msgstr ""
+
+#: ../../reference/publishing.md:15
+msgid "**Checklist:**"
+msgstr ""
+
+#: ../../reference/publishing.md:16
+msgid ""
+"Ensure `Cargo.toml` has correct `name`, `version`, `description`, "
+"`license`, `repository`"
+msgstr ""
+
+#: ../../reference/publishing.md:17
+msgid "Add `categories` and `keywords` for discoverability"
+msgstr ""
+
+#: ../../reference/publishing.md:18
+msgid "Verify `README.md` is included via `readme` field"
+msgstr ""
+
+#: ../../reference/publishing.md:20
+msgid "Homebrew (macOS/Linux)"
+msgstr ""
+
+#: ../../reference/publishing.md:22
+msgid "Formula"
+msgstr ""
+
+#: ../../reference/publishing.md:60
+msgid "Tap setup"
+msgstr ""
+
+#: ../../reference/publishing.md:68
+msgid "winget (Windows)"
+msgstr ""
+
+#: ../../reference/publishing.md:70
+msgid "Manifest"
+msgstr ""
+
+#: ../../reference/publishing.md:72
+msgid ""
+"Create `manifests/g/KaiErikNiermann/language-check/0.1.0/` in the "
+"[winget-pkgs](https://github.com/microsoft/winget-pkgs) repository:"
+msgstr ""
+
+#: ../../reference/publishing.md:74
+msgid "**KaiErikNiermann.language-check.yaml:**"
+msgstr ""
+
+#: ../../reference/publishing.md:91
+msgid "Submit via PR to `microsoft/winget-pkgs`."
+msgstr ""
+
+#: ../../reference/publishing.md:93
+msgid "AUR (Arch Linux)"
+msgstr ""
+
+#: ../../reference/publishing.md:95
+msgid "PKGBUILD"
+msgstr ""
+
+#: ../../reference/publishing.md:118
+msgid "Publishing"
+msgstr ""
+
+#: ../../reference/publishing.md:131
+msgid "Debian/Ubuntu (.deb)"
+msgstr ""
+
+#: ../../reference/publishing.md:133
+msgid "Using cargo-deb"
+msgstr ""
+
+#: ../../reference/publishing.md:141
+msgid "Add to `Cargo.toml`:"
+msgstr ""
+
+#: ../../reference/publishing.md:154
+msgid "Release Automation"
+msgstr ""
+
+#: ../../reference/publishing.md:156
+msgid "GitHub Actions workflow"
+msgstr ""
+

@@ -1,0 +1,205 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-03 16:38+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: ja\n"
+"Language-Team: ja <LL@li.org>\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../../reference/cli.md:1
+msgid "CLI Reference"
+msgstr ""
+
+#: ../../reference/cli.md:3
+msgid ""
+"The `language-check` CLI provides standalone access to the checking "
+"engine."
+msgstr ""
+
+#: ../../reference/cli.md:5
+msgid "Usage"
+msgstr ""
+
+#: ../../reference/cli.md:11
+msgid "Commands"
+msgstr ""
+
+#: ../../reference/cli.md:13
+msgid "`check`"
+msgstr ""
+
+#: ../../reference/cli.md:15
+msgid "Check files for prose issues."
+msgstr ""
+
+#: ../../reference/cli.md:21 ../../reference/cli.md:51
+#: ../../reference/cli.md:67
+msgid "**Options:**"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Flag"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Description"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Default"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "`--config <PATH>`"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Path to config file"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Auto-detect"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "`--language <ID>`"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Checking language (e.g., `en-US`)"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "`--format <FMT>`"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Output format: `text`, `json`, `sarif`"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "`text`"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "`--severity <LVL>`"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Minimum severity: `error`, `warning`, `info`, `hint`"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "`hint`"
+msgstr ""
+
+#: ../../reference/cli.md:30
+msgid "**Examples:**"
+msgstr ""
+
+#: ../../reference/cli.md:43
+msgid "`fix`"
+msgstr ""
+
+#: ../../reference/cli.md:45
+msgid "Auto-fix issues in files (applies suggestions with high confidence)."
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "`--dry-run`"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Show changes without applying them"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "`false`"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "`--min-confidence`"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Minimum confidence for auto-fix (0.0-1.0)"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "`0.9`"
+msgstr ""
+
+#: ../../reference/cli.md:59
+msgid "`workspace`"
+msgstr ""
+
+#: ../../reference/cli.md:61
+msgid "Check all supported files in a directory."
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Output format"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "`--jobs <N>`"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Number of parallel workers"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "CPU count"
+msgstr ""
+
+#: ../../reference/cli.md:75
+msgid "Exit Codes"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Code"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Meaning"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "0"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "No issues found"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "1"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Issues found"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "2"
+msgstr ""
+
+#: ../../reference/cli.md
+msgid "Configuration or I/O error"
+msgstr ""
+
