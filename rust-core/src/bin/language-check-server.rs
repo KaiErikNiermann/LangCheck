@@ -421,7 +421,8 @@ async fn main() -> Result<()> {
                             info!(count = schema_registry.len(), "Loaded SLS schemas");
                             *schema_registry_arc.lock().await = schema_registry;
 
-                            let db_path = req.db_path
+                            let db_path = req
+                                .db_path
                                 .as_deref()
                                 .filter(|p| !p.is_empty())
                                 .or(config.workspace.db_path.as_deref())
