@@ -1,0 +1,48 @@
+name: Lint Lua
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "editors/nvim/**"
+      - ".github/nvim-lsp-test.lua"
+      - ".luacheckrc"
+      - "stylua.toml"
+      - ".github/workflows/lint-lua.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "editors/nvim/**"
+      - ".github/nvim-lsp-test.lua"
+      - ".luacheckrc"
+      - "stylua.toml"
+      - ".github/workflows/lint-lua.yml"
+
+concurrency:
+  group: lint-lua-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  luacheck:
+    name: Luacheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install luacheck
+        run: sudo apt-get update && sudo apt-get install -y lua-check
+
+      - name: Run luacheck
+        run: luacheck editors/nvim/ .github/nvim-lsp-test.lua
+
+  stylua:
+    name: StyLua
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: JohnnyMorganz/stylua-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: latest
+          args: --check editors/nvim/ .github/nvim-lsp-test.lua
