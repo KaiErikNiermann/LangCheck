@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-BIN="${1:?Usage: smoke-test.sh <binary-path> [expected-version]}"
+BIN="$(realpath "${1:?Usage: smoke-test.sh <binary-path> [expected-version]}")"
 EXPECTED_VERSION="${2:-}"
 FIXTURES="$(cd "$(dirname "$0")/fixtures" && pwd)"
 
@@ -168,6 +168,45 @@ else
 fi
 
 rm -f "$fix_copy"
+
+# ---------- 10. WASM plugin (if available) ----------
+
+WASM_PLUGIN="${3:-}"
+if [[ -n "$WASM_PLUGIN" && -f "$WASM_PLUGIN" ]]; then
+    printf '\n%s\n' "=== WASM plugin ==="
+
+    # Create a temp directory with config pointing to the plugin
+    wasm_dir=$(mktemp -d)
+    cp "$FIXTURES/wordy.md" "$wasm_dir/wordy.md"
+    cat > "$wasm_dir/.languagecheck.yaml" <<YAML
+engines:
+  harper: false
+  languagetool: false
+  wasm_plugins:
+    - name: wordiness-check
+      path: $(realpath "$WASM_PLUGIN")
+YAML
+
+    wasm_output=$(cd "$wasm_dir" && "$BIN" check wordy.md 2>&1) || true
+
+    if echo "$wasm_output" | grep -qi "wordy\|in order to"; then
+        pass "WASM plugin detects wordy phrase"
+    else
+        fail "WASM plugin did not detect wordy phrase (output: $wasm_output)"
+    fi
+
+    wasm_json=$(cd "$wasm_dir" && "$BIN" check --format json wordy.md 2>&1) || true
+    if echo "$wasm_json" | grep -q "wasm.wordiness-check"; then
+        pass "WASM plugin rule_id has correct namespace"
+    else
+        fail "WASM plugin rule_id missing namespace (output: $wasm_json)"
+    fi
+
+    rm -rf "$wasm_dir"
+else
+    printf '\n%s\n' "=== WASM plugin ==="
+    printf '  \033[33m⊘\033[0m %s\n' "skipped (no plugin path provided)"
+fi
 
 # ---------- Summary ----------
 

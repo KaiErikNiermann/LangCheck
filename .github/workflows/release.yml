@@ -83,7 +83,7 @@ jobs:
 
   smoke-test:
     name: Smoke Test (${{ matrix.target }})
-    needs: build-binaries
+    needs: [build-binaries, build-wasm-plugins]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -107,6 +107,12 @@ jobs:
           name: binary-${{ matrix.target }}
           path: artifact
 
+      - name: Download WASM plugins
+        uses: actions/download-artifact@v8
+        with:
+          name: wasm-plugins
+          path: wasm-plugins
+
       - name: Extract binary
         shell: bash
         run: |
@@ -121,7 +127,7 @@ jobs:
 
       - name: Run smoke tests
         shell: bash
-        run: .github/smoke-test.sh bin/${{ matrix.binary }} "${{ steps.version.outputs.version }}"
+        run: .github/smoke-test.sh bin/${{ matrix.binary }} "${{ steps.version.outputs.version }}" wasm-plugins/wordiness-check.wasm
 
   build-vsix:
     name: Package VSIX
@@ -205,10 +211,34 @@ jobs:
       - name: Run Neovim LSP smoke tests
         run: .github/nvim-lsp-smoke-test.sh bin/language-check-server
 
+  build-wasm-plugins:
+    name: Build WASM Plugins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Install TinyGo
+        run: |
+          wget -q https://github.com/tinygo-org/tinygo/releases/download/v0.34.0/tinygo_0.34.0_amd64.deb -O /tmp/tinygo.deb
+          sudo dpkg -i /tmp/tinygo.deb
+
+      - name: Build wordiness-check plugin
+        working-directory: plugins/wordiness-check
+        run: make build
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wasm-plugins
+          path: plugins/wordiness-check/wordiness-check.wasm
+
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [build-binaries, build-vsix, smoke-test, nvim-smoke-test]
+    needs: [build-binaries, build-vsix, smoke-test, nvim-smoke-test, build-wasm-plugins]
     steps:
       - uses: actions/checkout@v6
 
@@ -224,6 +254,7 @@ jobs:
           files: |
             artifacts/binary-*/language-check-*.tar.gz
             artifacts/vsix/*.vsix
+            artifacts/wasm-plugins/*.wasm
 
   publish-crate:
     name: Publish to crates.io
