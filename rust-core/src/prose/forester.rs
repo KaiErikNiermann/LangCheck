@@ -62,7 +62,6 @@ const SKIP_KINDS: &[&str] = &[
     "verbatim",
     "comment",
     "wiki_link",
-    "markdown_link",
     "command_name",
 ];
 
@@ -113,6 +112,43 @@ fn get_command_name<'a>(node: Node, text: &'a str) -> Option<&'a str> {
     None
 }
 
+/// Scan a text slice for `\command{...}` patterns and add skip regions for the
+/// command name + opening brace and closing brace, so only the inner text
+/// remains as prose. Handles nesting (e.g. `\strong{\em{text}}`).
+fn strip_inline_commands_in_range(
+    slice: &str,
+    base_offset: usize,
+    skips: &mut Vec<(usize, usize)>,
+) {
+    let bytes = slice.as_bytes();
+    let len = bytes.len();
+    let mut i = 0;
+    while i < len {
+        if bytes[i] == b'\\' && i + 1 < len && bytes[i + 1].is_ascii_alphabetic() {
+            let cmd_start = i;
+            i += 1;
+            while i < len && (bytes[i].is_ascii_alphabetic() || bytes[i] == b'?') {
+                i += 1;
+            }
+            if i < len && bytes[i] == b'{' {
+                // Skip \command{ (command name through opening brace)
+                skips.push((base_offset + cmd_start, base_offset + i + 1));
+                let close = shared::skip_balanced_bytes(bytes, i + 1, b'{', b'}', None);
+                // Skip the closing '}' (byte just before `close`)
+                if close > i + 1 {
+                    skips.push((base_offset + close - 1, base_offset + close));
+                }
+                // Continue scanning inside the braces for nested commands
+                i += 1;
+            } else {
+                skips.push((base_offset + cmd_start, base_offset + i));
+            }
+        } else {
+            i += 1;
+        }
+    }
+}
+
 /// Recursively collect prose leaf nodes into scoped segments.
 ///
 /// Block-level commands push new segments to prevent cross-boundary merging.
@@ -131,6 +167,41 @@ fn collect_prose_nodes(
     // Skip entire subtrees for non-prose node kinds
     if SKIP_KINDS.contains(&kind) {
         skips.push((node.start_byte(), node.end_byte()));
+        return;
+    }
+
+    // Markdown links: extract alias text as prose, skip the brackets and address.
+    // The node is a single token like `[De Morgan's laws](000g)`.
+    // Inline commands in the alias (e.g. [\em{text}](addr)) are stripped so
+    // only their inner text becomes prose.
+    if kind == "markdown_link" {
+        let node_text = &text[node.start_byte()..node.end_byte()];
+        if let Some(close_bracket) = node_text.find(']') {
+            let alias_start = node.start_byte() + 1; // skip '['
+            let alias_end = node.start_byte() + close_bracket;
+            if alias_start < alias_end {
+                // Skip '[' before alias
+                skips.push((node.start_byte(), alias_start));
+                // Strip inline commands within the alias text
+                strip_inline_commands_in_range(
+                    &text[alias_start..alias_end],
+                    alias_start,
+                    skips,
+                );
+                // The alias text (with inline commands excluded) becomes prose
+                if in_prose {
+                    if let Some(scope) = scopes.last_mut() {
+                        scope.push((alias_start, alias_end));
+                    }
+                }
+                // Skip '](...)'  after alias
+                skips.push((alias_end, node.end_byte()));
+            } else {
+                skips.push((node.start_byte(), node.end_byte()));
+            }
+        } else {
+            skips.push((node.start_byte(), node.end_byte()));
+        }
         return;
     }
 
@@ -181,6 +252,19 @@ fn collect_prose_nodes(
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             collect_prose_nodes(child, text, scopes, skips, false);
+        }
+        return;
+    }
+
+    // Parenthesised groups inside prose — include the parens and content as prose.
+    // e.g. \title{Negation Normal Form (NNF)} → "Negation Normal Form (NNF)"
+    if kind == "paren_group" && in_prose {
+        let start = node.start_byte();
+        let end = node.end_byte();
+        if start < end {
+            if let Some(scope) = scopes.last_mut() {
+                scope.push((start, end));
+            }
         }
         return;
     }
@@ -1250,35 +1334,70 @@ so the result follows.}";
     }
 
     #[test]
-    fn test_markdown_link_excluded() -> Result<()> {
+    fn test_markdown_link_alias_extracted() -> Result<()> {
         let mut extractor = forester_extractor()?;
 
         let text = r"\p{See [frame](006j) for details.}";
         let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
-
-        for range in &ranges {
-            let clean = range.extract_text(text);
-            assert!(
-                !clean.contains("006j"),
-                "Link target should be excluded, got: {clean:?}"
-            );
-            assert!(
-                !clean.contains("[frame]"),
-                "Link syntax should be excluded, got: {clean:?}"
-            );
-        }
 
         let all_text: String = ranges
             .iter()
             .map(|r| r.extract_text(text))
             .collect::<Vec<_>>()
             .join(" ");
+
+        assert!(
+            !all_text.contains("006j"),
+            "Link target should be excluded, got: {all_text:?}"
+        );
+        assert!(
+            !all_text.contains('['),
+            "Link bracket syntax should be excluded, got: {all_text:?}"
+        );
         assert!(
             all_text.contains("See"),
             "Prose before link, got: {all_text:?}"
         );
         assert!(
+            all_text.contains("frame"),
+            "Link alias should be extracted as prose, got: {all_text:?}"
+        );
+        assert!(
             all_text.contains("for details"),
+            "Prose after link, got: {all_text:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_markdown_link_alias_merged_into_prose() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{apply [De Morgan's laws](000g) to push}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text))
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        assert!(
+            all_text.contains("De Morgan's laws"),
+            "Link alias should be merged into prose, got: {all_text:?}"
+        );
+        assert!(
+            !all_text.contains("000g"),
+            "Link address should be excluded, got: {all_text:?}"
+        );
+        // Verify surrounding prose is intact
+        assert!(
+            all_text.contains("apply"),
+            "Prose before link, got: {all_text:?}"
+        );
+        assert!(
+            all_text.contains("to push"),
             "Prose after link, got: {all_text:?}"
         );
 
@@ -1352,6 +1471,110 @@ so the result follows.}";
         assert!(
             all_clean.contains("local truth"),
             "Paragraph should be extracted, got: {all_clean:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_paren_group_in_title_preserved() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\title{Negation Normal Form (NNF)}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text).into_owned())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        assert!(
+            all_text.contains("(NNF)"),
+            "Parenthesised abbreviation should be preserved, got: {all_text:?}"
+        );
+        assert!(
+            all_text.contains("Negation Normal Form"),
+            "Title text should be extracted, got: {all_text:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_paren_group_in_paragraph_preserved() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{A formula is in Negation Normal Form (NNF) if negation is only applied to literals.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text).into_owned())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        assert!(
+            all_text.contains("(NNF)"),
+            "Parenthesised abbreviation should be preserved, got: {all_text:?}"
+        );
+        assert!(
+            all_text.contains("if negation"),
+            "Text after parens should be extracted, got: {all_text:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_markdown_link_inline_command_stripped() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{See [\em{some text}](link-to-ignore) for details.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text).into_owned())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        assert!(
+            all_text.contains("some text"),
+            "Inner text of inline command in link alias should be prose, got: {all_text:?}"
+        );
+        assert!(
+            !all_text.contains("\\em"),
+            "Command name should be stripped, got: {all_text:?}"
+        );
+        assert!(
+            !all_text.contains("link-to-ignore"),
+            "Link target should be excluded, got: {all_text:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_markdown_link_nested_commands_stripped() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{See [\strong{\em{nested}}](addr) here.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let all_text: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text).into_owned())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        assert!(
+            all_text.contains("nested"),
+            "Deeply nested text should be extracted, got: {all_text:?}"
+        );
+        assert!(
+            !all_text.contains("\\strong"),
+            "Outer command should be stripped, got: {all_text:?}"
+        );
+        assert!(
+            !all_text.contains("\\em"),
+            "Inner command should be stripped, got: {all_text:?}"
         );
 
         Ok(())
