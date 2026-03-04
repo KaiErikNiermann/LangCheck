@@ -22,7 +22,8 @@ fn count_sentences(text: &str) -> usize {
         let ch = chars[i];
         if ch == '.' || ch == '!' || ch == '?' {
             // Skip consecutive punctuation (e.g. "..." or "?!")
-            while i + 1 < len && (chars[i + 1] == '.' || chars[i + 1] == '!' || chars[i + 1] == '?') {
+            while i + 1 < len && (chars[i + 1] == '.' || chars[i + 1] == '!' || chars[i + 1] == '?')
+            {
                 i += 1;
             }
             // Sentence boundary: must be followed by whitespace, end-of-string,
@@ -37,16 +38,18 @@ fn count_sentences(text: &str) -> usize {
                     // a single uppercase letter (likely an abbreviation/initial)
                     let before_punct = i.checked_sub(1).map(|j| chars[j]);
                     let is_initial = before_punct.is_some_and(|c| {
-                        c.is_ascii_uppercase()
-                            && (i < 2 || chars[i - 2].is_whitespace())
+                        c.is_ascii_uppercase() && (i < 2 || chars[i - 2].is_whitespace())
                     });
                     if !is_initial {
                         count += 1;
                     }
-                } else if next_ch == '"' || next_ch == '\'' || next_ch == ')' || next_ch == '\u{201D}' {
-                    if next + 1 >= len || chars[next + 1].is_whitespace() {
-                        count += 1;
-                    }
+                } else if (next_ch == '"'
+                    || next_ch == '\''
+                    || next_ch == ')'
+                    || next_ch == '\u{201D}')
+                    && (next + 1 >= len || chars[next + 1].is_whitespace())
+                {
+                    count += 1;
                 }
             }
         }
@@ -70,7 +73,9 @@ fn count_words(text: &str) -> usize {
 /// Excludes markup characters like {, }, [, ], <, >, \, #, *, etc.
 fn count_characters(text: &str) -> usize {
     text.chars()
-        .filter(|c| c.is_alphanumeric() || matches!(c, '\'' | '\u{2019}' | '-' | '\u{2013}' | '\u{2014}'))
+        .filter(|c| {
+            c.is_alphanumeric() || matches!(c, '\'' | '\u{2019}' | '-' | '\u{2013}' | '\u{2014}')
+        })
         .count()
 }
 
@@ -217,13 +222,11 @@ mod tests {
     fn analyze_ranges_uses_prose_only() {
         // Document with markup around prose
         let doc = "# Heading\n\nThe cat sat on the mat. The dog ran home.\n\n```code block```\n";
-        let ranges = vec![
-            ProseRange {
-                start_byte: 12,  // "The cat sat on the mat. The dog ran home.\n"
-                end_byte: 54,
-                exclusions: vec![],
-            },
-        ];
+        let ranges = vec![ProseRange {
+            start_byte: 12, // "The cat sat on the mat. The dog ran home.\n"
+            end_byte: 54,
+            exclusions: vec![],
+        }];
         let from_ranges = ProseInsights::analyze_ranges(doc, &ranges);
         let prose_only = ProseInsights::analyze(&doc[12..54]);
         assert_eq!(from_ranges.word_count, prose_only.word_count);
