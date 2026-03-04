@@ -6,6 +6,13 @@
   </picture>
 </p>
 
+<p align="center">
+  <a href="https://github.com/KaiErikNiermann/LangCheck/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/KaiErikNiermann/LangCheck" /></a>
+  <a href="https://github.com/KaiErikNiermann/LangCheck/actions/workflows/release.yml"><img alt="Release CI" src="https://img.shields.io/github/actions/workflow/status/KaiErikNiermann/LangCheck/release.yml?label=release" /></a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=KaiErikNiermann.language-check"><img alt="VS Code Marketplace" src="https://img.shields.io/visual-studio-marketplace/v/KaiErikNiermann.language-check?label=marketplace" /></a>
+  <a href="https://crates.io/crates/lang-check"><img alt="crates.io" src="https://img.shields.io/crates/v/lang-check" /></a>
+</p>
+
 A fast, extensible grammar and style checker for Markdown, HTML, LaTeX, Typst, and more. Ships as a VS Code extension and Neovim plugin, backed by a Rust core binary with LSP and Protobuf server modes.
 
 <table>
