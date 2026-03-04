@@ -352,6 +352,47 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     };
 
+    /** Format an inlay hint label and apply-value for a diagnostic suggestion. */
+    function formatInlayLabel(
+        d: { suggestions?: string[]; range: vscode.Range },
+        document: vscode.TextDocument
+    ): { label: string; applyValue: string } | null {
+        const suggestion = d.suggestions?.[0];
+        if (suggestion === undefined) return null;
+
+        // Harper "Insert ..." pattern (e.g. Insert "comma")
+        const insertMatch = suggestion.match(/^Insert "(.+)"$/);
+        if (insertMatch) {
+            return { label: ` → insert ${insertMatch[1]}`, applyValue: suggestion };
+        }
+
+        // Deletion — empty suggestion
+        if (suggestion === '') {
+            return { label: ' → (remove)', applyValue: '' };
+        }
+
+        const originalText = document.getText(d.range);
+
+        // Punctuation insertion — suggestion starts with original + punctuation
+        if (originalText.length > 0 && suggestion.startsWith(originalText) && suggestion.length > originalText.length) {
+            const added = suggestion.slice(originalText.length);
+            if (/^[.,;:!?'"\-–—]+$/.test(added)) {
+                return { label: ` → insert "${added}"`, applyValue: suggestion };
+            }
+        }
+
+        // Punctuation removal — original starts with suggestion + trailing punctuation
+        if (suggestion.length > 0 && originalText.startsWith(suggestion) && originalText.length > suggestion.length) {
+            const removed = originalText.slice(suggestion.length);
+            if (/^[.,;:!?'"\-–—]+$/.test(removed)) {
+                return { label: ` → remove "${removed}"`, applyValue: suggestion };
+            }
+        }
+
+        // Default — show raw suggestion
+        return { label: ` → ${suggestion}`, applyValue: suggestion };
+    }
+
     // Register Inlay Hints Provider with invalidation support
     context.subscriptions.push(vscode.languages.registerInlayHintsProvider(
         supportedLanguages.map(lang => ({ language: lang })),
@@ -363,15 +404,19 @@ export async function activate(context: vscode.ExtensionContext) {
                 if (!diagnostics) return [];
 
                 // Group diagnostics by position to avoid stacking hints
-                const byPosition = new Map<string, typeof diagnostics>();
-                for (const d of diagnostics) {
+                const byPosition = new Map<string, { diag: typeof diagnostics[number]; idx: number; fmt: { label: string; applyValue: string } }[]>();
+                for (let i = 0; i < diagnostics.length; i++) {
+                    const d = diagnostics[i]!;
                     if (d.confidence && d.confidence >= 0.8 && d.suggestions && d.suggestions.length > 0) {
+                        const fmt = formatInlayLabel(d, document);
+                        if (!fmt) continue;
                         const key = `${d.range.end.line}:${d.range.end.character}`;
                         const group = byPosition.get(key);
+                        const entry = { diag: d, idx: i, fmt };
                         if (group) {
-                            group.push(d);
+                            group.push(entry);
                         } else {
-                            byPosition.set(key, [d]);
+                            byPosition.set(key, [entry]);
                         }
                     }
                 }
@@ -380,27 +425,26 @@ export async function activate(context: vscode.ExtensionContext) {
                 for (const group of byPosition.values()) {
                     if (group.length === 0) continue;
                     const first = group[0]!;
-                    const firstIdx = diagnostics.indexOf(first);
                     let label: string;
                     let tooltip: string;
                     if (group.length === 1) {
-                        label = ` → ${first.suggestions![0]}`;
-                        tooltip = `Accept suggestion: ${first.suggestions![0]}`;
+                        label = first.fmt.label;
+                        tooltip = `Accept suggestion: ${first.fmt.applyValue || '(remove)'}`;
                     } else {
-                        label = ` → ${first.suggestions![0]} (+${group.length - 1} more)`;
+                        label = `${first.fmt.label} (+${group.length - 1} more)`;
                         tooltip = group
-                            .map((d, i) => `${i + 1}. ${d.message}: ${d.suggestions![0]}`)
+                            .map((e, i) => `${i + 1}. ${e.diag.message}: ${e.fmt.applyValue || '(remove)'}`)
                             .join('\n');
                     }
                     const hint = new vscode.InlayHint(
-                        first.range.end,
+                        first.diag.range.end,
                         [
                             {
                                 value: label,
                                 command: {
                                     command: 'language-check.applyFix',
                                     title: 'Apply Fix',
-                                    arguments: [`diag-${firstIdx}`, first.suggestions![0]]
+                                    arguments: [`diag-${first.idx}`, first.fmt.applyValue]
                                 }
                             }
                         ],
@@ -2118,10 +2162,19 @@ function updateInsightsStatusBar(editor?: vscode.TextEditor) {
         return;
     }
 
-    const text = editor.document.getText();
-    const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
-    const charCount = text.replace(/\s/g, '').length;
-    const sentenceCount = text.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+    // Use extracted prose from cache (markup-free) for accurate metrics.
+    // Falls back to raw text if no extraction data is cached yet.
+    const cached = extractionCache.get(editor.document.uri.toString());
+    const proseText = cached
+        ? cached.prose.map(r => r.cleanText).join(' ')
+        : editor.document.getText();
+
+    const wordCount = proseText.split(/\s+/).filter(w => w.length > 0 && /[a-zA-Z0-9]/.test(w)).length;
+    const charCount = proseText.replace(/[^a-zA-Z0-9'\u2019\-\u2013\u2014]/g, '').length;
+    // Sentence detection: split on sentence-ending punctuation followed by
+    // whitespace or end-of-string, collapsing runs like "..." or "?!"
+    const sentenceCount = (proseText.match(/[.!?]+(?:\s|["')\u201D](?:\s|$)|$)/g) ?? []).length
+        || (wordCount > 0 ? 1 : 0);
 
     // ARI (Automated Readability Index)
     let readingLevel = 0;

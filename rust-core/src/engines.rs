@@ -221,7 +221,7 @@ impl Engine for LanguageToolEngine {
                     rule_id: format!("languagetool.{}", m.rule.id),
                     severity: severity as i32,
                     unified_id: String::new(), // Will be filled by normalizer
-                    confidence: 0.7,
+                    confidence: 0.8,
                 }
             })
             .collect();
