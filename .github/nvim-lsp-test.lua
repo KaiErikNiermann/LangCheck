@@ -68,7 +68,9 @@ local function get_diagnostics(filepath, timeout_ms)
   end
 
   -- Wait for diagnostics
-  local ok = vim.wait(timeout_ms, function() return received end, 100)
+  local ok = vim.wait(timeout_ms, function()
+    return received
+  end, 100)
   if not ok then
     fail("timed out waiting for diagnostics: " .. filepath)
   end
@@ -102,15 +104,13 @@ else
   fail("Markdown: got " .. #md_diags .. " diagnostics, expected >= 2")
 end
 
-if has_diagnostic_matching(md_diags, "indefinite article") or
-   has_diagnostic_matching(md_diags, "[Aa]rticle") then
+if has_diagnostic_matching(md_diags, "indefinite article") or has_diagnostic_matching(md_diags, "[Aa]rticle") then
   pass("Markdown: detected article error")
 else
   fail("Markdown: did not detect article error")
 end
 
-if has_diagnostic_matching(md_diags, "repeat") or
-   has_diagnostic_matching(md_diags, "[Rr]epetition") then
+if has_diagnostic_matching(md_diags, "repeat") or has_diagnostic_matching(md_diags, "[Rr]epetition") then
   pass("Markdown: detected word repetition")
 else
   fail("Markdown: did not detect word repetition")
@@ -143,8 +143,7 @@ else
   fail("LaTeX: got 0 diagnostics, expected >= 1")
 end
 
-if has_diagnostic_matching(tex_diags, "indefinite article") or
-   has_diagnostic_matching(tex_diags, "[Aa]rticle") then
+if has_diagnostic_matching(tex_diags, "indefinite article") or has_diagnostic_matching(tex_diags, "[Aa]rticle") then
   pass("LaTeX: detected article error")
 else
   fail("LaTeX: did not detect article error")
