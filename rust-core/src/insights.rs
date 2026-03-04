@@ -56,7 +56,7 @@ fn count_sentences(text: &str) -> usize {
         i += 1;
     }
     // If there's text but no sentence-ending punctuation was found, count as 1
-    if count == 0 && text.chars().any(|c| c.is_alphanumeric()) {
+    if count == 0 && text.chars().any(char::is_alphanumeric) {
         count = 1;
     }
     count
@@ -65,7 +65,7 @@ fn count_sentences(text: &str) -> usize {
 /// Count words — only tokens that contain at least one alphanumeric character.
 fn count_words(text: &str) -> usize {
     text.split_whitespace()
-        .filter(|w| w.chars().any(|c| c.is_alphanumeric()))
+        .filter(|w| w.chars().any(char::is_alphanumeric))
         .count()
 }
 
