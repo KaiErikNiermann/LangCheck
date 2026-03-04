@@ -97,6 +97,10 @@
       {
         "command": "language-check.toggleInlayHints",
         "title": "%command.toggleInlayHints%"
+      },
+      {
+        "command": "language-check.managePlugins",
+        "title": "%command.managePlugins%"
       }
     ],
     "keybindings": [
@@ -175,6 +179,35 @@
           "type": "string",
           "default": "",
           "description": "%config.workspace.dbPath%"
+        },
+        "languageCheck.plugins": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Path to the .wasm plugin file"
+              },
+              "enabled": {
+                "type": "boolean",
+                "default": true,
+                "description": "Whether the plugin is enabled"
+              },
+              "name": {
+                "type": "string",
+                "description": "Display name (defaults to filename)"
+              },
+              "languages": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Language IDs to restrict this plugin to"
+              }
+            },
+            "required": ["path"]
+          },
+          "default": [],
+          "description": "%config.plugins%"
         }
       }
     },

@@ -757,6 +757,53 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage(`Language Check inlay hints ${inlayHintsEnabled ? 'enabled' : 'disabled'}`);
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.managePlugins', async () => {
+        const config = vscode.workspace.getConfiguration('languageCheck');
+        const plugins: Array<{ path: string; enabled?: boolean; name?: string; languages?: string[] }> =
+            config.get('plugins') ?? [];
+
+        if (plugins.length === 0) {
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('No plugins configured. Add plugins in settings (languageCheck.plugins).')
+            );
+            return;
+        }
+
+        const items = plugins.map((p, i) => {
+            const name = p.name ?? path.basename(p.path, '.wasm');
+            const enabled = p.enabled !== false;
+            return {
+                label: name,
+                description: enabled
+                    ? vscode.l10n.t('{0} (enabled)', p.path)
+                    : vscode.l10n.t('{0} (disabled)', p.path),
+                picked: enabled,
+                index: i,
+            };
+        });
+
+        const selected = await vscode.window.showQuickPick(items, {
+            canPickMany: true,
+            placeHolder: vscode.l10n.t('Select plugins to enable/disable'),
+        });
+
+        if (!selected) return;
+
+        const selectedIndices = new Set(selected.map(s => s.index));
+        const updated = plugins.map((p, i) => ({ ...p, enabled: selectedIndices.has(i) }));
+        await config.update('plugins', updated, vscode.ConfigurationTarget.Workspace);
+
+        for (const item of items) {
+            const nowEnabled = selectedIndices.has(item.index);
+            const wasEnabled = plugins[item.index].enabled !== false;
+            if (nowEnabled !== wasEnabled) {
+                vscode.window.showInformationMessage(
+                    vscode.l10n.t('Plugin "{0}" {1}', item.label, nowEnabled ? 'enabled' : 'disabled')
+                );
+            }
+        }
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('language-check.restartLanguageServer', () => {
         log.info('Restarting language server');
         pushInspectorEvent('info', 'restartServer', 'Restarting language server');
