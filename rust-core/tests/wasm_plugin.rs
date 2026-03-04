@@ -1,7 +1,6 @@
 use lang_check::engines::{Engine, WasmEngine};
 
-const WASM_BYTES: &[u8] =
-    include_bytes!("../../plugins/wordiness-check/wordiness-check.wasm");
+const WASM_BYTES: &[u8] = include_bytes!("../../plugins/wordiness-check/wordiness-check.wasm");
 
 fn engine() -> WasmEngine {
     WasmEngine::from_bytes("wordiness-check".into(), WASM_BYTES)
@@ -79,17 +78,17 @@ async fn offsets_are_byte_accurate() {
 
     assert_eq!(diags.len(), 1);
     let d = &diags[0];
-    assert_eq!(&text[d.start_byte as usize..d.end_byte as usize], "take into consideration");
+    assert_eq!(
+        &text[d.start_byte as usize..d.end_byte as usize],
+        "take into consideration"
+    );
     assert_eq!(d.suggestions, vec!["consider"]);
 }
 
 #[tokio::test]
 async fn rule_id_has_wasm_prefix() {
     let mut eng = engine();
-    let diags = eng
-        .check("In order to test.", "markdown")
-        .await
-        .unwrap();
+    let diags = eng.check("In order to test.", "markdown").await.unwrap();
 
     assert_eq!(diags.len(), 1);
     assert!(

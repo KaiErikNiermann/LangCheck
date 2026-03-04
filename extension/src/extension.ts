@@ -795,7 +795,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         for (const item of items) {
             const nowEnabled = selectedIndices.has(item.index);
-            const wasEnabled = plugins[item.index].enabled !== false;
+            const wasEnabled = plugins[item.index]?.enabled !== false;
             if (nowEnabled !== wasEnabled) {
                 vscode.window.showInformationMessage(
                     vscode.l10n.t('Plugin "{0}" {1}', item.label, nowEnabled ? 'enabled' : 'disabled')
