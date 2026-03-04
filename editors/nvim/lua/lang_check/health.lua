@@ -52,7 +52,7 @@ function M.check()
       end
     end
     if lt_url then
-      local result = vim.fn.system({ "curl", "-sf", "--max-time", "3", lt_url .. "/v2/languages" })
+      vim.fn.system({ "curl", "-sf", "--max-time", "3", lt_url .. "/v2/languages" })
       if vim.v.shell_error == 0 then
         vim.health.ok("LanguageTool reachable at " .. lt_url)
       else
