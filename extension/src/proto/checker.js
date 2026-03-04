@@ -4348,6 +4348,7 @@ $root.languagecheck = (function() {
          * @property {string|null} [name] MetadataResponse name
          * @property {string|null} [version] MetadataResponse version
          * @property {Array.<string>|null} [supportedLanguages] MetadataResponse supportedLanguages
+         * @property {string|null} [spellLanguage] MetadataResponse spellLanguage
          */
 
         /**
@@ -4391,6 +4392,14 @@ $root.languagecheck = (function() {
         MetadataResponse.prototype.supportedLanguages = $util.emptyArray;
 
         /**
+         * MetadataResponse spellLanguage.
+         * @member {string} spellLanguage
+         * @memberof languagecheck.MetadataResponse
+         * @instance
+         */
+        MetadataResponse.prototype.spellLanguage = "";
+
+        /**
          * Creates a new MetadataResponse instance using the specified properties.
          * @function create
          * @memberof languagecheck.MetadataResponse
@@ -4421,6 +4430,8 @@ $root.languagecheck = (function() {
             if (message.supportedLanguages != null && message.supportedLanguages.length)
                 for (var i = 0; i < message.supportedLanguages.length; ++i)
                     writer.uint32(/* id 3, wireType 2 =*/26).string(message.supportedLanguages[i]);
+            if (message.spellLanguage != null && Object.hasOwnProperty.call(message, "spellLanguage"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.spellLanguage);
             return writer;
         };
 
@@ -4471,6 +4482,10 @@ $root.languagecheck = (function() {
                         message.supportedLanguages.push(reader.string());
                         break;
                     }
+                case 4: {
+                        message.spellLanguage = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -4519,6 +4534,9 @@ $root.languagecheck = (function() {
                     if (!$util.isString(message.supportedLanguages[i]))
                         return "supportedLanguages: string[] expected";
             }
+            if (message.spellLanguage != null && message.hasOwnProperty("spellLanguage"))
+                if (!$util.isString(message.spellLanguage))
+                    return "spellLanguage: string expected";
             return null;
         };
 
@@ -4545,6 +4563,8 @@ $root.languagecheck = (function() {
                 for (var i = 0; i < object.supportedLanguages.length; ++i)
                     message.supportedLanguages[i] = String(object.supportedLanguages[i]);
             }
+            if (object.spellLanguage != null)
+                message.spellLanguage = String(object.spellLanguage);
             return message;
         };
 
@@ -4566,6 +4586,7 @@ $root.languagecheck = (function() {
             if (options.defaults) {
                 object.name = "";
                 object.version = "";
+                object.spellLanguage = "";
             }
             if (message.name != null && message.hasOwnProperty("name"))
                 object.name = message.name;
@@ -4576,6 +4597,8 @@ $root.languagecheck = (function() {
                 for (var j = 0; j < message.supportedLanguages.length; ++j)
                     object.supportedLanguages[j] = message.supportedLanguages[j];
             }
+            if (message.spellLanguage != null && message.hasOwnProperty("spellLanguage"))
+                object.spellLanguage = message.spellLanguage;
             return object;
         };
 

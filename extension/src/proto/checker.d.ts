@@ -1742,6 +1742,9 @@ export namespace languagecheck {
 
         /** MetadataResponse supportedLanguages */
         supportedLanguages?: (string[]|null);
+
+        /** MetadataResponse spellLanguage */
+        spellLanguage?: (string|null);
     }
 
     /** Represents a MetadataResponse. */
@@ -1761,6 +1764,9 @@ export namespace languagecheck {
 
         /** MetadataResponse supportedLanguages. */
         public supportedLanguages: string[];
+
+        /** MetadataResponse spellLanguage. */
+        public spellLanguage: string;
 
         /**
          * Creates a new MetadataResponse instance using the specified properties.
