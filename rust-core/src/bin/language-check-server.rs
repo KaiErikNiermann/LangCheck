@@ -84,7 +84,7 @@ async fn process_file_for_indexing(
     };
     let mut all_diagnostics = Vec::new();
 
-    for range in ranges {
+    for range in &ranges {
         let prose_text = range.extract_text(&text);
 
         // Uses a dedicated indexing orchestrator — no contention with foreground
@@ -118,7 +118,7 @@ async fn process_file_for_indexing(
     if let Some(idx) = &*workspace_index_arc.lock().await
         && let Some(file_path_str) = file_path.to_str()
     {
-        let insights = ProseInsights::analyze(&text);
+        let insights = ProseInsights::analyze_ranges(&text, &ranges);
         idx.update_diagnostics(file_path_str, &all_diagnostics)
             .unwrap_or_else(|e| {
                 warn!(file = file_path_str, "Error updating diagnostics: {e}");
@@ -576,7 +576,7 @@ async fn main() -> Result<()> {
                             if let Some(idx) = &*workspace_index_arc.lock().await
                                 && let Some(file_path) = req.file_path.clone()
                             {
-                                let insights = ProseInsights::analyze(&req.text);
+                                let insights = ProseInsights::analyze_ranges(&req.text, &ranges);
                                 idx.update_diagnostics(&file_path, &all_diagnostics)
                                     .unwrap_or_else(|e| {
                                         warn!(file = file_path, "Error updating diagnostics: {e}");

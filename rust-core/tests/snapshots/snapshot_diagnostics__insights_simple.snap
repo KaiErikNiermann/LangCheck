@@ -1,9 +1,9 @@
 ---
 source: tests/snapshot_diagnostics.rs
-assertion_line: 251
+assertion_line: 340
 expression: insights
 ---
 word_count: 10
 sentence_count: 2
-character_count: 32
-reading_level: -3.858
+character_count: 30
+reading_level: -4.8
