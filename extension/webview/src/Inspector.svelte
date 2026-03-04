@@ -67,7 +67,10 @@
   let fileName: string = $state('');
   let languageId: string = $state('');
   let selectedRangeIdx: number | null = $state(null);
+  let extensionVersion: string = $state('');
+  let copyFeedback: boolean = $state(false);
   const MAX_EVENTS = 200;
+  const REPORT_EVENT_CAP = 20;
 
   const vscode = (window as any).acquireVsCodeApi();
 
@@ -101,6 +104,9 @@
           break;
         case 'setDockerAvailable':
           dockerAvailable = message.payload;
+          break;
+        case 'setExtensionVersion':
+          extensionVersion = message.payload;
           break;
       }
     });
@@ -239,6 +245,137 @@
     }
     return segments;
   }
+
+  function generateReport(includeText: boolean): string {
+    const lines: string[] = ['## Language Check Inspector Report', ''];
+
+    // Document
+    if (checkInfo || fileName) {
+      lines.push('### Document');
+      if (checkInfo) {
+        lines.push(`- **File:** ${checkInfo.fileName}`);
+        lines.push(`- **Language:** ${checkInfo.languageId}`);
+        lines.push(`- **Size:** ${formatBytes(checkInfo.fileSize)}`);
+        lines.push(`- **English engine:** ${checkInfo.englishEngine}`);
+      } else {
+        if (fileName) lines.push(`- **File:** ${fileName}`);
+        if (languageId) lines.push(`- **Language:** ${languageId}`);
+      }
+      lines.push('');
+    }
+
+    // Diagnostics
+    if (diagnosticSummary && diagnosticSummary.total > 0) {
+      lines.push(`### Diagnostics (${diagnosticSummary.total} issues)`, '');
+      lines.push('| Severity | Count |', '|---|---|');
+      for (const s of diagnosticSummary.bySeverity) {
+        lines.push(`| ${s.severity} | ${s.count} |`);
+      }
+      lines.push('');
+      lines.push('| Rule | Count |', '|---|---|');
+      for (const r of diagnosticSummary.byRule) {
+        lines.push(`| ${r.ruleId} | ${r.count} |`);
+      }
+      lines.push('');
+    }
+
+    // Extraction
+    if (proseRanges.length > 0) {
+      const totalProseBytes = proseRanges.reduce((sum, r) => sum + (r.endByte - r.startByte), 0);
+      const exclusionCounts = new Map<string, number>();
+      for (const r of proseRanges) {
+        for (const e of r.exclusions) {
+          exclusionCounts.set(e.kind, (exclusionCounts.get(e.kind) ?? 0) + 1);
+        }
+      }
+      lines.push('### Extraction');
+      lines.push(`- **Prose ranges:** ${proseRanges.length}`);
+      lines.push(`- **Total prose bytes:** ${totalProseBytes}`);
+      if (exclusionCounts.size > 0) {
+        const parts = [...exclusionCounts.entries()].map(([k, v]) => `${v} ${k}`);
+        lines.push(`- Exclusions: ${parts.join(', ')}`);
+      }
+      lines.push('');
+    }
+
+    // Timing
+    if (latencyStages.length > 0) {
+      lines.push('### Timing', '');
+      lines.push('| Stage | Duration |', '|---|---|');
+      for (const s of latencyStages) {
+        lines.push(`| ${s.name} | ${formatDuration(s.durationMs)} |`);
+      }
+      lines.push('');
+    }
+
+    // Engine Health
+    if (engineHealth.length > 0) {
+      lines.push('### Engine Health', '');
+      lines.push('| Engine | Status | Details |', '|---|---|---|');
+      for (const e of engineHealth) {
+        const details = e.status !== 'ok'
+          ? `${e.consecutiveFailures} failures${e.lastError ? `, last: ${e.lastError.substring(0, 60)}` : ''}`
+          : '';
+        lines.push(`| ${e.name} | ${e.status} | ${details} |`);
+      }
+      lines.push('');
+    }
+
+    // Recent Events
+    if (events.length > 0) {
+      const capped = events.slice(-REPORT_EVENT_CAP);
+      lines.push('### Recent Events');
+      lines.push('```');
+      for (const evt of capped) {
+        const time = formatTime(evt.timestamp);
+        const dur = evt.durationMs !== undefined ? ` (${formatDuration(evt.durationMs)})` : '';
+        lines.push(`[${time}] ${evt.level} ${evt.source}: ${evt.message}${dur}`);
+      }
+      lines.push('```');
+      lines.push('');
+    }
+
+    // Environment
+    lines.push('### Environment');
+    if (extensionVersion) lines.push(`- Extension: ${extensionVersion}`);
+    lines.push('');
+
+    // Optional document text
+    if (includeText && proseRanges.length > 0) {
+      lines.push('### Document Text');
+      lines.push('<details><summary>Prose ranges (click to expand)</summary>', '');
+      for (let i = 0; i < proseRanges.length; i++) {
+        const r = proseRanges[i];
+        lines.push(`Range ${i} (bytes ${r.startByte}-${r.endByte}):`);
+        lines.push('```');
+        lines.push(r.text);
+        lines.push('```');
+        lines.push('');
+      }
+      lines.push('</details>');
+      lines.push('');
+    }
+
+    return lines.join('\n');
+  }
+
+  async function copyReport() {
+    const report = generateReport(false);
+    await navigator.clipboard.writeText(report);
+    copyFeedback = true;
+    setTimeout(() => { copyFeedback = false; }, 2000);
+  }
+
+  function reportIssue() {
+    const ok = confirm(
+      'The inspector report will be used to pre-fill a GitHub issue. ' +
+      'It includes file names, diagnostics, and timing data but NOT your document text. ' +
+      'This information will be publicly visible. Continue?'
+    );
+    if (!ok) return;
+    const body = generateReport(false);
+    vscode.postMessage({ type: 'openIssue', payload: { body } });
+  }
 </script>
 
 <main class="panel-root">
@@ -266,6 +403,16 @@
       <span class="tab-filename">{fileName}</span>
     {/if}
   </nav>
+
+  <!-- Report toolbar -->
+  <div class="report-toolbar">
+    <button class="health-action-btn" onclick={copyReport}>
+      {copyFeedback ? 'Copied!' : 'Copy Report'}
+    </button>
+    <button class="health-action-btn" onclick={reportIssue}>
+      Report Issue
+    </button>
+  </div>
 
   <!-- Content -->
   <div class="content">
@@ -625,6 +772,15 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* -- Report toolbar -- */
+  .report-toolbar {
+    display: flex;
+    gap: 8px;
+    padding: 6px 16px;
+    border-bottom: 1px solid var(--vscode-panel-border, transparent);
+    flex-shrink: 0;
   }
 
   /* -- Content -- */

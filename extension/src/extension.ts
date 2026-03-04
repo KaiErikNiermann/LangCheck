@@ -1387,6 +1387,8 @@ export async function activate(context: vscode.ExtensionContext) {
                     }
                     await updateInspectorData();
                     inspectorPanel?.webview.postMessage({ type: 'setDockerAvailable', payload: hasDockerCompose() });
+                    const extVersion = (context.extension.packageJSON as { version?: string }).version ?? 'unknown';
+                    inspectorPanel?.webview.postMessage({ type: 'setExtensionVersion', payload: extVersion });
                     break;
                 }
                 case 'highlightRange': {
@@ -1409,6 +1411,22 @@ export async function activate(context: vscode.ExtensionContext) {
                 }
                 case 'restartLTDocker': {
                     vscode.commands.executeCommand('language-check.restartLTDocker');
+                    break;
+                }
+                case 'openIssue': {
+                    const issueUrl = `https://github.com/${GITHUB_REPO}/issues/new`;
+                    const title = encodeURIComponent('Inspector bug report');
+                    const encodedBody = encodeURIComponent(message.payload.body);
+                    const fullUrl = `${issueUrl}?title=${title}&body=${encodedBody}`;
+                    if (fullUrl.length < 6000) {
+                        vscode.env.openExternal(vscode.Uri.parse(fullUrl));
+                    } else {
+                        await vscode.env.clipboard.writeText(message.payload.body);
+                        vscode.env.openExternal(vscode.Uri.parse(issueUrl));
+                        vscode.window.showInformationMessage(
+                            vscode.l10n.t('Report copied to clipboard — paste it in the issue body.')
+                        );
+                    }
                     break;
                 }
             }

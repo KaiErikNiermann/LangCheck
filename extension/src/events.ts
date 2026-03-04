@@ -102,11 +102,13 @@ export type ExtensionToInspectorMessage =
     | { type: 'pushEvent'; payload: InspectorEvent }
     | { type: 'clearEvents' }
     | { type: 'setEngineHealth'; payload: InspectorEngineHealth[] }
-    | { type: 'setDockerAvailable'; payload: boolean };
+    | { type: 'setDockerAvailable'; payload: boolean }
+    | { type: 'setExtensionVersion'; payload: string };
 
 // Messages from Inspector webview → extension
 export type InspectorToExtensionMessage =
     | { type: 'inspectorReady' }
     | { type: 'highlightRange'; payload: { startByte: number; endByte: number } }
     | { type: 'healthCheckLT' }
-    | { type: 'restartLTDocker' };
+    | { type: 'restartLTDocker' }
+    | { type: 'openIssue'; payload: { body: string } };
