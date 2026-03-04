@@ -103,10 +103,27 @@ install-local: build-ts
     code --install-extension "$vsix" --force
     echo "Installed $vsix"
 
+# --- Lua ---
+
+# Check Lua formatting with stylua
+fmt-lua-check:
+    stylua --check editors/nvim/ .github/nvim-lsp-test.lua
+
+# Fix Lua formatting with stylua
+fmt-lua:
+    stylua editors/nvim/ .github/nvim-lsp-test.lua
+
+# Lint Lua with luacheck
+lint-lua:
+    luacheck editors/nvim/ .github/nvim-lsp-test.lua
+
+# Run all Lua checks
+check-lua: fmt-lua-check lint-lua
+
 # --- Combined ---
 
-# Run all checks (rust + TypeScript)
-check: check-rust check-ts
+# Run all checks (rust + TypeScript + Lua)
+check: check-rust check-ts check-lua
 
 # Clean build artifacts
 clean:
