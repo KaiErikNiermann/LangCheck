@@ -15,6 +15,23 @@ use tracing::{debug, warn};
 pub trait Engine {
     fn name(&self) -> &'static str;
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>>;
+    /// BCP-47 primary subtags this engine supports. Empty = all languages.
+    fn supported_languages(&self) -> Vec<&'static str> {
+        vec![]
+    }
+}
+
+/// Returns `true` if `engine` supports the given BCP-47 `lang_tag`.
+///
+/// Matching is on the primary subtag: `"en-US"` matches an engine that
+/// advertises `"en"`. An engine with an empty list is a wildcard (supports all).
+pub fn engine_supports_language(engine: &(dyn Engine + Send), lang_tag: &str) -> bool {
+    let supported = engine.supported_languages();
+    if supported.is_empty() {
+        return true;
+    }
+    let primary = lang_tag.split('-').next().unwrap_or(lang_tag);
+    supported.iter().any(|s| s.eq_ignore_ascii_case(primary))
 }
 
 pub struct HarperEngine {
@@ -41,6 +58,10 @@ impl HarperEngine {
 impl Engine for HarperEngine {
     fn name(&self) -> &'static str {
         "harper"
+    }
+
+    fn supported_languages(&self) -> Vec<&'static str> {
+        vec!["en"]
     }
 
     async fn check(&mut self, text: &str, _language_id: &str) -> Result<Vec<Diagnostic>> {
@@ -138,12 +159,8 @@ impl Engine for LanguageToolEngine {
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
         let url = format!("{}/v2/check", self.url);
 
-        // Map file-type language IDs to BCP-47 codes that LanguageTool understands
-        let lt_lang = match language_id {
-            "markdown" | "html" | "latex" | "text" | "rst" | "asciidoc" | "typst" | "djot"
-            | "org" | "bibtex" | "forester" | "sweave" => "en-US",
-            other => other,
-        };
+        // language_id is now a BCP-47 tag from the orchestrator (e.g. "en-US", "de-DE")
+        let lt_lang = language_id;
 
         debug!(
             url = %url,

@@ -601,6 +601,7 @@ async fn main() -> Result<()> {
                     }
                 }
                 Some(checker::request::Payload::GetMetadata(_)) => {
+                    let cfg = config_arc.lock().await;
                     Some(response::Payload::GetMetadata(MetadataResponse {
                         name: "Rust Core".to_string(),
                         version: "0.1.0".to_string(),
@@ -608,6 +609,7 @@ async fn main() -> Result<()> {
                             .iter()
                             .map(|s| (*s).to_string())
                             .collect(),
+                        spell_language: cfg.engines.spell_language.clone(),
                     }))
                 }
                 Some(checker::request::Payload::Ignore(req)) => {

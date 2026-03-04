@@ -1,6 +1,8 @@
 use crate::checker::{Diagnostic, EngineHealth, Severity};
 use crate::config::Config;
-use crate::engines::{Engine, ExternalEngine, HarperEngine, LanguageToolEngine, WasmEngine};
+use crate::engines::{
+    Engine, ExternalEngine, HarperEngine, LanguageToolEngine, WasmEngine, engine_supports_language,
+};
 use crate::ignore_rules::IgnoreParser;
 use crate::rules::RuleNormalizer;
 use anyhow::Result;
@@ -113,33 +115,38 @@ impl Orchestrator {
     }
 
     #[allow(clippy::too_many_lines)]
-    pub async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
+    pub async fn check(&mut self, text: &str, _language_id: &str) -> Result<Vec<Diagnostic>> {
         // Skip checking if file exceeds max_file_size
         let max = self.config.performance.max_file_size;
         if max > 0 && text.len() > max {
             return Ok(Vec::new());
         }
 
-        let is_english = is_english_content(language_id);
+        let spell_language = &self.config.engines.spell_language;
+        let is_english = spell_language.starts_with("en");
         let english_engine = &self.config.engines.english_engine;
 
         let mut all_diagnostics = Vec::new();
         let mut engines_ran = 0u32;
 
         for engine in &mut self.engines {
-            // English engine toggle: skip the non-selected engine for English content
             let engine_name = engine.name();
+
+            // Skip engines that don't support the configured language
+            if !engine_supports_language(engine.as_ref(), spell_language) {
+                continue;
+            }
+
+            // English engine toggle: skip the non-selected engine for English content
             if english_engine == "languagetool" && engine_name == "harper" {
-                // Harper is English-only; when LT is the English engine, skip it entirely
                 continue;
             }
             if english_engine == "harper" && engine_name == "languagetool" && is_english {
-                // Let LT still run for non-English content, but skip it for English
                 continue;
             }
 
             engines_ran += 1;
-            match engine.check(text, language_id).await {
+            match engine.check(text, spell_language).await {
                 Ok(mut diagnostics) => {
                     // Update health tracker: success
                     let tracker = self
@@ -203,14 +210,15 @@ impl Orchestrator {
             }
         }
 
-        // Warn when no engines ran for non-English content
-        if engines_ran == 0 && !is_english && all_diagnostics.is_empty() {
+        // Warn when no engines ran (e.g. non-English language with only Harper enabled)
+        if engines_ran == 0 && all_diagnostics.is_empty() {
             all_diagnostics.push(Diagnostic {
                 start_byte: 0,
                 end_byte: 0,
-                message: "No checking provider is configured for this language. \
-                          Enable LanguageTool or add an external provider."
-                    .to_string(),
+                message: format!(
+                    "No active engine supports \"{spell_language}\". \
+                     Enable LanguageTool or add an external provider."
+                ),
                 suggestions: Vec::new(),
                 rule_id: "languagecheck.no-provider".to_string(),
                 severity: Severity::Information as i32,
@@ -241,26 +249,3 @@ impl Orchestrator {
     }
 }
 
-/// Treat a `language_id` as English unless it's an explicit non-English locale.
-///
-/// File-type identifiers like `"markdown"`, `"html"`, `"latex"` default to English.
-/// BCP-47 tags starting with `"en"` (e.g. `"en-US"`) are English. Everything else
-/// (e.g. `"de"`, `"fr-FR"`) is non-English.
-fn is_english_content(language_id: &str) -> bool {
-    // File-type identifiers default to English (no explicit locale)
-    matches!(
-        language_id,
-        "markdown"
-            | "html"
-            | "latex"
-            | "text"
-            | "rst"
-            | "asciidoc"
-            | "typst"
-            | "djot"
-            | "org"
-            | "bibtex"
-            | "forester"
-            | "sweave"
-    ) || language_id.starts_with("en")
-}

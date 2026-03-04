@@ -78,6 +78,9 @@ const extractionCache = new Map<string, { prose: InspectorProseRange[]; language
 // Tracked english_engine value from config (for change detection + inspector)
 let lastKnownEnglishEngine: string | undefined;
 
+// Tracked spell_language from config (for status bar + change detection)
+let lastKnownSpellLanguage: string | undefined;
+
 // Built-in LaTeX environments that the checker always skips (mirrors SKIP_GENERIC_ENVS in latex.rs)
 const BUILTIN_SKIP_ENVS = new Set([
     "algorithm", "algorithmic", "lstlisting",
@@ -319,7 +322,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // Status bar: spell-check language
     languageStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     languageStatusBarItem.command = 'language-check.selectLanguage';
-    languageStatusBarItem.text = '$(book) EN-US';
+    languageStatusBarItem.text = '$(book) en-US';
     languageStatusBarItem.tooltip = 'Language Check: Click to change language';
     languageStatusBarItem.show();
     context.subscriptions.push(languageStatusBarItem);
@@ -1036,17 +1039,79 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.selectLanguage', async () => {
         const languages = [
-            { label: 'EN-US', description: vscode.l10n.t('English (US)') },
-            { label: 'EN-GB', description: vscode.l10n.t('English (UK)') },
-            { label: 'DE-DE', description: vscode.l10n.t('German') },
-            { label: 'FR', description: vscode.l10n.t('French') },
-            { label: 'ES', description: vscode.l10n.t('Spanish') },
+            { label: 'en-US', description: vscode.l10n.t('English (US)') },
+            { label: 'en-GB', description: vscode.l10n.t('English (UK)') },
+            { label: 'de-DE', description: vscode.l10n.t('German (Germany)') },
+            { label: 'de-AT', description: vscode.l10n.t('German (Austria)') },
+            { label: 'fr', description: vscode.l10n.t('French') },
+            { label: 'es', description: vscode.l10n.t('Spanish') },
+            { label: 'pt-BR', description: vscode.l10n.t('Portuguese (Brazil)') },
+            { label: 'pt-PT', description: vscode.l10n.t('Portuguese (Portugal)') },
+            { label: 'it', description: vscode.l10n.t('Italian') },
+            { label: 'nl', description: vscode.l10n.t('Dutch') },
+            { label: 'pl', description: vscode.l10n.t('Polish') },
+            { label: 'ru', description: vscode.l10n.t('Russian') },
+            { label: 'uk', description: vscode.l10n.t('Ukrainian') },
+            { label: 'ja', description: vscode.l10n.t('Japanese') },
+            { label: 'zh', description: vscode.l10n.t('Chinese') },
+            { label: 'ko', description: vscode.l10n.t('Korean') },
+            { label: 'ar', description: vscode.l10n.t('Arabic') },
+            { label: 'sv', description: vscode.l10n.t('Swedish') },
+            { label: 'da', description: vscode.l10n.t('Danish') },
+            { label: 'fi', description: vscode.l10n.t('Finnish') },
+            { label: 'cs', description: vscode.l10n.t('Czech') },
+            { label: 'ro', description: vscode.l10n.t('Romanian') },
         ];
         const selected = await vscode.window.showQuickPick(languages, {
             placeHolder: vscode.l10n.t('Select spell-check language')
         });
-        if (selected) {
+        if (!selected) return;
+
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            vscode.window.showWarningMessage(vscode.l10n.t('No workspace folder open.'));
+            return;
+        }
+
+        // Find existing config file
+        const configNames = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
+        let configUri: vscode.Uri | undefined;
+        for (const name of configNames) {
+            const uri = vscode.Uri.joinPath(workspaceFolder.uri, name);
+            try {
+                await vscode.workspace.fs.stat(uri);
+                configUri = uri;
+                break;
+            } catch { /* not found */ }
+        }
+
+        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
+        try {
+            let content: string;
+            try {
+                const raw = await vscode.workspace.fs.readFile(targetUri);
+                content = Buffer.from(raw).toString('utf8');
+            } catch {
+                content = '';
+            }
+
+            if (content.includes('spell_language:')) {
+                content = content.replace(/spell_language:\s*\S+/, `spell_language: ${selected.label}`);
+            } else if (content.includes('engines:')) {
+                content = content.replace(/engines:/, `engines:\n  spell_language: ${selected.label}`);
+            } else {
+                content = `engines:\n  spell_language: ${selected.label}\n${content}`;
+            }
+
+            await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
             languageStatusBarItem.text = `$(book) ${selected.label}`;
+            lastKnownSpellLanguage = selected.label;
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Spell-check language set to "{0}". Reloading...', selected.label)
+            );
+            await reinitializeAndRecheck();
+        } catch (err) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to update config: {0}', String(err)));
         }
     }));
 
@@ -1521,25 +1586,34 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    // Watch .languagecheck config files for english_engine changes
+    // Watch .languagecheck config files for english_engine / spell_language changes
     const configWatcher = vscode.workspace.createFileSystemWatcher('**/.languagecheck.{yaml,yml,json}');
-    const checkEnglishEngineChange = async () => {
+    const checkConfigChange = async () => {
         const folder = vscode.workspace.workspaceFolders?.[0];
         if (!folder) return;
         for (const name of ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json']) {
             const uri = vscode.Uri.joinPath(folder.uri, name);
             try {
                 const raw = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
-                const match = raw.match(/english_engine:\s*(\S+)/);
-                const current = match?.[1] ?? 'harper';
-                if (lastKnownEnglishEngine !== undefined && current !== lastKnownEnglishEngine) {
-                    log.info('English engine changed via config file', { from: lastKnownEnglishEngine, to: current });
+                const engineMatch = raw.match(/english_engine:\s*(\S+)/);
+                const currentEngine = engineMatch?.[1] ?? 'harper';
+                if (lastKnownEnglishEngine !== undefined && currentEngine !== lastKnownEnglishEngine) {
+                    log.info('English engine changed via config file', { from: lastKnownEnglishEngine, to: currentEngine });
                     vscode.window.showInformationMessage(
-                        vscode.l10n.t('English engine changed to "{0}"', current)
+                        vscode.l10n.t('English engine changed to "{0}"', currentEngine)
                     );
                     reinitializeAndRecheck();
                 }
-                lastKnownEnglishEngine = current;
+                lastKnownEnglishEngine = currentEngine;
+
+                const langMatch = raw.match(/spell_language:\s*(\S+)/);
+                const currentLang = langMatch?.[1] ?? 'en-US';
+                if (lastKnownSpellLanguage !== undefined && currentLang !== lastKnownSpellLanguage) {
+                    languageStatusBarItem.text = `$(book) ${currentLang}`;
+                    reinitializeAndRecheck();
+                }
+                lastKnownSpellLanguage = currentLang;
+
                 userSkipEnvs = parseSkipEnvironments(raw);
                 userSkipCommands = parseSkipCommands(raw);
                 inlayHintEmitter.fire();
@@ -1547,11 +1621,11 @@ export async function activate(context: vscode.ExtensionContext) {
             } catch { /* not found, try next */ }
         }
     };
-    configWatcher.onDidChange(checkEnglishEngineChange);
-    configWatcher.onDidCreate(checkEnglishEngineChange);
+    configWatcher.onDidChange(checkConfigChange);
+    configWatcher.onDidCreate(checkConfigChange);
     context.subscriptions.push(configWatcher);
 
-    // Eagerly read the initial english_engine value so we can detect changes
+    // Eagerly read the initial config values so we can detect changes
     // even if the config was modified before the extension activated.
     {
         const folder = vscode.workspace.workspaceFolders?.[0];
@@ -1560,16 +1634,22 @@ export async function activate(context: vscode.ExtensionContext) {
                 const uri = vscode.Uri.joinPath(folder.uri, name);
                 try {
                     const raw = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
-                    const match = raw.match(/english_engine:\s*(\S+)/);
-                    lastKnownEnglishEngine = match?.[1] ?? 'harper';
+                    const engineMatch = raw.match(/english_engine:\s*(\S+)/);
+                    lastKnownEnglishEngine = engineMatch?.[1] ?? 'harper';
+                    const langMatch = raw.match(/spell_language:\s*(\S+)/);
+                    lastKnownSpellLanguage = langMatch?.[1] ?? 'en-US';
+                    languageStatusBarItem.text = `$(book) ${lastKnownSpellLanguage}`;
                     userSkipEnvs = parseSkipEnvironments(raw);
-                userSkipCommands = parseSkipCommands(raw);
+                    userSkipCommands = parseSkipCommands(raw);
                     break;
                 } catch { /* not found, try next */ }
             }
         }
         if (lastKnownEnglishEngine === undefined) {
             lastKnownEnglishEngine = 'harper';
+        }
+        if (lastKnownSpellLanguage === undefined) {
+            lastKnownSpellLanguage = 'en-US';
         }
     }
 

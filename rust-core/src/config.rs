@@ -168,6 +168,9 @@ pub struct EngineConfig {
     /// WASM checker plugins loaded via Extism.
     #[serde(default)]
     pub wasm_plugins: Vec<WasmPlugin>,
+    /// BCP-47 natural language tag for spell/grammar checking (e.g. "en-US", "de-DE").
+    #[serde(default = "default_spell_language")]
+    pub spell_language: String,
 }
 
 /// An external checker binary that communicates via stdin/stdout JSON.
@@ -212,6 +215,7 @@ impl Default for EngineConfig {
             english_engine: "harper".to_string(),
             external: Vec::new(),
             wasm_plugins: Vec::new(),
+            spell_language: default_spell_language(),
         }
     }
 }
@@ -229,6 +233,9 @@ fn default_lt_url() -> String {
 }
 fn default_english_engine() -> String {
     "harper".to_string()
+}
+fn default_spell_language() -> String {
+    "en-US".to_string()
 }
 fn default_exclude() -> Vec<String> {
     vec![
@@ -690,6 +697,22 @@ languages:
             config.languages.latex.skip_commands,
             vec!["codefont", "myverb"]
         );
+    }
+
+    #[test]
+    fn default_spell_language_is_en_us() {
+        let config = Config::default();
+        assert_eq!(config.engines.spell_language, "en-US");
+    }
+
+    #[test]
+    fn spell_language_from_yaml() {
+        let yaml = r#"
+engines:
+  spell_language: de-DE
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.engines.spell_language, "de-DE");
     }
 
     #[test]

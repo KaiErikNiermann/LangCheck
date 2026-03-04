@@ -120,4 +120,5 @@ message MetadataResponse {
   string name = 1;
   string version = 2;
   repeated string supported_languages = 3;
+  string spell_language = 4;
 }
