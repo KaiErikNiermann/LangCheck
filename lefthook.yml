@@ -5,6 +5,10 @@
 pre-push:
   parallel: true
   commands:
+    tool_versions:
+      priority: 1
+      run: ./scripts/check-tool-versions.sh
+
     rust_fmt:
       root: rust-core/
       glob: "*.rs"
