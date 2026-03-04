@@ -35,10 +35,9 @@ pre-push:
       run: pnpm run lint
 
     proto_sync:
-      glob: "proto/*.proto"
       run: |
-        cd extension && pnpm run proto:gen
-        git diff --exit-code extension/src/proto/ || {
+        cd extension && pnpm run proto:gen && cd ..
+        git diff --exit-code -- extension/src/proto/ || {
           echo "❌ Proto files out of sync. Run 'cd extension && pnpm run proto:gen' and commit."
           exit 1
         }
