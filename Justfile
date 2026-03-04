@@ -120,6 +120,17 @@ lint-lua:
 # Run all Lua checks
 check-lua: fmt-lua-check lint-lua
 
+# --- WASM Plugins ---
+
+# Build WASM plugins (requires TinyGo)
+build-wasm:
+    cd plugins/wordiness-check && make build
+
+# Run WASM plugin tests (Go unit tests + Rust integration)
+test-wasm:
+    cd plugins/wordiness-check && go test -v ./...
+    cd rust-core && cargo test --test wasm_plugin
+
 # --- Combined ---
 
 # Run all checks (rust + TypeScript + Lua)
@@ -130,6 +141,7 @@ clean:
     cd rust-core && cargo clean
     rm -rf extension/out extension/node_modules
     rm -rf docs/_build
+    cd plugins/wordiness-check && make clean
 
 # --- Versioning & Release ---
 
