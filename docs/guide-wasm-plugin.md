@@ -47,6 +47,8 @@ Return a JSON string — an array of diagnostics:
 | `severity` | integer | no | 1 = Information, 2 = Warning (default), 3 = Error |
 | `confidence` | float | no | 0.0–1.0, defaults to 0.7 if omitted |
 
+Diagnostics from plugins are treated identically to built-in engine results — `suggestions` automatically appear in the SpeedFix panel, inlay hints, inline ghost text completions, and code actions. The first suggestion in the array is used as the preferred quick-fix. An empty string `""` suggestion means "remove the matched text", and suggestions prefixed with `Insert "..."` insert text at the diagnostic end position rather than replacing.
+
 ## Setting Up
 
 ### Prerequisites
