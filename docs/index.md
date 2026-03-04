@@ -45,6 +45,7 @@ advanced/api
 
 guide-config-language
 guide-plugin-language
+guide-wasm-plugin
 tinylang-spec
 ```
 

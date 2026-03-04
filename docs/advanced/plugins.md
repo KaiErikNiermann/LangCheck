@@ -66,6 +66,8 @@ Any `.wasm` file in the plugins directory is loaded automatically, with the file
 
 ## Building Plugins
 
+For a step-by-step tutorial, see the [WASM Plugin Guide](../guide-wasm-plugin.md). A complete reference implementation is available in `plugins/wordiness-check/`.
+
 Plugins can be built with the [Extism PDK](https://extism.org/docs/write-a-plugin/) in any language that compiles to WebAssembly:
 
 - **Rust**: `extism-pdk` crate
