@@ -183,10 +183,13 @@ fn handle_markdown_link(
     }
     skips.push((node.start_byte(), alias_start)); // skip '['
     strip_inline_commands_in_range(&text[alias_start..alias_end], alias_start, skips);
-    if in_prose && let Some(scope) = scopes.last_mut() {
-        scope.push((alias_start, alias_end));
-    }
     skips.push((alias_end, node.end_byte())); // skip '](addr)'
+    // Push the entire node range so merge_ranges sees no gap between the
+    // link and its surrounding text siblings. The skips above ensure only
+    // the alias inner text survives.
+    if in_prose && let Some(scope) = scopes.last_mut() {
+        scope.push((node.start_byte(), node.end_byte()));
+    }
 }
 
 /// Dispatch a `command` node to structural, block, inline, or unknown handling.
@@ -1566,6 +1569,37 @@ so the result follows.}";
         assert!(
             !all_text.contains("\\em"),
             "Inner command should be stripped, got: {all_text:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_markdown_link_with_command_single_range() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{formulas are in [\em{Negation Normal Form}](000e) which in short}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+
+        assert_eq!(
+            ranges.len(),
+            1,
+            "Link with inline command should not split the paragraph, got {} ranges",
+            ranges.len()
+        );
+
+        let all_text = ranges[0].extract_text(text);
+        assert!(
+            all_text.contains("Negation Normal Form"),
+            "Link alias text should be present, got: {all_text:?}"
+        );
+        assert!(
+            all_text.contains("formulas are in"),
+            "Text before link, got: {all_text:?}"
+        );
+        assert!(
+            all_text.contains("which in short"),
+            "Text after link, got: {all_text:?}"
         );
 
         Ok(())
