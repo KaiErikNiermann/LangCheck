@@ -2,7 +2,7 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/titlecard-dark.png" />
     <source media="(prefers-color-scheme: light)" srcset="assets/titlecard-light.png" />
-    <img alt="LangCheck" src="assets/titlecard-light.png" height="79" />
+    <img alt="LangCheck" src="assets/titlecard-light.png" height="87" />
   </picture>
 </p>
 
