@@ -10,53 +10,60 @@ pub struct ProseInsights {
     pub reading_level: f32, // ARI score
 }
 
-/// Count sentences using a regex that matches sentence-ending punctuation
-/// followed by whitespace or end-of-string. This avoids false splits on
-/// abbreviations like "Dr.", "e.g.", decimal numbers, and ellipses.
+/// Check if position `i` in `bytes` is a quote or closing paren followed by
+/// whitespace or end-of-string (sentence-terminating wrapper character).
+fn is_quote_or_paren(bytes: &[u8], i: usize, len: usize, right_dquote: [u8; 3]) -> bool {
+    if matches!(bytes[i], b'"' | b'\'' | b')') {
+        return i + 1 >= len || bytes[i + 1].is_ascii_whitespace();
+    }
+    if i + 2 < len && bytes[i..i + 3] == right_dquote {
+        return i + 3 >= len || bytes[i + 3].is_ascii_whitespace();
+    }
+    false
+}
+
+/// Count sentences by scanning for sentence-ending punctuation followed by
+/// whitespace or end-of-string. Avoids false splits on abbreviations like
+/// "Dr.", "e.g.", decimal numbers, and ellipses.
 fn count_sentences(text: &str) -> usize {
+    /// UTF-8 encoding of U+201D RIGHT DOUBLE QUOTATION MARK (3 bytes).
+    const RIGHT_DQUOTE: [u8; 3] = [0xE2, 0x80, 0x9D];
+
+    let bytes = text.as_bytes();
+    let len = bytes.len();
     let mut count: usize = 0;
-    let chars: Vec<char> = text.chars().collect();
-    let len = chars.len();
     let mut i = 0;
+
     while i < len {
-        let ch = chars[i];
-        if ch == '.' || ch == '!' || ch == '?' {
-            // Skip consecutive punctuation (e.g. "..." or "?!")
-            while i + 1 < len && (chars[i + 1] == '.' || chars[i + 1] == '!' || chars[i + 1] == '?')
-            {
-                i += 1;
-            }
-            // Sentence boundary: must be followed by whitespace, end-of-string,
-            // or a quote/paren (which itself is followed by whitespace/end).
-            let next = i + 1;
-            if next >= len {
-                count += 1;
-            } else {
-                let next_ch = chars[next];
-                if next_ch.is_whitespace() {
-                    // Check the character before the punctuation — skip if it's
-                    // a single uppercase letter (likely an abbreviation/initial)
-                    let before_punct = i.checked_sub(1).map(|j| chars[j]);
-                    let is_initial = before_punct.is_some_and(|c| {
-                        c.is_ascii_uppercase() && (i < 2 || chars[i - 2].is_whitespace())
-                    });
-                    if !is_initial {
-                        count += 1;
-                    }
-                } else if (next_ch == '"'
-                    || next_ch == '\''
-                    || next_ch == ')'
-                    || next_ch == '\u{201D}')
-                    && (next + 1 >= len || chars[next + 1].is_whitespace())
-                {
-                    count += 1;
-                }
-            }
+        if !matches!(bytes[i], b'.' | b'!' | b'?') {
+            i += 1;
+            continue;
         }
+
+        // Skip consecutive punctuation (e.g. "..." or "?!")
+        while i + 1 < len && matches!(bytes[i + 1], b'.' | b'!' | b'?') {
+            i += 1;
+        }
+
+        let next = i + 1;
+        if next >= len {
+            count += 1;
+        } else if bytes[next].is_ascii_whitespace() {
+            // Skip single uppercase letter before punctuation (abbreviation/initial)
+            let is_initial = i >= 1
+                && bytes[i - 1].is_ascii_uppercase()
+                && (i < 2 || bytes[i - 2].is_ascii_whitespace());
+            if !is_initial {
+                count += 1;
+            }
+        } else if is_quote_or_paren(bytes, next, len, RIGHT_DQUOTE) {
+            count += 1;
+        }
+
         i += 1;
     }
-    // If there's text but no sentence-ending punctuation was found, count as 1
-    if count == 0 && text.chars().any(char::is_alphanumeric) {
+
+    if count == 0 && bytes.iter().any(u8::is_ascii_alphanumeric) {
         count = 1;
     }
     count

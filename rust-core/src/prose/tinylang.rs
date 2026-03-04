@@ -90,35 +90,34 @@ fn collect_prose_nodes(node: Node, text: &str, skip: bool, out: &mut Vec<(usize,
 /// Find math regions (`$...$` and `$$...$$`) in a gap and record them as exclusions.
 fn collect_math_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, usize)>) {
     let bytes = gap.as_bytes();
+    let len = bytes.len();
     let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'$' {
-            let exc_start = i;
-
-            if i + 1 < bytes.len() && bytes[i + 1] == b'$' {
-                // Display math: $$...$$
-                i += 2;
-                while i + 1 < bytes.len() && !(bytes[i] == b'$' && bytes[i + 1] == b'$') {
-                    i += 1;
-                }
-                if i + 1 < bytes.len() {
-                    i += 2;
-                }
-            } else {
-                // Inline math: $...$
-                i += 1;
-                while i < bytes.len() && bytes[i] != b'$' && bytes[i] != b'\n' {
-                    i += 1;
-                }
-                if i < bytes.len() && bytes[i] == b'$' {
-                    i += 1;
-                }
-            }
-
-            out.push((gap_offset + exc_start, gap_offset + i));
-        } else {
+    while i < len {
+        if bytes[i] != b'$' {
             i += 1;
+            continue;
         }
+        let exc_start = i;
+        if i + 1 < len && bytes[i + 1] == b'$' {
+            // Display math: $$...$$
+            i += 2;
+            while i + 1 < len && !(bytes[i] == b'$' && bytes[i + 1] == b'$') {
+                i += 1;
+            }
+            if i + 1 < len {
+                i += 2;
+            }
+        } else {
+            // Inline math: $...$  (newline breaks the match)
+            i += 1;
+            while i < len && bytes[i] != b'$' && bytes[i] != b'\n' {
+                i += 1;
+            }
+            if i < len && bytes[i] == b'$' {
+                i += 1;
+            }
+        }
+        out.push((gap_offset + exc_start, gap_offset + i));
     }
 }
 

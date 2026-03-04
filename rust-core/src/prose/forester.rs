@@ -149,6 +149,90 @@ fn strip_inline_commands_in_range(
     }
 }
 
+/// Push a node's byte range into the current scope.
+fn push_to_scope(node: Node, scopes: &mut [Vec<(usize, usize)>]) {
+    let start = node.start_byte();
+    let end = node.end_byte();
+    if start < end
+        && let Some(scope) = scopes.last_mut()
+    {
+        scope.push((start, end));
+    }
+}
+
+/// Handle a `markdown_link` token: extract the alias text as prose, skip
+/// brackets and the `](address)` suffix. Inline commands in the alias
+/// (e.g. `[\em{text}](addr)`) are stripped so only inner text remains.
+fn handle_markdown_link(
+    node: Node,
+    text: &str,
+    scopes: &mut [Vec<(usize, usize)>],
+    skips: &mut Vec<(usize, usize)>,
+    in_prose: bool,
+) {
+    let node_text = &text[node.start_byte()..node.end_byte()];
+    let Some(close_bracket) = node_text.find(']') else {
+        skips.push((node.start_byte(), node.end_byte()));
+        return;
+    };
+    let alias_start = node.start_byte() + 1; // skip '['
+    let alias_end = node.start_byte() + close_bracket;
+    if alias_start >= alias_end {
+        skips.push((node.start_byte(), node.end_byte()));
+        return;
+    }
+    skips.push((node.start_byte(), alias_start)); // skip '['
+    strip_inline_commands_in_range(&text[alias_start..alias_end], alias_start, skips);
+    if in_prose && let Some(scope) = scopes.last_mut() {
+        scope.push((alias_start, alias_end));
+    }
+    skips.push((alias_end, node.end_byte())); // skip '](addr)'
+}
+
+/// Dispatch a `command` node to structural, block, inline, or unknown handling.
+fn handle_command(
+    node: Node,
+    text: &str,
+    scopes: &mut Vec<Vec<(usize, usize)>>,
+    skips: &mut Vec<(usize, usize)>,
+) {
+    let cmd_name = get_command_name(node, text);
+
+    if cmd_name.is_some_and(|n| STRUCTURAL_COMMANDS.contains(&n)) {
+        return;
+    }
+
+    if cmd_name.is_some_and(|n| BLOCK_COMMANDS.contains(&n)) {
+        scopes.push(vec![]);
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind() != "bracket_group" {
+                collect_prose_nodes(child, text, scopes, skips, true);
+            }
+        }
+        scopes.push(vec![]);
+        return;
+    }
+
+    if cmd_name.is_some_and(|n| INLINE_COMMANDS.contains(&n)) {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind() == "brace_group" {
+                skips.push((child.start_byte(), child.start_byte() + 1));
+                skips.push((child.end_byte() - 1, child.end_byte()));
+            }
+            collect_prose_nodes(child, text, scopes, skips, true);
+        }
+        return;
+    }
+
+    // Unknown command: recurse but don't enable prose collection
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_prose_nodes(child, text, scopes, skips, false);
+    }
+}
+
 /// Recursively collect prose leaf nodes into scoped segments.
 ///
 /// Block-level commands push new segments to prevent cross-boundary merging.
@@ -170,114 +254,21 @@ fn collect_prose_nodes(
         return;
     }
 
-    // Markdown links: extract alias text as prose, skip the brackets and address.
-    // The node is a single token like `[De Morgan's laws](000g)`.
-    // Inline commands in the alias (e.g. [\em{text}](addr)) are stripped so
-    // only their inner text becomes prose.
+    // Markdown links: extract alias as prose, skip brackets and address.
     if kind == "markdown_link" {
-        let node_text = &text[node.start_byte()..node.end_byte()];
-        if let Some(close_bracket) = node_text.find(']') {
-            let alias_start = node.start_byte() + 1; // skip '['
-            let alias_end = node.start_byte() + close_bracket;
-            if alias_start < alias_end {
-                // Skip '[' before alias
-                skips.push((node.start_byte(), alias_start));
-                // Strip inline commands within the alias text
-                strip_inline_commands_in_range(
-                    &text[alias_start..alias_end],
-                    alias_start,
-                    skips,
-                );
-                // The alias text (with inline commands excluded) becomes prose
-                if in_prose {
-                    if let Some(scope) = scopes.last_mut() {
-                        scope.push((alias_start, alias_end));
-                    }
-                }
-                // Skip '](...)'  after alias
-                skips.push((alias_end, node.end_byte()));
-            } else {
-                skips.push((node.start_byte(), node.end_byte()));
-            }
-        } else {
-            skips.push((node.start_byte(), node.end_byte()));
-        }
+        handle_markdown_link(node, text, scopes, skips, in_prose);
         return;
     }
 
+    // Command dispatch: structural, block, inline, or unknown.
     if kind == "command" {
-        let cmd_name = get_command_name(node, text);
-
-        // Structural commands: skip all arguments
-        if cmd_name.is_some_and(|n| STRUCTURAL_COMMANDS.contains(&n)) {
-            return;
-        }
-
-        // Block-level commands: create scope boundaries, enable prose collection.
-        // Skip bracket_group children — they carry identifiers/addresses
-        // (e.g. \subtree[006s]{...}), not prose.
-        if cmd_name.is_some_and(|n| BLOCK_COMMANDS.contains(&n)) {
-            scopes.push(vec![]);
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                if child.kind() == "bracket_group" {
-                    continue;
-                }
-                collect_prose_nodes(child, text, scopes, skips, true);
-            }
-            // New scope after so subsequent siblings don't merge with this block
-            scopes.push(vec![]);
-            return;
-        }
-
-        // Inline commands: recurse normally (bridges with surrounding text).
-        // Skip the delimiters { } of each brace_group argument so they
-        // don't leak into prose output as stray brackets.
-        if cmd_name.is_some_and(|n| INLINE_COMMANDS.contains(&n)) {
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                if child.kind() == "brace_group" {
-                    // Skip opening '{' and closing '}'
-                    skips.push((child.start_byte(), child.start_byte() + 1));
-                    skips.push((child.end_byte() - 1, child.end_byte()));
-                }
-                collect_prose_nodes(child, text, scopes, skips, true);
-            }
-            return;
-        }
-
-        // Unknown command/macro: recurse into children so nested known
-        // blocks (\p, \li, etc.) still create their own scope boundaries.
-        // Text collection stays OFF — only known commands enable it.
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            collect_prose_nodes(child, text, scopes, skips, false);
-        }
+        handle_command(node, text, scopes, skips);
         return;
     }
 
-    // Parenthesised groups inside prose — include the parens and content as prose.
-    // e.g. \title{Negation Normal Form (NNF)} → "Negation Normal Form (NNF)"
-    if kind == "paren_group" && in_prose {
-        let start = node.start_byte();
-        let end = node.end_byte();
-        if start < end {
-            if let Some(scope) = scopes.last_mut() {
-                scope.push((start, end));
-            }
-        }
-        return;
-    }
-
-    // Leaf prose nodes (only when inside a known prose command)
-    if kind == "text" && in_prose {
-        let start = node.start_byte();
-        let end = node.end_byte();
-        if start < end
-            && let Some(scope) = scopes.last_mut()
-        {
-            scope.push((start, end));
-        }
+    // Parenthesised groups and leaf text nodes inside prose.
+    if in_prose && (kind == "paren_group" || kind == "text") {
+        push_to_scope(node, scopes);
         return;
     }
 

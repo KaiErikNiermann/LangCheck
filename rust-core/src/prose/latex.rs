@@ -284,64 +284,87 @@ fn should_skip_generic_command(node: Node, text: &str, extra_skip_commands: &[St
 /// escape sequences (`\\`, `\,`, etc.).  Display math exclusions are
 /// extended to cover surrounding whitespace so that the grammar checker
 /// doesn't see false paragraph breaks.
+/// Skip inline math `$...$` starting at position `i` (on the `$`).
+/// Returns the new scan position (just past the closing `$`).
+fn skip_inline_math_exclusion(
+    bytes: &[u8],
+    i: usize,
+    gap_offset: usize,
+    out: &mut Vec<(usize, usize)>,
+) -> usize {
+    let mut j = i + 1;
+    while j < bytes.len() && bytes[j] != b'$' {
+        j += 1;
+    }
+    if j < bytes.len() {
+        j += 1; // closing $
+    }
+    out.push((gap_offset + i, gap_offset + j));
+    j
+}
+
+/// Skip display math `\[...\]` starting at position `i` (on the `\`).
+/// Absorbs surrounding whitespace into the exclusion so the checker doesn't
+/// see false paragraph breaks.
+fn skip_display_math_exclusion(
+    bytes: &[u8],
+    i: usize,
+    gap_offset: usize,
+    out: &mut Vec<(usize, usize)>,
+) -> usize {
+    let len = bytes.len();
+    let mut exc_start = i;
+    while exc_start > 0 && bytes[exc_start - 1].is_ascii_whitespace() {
+        exc_start -= 1;
+    }
+    let mut j = i + 2;
+    while j + 1 < len && !(bytes[j] == b'\\' && bytes[j + 1] == b']') {
+        j += 1;
+    }
+    if j + 1 < len {
+        j += 2;
+    }
+    let mut exc_end = j;
+    while exc_end < len && bytes[exc_end].is_ascii_whitespace() {
+        exc_end += 1;
+    }
+    out.push((gap_offset + exc_start, gap_offset + exc_end));
+    exc_end
+}
+
+/// Skip inline paren math `\(...\)` starting at position `i` (on the `\`).
+fn skip_inline_paren_math_exclusion(
+    bytes: &[u8],
+    i: usize,
+    gap_offset: usize,
+    out: &mut Vec<(usize, usize)>,
+) -> usize {
+    let mut j = i + 2;
+    let len = bytes.len();
+    while j + 1 < len && !(bytes[j] == b'\\' && bytes[j + 1] == b')') {
+        j += 1;
+    }
+    if j + 1 < len {
+        j += 2;
+    }
+    out.push((gap_offset + i, gap_offset + j));
+    j
+}
+
 fn collect_gap_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, usize)>) {
     let bytes = gap.as_bytes();
     let len = bytes.len();
     let mut i = 0;
 
     while i < len {
-        // --- inline math: $...$ ---
         if bytes[i] == b'$' {
-            let start = i;
-            i += 1;
-            while i < len && bytes[i] != b'$' {
-                i += 1;
-            }
-            if i < len {
-                i += 1; // closing $
-            }
-            out.push((gap_offset + start, gap_offset + i));
-            continue;
-        }
-
-        // --- display math \[...\] (with whitespace absorption) ---
-        if i + 1 < len && bytes[i] == b'\\' && bytes[i + 1] == b'[' {
-            let mut exc_start = i;
-            while exc_start > 0 && bytes[exc_start - 1].is_ascii_whitespace() {
-                exc_start -= 1;
-            }
-            i += 2;
-            while i + 1 < len && !(bytes[i] == b'\\' && bytes[i + 1] == b']') {
-                i += 1;
-            }
-            if i + 1 < len {
-                i += 2;
-            }
-            let mut exc_end = i;
-            while exc_end < len && bytes[exc_end].is_ascii_whitespace() {
-                exc_end += 1;
-            }
-            out.push((gap_offset + exc_start, gap_offset + exc_end));
-            i = exc_end;
-            continue;
-        }
-
-        // --- inline math \(...\) ---
-        if i + 1 < len && bytes[i] == b'\\' && bytes[i + 1] == b'(' {
-            let start = i;
-            i += 2;
-            while i + 1 < len && !(bytes[i] == b'\\' && bytes[i + 1] == b')') {
-                i += 1;
-            }
-            if i + 1 < len {
-                i += 2;
-            }
-            out.push((gap_offset + start, gap_offset + i));
-            continue;
-        }
-
-        // --- command: \name[...]{...} ---
-        if i + 1 < len && bytes[i] == b'\\' && bytes[i + 1].is_ascii_alphabetic() {
+            i = skip_inline_math_exclusion(bytes, i, gap_offset, out);
+        } else if i + 1 < len && bytes[i] == b'\\' && bytes[i + 1] == b'[' {
+            i = skip_display_math_exclusion(bytes, i, gap_offset, out);
+        } else if i + 1 < len && bytes[i] == b'\\' && bytes[i + 1] == b'(' {
+            i = skip_inline_paren_math_exclusion(bytes, i, gap_offset, out);
+        } else if i + 1 < len && bytes[i] == b'\\' && bytes[i + 1].is_ascii_alphabetic() {
+            // command: \name[...]{...}
             let start = i;
             i += 1;
             while i < len && bytes[i].is_ascii_alphabetic() {
@@ -352,26 +375,17 @@ fn collect_gap_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, us
             }
             i = shared::skip_command_args_bytes(bytes, i, &[(b'{', b'}'), (b'[', b']')]);
             out.push((gap_offset + start, gap_offset + i));
-            continue;
-        }
-
-        // --- escape sequence: \\ , \, , \; , etc. ---
-        if i + 1 < len && bytes[i] == b'\\' {
-            let start = i;
+        } else if i + 1 < len && bytes[i] == b'\\' {
+            // escape sequence: \\ , \, , \; , etc.
+            out.push((gap_offset + i, gap_offset + i + 2));
             i += 2;
-            out.push((gap_offset + start, gap_offset + i));
-            continue;
-        }
-
-        // --- bare braces (unmatched closing brace from a command whose
-        // opening was in a previous gap, or stray opening brace) ---
-        if bytes[i] == b'{' || bytes[i] == b'}' {
+        } else if bytes[i] == b'{' || bytes[i] == b'}' {
+            // bare braces
             out.push((gap_offset + i, gap_offset + i + 1));
             i += 1;
-            continue;
+        } else {
+            i += 1;
         }
-
-        i += 1;
     }
 }
 
