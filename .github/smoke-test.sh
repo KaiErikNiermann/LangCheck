@@ -175,27 +175,31 @@ WASM_PLUGIN="${3:-}"
 if [[ -n "$WASM_PLUGIN" && -f "$WASM_PLUGIN" ]]; then
     printf '\n%s\n' "=== WASM plugin ==="
 
-    # Create a temp directory with config pointing to the plugin
+    # Create a temp directory with config pointing to the plugin.
+    # Copy the .wasm into the temp dir so the config uses a simple relative
+    # path — avoids POSIX-vs-Windows path issues with realpath on Git Bash.
     wasm_dir=$(mktemp -d)
     cp "$FIXTURES/wordy.md" "$wasm_dir/wordy.md"
+    cp "$WASM_PLUGIN" "$wasm_dir/wordiness-check.wasm"
     cat > "$wasm_dir/.languagecheck.yaml" <<YAML
 engines:
   harper: false
   languagetool: false
   wasm_plugins:
     - name: wordiness-check
-      path: $(realpath "$WASM_PLUGIN")
+      path: wordiness-check.wasm
 YAML
 
-    wasm_output=$(cd "$wasm_dir" && "$BIN" check wordy.md 2>&1) || true
+    # Use JSON for both tests so we get structured output (avoids false
+    # positives from grepping the "Checking wordy.md..." status line).
+    wasm_json=$(cd "$wasm_dir" && "$BIN" check --format json wordy.md 2>&1) || true
 
-    if echo "$wasm_output" | grep -qi "wordy\|in order to"; then
+    if echo "$wasm_json" | grep -qi "wordy phrase"; then
         pass "WASM plugin detects wordy phrase"
     else
-        fail "WASM plugin did not detect wordy phrase (output: $wasm_output)"
+        fail "WASM plugin did not detect wordy phrase (output: $wasm_json)"
     fi
 
-    wasm_json=$(cd "$wasm_dir" && "$BIN" check --format json wordy.md 2>&1) || true
     if echo "$wasm_json" | grep -q "wasm.wordiness-check"; then
         pass "WASM plugin rule_id has correct namespace"
     else
