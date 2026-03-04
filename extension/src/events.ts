@@ -111,4 +111,5 @@ export type InspectorToExtensionMessage =
     | { type: 'highlightRange'; payload: { startByte: number; endByte: number } }
     | { type: 'healthCheckLT' }
     | { type: 'restartLTDocker' }
-    | { type: 'openIssue'; payload: { body: string } };
+    | { type: 'openIssue'; payload: { body: string } }
+    | { type: 'copyReport'; payload: { body: string } };

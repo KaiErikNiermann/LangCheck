@@ -1479,6 +1479,12 @@ export async function activate(context: vscode.ExtensionContext) {
                     break;
                 }
                 case 'openIssue': {
+                    const confirm = await vscode.window.showWarningMessage(
+                        vscode.l10n.t('The report includes file names, diagnostics, and timing data (not document text). This will be publicly visible on GitHub. Continue?'),
+                        { modal: true },
+                        vscode.l10n.t('Open Issue')
+                    );
+                    if (!confirm) break;
                     const issueUrl = `https://github.com/${GITHUB_REPO}/issues/new`;
                     const title = encodeURIComponent('Inspector bug report');
                     const encodedBody = encodeURIComponent(message.payload.body);
@@ -1492,6 +1498,13 @@ export async function activate(context: vscode.ExtensionContext) {
                             vscode.l10n.t('Report copied to clipboard — paste it in the issue body.')
                         );
                     }
+                    break;
+                }
+                case 'copyReport': {
+                    await vscode.env.clipboard.writeText(message.payload.body);
+                    vscode.window.showInformationMessage(
+                        vscode.l10n.t('Report copied to clipboard.')
+                    );
                     break;
                 }
             }

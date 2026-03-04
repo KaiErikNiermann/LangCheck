@@ -359,20 +359,14 @@
     return lines.join('\n');
   }
 
-  async function copyReport() {
+  function copyReport() {
     const report = generateReport(false);
-    await navigator.clipboard.writeText(report);
+    vscode.postMessage({ type: 'copyReport', payload: { body: report } });
     copyFeedback = true;
     setTimeout(() => { copyFeedback = false; }, 2000);
   }
 
   function reportIssue() {
-    const ok = confirm(
-      'The inspector report will be used to pre-fill a GitHub issue. ' +
-      'It includes file names, diagnostics, and timing data but NOT your document text. ' +
-      'This information will be publicly visible. Continue?'
-    );
-    if (!ok) return;
     const body = generateReport(false);
     vscode.postMessage({ type: 'openIssue', payload: { body } });
   }
