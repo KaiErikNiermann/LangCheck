@@ -29,3 +29,21 @@ pre-push:
       root: extension/
       glob: "**/*.{ts,tsx}"
       run: pnpm run lint
+
+    lua_fmt:
+      glob: "**/*.lua"
+      run: |
+        if command -v stylua >/dev/null 2>&1; then
+          stylua --check editors/nvim/ .github/nvim-lsp-test.lua
+        else
+          echo "⚠ stylua not found, skipping Lua format check (install: cargo install stylua)"
+        fi
+
+    lua_lint:
+      glob: "**/*.lua"
+      run: |
+        if command -v luacheck >/dev/null 2>&1; then
+          luacheck editors/nvim/ .github/nvim-lsp-test.lua
+        else
+          echo "⚠ luacheck not found, skipping Lua lint (install: luarocks install luacheck)"
+        fi
