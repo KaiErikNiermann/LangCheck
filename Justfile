@@ -187,7 +187,7 @@ rerelease version:
     version="{{version}}"
     gh release delete "v$version" -y 2>/dev/null || true
     just rerun "$version"
-    gh release create "v$version" --title "v$version" --generate-notes
+    gh release create "v$version" --title "v$version" --notes ""
 
 # Internal: sync versions across all files, commit, tag, push, create release
 _release version:
@@ -202,7 +202,7 @@ _release version:
     git push
     git tag "v$version"
     git push origin "v$version"
-    gh release create "v$version" --title "v$version" --generate-notes
+    gh release create "v$version" --title "v$version" --notes ""
     echo "Release v$version created — GitHub Actions will build, publish to crates.io, VS Code Marketplace, and Homebrew"
 
 # Internal: update version in all project files
