@@ -45,14 +45,15 @@ impl Orchestrator {
         let hpm = self.config.performance.high_performance_mode;
 
         if self.config.engines.harper.enabled {
-            self.engines.push(Box::new(HarperEngine::new()));
+            self.engines
+                .push(Box::new(HarperEngine::new(&self.config.engines.harper)));
         }
 
         // In HPM, skip LanguageTool and external providers for speed
         if !hpm {
             if self.config.engines.languagetool.enabled {
                 self.engines.push(Box::new(LanguageToolEngine::new(
-                    self.config.engines.languagetool.url.clone(),
+                    &self.config.engines.languagetool,
                 )));
             }
 

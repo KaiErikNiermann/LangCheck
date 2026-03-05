@@ -55,7 +55,7 @@ fn harper_check_clean_sentence(bencher: divan::Bencher) {
         .build()
         .unwrap();
     bencher
-        .with_inputs(HarperEngine::new)
+        .with_inputs(|| HarperEngine::new(&lang_check::config::HarperConfig::default()))
         .bench_local_refs(|engine| {
             rt.block_on(engine.check("The quick brown fox jumped over the lazy dog.", "en-US"))
                 .unwrap()
@@ -69,7 +69,7 @@ fn harper_check_with_errors(bencher: divan::Bencher) {
         .build()
         .unwrap();
     bencher
-        .with_inputs(HarperEngine::new)
+        .with_inputs(|| HarperEngine::new(&lang_check::config::HarperConfig::default()))
         .bench_local_refs(|engine| {
             rt.block_on(engine.check("This is an test of the the system.", "en-US"))
                 .unwrap()
@@ -87,7 +87,7 @@ fn harper_check_paragraph(bencher: divan::Bencher) {
                 The sun was shining and the birds were singing. \
                 Everything seemed perfect in every way.";
     bencher
-        .with_inputs(HarperEngine::new)
+        .with_inputs(|| HarperEngine::new(&lang_check::config::HarperConfig::default()))
         .bench_local_refs(|engine| rt.block_on(engine.check(text, "en-US")).unwrap());
 }
 

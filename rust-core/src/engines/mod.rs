@@ -43,17 +43,22 @@ pub struct HarperEngine {
     dict: Lrc<FstDictionary>,
 }
 
-impl Default for HarperEngine {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl HarperEngine {
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(config: &crate::config::HarperConfig) -> Self {
+        let dialect = match config.dialect.as_str() {
+            "British" => Dialect::British,
+            "Canadian" => Dialect::Canadian,
+            "Australian" => Dialect::Australian,
+            _ => Dialect::American,
+        };
         let dict = FstDictionary::curated();
-        let linter = LintGroup::new_curated(dict.clone(), Dialect::American);
+        let mut linter = LintGroup::new_curated(dict.clone(), dialect);
+
+        for (rule, enabled) in &config.linters {
+            linter.config.set_rule_enabled(rule, *enabled);
+        }
+
         Self { linter, dict }
     }
 }
@@ -112,6 +117,12 @@ impl Engine for HarperEngine {
 
 pub struct LanguageToolEngine {
     url: String,
+    level: String,
+    mother_tongue: Option<String>,
+    disabled_rules: Vec<String>,
+    enabled_rules: Vec<String>,
+    disabled_categories: Vec<String>,
+    enabled_categories: Vec<String>,
     client: reqwest::Client,
 }
 
@@ -143,13 +154,22 @@ struct LTRule {
 
 impl LanguageToolEngine {
     #[must_use]
-    pub fn new(url: String) -> Self {
+    pub fn new(config: &crate::config::LanguageToolConfig) -> Self {
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(3))
             .timeout(std::time::Duration::from_secs(10))
             .build()
             .unwrap_or_default();
-        Self { url, client }
+        Self {
+            url: config.url.clone(),
+            level: config.level.clone(),
+            mother_tongue: config.mother_tongue.clone(),
+            disabled_rules: config.disabled_rules.clone(),
+            enabled_rules: config.enabled_rules.clone(),
+            disabled_categories: config.disabled_categories.clone(),
+            enabled_categories: config.enabled_categories.clone(),
+            client,
+        }
     }
 }
 
@@ -173,11 +193,34 @@ impl Engine for LanguageToolEngine {
             "LanguageTool request"
         );
 
+        let mut form_params: Vec<(&str, String)> = vec![
+            ("text", text.to_string()),
+            ("language", lt_lang.to_string()),
+        ];
+        if self.level != "default" {
+            form_params.push(("level", self.level.clone()));
+        }
+        if let Some(ref mt) = self.mother_tongue {
+            form_params.push(("motherTongue", mt.clone()));
+        }
+        if !self.disabled_rules.is_empty() {
+            form_params.push(("disabledRules", self.disabled_rules.join(",")));
+        }
+        if !self.enabled_rules.is_empty() {
+            form_params.push(("enabledRules", self.enabled_rules.join(",")));
+        }
+        if !self.disabled_categories.is_empty() {
+            form_params.push(("disabledCategories", self.disabled_categories.join(",")));
+        }
+        if !self.enabled_categories.is_empty() {
+            form_params.push(("enabledCategories", self.enabled_categories.join(",")));
+        }
+
         let request_start = std::time::Instant::now();
         let response = match self
             .client
             .post(&url)
-            .form(&[("text", &text), ("language", &lt_lang)])
+            .form(&form_params)
             .send()
             .await
         {
@@ -502,7 +545,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_harper_engine() -> Result<()> {
-        let mut engine = HarperEngine::new();
+        let mut engine = HarperEngine::new(&crate::config::HarperConfig::default());
         let text = "This is an test.";
         let diagnostics = engine.check(text, "en-US").await?;
 
@@ -633,7 +676,7 @@ mod tests {
             .with_target(false)
             .try_init();
 
-        let mut engine = LanguageToolEngine::new("http://localhost:8010".to_string());
+        let mut engine = LanguageToolEngine::new(&crate::config::LanguageToolConfig::default());
         let text = "This is a sentnce with erors.";
         let diagnostics = engine.check(text, "markdown").await?;
 

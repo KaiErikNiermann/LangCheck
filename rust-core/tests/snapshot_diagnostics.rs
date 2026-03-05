@@ -195,7 +195,7 @@ Some text without a document environment.
 
 #[tokio::test]
 async fn harper_an_vs_a_diagnostic() {
-    let mut engine = HarperEngine::new();
+    let mut engine = HarperEngine::new(&lang_check::config::HarperConfig::default());
     let normalizer = RuleNormalizer::new();
     let text = "This is an test of the system.";
     let mut diagnostics = engine.check(text, "en-US").await.unwrap();
@@ -208,7 +208,7 @@ async fn harper_an_vs_a_diagnostic() {
 
 #[tokio::test]
 async fn harper_repeated_word() {
-    let mut engine = HarperEngine::new();
+    let mut engine = HarperEngine::new(&lang_check::config::HarperConfig::default());
     let normalizer = RuleNormalizer::new();
     let text = "The the cat sat on the mat.";
     let mut diagnostics = engine.check(text, "en-US").await.unwrap();
@@ -221,7 +221,7 @@ async fn harper_repeated_word() {
 
 #[tokio::test]
 async fn harper_clean_text() {
-    let mut engine = HarperEngine::new();
+    let mut engine = HarperEngine::new(&lang_check::config::HarperConfig::default());
     let text = "The quick brown fox jumped over the lazy dog.";
     let diagnostics = engine.check(text, "en-US").await.unwrap();
     let snap: Vec<_> = diagnostics.iter().map(SnapDiagnostic::from).collect();
@@ -230,7 +230,7 @@ async fn harper_clean_text() {
 
 #[tokio::test]
 async fn harper_multiple_issues() {
-    let mut engine = HarperEngine::new();
+    let mut engine = HarperEngine::new(&lang_check::config::HarperConfig::default());
     let normalizer = RuleNormalizer::new();
     let text = "This is an test. The the dog is runing.";
     let mut diagnostics = engine.check(text, "en-US").await.unwrap();
