@@ -81,7 +81,12 @@ jobs:
           esac
           PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ASSET}"
           retry curl -fsSL "$PROTOC_URL" -o /tmp/protoc.zip
-          sudo unzip -o /tmp/protoc.zip -d /usr/local bin/protoc 'include/*'
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            unzip -o /tmp/protoc.zip -d "$HOME/.local"
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          else
+            sudo unzip -o /tmp/protoc.zip -d /usr/local bin/protoc 'include/*'
+          fi
           protoc --version
 
       - uses: dtolnay/rust-toolchain@stable
