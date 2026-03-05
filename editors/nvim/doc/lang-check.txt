@@ -127,6 +127,7 @@ Settings under `langCheck` are sent to the server via
     `langCheck.engines.languagetool`    boolean  Enable LanguageTool
     `langCheck.engines.languagetool_url` string  LanguageTool server URL
     `langCheck.engines.vale`            boolean  Enable Vale linter
+    `langCheck.engines.proselint`       boolean  Enable Proselint (English only)
     `langCheck.engines.spell_language`  string   BCP-47 language tag
     `langCheck.performance.high_performance_mode`  boolean  HPM toggle
     `langCheck.performance.debounce_ms`  number   Debounce delay (ms)

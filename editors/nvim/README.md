@@ -66,6 +66,7 @@ require("lang_check").setup({
         harper = true,
         languagetool = false,
         vale = false,
+        proselint = false,
       },
     },
   },

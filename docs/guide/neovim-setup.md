@@ -111,6 +111,7 @@ require("lang_check").setup({
         languagetool = false,
         languagetool_url = "http://localhost:8010",
         vale = false,
+        proselint = false,
         spell_language = "en-US",   -- BCP-47 tag for checking language
       },
       performance = {
@@ -141,7 +142,7 @@ require("lang_check").setup({
 })
 ```
 
-**All engines enabled (Harper + LanguageTool + Vale):**
+**All engines enabled (Harper + LanguageTool + Vale + Proselint):**
 
 ```lua
 require("lang_check").setup({
@@ -151,6 +152,7 @@ require("lang_check").setup({
         harper = true,
         languagetool = true,
         vale = true,
+        proselint = true,
       },
     },
   },

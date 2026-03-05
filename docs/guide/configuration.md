@@ -34,6 +34,10 @@ engines:
     enabled: true
     config: ".vale.ini"       # Path to Vale config (auto-detected if omitted)
 
+  proselint:
+    enabled: false
+    config: "proselint.json"  # Path to proselint config (auto-detected if omitted)
+
   spell_language: "en-US"     # BCP-47 tag for checking language
 ```
 
@@ -106,6 +110,7 @@ engines:
   vale:
     enabled: true
     config: ".vale.ini"
+  proselint: false
   spell_language: "en-US"
   external:
     - name: custom-checker
