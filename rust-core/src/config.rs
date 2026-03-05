@@ -159,6 +159,8 @@ pub struct EngineConfig {
     pub languagetool: LanguageToolConfig,
     #[serde(default, deserialize_with = "deser_engine_or_bool")]
     pub vale: ValeConfig,
+    #[serde(default, deserialize_with = "deser_engine_or_bool")]
+    pub proselint: ProselintConfig,
     /// External checker providers registered via config.
     #[serde(default)]
     pub external: Vec<ExternalProvider>,
@@ -304,6 +306,21 @@ impl EngineToggle for ValeConfig {
     fn set_enabled(&mut self, v: bool) { self.enabled = v; }
 }
 
+/// Proselint engine configuration.
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct ProselintConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    /// Path to `proselint.json` config. When empty, proselint uses its own search logic.
+    #[serde(default)]
+    pub config: Option<String>,
+}
+
+impl EngineToggle for ProselintConfig {
+    fn enabled(&self) -> bool { self.enabled }
+    fn set_enabled(&mut self, v: bool) { self.enabled = v; }
+}
+
 /// An external checker binary that communicates via stdin/stdout JSON.
 ///
 /// The binary receives `{"text": "...", "language_id": "..."}` on stdin
@@ -343,6 +360,7 @@ impl Default for EngineConfig {
             harper: HarperConfig::default(),
             languagetool: LanguageToolConfig::default(),
             vale: ValeConfig::default(),
+            proselint: ProselintConfig::default(),
             external: Vec::new(),
             wasm_plugins: Vec::new(),
             spell_language: default_spell_language(),
@@ -893,5 +911,35 @@ engines:
         assert_eq!(config.engines.languagetool.url, "http://localhost:9090");
         assert_eq!(config.engines.languagetool.level, "picky");
         assert_eq!(config.engines.languagetool.disabled_rules, vec!["WHITESPACE_RULE"]);
+    }
+
+    #[test]
+    fn default_proselint_is_disabled() {
+        let config = Config::default();
+        assert!(!config.engines.proselint.enabled);
+        assert!(config.engines.proselint.config.is_none());
+    }
+
+    #[test]
+    fn proselint_bool_shorthand_from_yaml() {
+        let yaml = r#"
+engines:
+  proselint: true
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.engines.proselint.enabled);
+    }
+
+    #[test]
+    fn proselint_nested_config_from_yaml() {
+        let yaml = r#"
+engines:
+  proselint:
+    enabled: true
+    config: "proselint.json"
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.engines.proselint.enabled);
+        assert_eq!(config.engines.proselint.config.as_deref(), Some("proselint.json"));
     }
 }
