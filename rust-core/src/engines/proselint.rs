@@ -131,13 +131,17 @@ impl Engine for ProselintEngine {
             return Ok(vec![]);
         }
 
-        let parsed: ProselintOutput = match serde_json::from_str(&stdout) {
-            Ok(o) => o,
-            Err(e) => {
+        // Proselint may output JSON twice (a known quirk); use a streaming
+        // deserializer to parse only the first valid JSON object.
+        let mut de = serde_json::Deserializer::from_str(&stdout).into_iter::<ProselintOutput>();
+        let parsed: ProselintOutput = match de.next() {
+            Some(Ok(o)) => o,
+            Some(Err(e)) => {
                 warn!("Failed to parse proselint JSON: {e}");
                 debug!(stdout = %stdout, "Raw proselint output");
                 return Ok(vec![]);
             }
+            None => return Ok(vec![]),
         };
 
         let mut diagnostics = Vec::new();
