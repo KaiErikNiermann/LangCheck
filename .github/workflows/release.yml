@@ -85,7 +85,7 @@ jobs:
             unzip -o /tmp/protoc.zip -d "$HOME/.local"
             echo "$HOME/.local/bin" >> "$GITHUB_PATH"
             export PATH="$HOME/.local/bin:$PATH"
-            echo "PROTOC=$HOME/.local/bin/protoc.exe" >> "$GITHUB_ENV"
+            echo "PROTOC=$(cygpath -w "$HOME/.local/bin/protoc.exe")" >> "$GITHUB_ENV"
           else
             sudo unzip -o /tmp/protoc.zip -d /usr/local bin/protoc 'include/*'
           fi
