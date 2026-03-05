@@ -171,6 +171,13 @@ pub struct EngineConfig {
     /// BCP-47 natural language tag for spell/grammar checking (e.g. "en-US", "de-DE").
     #[serde(default = "default_spell_language")]
     pub spell_language: String,
+    /// Enable the Vale prose linter (requires `vale` on PATH).
+    #[serde(default)]
+    pub vale: bool,
+    /// Optional path to a `.vale.ini` config file. When empty, Vale uses its
+    /// own search logic (CWD upward, then global config).
+    #[serde(default)]
+    pub vale_config: Option<String>,
 }
 
 /// An external checker binary that communicates via stdin/stdout JSON.
@@ -216,6 +223,8 @@ impl Default for EngineConfig {
             external: Vec::new(),
             wasm_plugins: Vec::new(),
             spell_language: default_spell_language(),
+            vale: false,
+            vale_config: None,
         }
     }
 }
@@ -719,5 +728,24 @@ engines:
     fn default_config_has_empty_latex_skip_commands() {
         let config = Config::default();
         assert!(config.languages.latex.skip_commands.is_empty());
+    }
+
+    #[test]
+    fn default_vale_is_disabled() {
+        let config = Config::default();
+        assert!(!config.engines.vale);
+        assert!(config.engines.vale_config.is_none());
+    }
+
+    #[test]
+    fn vale_config_from_yaml() {
+        let yaml = r#"
+engines:
+  vale: true
+  vale_config: ".vale.ini"
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.engines.vale);
+        assert_eq!(config.engines.vale_config.as_deref(), Some(".vale.ini"));
     }
 }
