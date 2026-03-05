@@ -16,6 +16,12 @@ Language Check catches grammar, spelling, and style issues in Markdown, HTML, La
 
 ::::
 
+:::{admonition} Early Development
+:class: note
+
+Language Check is in active early development. Core checking is stable and usable, but you may encounter bugs — please [report them](https://github.com/KaiErikNiermann/LangCheck/issues) and they will be fixed promptly. The configuration format may change between minor versions; backwards compatibility is a goal but not yet guaranteed.
+:::
+
 ---
 
 ```{toctree}

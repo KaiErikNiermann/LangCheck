@@ -15,6 +15,9 @@
 
 A fast, extensible grammar and style checker for Markdown, HTML, LaTeX, Typst, and more. Ships as a VS Code extension and Neovim plugin, backed by a Rust core binary with LSP and Protobuf server modes.
 
+> [!NOTE]
+> Language Check is in **early development**. Core checking works and is usable day-to-day, but expect rough edges — if you hit a bug, please [open an issue](https://github.com/KaiErikNiermann/LangCheck/issues) and it will be addressed promptly. The configuration format may evolve between minor versions; backwards compatibility is a goal but not yet guaranteed.
+
 <table>
 <tr>
 <td width="47%"><strong>VS Code</strong></td>

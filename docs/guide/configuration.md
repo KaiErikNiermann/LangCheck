@@ -1,5 +1,9 @@
 # Configuration
 
+:::{tip}
+The configuration format is still evolving. Backwards compatibility is maintained where possible, but some keys may change between minor versions. Check the [release notes](https://github.com/KaiErikNiermann/LangCheck/releases) when upgrading.
+:::
+
 Language Check is configured via a `.languagecheck.yaml` file in your workspace root. YAML is preferred; `.languagecheck.yml` and `.languagecheck.json` are also supported.
 
 ## Engines
