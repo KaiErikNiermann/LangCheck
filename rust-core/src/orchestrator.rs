@@ -1,7 +1,8 @@
 use crate::checker::{Diagnostic, EngineHealth, Severity};
 use crate::config::Config;
 use crate::engines::{
-    Engine, ExternalEngine, HarperEngine, LanguageToolEngine, WasmEngine, engine_supports_language,
+    Engine, ExternalEngine, HarperEngine, LanguageToolEngine, ValeEngine, WasmEngine,
+    engine_supports_language,
 };
 use crate::ignore_rules::IgnoreParser;
 use crate::rules::RuleNormalizer;
@@ -52,6 +53,12 @@ impl Orchestrator {
             if self.config.engines.languagetool {
                 self.engines.push(Box::new(LanguageToolEngine::new(
                     self.config.engines.languagetool_url.clone(),
+                )));
+            }
+
+            if self.config.engines.vale {
+                self.engines.push(Box::new(ValeEngine::new(
+                    self.config.engines.vale_config.clone(),
                 )));
             }
 
@@ -169,6 +176,8 @@ impl Orchestrator {
                     for d in &mut diagnostics {
                         let provider = if d.rule_id.starts_with("harper") {
                             "harper"
+                        } else if d.rule_id.starts_with("vale.") {
+                            "vale"
                         } else if d.rule_id.starts_with("wasm.") {
                             "wasm"
                         } else if d.rule_id.starts_with("external.") {
