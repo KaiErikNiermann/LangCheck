@@ -2,7 +2,7 @@
 
 A fast, multi-engine prose linter for VS Code and Neovim with a Rust core.
 
-Language Check catches grammar, spelling, and style issues in Markdown, HTML, LaTeX, Typst, reStructuredText, Org mode, BibTeX, Forester, and R Sweave files using [Harper](https://github.com/elijah-potter/harper), optional [LanguageTool](https://languagetool.org/), and optional [Vale](https://vale.sh/) integration.
+Language Check catches grammar, spelling, and style issues in Markdown, HTML, LaTeX, Typst, reStructuredText, Org mode, BibTeX, Forester, and R Sweave files using [Harper](https://github.com/elijah-potter/harper), optional [LanguageTool](https://languagetool.org/), optional [Vale](https://vale.sh/), and optional [Proselint](https://github.com/amperser/proselint) integration.
 
 ::::{grid} 2
 
@@ -26,6 +26,7 @@ guide/installation
 guide/neovim-setup
 guide/languagetool-setup
 guide/vale-setup
+guide/proselint-setup
 guide/configuration
 guide/languages
 guide/localization

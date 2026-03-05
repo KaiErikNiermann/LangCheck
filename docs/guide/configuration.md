@@ -43,6 +43,16 @@ engines:
 
 Both bool shorthand (`harper: true`) and nested config (`harper: { enabled: true, dialect: "British" }`) are supported. Use the shorthand when you only need to toggle an engine; use the nested form when you need engine-specific settings.
 
+:::{note}
+**Harper** is built in and requires no external installation. **LanguageTool**, **Vale**, and **Proselint** are external tools that must be installed separately and available on your `$PATH`. See the dedicated setup guides:
+
+- [LanguageTool Setup](languagetool-setup.md)
+- [Vale Setup](vale-setup.md)
+- [Proselint Setup](proselint-setup.md)
+
+The inspector health tab in VS Code shows whether each engine's binary was detected and provides install instructions when missing.
+:::
+
 All enabled engines run concurrently and their diagnostics overlay. Engines that don't support the configured `spell_language` are automatically skipped (e.g. Harper only supports English). Duplicate diagnostics at the same range and rule are deduplicated.
 
 ## Rule Overrides
