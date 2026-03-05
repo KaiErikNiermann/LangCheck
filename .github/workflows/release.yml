@@ -168,9 +168,10 @@ jobs:
         shell: bash
         run: |
           eval "$RETRY_FN"
+          VALE_VERSION=$(curl -sI https://github.com/errata-ai/vale/releases/latest | grep -i '^location:' | sed 's|.*/v||;s/\r//')
           case "${{ runner.os }}" in
             Linux)
-              retry curl -fsSL https://github.com/errata-ai/vale/releases/latest/download/vale_Linux_64-bit.tar.gz -o /tmp/vale.tar.gz
+              retry curl -fsSL "https://github.com/errata-ai/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz" -o /tmp/vale.tar.gz
               sudo tar xzf /tmp/vale.tar.gz -C /usr/local/bin vale
               ;;
             macOS)
@@ -191,7 +192,7 @@ jobs:
         run: |
           eval "$RETRY_FN"
           retry pip install proselint
-          proselint --version
+          proselint --help > /dev/null 2>&1
 
       - name: Extract expected version
         id: version
