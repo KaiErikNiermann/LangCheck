@@ -110,7 +110,7 @@ require("lang_check").setup({
         harper = true,
         languagetool = false,
         languagetool_url = "http://localhost:8010",
-        english_engine = "harper",  -- "harper" or "languagetool"
+        vale = false,
         spell_language = "en-US",   -- BCP-47 tag for checking language
       },
       performance = {
@@ -141,15 +141,16 @@ require("lang_check").setup({
 })
 ```
 
-**LanguageTool as the English engine (deeper analysis):**
+**All engines enabled (Harper + LanguageTool + Vale):**
 
 ```lua
 require("lang_check").setup({
   settings = {
     langCheck = {
       engines = {
+        harper = true,
         languagetool = true,
-        english_engine = "languagetool",
+        vale = true,
       },
     },
   },

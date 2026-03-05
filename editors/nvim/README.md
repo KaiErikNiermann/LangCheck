@@ -65,6 +65,7 @@ require("lang_check").setup({
       engines = {
         harper = true,
         languagetool = false,
+        vale = false,
       },
     },
   },

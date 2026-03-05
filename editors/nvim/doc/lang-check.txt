@@ -126,7 +126,8 @@ Settings under `langCheck` are sent to the server via
     `langCheck.engines.harper`          boolean  Enable Harper engine
     `langCheck.engines.languagetool`    boolean  Enable LanguageTool
     `langCheck.engines.languagetool_url` string  LanguageTool server URL
-    `langCheck.engines.english_engine`  string   "harper" or "languagetool"
+    `langCheck.engines.vale`            boolean  Enable Vale linter
+    `langCheck.engines.spell_language`  string   BCP-47 language tag
     `langCheck.performance.high_performance_mode`  boolean  HPM toggle
     `langCheck.performance.debounce_ms`  number   Debounce delay (ms)
     `langCheck.performance.max_file_size` number  Max file size (bytes)

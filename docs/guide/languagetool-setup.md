@@ -246,18 +246,21 @@ Or change the URL in VS Code settings:
 3. Set **Engines > LanguageTool** to `true`
 4. Set **Engines > LanguageTool URL** to `http://localhost:8010`
 
-## English Engine Toggle
+## Multi-Engine Mode
 
-By default, Harper handles all English checking. If you prefer LanguageTool's deeper analysis for English, set `english_engine`:
+When both Harper and LanguageTool are enabled, they run concurrently and
+their diagnostics overlay. Duplicate findings at the same text range are
+automatically deduplicated.
 
 ```yaml
 engines:
   harper: true
   languagetool: true
-  english_engine: languagetool   # Use LT for English instead of Harper
 ```
 
-When set to `"languagetool"`, Harper is skipped entirely (since it only supports English). When set to `"harper"` (the default), LanguageTool is skipped for English content but still runs for other languages.
+For non-English languages (e.g. `spell_language: de-DE`), Harper is
+automatically skipped since it only supports English, and LanguageTool
+handles all checking.
 
 ## Verify the Connection
 
