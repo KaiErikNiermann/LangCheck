@@ -141,10 +141,16 @@ fi
 printf '\n%s\n' "=== config show ==="
 
 config_output=$("$BIN" config show 2>&1) || true
-if echo "$config_output" | grep -q "harper: true"; then
-    pass "config show includes default harper=true"
+if echo "$config_output" | grep -q "enabled: true"; then
+    pass "config show includes enabled engine"
 else
-    fail "config show missing harper default"
+    fail "config show missing enabled engine"
+fi
+
+if echo "$config_output" | grep -q "spell_language"; then
+    pass "config show includes spell_language"
+else
+    fail "config show missing spell_language"
 fi
 
 # ---------- 9. fix command ----------
