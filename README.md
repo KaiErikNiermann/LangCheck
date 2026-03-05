@@ -28,7 +28,7 @@ A fast, extensible grammar and style checker for Markdown, HTML, LaTeX, Typst, a
 
 ## Features
 
-- **Multi-engine checking** — local Harper engine for instant feedback, optional LanguageTool for deep grammar analysis, external binaries, and WASM plugins via Extism
+- **Multi-engine checking** — local Harper engine for instant feedback, optional LanguageTool for deep grammar analysis, optional [Vale](https://vale.sh/) for style linting with its rich plugin ecosystem, external binaries, and WASM plugins via Extism
 - **Tree-sitter parsing** — extracts prose from Markdown, HTML, LaTeX, Typst, and more while skipping code blocks, math, and markup
 - **SpeedFix panel** — keyboard-driven batch review: press `1`–`9` for suggestions, `a` to add to dictionary, `i` to ignore, `Space` to skip
 - **Inline suggestions** — inlay hints, ghost text completions, and quickfix code actions

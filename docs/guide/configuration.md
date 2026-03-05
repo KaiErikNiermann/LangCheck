@@ -12,6 +12,8 @@ engines:
   languagetool: false    # Optional, requires a running LT server
   languagetool_url: "http://localhost:8010"
   english_engine: harper # Which engine checks English: "harper" or "languagetool"
+  vale: false            # Optional, requires `vale` on PATH
+  vale_config: ".vale.ini"  # Optional path to Vale config (auto-detected if omitted)
 ```
 
 When both Harper and LanguageTool are enabled, `english_engine` controls which one handles English content. Set it to `"languagetool"` to use LanguageTool for English and skip Harper entirely. The non-selected engine is automatically skipped for English text, avoiding duplicate diagnostics.
@@ -75,10 +77,11 @@ engines:
   languagetool: true
   languagetool_url: "http://localhost:8010"
   english_engine: harper          # "harper" or "languagetool"
+  vale: true
+  vale_config: ".vale.ini"
   external:
-    - name: vale
-      command: vale
-      args: ["--output", "JSON"]
+    - name: custom-checker
+      command: ./my-checker
       extensions: [md, rst]
 
 rules:

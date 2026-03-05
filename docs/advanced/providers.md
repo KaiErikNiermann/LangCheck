@@ -2,6 +2,11 @@
 
 Language Check supports external checker binaries that communicate via stdin/stdout JSON.
 
+:::{note}
+[Vale](https://vale.sh/) has built-in first-class support — use `engines.vale: true`
+instead of registering it as a custom provider. See [Vale Setup](../guide/vale-setup.md).
+:::
+
 ## Configuration
 
 Register external providers in `.languagecheck.yaml`:
@@ -9,12 +14,12 @@ Register external providers in `.languagecheck.yaml`:
 ```yaml
 engines:
   external:
-    - name: vale
-      command: /usr/bin/vale
-      args: ["--output", "JSON"]
-      extensions: [md, rst]
     - name: custom-checker
       command: ./my-checker
+    - name: another-tool
+      command: /usr/bin/another-tool
+      args: ["--format", "json"]
+      extensions: [md, rst]
 ```
 
 ## Protocol
