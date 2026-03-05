@@ -120,6 +120,33 @@ jobs:
           tar xzf artifact/language-check-${{ matrix.target }}.tar.gz -C bin
           chmod +x bin/${{ matrix.binary }}
 
+      - name: Install Vale
+        shell: bash
+        run: |
+          case "${{ runner.os }}" in
+            Linux)
+              sudo curl -sfL https://github.com/errata-ai/vale/releases/latest/download/vale_Linux_64-bit.tar.gz -o /tmp/vale.tar.gz
+              sudo tar xzf /tmp/vale.tar.gz -C /usr/local/bin vale
+              ;;
+            macOS)
+              brew install vale
+              ;;
+            Windows)
+              choco install vale -y
+              ;;
+          esac
+          vale --version
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Proselint
+        shell: bash
+        run: |
+          pip install proselint
+          proselint --version
+
       - name: Extract expected version
         id: version
         shell: bash

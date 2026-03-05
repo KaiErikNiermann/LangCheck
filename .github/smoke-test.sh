@@ -212,6 +212,87 @@ else
     printf '  \033[33m⊘\033[0m %s\n' "skipped (no plugin path provided)"
 fi
 
+# ---------- 11. Vale engine (if available) ----------
+
+printf '\n%s\n' "=== Vale engine ==="
+
+if command -v vale >/dev/null 2>&1; then
+    vale_dir=$(mktemp -d)
+    cp "$FIXTURES/prose-style.md" "$vale_dir/test.md"
+
+    # Minimal Vale config with built-in style
+    cat > "$vale_dir/.vale.ini" <<'INI'
+StylesPath = styles
+MinAlertLevel = suggestion
+[*]
+BasedOnStyles = Vale
+INI
+    mkdir -p "$vale_dir/styles"
+
+    # Language Check config enabling only Vale
+    cat > "$vale_dir/.languagecheck.yaml" <<'YAML'
+engines:
+  harper: false
+  languagetool: false
+  vale: true
+  proselint: false
+YAML
+
+    vale_json=$(cd "$vale_dir" && "$BIN" check --format json test.md 2>&1) || true
+
+    if echo "$vale_json" | grep -q "Vale\.Repetition"; then
+        pass "Vale detects 'the the' repetition"
+    else
+        fail "Vale did not detect repetition (output: $vale_json)"
+    fi
+
+    if echo "$vale_json" | grep -q "vale\."; then
+        pass "Vale diagnostics have vale. prefix"
+    else
+        fail "Vale diagnostics missing vale. prefix (output: $vale_json)"
+    fi
+
+    rm -rf "$vale_dir"
+else
+    printf '  \033[33m⊘\033[0m %s\n' "skipped (vale not in PATH)"
+fi
+
+# ---------- 12. Proselint engine (if available) ----------
+
+printf '\n%s\n' "=== Proselint engine ==="
+
+if command -v proselint >/dev/null 2>&1; then
+    pl_dir=$(mktemp -d)
+    cp "$FIXTURES/prose-style.md" "$pl_dir/test.md"
+
+    # Language Check config enabling only Proselint
+    cat > "$pl_dir/.languagecheck.yaml" <<'YAML'
+engines:
+  harper: false
+  languagetool: false
+  vale: false
+  proselint: true
+YAML
+
+    pl_json=$(cd "$pl_dir" && "$BIN" check --format json test.md 2>&1) || true
+
+    if echo "$pl_json" | grep -q "uncomparable"; then
+        pass "Proselint detects 'very unique' uncomparable"
+    else
+        fail "Proselint did not detect uncomparable (output: $pl_json)"
+    fi
+
+    if echo "$pl_json" | grep -q "proselint\."; then
+        pass "Proselint diagnostics have proselint. prefix"
+    else
+        fail "Proselint diagnostics missing proselint. prefix (output: $pl_json)"
+    fi
+
+    rm -rf "$pl_dir"
+else
+    printf '  \033[33m⊘\033[0m %s\n' "skipped (proselint not in PATH)"
+fi
+
 # ---------- Summary ----------
 
 printf '\n%s\n' "=== Results ==="
