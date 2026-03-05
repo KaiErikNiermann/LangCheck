@@ -62,6 +62,7 @@
   "Fast, local grammar/spelling": "Fast, local grammar/spelling",
   "Server-based deep analysis": "Server-based deep analysis",
   "Style linting with plugins": "Style linting with plugins",
+  "English prose best practices": "English prose best practices",
   "English only": "English only",
   "Select engines to enable (language: {0})": "Select engines to enable (language: {0})",
   "Engines updated: {0}. Reloading...": "Engines updated: {0}. Reloading...",

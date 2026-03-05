@@ -1149,6 +1149,7 @@ export async function activate(context: vscode.ExtensionContext) {
             { key: 'harper', label: 'Harper', desc: vscode.l10n.t('Fast, local grammar/spelling'), englishOnly: true },
             { key: 'languagetool', label: 'LanguageTool', desc: vscode.l10n.t('Server-based deep analysis'), englishOnly: false },
             { key: 'vale', label: 'Vale', desc: vscode.l10n.t('Style linting with plugins'), englishOnly: false },
+            { key: 'proselint', label: 'Proselint', desc: vscode.l10n.t('English prose best practices'), englishOnly: true },
         ];
 
         // Build multi-select items with current state
