@@ -71,12 +71,8 @@
         "title": "%command.showTrace%"
       },
       {
-        "command": "language-check.toggleEnglishEngine",
-        "title": "%command.toggleEnglishEngine%"
-      },
-      {
-        "command": "language-check.toggleVale",
-        "title": "%command.toggleVale%"
+        "command": "language-check.manageEngines",
+        "title": "%command.manageEngines%"
       },
       {
         "command": "language-check.skipLatexEnv",

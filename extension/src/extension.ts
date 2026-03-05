@@ -75,9 +75,6 @@ let lastCheckInfo: InspectorCheckInfo | null = null;
 // Cached extraction data per document URI (from real Rust core response)
 const extractionCache = new Map<string, { prose: InspectorProseRange[]; languageId: string }>();
 
-// Tracked english_engine value from config (for change detection + inspector)
-let lastKnownEnglishEngine: string | undefined;
-
 // Tracked spell_language from config (for status bar + change detection)
 let lastKnownSpellLanguage: string | undefined;
 
@@ -1115,14 +1112,13 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.toggleEnglishEngine', async () => {
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.manageEngines', async () => {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
             vscode.window.showWarningMessage(vscode.l10n.t('No workspace folder open.'));
             return;
         }
 
-        // Read current config
         const configNames = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
         let configUri: vscode.Uri | undefined;
         for (const name of configNames) {
@@ -1134,98 +1130,70 @@ export async function activate(context: vscode.ExtensionContext) {
             } catch { /* not found */ }
         }
 
-        // Build choices: always offer harper and languagetool
-        const choices = [
-            { label: 'harper', description: vscode.l10n.t('Fast, local (default)') },
-            { label: 'languagetool', description: vscode.l10n.t('LanguageTool server (deeper analysis)') },
+        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
+        let content: string;
+        try {
+            const raw = await vscode.workspace.fs.readFile(targetUri);
+            content = Buffer.from(raw).toString('utf8');
+        } catch {
+            content = '';
+        }
+
+        // Determine current language to show language-support hints
+        const langMatch = content.match(/spell_language:\s*(\S+)/);
+        const spellLang = langMatch?.[1] ?? 'en-US';
+        const isEnglish = spellLang.startsWith('en');
+
+        // Engine definitions: key, label, description, language constraint
+        const engines: { key: string; label: string; desc: string; englishOnly: boolean }[] = [
+            { key: 'harper', label: 'Harper', desc: vscode.l10n.t('Fast, local grammar/spelling'), englishOnly: true },
+            { key: 'languagetool', label: 'LanguageTool', desc: vscode.l10n.t('Server-based deep analysis'), englishOnly: false },
+            { key: 'vale', label: 'Vale', desc: vscode.l10n.t('Style linting with plugins'), englishOnly: false },
         ];
 
-        const selected = await vscode.window.showQuickPick(choices, {
-            placeHolder: vscode.l10n.t('Select English checking engine'),
+        // Build multi-select items with current state
+        const items: (vscode.QuickPickItem & { engineKey: string })[] = engines
+            .map(e => {
+                const re = new RegExp(`${e.key}:\\s*(true|false)`);
+                const match = content.match(re);
+                // harper defaults to true, others to false
+                const isOn = match ? match[1] === 'true' : e.key === 'harper';
+                const langNote = e.englishOnly && !isEnglish
+                    ? ` $(warning) ${vscode.l10n.t('English only')}`
+                    : '';
+                return {
+                    label: e.label,
+                    description: `${e.desc}${langNote}`,
+                    picked: isOn,
+                    engineKey: e.key,
+                };
+            });
+
+        const selected = await vscode.window.showQuickPick(items, {
+            canPickMany: true,
+            placeHolder: vscode.l10n.t('Select engines to enable (language: {0})', spellLang),
         });
         if (!selected) return;
 
-        // Write to config file
-        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
+        const enabledKeys = new Set(selected.map(s => s.engineKey));
+
         try {
-            let content: string;
-            try {
-                const raw = await vscode.workspace.fs.readFile(targetUri);
-                content = Buffer.from(raw).toString('utf8');
-            } catch {
-                content = '';
-            }
-
-            if (content.includes('english_engine:')) {
-                content = content.replace(/english_engine:\s*\S+/, `english_engine: ${selected.label}`);
-            } else if (content.includes('engines:')) {
-                content = content.replace(/engines:/, `engines:\n  english_engine: ${selected.label}`);
-            } else {
-                content = `engines:\n  english_engine: ${selected.label}\n${content}`;
-            }
-
-            // Auto-enable the languagetool flag when selecting it as the engine
-            if (selected.label === 'languagetool' && !content.match(/languagetool:\s*true/)) {
-                if (content.match(/languagetool:\s*false/)) {
-                    content = content.replace(/languagetool:\s*false/, 'languagetool: true');
+            for (const e of engines) {
+                const desired = enabledKeys.has(e.key);
+                const re = new RegExp(`${e.key}:\\s*(true|false)`);
+                if (re.test(content)) {
+                    content = content.replace(re, `${e.key}: ${desired}`);
                 } else if (content.includes('engines:')) {
-                    content = content.replace(/engines:/, 'engines:\n  languagetool: true');
+                    content = content.replace(/engines:/, `engines:\n  ${e.key}: ${desired}`);
+                } else {
+                    content = `engines:\n  ${e.key}: ${desired}\n${content}`;
                 }
             }
 
             await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
+            const names = selected.map(s => s.label).join(', ');
             vscode.window.showInformationMessage(
-                vscode.l10n.t('English engine set to "{0}". Reloading...', selected.label)
-            );
-            await reinitializeAndRecheck();
-        } catch (err) {
-            vscode.window.showErrorMessage(vscode.l10n.t('Failed to update config: {0}', String(err)));
-        }
-    }));
-
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.toggleVale', async () => {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            vscode.window.showWarningMessage(vscode.l10n.t('No workspace folder open.'));
-            return;
-        }
-
-        const configNames = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
-        let configUri: vscode.Uri | undefined;
-        for (const name of configNames) {
-            const uri = vscode.Uri.joinPath(workspaceFolder.uri, name);
-            try {
-                await vscode.workspace.fs.stat(uri);
-                configUri = uri;
-                break;
-            } catch { /* not found */ }
-        }
-
-        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
-        try {
-            let content: string;
-            try {
-                const raw = await vscode.workspace.fs.readFile(targetUri);
-                content = Buffer.from(raw).toString('utf8');
-            } catch {
-                content = '';
-            }
-
-            const isEnabled = /vale:\s*true/.test(content);
-            if (isEnabled) {
-                content = content.replace(/vale:\s*true/, 'vale: false');
-            } else if (/vale:\s*false/.test(content)) {
-                content = content.replace(/vale:\s*false/, 'vale: true');
-            } else if (content.includes('engines:')) {
-                content = content.replace(/engines:/, 'engines:\n  vale: true');
-            } else {
-                content = `engines:\n  vale: true\n${content}`;
-            }
-
-            await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
-            const newState = isEnabled ? 'disabled' : 'enabled';
-            vscode.window.showInformationMessage(
-                vscode.l10n.t('Vale {0}. Reloading...', newState)
+                vscode.l10n.t('Engines updated: {0}. Reloading...', names)
             );
             await reinitializeAndRecheck();
         } catch (err) {
@@ -1649,7 +1617,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    // Watch .languagecheck config files for english_engine / spell_language changes
+    // Watch .languagecheck config files for engine / spell_language changes
     const configWatcher = vscode.workspace.createFileSystemWatcher('**/.languagecheck.{yaml,yml,json}');
     const checkConfigChange = async () => {
         const folder = vscode.workspace.workspaceFolders?.[0];
@@ -1658,16 +1626,6 @@ export async function activate(context: vscode.ExtensionContext) {
             const uri = vscode.Uri.joinPath(folder.uri, name);
             try {
                 const raw = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
-                const engineMatch = raw.match(/english_engine:\s*(\S+)/);
-                const currentEngine = engineMatch?.[1] ?? 'harper';
-                if (lastKnownEnglishEngine !== undefined && currentEngine !== lastKnownEnglishEngine) {
-                    log.info('English engine changed via config file', { from: lastKnownEnglishEngine, to: currentEngine });
-                    vscode.window.showInformationMessage(
-                        vscode.l10n.t('English engine changed to "{0}"', currentEngine)
-                    );
-                    reinitializeAndRecheck();
-                }
-                lastKnownEnglishEngine = currentEngine;
 
                 const langMatch = raw.match(/spell_language:\s*(\S+)/);
                 const currentLang = langMatch?.[1] ?? 'en-US';
@@ -1697,8 +1655,6 @@ export async function activate(context: vscode.ExtensionContext) {
                 const uri = vscode.Uri.joinPath(folder.uri, name);
                 try {
                     const raw = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
-                    const engineMatch = raw.match(/english_engine:\s*(\S+)/);
-                    lastKnownEnglishEngine = engineMatch?.[1] ?? 'harper';
                     const langMatch = raw.match(/spell_language:\s*(\S+)/);
                     lastKnownSpellLanguage = langMatch?.[1] ?? 'en-US';
                     languageStatusBarItem.text = `$(book) ${lastKnownSpellLanguage}`;
@@ -1707,9 +1663,6 @@ export async function activate(context: vscode.ExtensionContext) {
                     break;
                 } catch { /* not found, try next */ }
             }
-        }
-        if (lastKnownEnglishEngine === undefined) {
-            lastKnownEnglishEngine = 'harper';
         }
         if (lastKnownSpellLanguage === undefined) {
             lastKnownSpellLanguage = 'en-US';
@@ -2245,7 +2198,7 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
                 proseRangeCount: inspectorRanges.length,
                 totalProseBytes,
                 diagnosticCount: extendedDiagnostics.length,
-                englishEngine: lastKnownEnglishEngine ?? 'harper',
+                englishEngine: 'multi', // All enabled engines run concurrently
             };
             // Update inspector if open
             if (inspectorPanel) {
