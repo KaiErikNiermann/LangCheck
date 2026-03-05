@@ -84,6 +84,7 @@ jobs:
           if [ "${{ runner.os }}" = "Windows" ]; then
             unzip -o /tmp/protoc.zip -d "$HOME/.local"
             echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.local/bin:$PATH"
           else
             sudo unzip -o /tmp/protoc.zip -d /usr/local bin/protoc 'include/*'
           fi
