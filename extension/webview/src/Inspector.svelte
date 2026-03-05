@@ -710,6 +710,19 @@
                         {info.binaryDetected ? 'detected' : 'not found'}
                       </span>
                     </div>
+                    {#if !info.binaryDetected && info.name === 'vale'}
+                      <div class="health-install-hint">
+                        Install: <code>brew install vale</code> / <code>scoop install vale</code>
+                        or download from <a href="https://github.com/errata-ai/vale/releases">GitHub Releases</a>.
+                        Ensure <code>vale</code> is on your <code>$PATH</code>.
+                      </div>
+                    {/if}
+                    {#if !info.binaryDetected && info.name === 'proselint'}
+                      <div class="health-install-hint">
+                        Install: <code>pip install proselint</code> / <code>pipx install proselint</code>.
+                        Ensure <code>proselint</code> is on your <code>$PATH</code>.
+                      </div>
+                    {/if}
                   {/if}
 
                   <!-- Config path -->
@@ -1442,6 +1455,33 @@
   .health-badge-builtin {
     background: rgba(80, 140, 255, 0.15);
     color: var(--vscode-textLink-foreground, #48f);
+  }
+
+  .health-install-hint {
+    font-size: 11px;
+    padding: 6px 8px;
+    margin-top: 4px;
+    background: var(--vscode-textBlockQuote-background, rgba(128,128,128,0.06));
+    border-left: 2px solid var(--vscode-textLink-foreground, #48f);
+    border-radius: 2px;
+    line-height: 1.5;
+  }
+
+  .health-install-hint code {
+    background: var(--vscode-textCodeBlock-background, rgba(128,128,128,0.12));
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 10.5px;
+  }
+
+  .health-install-hint a {
+    color: var(--vscode-textLink-foreground, #48f);
+    text-decoration: none;
+  }
+
+  .health-install-hint a:hover {
+    text-decoration: underline;
   }
 
   .health-actions {
