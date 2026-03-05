@@ -75,6 +75,10 @@
         "title": "%command.toggleEnglishEngine%"
       },
       {
+        "command": "language-check.toggleVale",
+        "title": "%command.toggleVale%"
+      },
+      {
         "command": "language-check.skipLatexEnv",
         "title": "%command.skipLatexEnv%"
       },

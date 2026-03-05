@@ -8,6 +8,7 @@
   "command.toggleTrace": "Language Check: Protobuf-Trace umschalten",
   "command.showTrace": "Language Check: Protobuf-Trace anzeigen",
   "command.toggleEnglishEngine": "Language Check: Englische Engine umschalten",
+  "command.toggleVale": "Language Check: Vale umschalten",
   "command.skipLatexEnv": "Language Check: LaTeX-Umgebung überspringen",
   "command.skipLatexCommand": "Language Check: LaTeX-Befehl überspringen",
   "command.downloadBinary": "Language Check: Core-Binärdatei herunterladen",

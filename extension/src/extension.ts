@@ -1183,6 +1183,56 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.toggleVale', async () => {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            vscode.window.showWarningMessage(vscode.l10n.t('No workspace folder open.'));
+            return;
+        }
+
+        const configNames = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
+        let configUri: vscode.Uri | undefined;
+        for (const name of configNames) {
+            const uri = vscode.Uri.joinPath(workspaceFolder.uri, name);
+            try {
+                await vscode.workspace.fs.stat(uri);
+                configUri = uri;
+                break;
+            } catch { /* not found */ }
+        }
+
+        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
+        try {
+            let content: string;
+            try {
+                const raw = await vscode.workspace.fs.readFile(targetUri);
+                content = Buffer.from(raw).toString('utf8');
+            } catch {
+                content = '';
+            }
+
+            const isEnabled = /vale:\s*true/.test(content);
+            if (isEnabled) {
+                content = content.replace(/vale:\s*true/, 'vale: false');
+            } else if (/vale:\s*false/.test(content)) {
+                content = content.replace(/vale:\s*false/, 'vale: true');
+            } else if (content.includes('engines:')) {
+                content = content.replace(/engines:/, 'engines:\n  vale: true');
+            } else {
+                content = `engines:\n  vale: true\n${content}`;
+            }
+
+            await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
+            const newState = isEnabled ? 'disabled' : 'enabled';
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Vale {0}. Reloading...', newState)
+            );
+            await reinitializeAndRecheck();
+        } catch (err) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to update config: {0}', String(err)));
+        }
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('language-check.skipLatexEnv', async (envName: string) => {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {

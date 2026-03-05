@@ -8,6 +8,7 @@
   "command.toggleTrace": "Language Check: Alternar traza Protobuf",
   "command.showTrace": "Language Check: Mostrar traza Protobuf",
   "command.toggleEnglishEngine": "Language Check: Alternar motor de inglés",
+  "command.toggleVale": "Language Check: Alternar Vale",
   "command.skipLatexEnv": "Language Check: Omitir entorno LaTeX",
   "command.skipLatexCommand": "Language Check: Omitir comando LaTeX",
   "command.downloadBinary": "Language Check: Descargar binario core",
