@@ -36,8 +36,15 @@ struct ValeAlert {
 struct ValeAction {
     #[serde(default)]
     name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_as_empty_vec")]
     params: Vec<String>,
+}
+
+fn deserialize_null_as_empty_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<Vec<String>>::deserialize(deserializer).map(Option::unwrap_or_default)
 }
 
 /// Map a Vale file extension hint from the language ID.
@@ -290,14 +297,55 @@ mod tests {
         assert_eq!(alerts[0].check, "Microsoft.Wordiness");
     }
 
+    #[test]
+    fn vale_alert_null_params_deserializes() {
+        // Vale sends `"Params": null` when no action params exist
+        let json = r#"{
+            "Action": {"Name": "", "Params": null},
+            "Span": [1, 2],
+            "Check": "Google.We",
+            "Message": "Avoid first-person plural.",
+            "Severity": "warning",
+            "Match": "We",
+            "Line": 1
+        }"#;
+        let alert: ValeAlert = serde_json::from_str(json).unwrap();
+        assert!(alert.action.params.is_empty());
+        assert!(alert.action.name.is_empty());
+    }
+
     #[tokio::test]
     async fn vale_engine_missing_binary() -> Result<()> {
-        // Override PATH to ensure vale is not found
         let mut engine = ValeEngine::new(None);
         // If vale is not on PATH, should return empty (not error)
-        // This test is best-effort — if vale IS installed, it will still pass
         let result = engine.check("test text", "en-US").await;
         assert!(result.is_ok());
+        Ok(())
+    }
+
+    /// Live integration test — requires `vale` on PATH with Google style.
+    /// Run with: `cargo test vale_engine_live -- --ignored --nocapture`
+    #[tokio::test]
+    #[ignore]
+    async fn vale_engine_live() -> Result<()> {
+        let mut engine = ValeEngine::new(Some("/tmp/vale-test/.vale.ini".to_string()));
+        let text = "We would like to utilize this.";
+        let diagnostics = engine.check(text, "en-US").await?;
+
+        println!("Vale returned {} diagnostics:", diagnostics.len());
+        for d in &diagnostics {
+            println!(
+                "  [{}-{}] {} (rule: {}, suggestions: {:?})",
+                d.start_byte, d.end_byte, d.message, d.rule_id, d.suggestions
+            );
+        }
+
+        assert!(
+            !diagnostics.is_empty(),
+            "Expected at least 1 diagnostic from Vale"
+        );
+        // Verify rule_id is namespaced with "vale."
+        assert!(diagnostics[0].rule_id.starts_with("vale."));
         Ok(())
     }
 }
