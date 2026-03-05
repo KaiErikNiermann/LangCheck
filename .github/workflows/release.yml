@@ -8,6 +8,28 @@ on:
 permissions:
   contents: write
 
+# Reusable retry shell function — source this in steps that download from
+# external services (GitHub Releases, pip, etc.) to survive transient 500s.
+# Uses exponential backoff: 5s → 15s → 45s → 90s (4 attempts by default).
+env:
+  RETRY_FN: |
+    retry() {
+      local max_attempts="${RETRY_MAX:-4}"
+      local delay=5
+      local attempt=1
+      while true; do
+        if "$@"; then return 0; fi
+        if [ "$attempt" -ge "$max_attempts" ]; then
+          echo "::error::Command failed after $attempt attempts: $*"
+          return 1
+        fi
+        echo "::warning::Attempt $attempt/$max_attempts failed, retrying in ${delay}s..."
+        sleep "$delay"
+        delay=$((delay * 3))
+        attempt=$((attempt + 1))
+      done
+    }
+
 jobs:
   build-binaries:
     name: Build (${{ matrix.target }})
@@ -43,9 +65,24 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install protoc
+        shell: bash
+        working-directory: .
+        run: |
+          eval "$RETRY_FN"
+          PROTOC_VERSION="28.3"
+          case "${{ runner.os }}-${{ runner.arch }}" in
+            Linux-X64)   PROTOC_ASSET="protoc-${PROTOC_VERSION}-linux-x86_64.zip" ;;
+            Linux-ARM64) PROTOC_ASSET="protoc-${PROTOC_VERSION}-linux-aarch_64.zip" ;;
+            macOS-X64)   PROTOC_ASSET="protoc-${PROTOC_VERSION}-osx-x86_64.zip" ;;
+            macOS-ARM64) PROTOC_ASSET="protoc-${PROTOC_VERSION}-osx-aarch_64.zip" ;;
+            Windows-X64) PROTOC_ASSET="protoc-${PROTOC_VERSION}-win64.zip" ;;
+            *) echo "::error::Unsupported platform"; exit 1 ;;
+          esac
+          PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ASSET}"
+          retry curl -fsSL "$PROTOC_URL" -o /tmp/protoc.zip
+          sudo unzip -o /tmp/protoc.zip -d /usr/local bin/protoc 'include/*'
+          protoc --version
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -123,16 +160,17 @@ jobs:
       - name: Install Vale
         shell: bash
         run: |
+          eval "$RETRY_FN"
           case "${{ runner.os }}" in
             Linux)
-              sudo curl -sfL https://github.com/errata-ai/vale/releases/latest/download/vale_Linux_64-bit.tar.gz -o /tmp/vale.tar.gz
+              retry curl -fsSL https://github.com/errata-ai/vale/releases/latest/download/vale_Linux_64-bit.tar.gz -o /tmp/vale.tar.gz
               sudo tar xzf /tmp/vale.tar.gz -C /usr/local/bin vale
               ;;
             macOS)
-              brew install vale
+              retry brew install vale
               ;;
             Windows)
-              choco install vale -y
+              retry choco install vale -y
               ;;
           esac
           vale --version
@@ -144,7 +182,8 @@ jobs:
       - name: Install Proselint
         shell: bash
         run: |
-          pip install proselint
+          eval "$RETRY_FN"
+          retry pip install proselint
           proselint --version
 
       - name: Extract expected version
@@ -219,8 +258,9 @@ jobs:
 
       - name: Install Neovim
         run: |
-          curl -LO https://github.com/neovim/neovim/releases/download/stable/nvim-linux-x86_64.tar.gz
-          tar xzf nvim-linux-x86_64.tar.gz
+          eval "$RETRY_FN"
+          retry curl -fsSL https://github.com/neovim/neovim/releases/download/stable/nvim-linux-x86_64.tar.gz -o nvim.tar.gz
+          tar xzf nvim.tar.gz
           echo "$PWD/nvim-linux-x86_64/bin" >> "$GITHUB_PATH"
 
       - name: Download artifact
@@ -250,7 +290,8 @@ jobs:
 
       - name: Install TinyGo
         run: |
-          wget -q https://github.com/tinygo-org/tinygo/releases/download/v0.34.0/tinygo_0.34.0_amd64.deb -O /tmp/tinygo.deb
+          eval "$RETRY_FN"
+          retry wget -q https://github.com/tinygo-org/tinygo/releases/download/v0.34.0/tinygo_0.34.0_amd64.deb -O /tmp/tinygo.deb
           sudo dpkg -i /tmp/tinygo.deb
 
       - name: Build wordiness-check plugin
@@ -293,9 +334,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install protoc
+        shell: bash
+        working-directory: .
+        run: |
+          eval "$RETRY_FN"
+          PROTOC_VERSION="28.3"
+          retry curl -fsSL "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip" -o /tmp/protoc.zip
+          sudo unzip -o /tmp/protoc.zip -d /usr/local bin/protoc 'include/*'
+          protoc --version
 
       - uses: dtolnay/rust-toolchain@stable
 
