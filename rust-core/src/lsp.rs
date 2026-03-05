@@ -55,6 +55,8 @@ struct EngineSettings {
     harper: Option<bool>,
     languagetool: Option<bool>,
     languagetool_url: Option<String>,
+    vale: Option<bool>,
+    spell_language: Option<String>,
 }
 
 #[derive(Debug, Default, serde::Deserialize)]
@@ -102,8 +104,9 @@ impl Backend {
     async fn init_workspace(&self, root: &Path) {
         let config = Config::load(root).unwrap_or_default();
         info!(
-            harper = config.engines.harper,
-            languagetool = config.engines.languagetool,
+            harper = config.engines.harper.enabled,
+            languagetool = config.engines.languagetool.enabled,
+            vale = config.engines.vale.enabled,
             "LSP: engines configured"
         );
 
@@ -140,13 +143,19 @@ impl Backend {
         let mut config = self.config.lock().await;
         if let Some(ref eng) = settings.engines {
             if let Some(v) = eng.harper {
-                config.engines.harper = v;
+                config.engines.harper.enabled = v;
             }
             if let Some(v) = eng.languagetool {
-                config.engines.languagetool = v;
+                config.engines.languagetool.enabled = v;
             }
             if let Some(ref v) = eng.languagetool_url {
-                config.engines.languagetool_url.clone_from(v);
+                config.engines.languagetool.url.clone_from(v);
+            }
+            if let Some(v) = eng.vale {
+                config.engines.vale.enabled = v;
+            }
+            if let Some(ref v) = eng.spell_language {
+                config.engines.spell_language.clone_from(v);
             }
         }
         if let Some(ref perf) = settings.performance {

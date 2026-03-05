@@ -204,8 +204,8 @@ async fn main() -> Result<()> {
                     // avoids flooding LT's request queue and starving foreground
                     // requests that genuinely need LT.
                     let mut config = fg_orchestrator.lock().await.get_config().clone();
-                    config.engines.harper = true;
-                    config.engines.languagetool = false;
+                    config.engines.harper.enabled = true;
+                    config.engines.languagetool.enabled = false;
                     let indexing_orchestrator =
                         Arc::new(Mutex::new(Orchestrator::new(config.clone())));
 
@@ -372,9 +372,9 @@ async fn main() -> Result<()> {
                     let config = Config::load(&root_path).unwrap_or_else(|_| Config::default());
                     info!(
                         id = request_id,
-                        harper = config.engines.harper,
-                        languagetool = config.engines.languagetool,
-                        vale = config.engines.vale,
+                        harper = config.engines.harper.enabled,
+                        languagetool = config.engines.languagetool.enabled,
+                        vale = config.engines.vale.enabled,
                         "Initialize: engines configured"
                     );
                     orchestrator_arc.lock().await.update_config(config.clone());

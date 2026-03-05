@@ -153,12 +153,12 @@ pub struct AutoFixRule {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EngineConfig {
-    #[serde(default = "default_true")]
-    pub harper: bool,
-    #[serde(default)]
-    pub languagetool: bool,
-    #[serde(default = "default_lt_url")]
-    pub languagetool_url: String,
+    #[serde(default = "default_harper_config", deserialize_with = "deser_engine_or_bool")]
+    pub harper: HarperConfig,
+    #[serde(default, deserialize_with = "deser_engine_or_bool")]
+    pub languagetool: LanguageToolConfig,
+    #[serde(default, deserialize_with = "deser_engine_or_bool")]
+    pub vale: ValeConfig,
     /// External checker providers registered via config.
     #[serde(default)]
     pub external: Vec<ExternalProvider>,
@@ -168,13 +168,140 @@ pub struct EngineConfig {
     /// BCP-47 natural language tag for spell/grammar checking (e.g. "en-US", "de-DE").
     #[serde(default = "default_spell_language")]
     pub spell_language: String,
-    /// Enable the Vale prose linter (requires `vale` on PATH).
+}
+
+/// Deserialize an engine config from either a bool shorthand or the full struct.
+/// `harper: true` → `HarperConfig { enabled: true, ..default }`.
+fn deser_engine_or_bool<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de> + EngineToggle + Default,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum BoolOrStruct<T> {
+        Bool(bool),
+        Struct(T),
+    }
+
+    match BoolOrStruct::deserialize(deserializer)? {
+        BoolOrStruct::Bool(b) => {
+            let mut cfg = T::default();
+            cfg.set_enabled(b);
+            Ok(cfg)
+        }
+        BoolOrStruct::Struct(s) => Ok(s),
+    }
+}
+
+/// Trait for engine configs that can be toggled with a bool shorthand.
+pub trait EngineToggle {
+    fn enabled(&self) -> bool;
+    fn set_enabled(&mut self, v: bool);
+}
+
+/// Harper engine configuration.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HarperConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Harper dialect: `American`, `British`, `Canadian`, `Australian`, `Indian`.
+    #[serde(default = "default_dialect")]
+    pub dialect: String,
+    /// Per-rule toggles. Key is the rule name (e.g. `LongSentences`), value
+    /// is `true`/`false`. Omitted rules use the curated default.
     #[serde(default)]
-    pub vale: bool,
-    /// Optional path to a `.vale.ini` config file. When empty, Vale uses its
-    /// own search logic (CWD upward, then global config).
+    pub linters: HashMap<String, bool>,
+}
+
+impl Default for HarperConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            dialect: "American".to_string(),
+            linters: HashMap::new(),
+        }
+    }
+}
+
+fn default_harper_config() -> HarperConfig {
+    HarperConfig::default()
+}
+
+fn default_dialect() -> String {
+    "American".to_string()
+}
+
+impl EngineToggle for HarperConfig {
+    fn enabled(&self) -> bool { self.enabled }
+    fn set_enabled(&mut self, v: bool) { self.enabled = v; }
+}
+
+/// `LanguageTool` engine configuration.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LanguageToolConfig {
     #[serde(default)]
-    pub vale_config: Option<String>,
+    pub enabled: bool,
+    /// `LanguageTool` server URL.
+    #[serde(default = "default_lt_url")]
+    pub url: String,
+    /// Checking level: `default` or `picky` (enables stricter rules).
+    #[serde(default = "default_lt_level")]
+    pub level: String,
+    /// User's native language for false-friends detection (BCP-47 tag).
+    #[serde(default)]
+    pub mother_tongue: Option<String>,
+    /// Rule IDs to disable (e.g. `["WHITESPACE_RULE"]`).
+    #[serde(default)]
+    pub disabled_rules: Vec<String>,
+    /// Rule IDs to enable beyond defaults.
+    #[serde(default)]
+    pub enabled_rules: Vec<String>,
+    /// Category IDs to disable.
+    #[serde(default)]
+    pub disabled_categories: Vec<String>,
+    /// Category IDs to enable.
+    #[serde(default)]
+    pub enabled_categories: Vec<String>,
+}
+
+impl Default for LanguageToolConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            url: default_lt_url(),
+            level: "default".to_string(),
+            mother_tongue: None,
+            disabled_rules: Vec::new(),
+            enabled_rules: Vec::new(),
+            disabled_categories: Vec::new(),
+            enabled_categories: Vec::new(),
+        }
+    }
+}
+
+fn default_lt_level() -> String {
+    "default".to_string()
+}
+
+impl EngineToggle for LanguageToolConfig {
+    fn enabled(&self) -> bool { self.enabled }
+    fn set_enabled(&mut self, v: bool) { self.enabled = v; }
+}
+
+/// Vale engine configuration.
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct ValeConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    /// Path to `.vale.ini`. When empty, Vale uses its own search logic.
+    #[serde(default)]
+    pub config: Option<String>,
+}
+
+impl EngineToggle for ValeConfig {
+    fn enabled(&self) -> bool { self.enabled }
+    fn set_enabled(&mut self, v: bool) { self.enabled = v; }
 }
 
 /// An external checker binary that communicates via stdin/stdout JSON.
@@ -213,14 +340,12 @@ pub struct WasmPlugin {
 impl Default for EngineConfig {
     fn default() -> Self {
         Self {
-            harper: true,
-            languagetool: false,
-            languagetool_url: "http://localhost:8010".to_string(),
+            harper: HarperConfig::default(),
+            languagetool: LanguageToolConfig::default(),
+            vale: ValeConfig::default(),
             external: Vec::new(),
             wasm_plugins: Vec::new(),
             spell_language: default_spell_language(),
-            vale: false,
-            vale_config: None,
         }
     }
 }
@@ -333,8 +458,8 @@ mod tests {
     #[test]
     fn default_config_has_harper_enabled_lt_disabled() {
         let config = Config::default();
-        assert!(config.engines.harper);
-        assert!(!config.engines.languagetool);
+        assert!(config.engines.harper.enabled);
+        assert!(!config.engines.languagetool.enabled);
     }
 
     #[test]
@@ -350,7 +475,7 @@ mod tests {
     #[test]
     fn default_lt_url() {
         let config = Config::default();
-        assert_eq!(config.engines.languagetool_url, "http://localhost:8010");
+        assert_eq!(config.engines.languagetool.url, "http://localhost:8010");
     }
 
     #[test]
@@ -360,8 +485,8 @@ mod tests {
             "rules": { "spelling.typo": { "severity": "warning" } }
         }"#;
         let config: Config = serde_json::from_str(json).unwrap();
-        assert!(config.engines.harper);
-        assert!(!config.engines.languagetool);
+        assert!(config.engines.harper.enabled);
+        assert!(!config.engines.languagetool.enabled);
         assert!(config.rules.contains_key("spelling.typo"));
         assert_eq!(
             config.rules["spelling.typo"].severity.as_deref(),
@@ -373,8 +498,8 @@ mod tests {
     fn load_partial_json_uses_defaults() {
         let json = r#"{}"#;
         let config: Config = serde_json::from_str(json).unwrap();
-        assert!(config.engines.harper);
-        assert!(!config.engines.languagetool);
+        assert!(config.engines.harper.enabled);
+        assert!(!config.engines.languagetool.enabled);
         assert!(config.rules.is_empty());
     }
 
@@ -392,8 +517,8 @@ mod tests {
         .unwrap();
 
         let config = Config::load(&dir).unwrap();
-        assert!(!config.engines.harper);
-        assert!(config.engines.languagetool);
+        assert!(!config.engines.harper.enabled);
+        assert!(config.engines.languagetool.enabled);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -412,8 +537,8 @@ mod tests {
         .unwrap();
 
         let config = Config::load(&dir).unwrap();
-        assert!(!config.engines.harper);
-        assert!(config.engines.languagetool);
+        assert!(!config.engines.harper.enabled);
+        assert!(config.engines.languagetool.enabled);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -438,7 +563,7 @@ mod tests {
 
         let config = Config::load(&dir).unwrap();
         // YAML should win
-        assert!(!config.engines.harper);
+        assert!(!config.engines.harper.enabled);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -450,7 +575,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
 
         let config = Config::load(&dir).unwrap();
-        assert!(config.engines.harper);
+        assert!(config.engines.harper.enabled);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -709,19 +834,64 @@ engines:
     #[test]
     fn default_vale_is_disabled() {
         let config = Config::default();
-        assert!(!config.engines.vale);
-        assert!(config.engines.vale_config.is_none());
+        assert!(!config.engines.vale.enabled);
+        assert!(config.engines.vale.config.is_none());
     }
 
     #[test]
-    fn vale_config_from_yaml() {
+    fn vale_bool_shorthand_from_yaml() {
         let yaml = r#"
 engines:
   vale: true
-  vale_config: ".vale.ini"
 "#;
         let config: Config = serde_yaml::from_str(yaml).unwrap();
-        assert!(config.engines.vale);
-        assert_eq!(config.engines.vale_config.as_deref(), Some(".vale.ini"));
+        assert!(config.engines.vale.enabled);
+    }
+
+    #[test]
+    fn vale_nested_config_from_yaml() {
+        let yaml = r#"
+engines:
+  vale:
+    enabled: true
+    config: ".vale.ini"
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.engines.vale.enabled);
+        assert_eq!(config.engines.vale.config.as_deref(), Some(".vale.ini"));
+    }
+
+    #[test]
+    fn harper_nested_config_from_yaml() {
+        let yaml = r#"
+engines:
+  harper:
+    enabled: true
+    dialect: "British"
+    linters:
+      LongSentences: false
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.engines.harper.enabled);
+        assert_eq!(config.engines.harper.dialect, "British");
+        assert_eq!(config.engines.harper.linters.get("LongSentences"), Some(&false));
+    }
+
+    #[test]
+    fn languagetool_nested_config_from_yaml() {
+        let yaml = r#"
+engines:
+  languagetool:
+    enabled: true
+    url: "http://localhost:9090"
+    level: "picky"
+    disabled_rules:
+      - WHITESPACE_RULE
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.engines.languagetool.enabled);
+        assert_eq!(config.engines.languagetool.url, "http://localhost:9090");
+        assert_eq!(config.engines.languagetool.level, "picky");
+        assert_eq!(config.engines.languagetool.disabled_rules, vec!["WHITESPACE_RULE"]);
     }
 }

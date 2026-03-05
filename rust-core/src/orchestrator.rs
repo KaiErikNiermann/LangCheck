@@ -44,21 +44,21 @@ impl Orchestrator {
         self.engines.clear();
         let hpm = self.config.performance.high_performance_mode;
 
-        if self.config.engines.harper {
+        if self.config.engines.harper.enabled {
             self.engines.push(Box::new(HarperEngine::new()));
         }
 
         // In HPM, skip LanguageTool and external providers for speed
         if !hpm {
-            if self.config.engines.languagetool {
+            if self.config.engines.languagetool.enabled {
                 self.engines.push(Box::new(LanguageToolEngine::new(
-                    self.config.engines.languagetool_url.clone(),
+                    self.config.engines.languagetool.url.clone(),
                 )));
             }
 
-            if self.config.engines.vale {
+            if self.config.engines.vale.enabled {
                 self.engines.push(Box::new(ValeEngine::new(
-                    self.config.engines.vale_config.clone(),
+                    self.config.engines.vale.config.clone(),
                 )));
             }
 
