@@ -1,8 +1,8 @@
 use crate::checker::{Diagnostic, EngineHealth, Severity};
 use crate::config::Config;
 use crate::engines::{
-    Engine, ExternalEngine, HarperEngine, LanguageToolEngine, ValeEngine, WasmEngine,
-    engine_supports_language,
+    Engine, ExternalEngine, HarperEngine, LanguageToolEngine, ProselintEngine, ValeEngine,
+    WasmEngine, engine_supports_language,
 };
 use crate::ignore_rules::IgnoreParser;
 use crate::rules::RuleNormalizer;
@@ -60,6 +60,12 @@ impl Orchestrator {
             if self.config.engines.vale.enabled {
                 self.engines.push(Box::new(ValeEngine::new(
                     self.config.engines.vale.config.clone(),
+                )));
+            }
+
+            if self.config.engines.proselint.enabled {
+                self.engines.push(Box::new(ProselintEngine::new(
+                    self.config.engines.proselint.config.clone(),
                 )));
             }
 
@@ -169,6 +175,8 @@ impl Orchestrator {
                             "harper"
                         } else if d.rule_id.starts_with("vale.") {
                             "vale"
+                        } else if d.rule_id.starts_with("proselint.") {
+                            "proselint"
                         } else if d.rule_id.starts_with("wasm.") {
                             "wasm"
                         } else if d.rule_id.starts_with("external.") {

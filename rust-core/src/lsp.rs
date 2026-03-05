@@ -56,6 +56,7 @@ struct EngineSettings {
     languagetool: Option<bool>,
     languagetool_url: Option<String>,
     vale: Option<bool>,
+    proselint: Option<bool>,
     spell_language: Option<String>,
 }
 
@@ -107,6 +108,7 @@ impl Backend {
             harper = config.engines.harper.enabled,
             languagetool = config.engines.languagetool.enabled,
             vale = config.engines.vale.enabled,
+            proselint = config.engines.proselint.enabled,
             "LSP: engines configured"
         );
 
@@ -153,6 +155,9 @@ impl Backend {
             }
             if let Some(v) = eng.vale {
                 config.engines.vale.enabled = v;
+            }
+            if let Some(v) = eng.proselint {
+                config.engines.proselint.enabled = v;
             }
             if let Some(ref v) = eng.spell_language {
                 config.engines.spell_language.clone_from(v);

@@ -375,6 +375,7 @@ async fn main() -> Result<()> {
                         harper = config.engines.harper.enabled,
                         languagetool = config.engines.languagetool.enabled,
                         vale = config.engines.vale.enabled,
+                        proselint = config.engines.proselint.enabled,
                         "Initialize: engines configured"
                     );
                     orchestrator_arc.lock().await.update_config(config.clone());
