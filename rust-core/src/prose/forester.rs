@@ -149,6 +149,27 @@ fn strip_inline_commands_in_range(
     }
 }
 
+/// Check if an `inline_math` node contains exactly one ASCII letter.
+/// Returns `Some(byte_offset)` of the letter if so, `None` otherwise.
+///
+/// Inline math in Forester looks like `#{F}`. The node text includes the
+/// `#{` prefix and `}` suffix. We strip those and check if the interior
+/// is a single ASCII letter (a-zA-Z), optionally surrounded by whitespace.
+fn inline_math_single_letter(node: Node, text: &str) -> Option<usize> {
+    let raw = &text[node.start_byte()..node.end_byte()];
+    // Strip the #{ prefix and } suffix
+    let inner = raw.strip_prefix("#{")?.strip_suffix('}')?;
+    let trimmed = inner.trim();
+    if trimmed.len() == 1 && trimmed.as_bytes()[0].is_ascii_alphabetic() {
+        // Find the byte offset of the letter in the original text
+        let inner_start = node.start_byte() + "#{".len();
+        let offset_in_inner = inner.find(trimmed)?;
+        Some(inner_start + offset_in_inner)
+    } else {
+        None
+    }
+}
+
 /// Push a node's byte range into the current scope.
 fn push_to_scope(node: Node, scopes: &mut [Vec<(usize, usize)>]) {
     let start = node.start_byte();
@@ -251,8 +272,21 @@ fn collect_prose_nodes(
 ) {
     let kind = node.kind();
 
-    // Skip entire subtrees for non-prose node kinds
+    // Skip entire subtrees for non-prose node kinds.
+    // Exception: inline math containing a single ASCII letter (e.g. #{F})
+    // is included as prose with the math delimiters stripped.
     if SKIP_KINDS.contains(&kind) {
+        if kind == "inline_math"
+            && let Some(letter_byte) = inline_math_single_letter(node, text)
+        {
+            // Skip the #{...} delimiters but include the letter as prose
+            skips.push((node.start_byte(), letter_byte));
+            skips.push((letter_byte + 1, node.end_byte()));
+            if in_prose {
+                push_to_scope(node, scopes);
+            }
+            return;
+        }
         skips.push((node.start_byte(), node.end_byte()));
         return;
     }
@@ -410,10 +444,22 @@ fn find_math_regions(text: &str) -> Vec<(usize, usize)> {
         }
 
         // Inline math: #{...}
+        // Exception: single ASCII letter (e.g. #{F}) is included as prose
+        // with delimiter-only skip regions so the letter survives.
         if bytes[i] == b'#' && i + 1 < len && bytes[i + 1] == b'{' {
             let start = i;
-            i = shared::skip_balanced_bytes(bytes, i + 2, b'{', b'}', Some(b'\\'));
-            regions.push((start, i));
+            let end = shared::skip_balanced_bytes(bytes, i + 2, b'{', b'}', Some(b'\\'));
+            let inner = &text[start + 2..end.saturating_sub(1).max(start + 2)];
+            let trimmed = inner.trim();
+            if trimmed.len() == 1 && trimmed.as_bytes()[0].is_ascii_alphabetic() {
+                // Skip only the delimiters, not the letter
+                let letter_offset = start + 2 + inner.find(trimmed).unwrap_or(0);
+                regions.push((start, letter_offset));
+                regions.push((letter_offset + 1, end));
+            } else {
+                regions.push((start, end));
+            }
+            i = end;
             continue;
         }
 
@@ -670,6 +716,81 @@ which proves our claim.}";
                 clean
             );
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_inline_math_single_letter_included() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        let text = r"\p{Let #{F} be a functor.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let clean: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+
+        assert!(
+            clean.contains('F'),
+            "Single-letter inline math should be included as prose, got: {clean:?}"
+        );
+        assert!(
+            clean.contains("Let") && clean.contains("be a functor"),
+            "Surrounding prose should be preserved, got: {clean:?}"
+        );
+        assert!(
+            !clean.contains('#'),
+            "Math delimiters should be stripped, got: {clean:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_inline_math_single_letter_various() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Lowercase letter
+        let text = r"\p{The variable #{v} is defined.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let clean: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            clean.contains('v') && clean.contains("variable") && clean.contains("defined"),
+            "Lowercase single letter should be included, got: {clean:?}"
+        );
+
+        // Multi-character math is still excluded
+        let text = r"\p{The value #{xy} is large.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let clean: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            !clean.contains("xy"),
+            "Multi-character math should still be excluded, got: {clean:?}"
+        );
+
+        // Digit is not a letter — should be excluded
+        let text = r"\p{The number #{3} is odd.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let clean: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            !clean.contains('3'),
+            "Single digit should still be excluded, got: {clean:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_inline_math_single_letter_with_spaces() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Whitespace around the letter inside math
+        let text = r"\p{Let #{ G } be a group.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let clean: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+
+        assert!(
+            clean.contains('G'),
+            "Single letter with spaces should be included, got: {clean:?}"
+        );
 
         Ok(())
     }
