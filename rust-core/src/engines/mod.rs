@@ -1,5 +1,7 @@
+mod proselint;
 mod vale;
 
+pub use proselint::ProselintEngine;
 pub use vale::ValeEngine;
 
 use crate::checker::{Diagnostic, Severity};
