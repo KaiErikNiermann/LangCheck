@@ -8,12 +8,36 @@ Control which checking engines are active:
 
 ```yaml
 engines:
-  harper: true           # Fast, local grammar/spelling (always recommended)
-  languagetool: false    # Optional, requires a running LT server
-  languagetool_url: "http://localhost:8010"
-  vale: false            # Optional, requires `vale` on PATH
-  vale_config: ".vale.ini"  # Optional path to Vale config (auto-detected if omitted)
+  # Bool shorthand — just enable/disable:
+  harper: true
+  languagetool: false
+
+  # Nested config — engine-specific settings:
+  harper:
+    enabled: true
+    dialect: "American"       # American | British | Canadian | Australian | Indian
+    linters:
+      LongSentences: false    # Disable specific Harper rules
+
+  languagetool:
+    enabled: true
+    url: "http://localhost:8010"
+    level: "picky"            # "default" or "picky" (stricter rules)
+    mother_tongue: "de-DE"    # For false-friends detection
+    disabled_rules:
+      - WHITESPACE_RULE
+    enabled_rules: []
+    disabled_categories: []
+    enabled_categories: []
+
+  vale:
+    enabled: true
+    config: ".vale.ini"       # Path to Vale config (auto-detected if omitted)
+
+  spell_language: "en-US"     # BCP-47 tag for checking language
 ```
+
+Both bool shorthand (`harper: true`) and nested config (`harper: { enabled: true, dialect: "British" }`) are supported. Use the shorthand when you only need to toggle an engine; use the nested form when you need engine-specific settings.
 
 All enabled engines run concurrently and their diagnostics overlay. Engines that don't support the configured `spell_language` are automatically skipped (e.g. Harper only supports English). Duplicate diagnostics at the same range and rule are deduplicated.
 
@@ -72,11 +96,17 @@ Here's a `.languagecheck.yaml` putting it all together:
 
 ```yaml
 engines:
-  harper: true
-  languagetool: true
-  languagetool_url: "http://localhost:8010"
-  vale: true
-  vale_config: ".vale.ini"
+  harper:
+    enabled: true
+    dialect: "American"
+  languagetool:
+    enabled: true
+    url: "http://localhost:8010"
+    level: "default"
+  vale:
+    enabled: true
+    config: ".vale.ini"
+  spell_language: "en-US"
   external:
     - name: custom-checker
       command: ./my-checker

@@ -235,8 +235,9 @@ Once LanguageTool is running, enable it in your `.languagecheck.yaml`:
 ```yaml
 engines:
   harper: true
-  languagetool: true
-  languagetool_url: "http://localhost:8010"
+  languagetool:
+    enabled: true
+    url: "http://localhost:8010"
 ```
 
 Or change the URL in VS Code settings:
@@ -300,7 +301,8 @@ Port conflict
 
   ```yaml
   engines:
-    languagetool_url: "http://localhost:8011"
+    languagetool:
+      url: "http://localhost:8011"
   ```
 
 Java version errors

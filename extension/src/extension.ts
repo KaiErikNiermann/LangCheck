@@ -1152,12 +1152,17 @@ export async function activate(context: vscode.ExtensionContext) {
         ];
 
         // Build multi-select items with current state
+        // Supports both bool shorthand (`harper: true`) and nested (`harper:\n  enabled: true`)
         const items: (vscode.QuickPickItem & { engineKey: string })[] = engines
             .map(e => {
-                const re = new RegExp(`${e.key}:\\s*(true|false)`);
-                const match = content.match(re);
+                const boolRe = new RegExp(`^\\s*${e.key}:\\s*(true|false)\\s*$`, 'm');
+                const nestedRe = new RegExp(`^\\s*${e.key}:\\s*\\n\\s+enabled:\\s*(true|false)`, 'm');
+                const boolMatch = content.match(boolRe);
+                const nestedMatch = content.match(nestedRe);
                 // harper defaults to true, others to false
-                const isOn = match ? match[1] === 'true' : e.key === 'harper';
+                const isOn = nestedMatch ? nestedMatch[1] === 'true'
+                    : boolMatch ? boolMatch[1] === 'true'
+                    : e.key === 'harper';
                 const langNote = e.englishOnly && !isEnglish
                     ? ` $(warning) ${vscode.l10n.t('English only')}`
                     : '';
@@ -1180,9 +1185,14 @@ export async function activate(context: vscode.ExtensionContext) {
         try {
             for (const e of engines) {
                 const desired = enabledKeys.has(e.key);
-                const re = new RegExp(`${e.key}:\\s*(true|false)`);
-                if (re.test(content)) {
-                    content = content.replace(re, `${e.key}: ${desired}`);
+                // Match nested format first: `harper:\n  enabled: true`
+                const nestedRe = new RegExp(`(^\\s*${e.key}:\\s*\\n\\s+enabled:\\s*)(true|false)`, 'm');
+                // Then bool shorthand: `harper: true`
+                const boolRe = new RegExp(`(^\\s*${e.key}:\\s*)(true|false)(\\s*$)`, 'm');
+                if (nestedRe.test(content)) {
+                    content = content.replace(nestedRe, `$1${desired}`);
+                } else if (boolRe.test(content)) {
+                    content = content.replace(boolRe, `$1${desired}$3`);
                 } else if (content.includes('engines:')) {
                     content = content.replace(/engines:/, `engines:\n  ${e.key}: ${desired}`);
                 } else {
