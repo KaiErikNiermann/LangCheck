@@ -1,3 +1,7 @@
+mod vale;
+
+pub use vale::ValeEngine;
+
 use crate::checker::{Diagnostic, Severity};
 use anyhow::Result;
 use extism::{Manifest, Plugin, Wasm};
