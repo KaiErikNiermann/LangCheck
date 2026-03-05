@@ -9,7 +9,7 @@ import { TraceLogger } from './trace';
 import { createAPI } from './api';
 import { binaryExists, downloadBinary } from './downloader';
 import type { LanguageCheckDiagnostic } from './api';
-import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth } from './events';
+import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth, InspectorEngineInfo } from './events';
 import { Logger } from './logger';
 
 const GITHUB_REPO = 'KaiErikNiermann/LangCheck';
@@ -29,6 +29,7 @@ let speedFixTargetUri: string | null = null;
 
 // Engine health tracking
 let engineHealthState: InspectorEngineHealth[] = [];
+let engineInfoState: InspectorEngineInfo[] = [];
 let ltDownNotificationShown = false;
 
 // Inlay hint invalidation
@@ -1790,6 +1791,87 @@ function getInspectorContent(webview: vscode.Webview, extensionPath: string): st
 </html>`;
 }
 
+/** Detect engine binaries and config files, updating `engineInfoState`. */
+async function detectEngineInfo(): Promise<void> {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+
+    // Read .languagecheck config to determine enabled state
+    let configContent = '';
+    let configFilePath = '';
+    if (folder) {
+        for (const name of ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json']) {
+            const uri = vscode.Uri.joinPath(folder.uri, name);
+            try {
+                configContent = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+                configFilePath = uri.fsPath;
+                break;
+            } catch { /* not found */ }
+        }
+    }
+
+    /** Check if an engine is enabled in the config (bool shorthand or nested). */
+    function isEnabled(key: string, defaultVal: boolean): boolean {
+        const nestedRe = new RegExp(`^\\s*${key}:\\s*\\n\\s+enabled:\\s*(true|false)`, 'm');
+        const boolRe = new RegExp(`^\\s*${key}:\\s*(true|false)\\s*$`, 'm');
+        const nested = configContent.match(nestedRe);
+        if (nested) return nested[1] === 'true';
+        const bool = configContent.match(boolRe);
+        if (bool) return bool[1] === 'true';
+        return defaultVal;
+    }
+
+    /** Check if a binary exists in PATH. */
+    function binaryInPath(name: string): boolean {
+        try {
+            execSync(`command -v ${name}`, { stdio: 'pipe' });
+            return true;
+        } catch { return false; }
+    }
+
+    /** Find an engine-specific config file. */
+    function findConfig(candidates: string[]): string {
+        if (!folder) return '';
+        for (const name of candidates) {
+            const p = path.join(folder.uri.fsPath, name);
+            if (fs.existsSync(p)) return p;
+        }
+        return '';
+    }
+
+    const infos: InspectorEngineInfo[] = [
+        {
+            name: 'harper',
+            enabled: isEnabled('harper', true),
+            type: 'builtin',
+            binaryDetected: true,
+            configPath: configFilePath ? `${configFilePath} (engines.harper)` : '',
+        },
+        {
+            name: 'languagetool',
+            enabled: isEnabled('languagetool', false),
+            type: 'external',
+            binaryDetected: true, // server-based, not a binary — always "available"
+            configPath: configFilePath ? `${configFilePath} (engines.languagetool)` : '',
+        },
+        {
+            name: 'vale',
+            enabled: isEnabled('vale', false),
+            type: 'external',
+            binaryDetected: binaryInPath('vale'),
+            configPath: findConfig(['.vale.ini', '.vale.yaml', '.vale.yml']),
+        },
+        {
+            name: 'proselint',
+            enabled: isEnabled('proselint', false),
+            type: 'external',
+            binaryDetected: binaryInPath('proselint'),
+            configPath: findConfig(['proselint.json', '.proselintrc']),
+        },
+    ];
+
+    engineInfoState = infos;
+}
+
 async function updateInspectorData() {
     if (!inspectorPanel) return;
 
@@ -1865,6 +1947,13 @@ async function updateInspectorData() {
             payload: engineHealthState,
         });
     }
+
+    // Send engine info (binary detection, config paths)
+    await detectEngineInfo();
+    inspectorPanel.webview.postMessage({
+        type: 'setEngineInfo',
+        payload: engineInfoState,
+    });
 }
 
 /** Find a text editor that has diagnostics, preferring activeTextEditor.

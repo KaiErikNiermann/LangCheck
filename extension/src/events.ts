@@ -93,6 +93,17 @@ export interface InspectorEngineHealth {
     lastSuccessEpochMs: number;
 }
 
+export interface InspectorEngineInfo {
+    name: string;
+    enabled: boolean;
+    /** 'builtin' engines (harper) are always available; 'external' need a binary */
+    type: 'builtin' | 'external';
+    /** Whether the external binary was found in PATH (always true for builtin) */
+    binaryDetected: boolean;
+    /** Path to detected engine-specific config, if any */
+    configPath: string;
+}
+
 // Messages from extension → Inspector webview
 export type ExtensionToInspectorMessage =
     | { type: 'setExtraction'; payload: { prose: InspectorProseRange[]; fileName: string; languageId: string } }
@@ -102,6 +113,7 @@ export type ExtensionToInspectorMessage =
     | { type: 'pushEvent'; payload: InspectorEvent }
     | { type: 'clearEvents' }
     | { type: 'setEngineHealth'; payload: InspectorEngineHealth[] }
+    | { type: 'setEngineInfo'; payload: InspectorEngineInfo[] }
     | { type: 'setDockerAvailable'; payload: boolean }
     | { type: 'setExtensionVersion'; payload: string };
 

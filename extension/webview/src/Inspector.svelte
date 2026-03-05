@@ -54,6 +54,14 @@
     lastSuccessEpochMs: number;
   }
 
+  interface EngineInfo {
+    name: string;
+    enabled: boolean;
+    type: 'builtin' | 'external';
+    binaryDetected: boolean;
+    configPath: string;
+  }
+
   type Tab = 'extraction' | 'cleantext' | 'latency' | 'diagnostics' | 'events' | 'health';
 
   let proseRanges: ProseRange[] = $state([]);
@@ -62,6 +70,7 @@
   let checkInfo: CheckInfo | null = $state(null);
   let events: PipelineEvent[] = $state([]);
   let engineHealth: EngineHealth[] = $state([]);
+  let engineInfo: EngineInfo[] = $state([]);
   let dockerAvailable = $state(false);
   let activeTab: Tab = $state('extraction');
   let fileName: string = $state('');
@@ -101,6 +110,9 @@
           break;
         case 'setEngineHealth':
           engineHealth = message.payload ?? [];
+          break;
+        case 'setEngineInfo':
+          engineInfo = message.payload ?? [];
           break;
         case 'setDockerAvailable':
           dockerAvailable = message.payload;
@@ -223,6 +235,30 @@
 
   function hasUnhealthyEngine(): boolean {
     return engineHealth.some(e => e.status !== 'ok');
+  }
+
+  function getHealth(name: string): EngineHealth | undefined {
+    return engineHealth.find(e => e.name === name);
+  }
+
+  function engineStatusLabel(info: EngineInfo): string {
+    if (!info.enabled) return 'disabled';
+    if (info.type === 'external' && !info.binaryDetected) return 'not found';
+    const h = getHealth(info.name);
+    if (h) return h.status;
+    return 'idle';
+  }
+
+  function engineStatusColor(info: EngineInfo): string {
+    const label = engineStatusLabel(info);
+    switch (label) {
+      case 'ok': return 'var(--vscode-testing-iconPassed, #4caf50)';
+      case 'degraded': return 'var(--vscode-editorWarning-foreground, #fa4)';
+      case 'down': return 'var(--vscode-editorError-foreground, #f44)';
+      case 'not found': return 'var(--vscode-editorError-foreground, #f44)';
+      case 'disabled': return 'var(--vscode-editorHint-foreground, #888)';
+      default: return 'var(--vscode-editorHint-foreground, #aaa)';
+    }
   }
 
   /** Build HTML segments for range text with exclusion zones highlighted. */
@@ -642,13 +678,96 @@
 
     {:else if activeTab === 'health'}
       <!-- Engine Health -->
-      {#if engineHealth.length > 0}
+      {#if engineInfo.length > 0}
+        <div class="section-list">
+          <div class="section-header">
+            <span class="section-title">Engine Health</span>
+            <span class="section-count">{engineInfo.filter(e => e.enabled).length}/{engineInfo.length} enabled</span>
+          </div>
+
+          <div class="health-grid">
+            {#each engineInfo as info}
+              {@const health = getHealth(info.name)}
+              {@const statusLabel = engineStatusLabel(info)}
+              {@const statusColor = engineStatusColor(info)}
+              <div class="health-card"
+                class:health-card-warn={statusLabel === 'degraded'}
+                class:health-card-error={statusLabel === 'down' || statusLabel === 'not found'}
+                class:health-card-disabled={!info.enabled}>
+                <div class="health-card-header">
+                  <span class="health-dot" style="background: {statusColor}"></span>
+                  <span class="health-name">{info.name}</span>
+                  <span class="health-badge" class:health-badge-builtin={info.type === 'builtin'}>{info.type}</span>
+                  <span class="health-status" style="color: {statusColor}">{statusLabel}</span>
+                </div>
+
+                <div class="health-details">
+                  <!-- Binary / availability -->
+                  {#if info.type === 'external'}
+                    <div class="health-detail-row">
+                      <span class="health-detail-label">Binary</span>
+                      <span class="health-detail-value" class:health-ok-text={info.binaryDetected} class:health-error-text={!info.binaryDetected}>
+                        {info.binaryDetected ? 'detected' : 'not found'}
+                      </span>
+                    </div>
+                  {/if}
+
+                  <!-- Config path -->
+                  <div class="health-detail-row">
+                    <span class="health-detail-label">Config</span>
+                    <span class="health-detail-value health-config-path" title={info.configPath || 'none'}>
+                      {info.configPath ? info.configPath : 'none'}
+                    </span>
+                  </div>
+
+                  <!-- Runtime health (only if engine has reported) -->
+                  {#if health}
+                    {#if health.status !== 'ok'}
+                      <div class="health-detail-row">
+                        <span class="health-detail-label">Failures</span>
+                        <span class="health-detail-value">{health.consecutiveFailures}</span>
+                      </div>
+                      {#if health.lastError}
+                        <div class="health-detail-row">
+                          <span class="health-detail-label">Error</span>
+                          <span class="health-detail-value health-error-text" title={health.lastError}>
+                            {health.lastError.length > 80 ? health.lastError.substring(0, 77) + '...' : health.lastError}
+                          </span>
+                        </div>
+                      {/if}
+                    {/if}
+                    <div class="health-detail-row">
+                      <span class="health-detail-label">Last OK</span>
+                      <span class="health-detail-value">{formatTimeSince(health.lastSuccessEpochMs)}</span>
+                    </div>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+
+          {#if hasUnhealthyEngine()}
+            <div class="health-actions">
+              <button class="health-action-btn" onclick={() => vscode.postMessage({ type: 'healthCheckLT' })}>
+                Health Check
+              </button>
+              {#if dockerAvailable}
+                <button class="health-action-btn health-action-restart" onclick={() => vscode.postMessage({ type: 'restartLTDocker' })}>
+                  Restart Docker
+                </button>
+              {/if}
+            </div>
+          {:else}
+            <div class="health-ok-banner">All engines operational</div>
+          {/if}
+        </div>
+      {:else if engineHealth.length > 0}
+        <!-- Fallback: no engineInfo yet but have health data -->
         <div class="section-list">
           <div class="section-header">
             <span class="section-title">Engine Health</span>
             <span class="section-count">{engineHealth.length} engines</span>
           </div>
-
           <div class="health-grid">
             {#each engineHealth as engine}
               <div class="health-card" class:health-card-warn={engine.status === 'degraded'} class:health-card-error={engine.status === 'down'}>
@@ -680,24 +799,9 @@
               </div>
             {/each}
           </div>
-
-          {#if hasUnhealthyEngine()}
-            <div class="health-actions">
-              <button class="health-action-btn" onclick={() => vscode.postMessage({ type: 'healthCheckLT' })}>
-                Health Check
-              </button>
-              {#if dockerAvailable}
-                <button class="health-action-btn health-action-restart" onclick={() => vscode.postMessage({ type: 'restartLTDocker' })}>
-                  Restart Docker
-                </button>
-              {/if}
-            </div>
-          {:else}
-            <div class="health-ok-banner">All engines operational</div>
-          {/if}
         </div>
       {:else}
-        <div class="empty-state">Run a check to see engine health status.</div>
+        <div class="empty-state">Open a file to see engine health status.</div>
       {/if}
     {/if}
   </div>
@@ -1246,6 +1350,10 @@
     background: rgba(255, 60, 60, 0.05);
   }
 
+  .health-card-disabled {
+    opacity: 0.5;
+  }
+
   .health-card-header {
     display: flex;
     align-items: center;
@@ -1305,6 +1413,35 @@
   .health-error-text {
     color: var(--vscode-editorError-foreground, #f44);
     opacity: 0.8;
+  }
+
+  .health-ok-text {
+    color: var(--vscode-testing-iconPassed, #4caf50);
+  }
+
+  .health-config-path {
+    font-size: 10px;
+    opacity: 0.7;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .health-badge {
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: var(--vscode-badge-background, rgba(128,128,128,0.2));
+    color: var(--vscode-badge-foreground, inherit);
+    opacity: 0.7;
+  }
+
+  .health-badge-builtin {
+    background: rgba(80, 140, 255, 0.15);
+    color: var(--vscode-textLink-foreground, #48f);
   }
 
   .health-actions {
