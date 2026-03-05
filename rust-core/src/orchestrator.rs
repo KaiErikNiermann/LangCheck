@@ -130,8 +130,6 @@ impl Orchestrator {
         }
 
         let spell_language = &self.config.engines.spell_language;
-        let is_english = spell_language.starts_with("en");
-        let english_engine = &self.config.engines.english_engine;
 
         let mut all_diagnostics = Vec::new();
         let mut engines_ran = 0u32;
@@ -141,14 +139,6 @@ impl Orchestrator {
 
             // Skip engines that don't support the configured language
             if !engine_supports_language(engine.as_ref(), spell_language) {
-                continue;
-            }
-
-            // English engine toggle: skip the non-selected engine for English content
-            if english_engine == "languagetool" && engine_name == "harper" {
-                continue;
-            }
-            if english_engine == "harper" && engine_name == "languagetool" && is_english {
                 continue;
             }
 

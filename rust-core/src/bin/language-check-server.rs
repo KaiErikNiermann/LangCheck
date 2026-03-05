@@ -206,7 +206,6 @@ async fn main() -> Result<()> {
                     let mut config = fg_orchestrator.lock().await.get_config().clone();
                     config.engines.harper = true;
                     config.engines.languagetool = false;
-                    config.engines.english_engine = "harper".to_string();
                     let indexing_orchestrator =
                         Arc::new(Mutex::new(Orchestrator::new(config.clone())));
 
@@ -375,7 +374,7 @@ async fn main() -> Result<()> {
                         id = request_id,
                         harper = config.engines.harper,
                         languagetool = config.engines.languagetool,
-                        english_engine = %config.engines.english_engine,
+                        vale = config.engines.vale,
                         "Initialize: engines configured"
                     );
                     orchestrator_arc.lock().await.update_config(config.clone());

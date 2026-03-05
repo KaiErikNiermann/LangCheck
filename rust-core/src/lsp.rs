@@ -55,7 +55,6 @@ struct EngineSettings {
     harper: Option<bool>,
     languagetool: Option<bool>,
     languagetool_url: Option<String>,
-    english_engine: Option<String>,
 }
 
 #[derive(Debug, Default, serde::Deserialize)]
@@ -148,9 +147,6 @@ impl Backend {
             }
             if let Some(ref v) = eng.languagetool_url {
                 config.engines.languagetool_url.clone_from(v);
-            }
-            if let Some(ref v) = eng.english_engine {
-                config.engines.english_engine.clone_from(v);
             }
         }
         if let Some(ref perf) = settings.performance {

@@ -159,9 +159,6 @@ pub struct EngineConfig {
     pub languagetool: bool,
     #[serde(default = "default_lt_url")]
     pub languagetool_url: String,
-    /// Which engine handles English checking: `"harper"` or `"languagetool"`.
-    #[serde(default = "default_english_engine")]
-    pub english_engine: String,
     /// External checker providers registered via config.
     #[serde(default)]
     pub external: Vec<ExternalProvider>,
@@ -219,7 +216,6 @@ impl Default for EngineConfig {
             harper: true,
             languagetool: false,
             languagetool_url: "http://localhost:8010".to_string(),
-            english_engine: "harper".to_string(),
             external: Vec::new(),
             wasm_plugins: Vec::new(),
             spell_language: default_spell_language(),
@@ -239,9 +235,6 @@ const fn default_true() -> bool {
 }
 fn default_lt_url() -> String {
     "http://localhost:8010".to_string()
-}
-fn default_english_engine() -> String {
-    "harper".to_string()
 }
 fn default_spell_language() -> String {
     "en-US".to_string()
@@ -358,23 +351,6 @@ mod tests {
     fn default_lt_url() {
         let config = Config::default();
         assert_eq!(config.engines.languagetool_url, "http://localhost:8010");
-    }
-
-    #[test]
-    fn default_english_engine_is_harper() {
-        let config = Config::default();
-        assert_eq!(config.engines.english_engine, "harper");
-    }
-
-    #[test]
-    fn english_engine_from_yaml() {
-        let yaml = r#"
-engines:
-  english_engine: languagetool
-  languagetool: true
-"#;
-        let config: Config = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(config.engines.english_engine, "languagetool");
     }
 
     #[test]
