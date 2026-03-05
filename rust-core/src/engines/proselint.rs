@@ -147,15 +147,10 @@ impl Engine for ProselintEngine {
         let mut diagnostics = Vec::new();
         for file_result in parsed.result.into_values() {
             match file_result {
-                ProselintFileResult::Ok {
-                    diagnostics: diags,
-                } => {
+                ProselintFileResult::Ok { diagnostics: diags } => {
                     for d in diags {
                         let (start_byte, end_byte) = char_span_to_byte_range(text, d.span);
-                        let suggestions = d
-                            .replacements
-                            .map(|r| vec![r])
-                            .unwrap_or_default();
+                        let suggestions = d.replacements.map(|r| vec![r]).unwrap_or_default();
 
                         diagnostics.push(Diagnostic {
                             start_byte,

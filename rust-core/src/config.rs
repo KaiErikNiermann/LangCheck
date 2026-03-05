@@ -153,7 +153,10 @@ pub struct AutoFixRule {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EngineConfig {
-    #[serde(default = "default_harper_config", deserialize_with = "deser_engine_or_bool")]
+    #[serde(
+        default = "default_harper_config",
+        deserialize_with = "deser_engine_or_bool"
+    )]
     pub harper: HarperConfig,
     #[serde(default, deserialize_with = "deser_engine_or_bool")]
     pub languagetool: LanguageToolConfig,
@@ -235,8 +238,12 @@ fn default_dialect() -> String {
 }
 
 impl EngineToggle for HarperConfig {
-    fn enabled(&self) -> bool { self.enabled }
-    fn set_enabled(&mut self, v: bool) { self.enabled = v; }
+    fn enabled(&self) -> bool {
+        self.enabled
+    }
+    fn set_enabled(&mut self, v: bool) {
+        self.enabled = v;
+    }
 }
 
 /// `LanguageTool` engine configuration.
@@ -287,8 +294,12 @@ fn default_lt_level() -> String {
 }
 
 impl EngineToggle for LanguageToolConfig {
-    fn enabled(&self) -> bool { self.enabled }
-    fn set_enabled(&mut self, v: bool) { self.enabled = v; }
+    fn enabled(&self) -> bool {
+        self.enabled
+    }
+    fn set_enabled(&mut self, v: bool) {
+        self.enabled = v;
+    }
 }
 
 /// Vale engine configuration.
@@ -302,8 +313,12 @@ pub struct ValeConfig {
 }
 
 impl EngineToggle for ValeConfig {
-    fn enabled(&self) -> bool { self.enabled }
-    fn set_enabled(&mut self, v: bool) { self.enabled = v; }
+    fn enabled(&self) -> bool {
+        self.enabled
+    }
+    fn set_enabled(&mut self, v: bool) {
+        self.enabled = v;
+    }
 }
 
 /// Proselint engine configuration.
@@ -317,8 +332,12 @@ pub struct ProselintConfig {
 }
 
 impl EngineToggle for ProselintConfig {
-    fn enabled(&self) -> bool { self.enabled }
-    fn set_enabled(&mut self, v: bool) { self.enabled = v; }
+    fn enabled(&self) -> bool {
+        self.enabled
+    }
+    fn set_enabled(&mut self, v: bool) {
+        self.enabled = v;
+    }
 }
 
 /// An external checker binary that communicates via stdin/stdout JSON.
@@ -892,7 +911,10 @@ engines:
         let config: Config = serde_yaml::from_str(yaml).unwrap();
         assert!(config.engines.harper.enabled);
         assert_eq!(config.engines.harper.dialect, "British");
-        assert_eq!(config.engines.harper.linters.get("LongSentences"), Some(&false));
+        assert_eq!(
+            config.engines.harper.linters.get("LongSentences"),
+            Some(&false)
+        );
     }
 
     #[test]
@@ -910,7 +932,10 @@ engines:
         assert!(config.engines.languagetool.enabled);
         assert_eq!(config.engines.languagetool.url, "http://localhost:9090");
         assert_eq!(config.engines.languagetool.level, "picky");
-        assert_eq!(config.engines.languagetool.disabled_rules, vec!["WHITESPACE_RULE"]);
+        assert_eq!(
+            config.engines.languagetool.disabled_rules,
+            vec!["WHITESPACE_RULE"]
+        );
     }
 
     #[test]
@@ -940,6 +965,9 @@ engines:
 "#;
         let config: Config = serde_yaml::from_str(yaml).unwrap();
         assert!(config.engines.proselint.enabled);
-        assert_eq!(config.engines.proselint.config.as_deref(), Some("proselint.json"));
+        assert_eq!(
+            config.engines.proselint.config.as_deref(),
+            Some("proselint.json")
+        );
     }
 }

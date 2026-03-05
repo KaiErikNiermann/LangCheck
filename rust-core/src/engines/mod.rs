@@ -219,13 +219,7 @@ impl Engine for LanguageToolEngine {
         }
 
         let request_start = std::time::Instant::now();
-        let response = match self
-            .client
-            .post(&url)
-            .form(&form_params)
-            .send()
-            .await
-        {
+        let response = match self.client.post(&url).form(&form_params).send().await {
             Ok(r) => {
                 let status = r.status();
                 debug!(

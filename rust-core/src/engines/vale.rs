@@ -161,8 +161,7 @@ impl Engine for ValeEngine {
         let mut diagnostics = Vec::new();
         for alerts in vale_output.into_values() {
             for alert in alerts {
-                let (start_byte, end_byte) =
-                    line_span_to_byte_range(text, alert.line, alert.span);
+                let (start_byte, end_byte) = line_span_to_byte_range(text, alert.line, alert.span);
 
                 diagnostics.push(Diagnostic {
                     start_byte,
