@@ -637,8 +637,23 @@ export async function activate(context: vscode.ExtensionContext) {
                     ignoreAction.diagnostics = [diag];
                     actions.push(ignoreAction);
 
-                    // Add "Add to Dictionary" action for spelling rules
+                    // Add "Deactivate rule" action
                     const ruleId = (diag.code as string) || '';
+                    if (ruleId) {
+                        const deactivateAction = new vscode.CodeAction(
+                            vscode.l10n.t('Deactivate rule "{0}"', ruleId),
+                            vscode.CodeActionKind.QuickFix
+                        );
+                        deactivateAction.command = {
+                            command: 'language-check.deactivateRule',
+                            title: 'Deactivate rule',
+                            arguments: [ruleId]
+                        };
+                        deactivateAction.diagnostics = [diag];
+                        actions.push(deactivateAction);
+                    }
+
+                    // Add "Add to Dictionary" action for spelling rules
                     if (isSpellingRule(ruleId)) {
                         const word = getDiagnosticWord(document, diag);
                         const dictAction = new vscode.CodeAction(
@@ -1042,6 +1057,71 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage(vscode.l10n.t('Failed to add word: {0}', errStr));
         } finally {
             sendSpeedFixLoading(false);
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.deactivateRule', async (ruleId: string) => {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) return;
+
+        // Find or create config file
+        const configNames = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
+        let configUri: vscode.Uri | undefined;
+        for (const name of configNames) {
+            const uri = vscode.Uri.joinPath(workspaceFolder.uri, name);
+            try {
+                await vscode.workspace.fs.stat(uri);
+                configUri = uri;
+                break;
+            } catch { /* not found */ }
+        }
+        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
+
+        try {
+            let content: string;
+            try {
+                const raw = await vscode.workspace.fs.readFile(targetUri);
+                content = Buffer.from(raw).toString('utf8');
+            } catch {
+                content = '';
+            }
+
+            // Build the YAML entry: rules:\n  <ruleId>:\n    severity: "off"
+            const ruleEntry = `  ${ruleId}:\n    severity: "off"`;
+            if (content.includes('rules:')) {
+                content = content.replace(/rules:/, `rules:\n${ruleEntry}`);
+            } else {
+                content = `${content}\nrules:\n${ruleEntry}\n`;
+            }
+
+            await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
+
+            // Suppress this rule in any in-flight check results
+            suppressedRules.add(ruleId);
+
+            // Immediately remove matching diagnostics from all open documents
+            for (const [uri, diagnostics] of diagnosticsMap) {
+                const remaining = diagnostics.filter(d => {
+                    const dRuleId = typeof d.code === 'string' ? d.code : '';
+                    return dRuleId !== ruleId;
+                });
+                if (remaining.length !== diagnostics.length) {
+                    diagnosticsMap.set(uri, remaining);
+                    const docUri = vscode.Uri.parse(uri);
+                    diagnosticCollection.set(docUri, remaining);
+                }
+            }
+            inlayHintEmitter.fire();
+            updateSpeedFixDiagnostics();
+
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Rule "{0}" deactivated in project config', ruleId)
+            );
+
+            await reinitializeAndRecheck();
+            suppressedRules.delete(ruleId);
+        } catch (err) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to deactivate rule: {0}', String(err)));
         }
     }));
 
@@ -2092,6 +2172,8 @@ interface ExtendedDiagnostic extends vscode.Diagnostic {
 const diagnosticsMap = new Map<string, ExtendedDiagnostic[]>();
 /** Words recently added to dictionary — suppress spelling diagnostics until the server catches up. */
 const suppressedWords = new Set<string>();
+/** Rule IDs recently deactivated — suppress matching diagnostics until the server catches up. */
+const suppressedRules = new Set<string>();
 
 function updateSpeedFixDiagnostics() {
     if (!speedFixPanel) return;
@@ -2239,10 +2321,12 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
             });
             timings.push({ name: 'Map diagnostics', durationMs: performance.now() - t2 });
 
-            // Filter out spelling diagnostics for words recently added to dictionary
-            if (suppressedWords.size > 0) {
+            // Filter out diagnostics for suppressed words / deactivated rules
+            if (suppressedWords.size > 0 || suppressedRules.size > 0) {
                 const filtered = extendedDiagnostics.filter(d => {
-                    if (typeof d.code === 'string' && isSpellingRule(d.code)) {
+                    const ruleId = typeof d.code === 'string' ? d.code : '';
+                    if (suppressedRules.size > 0 && ruleId && suppressedRules.has(ruleId)) return false;
+                    if (suppressedWords.size > 0 && isSpellingRule(ruleId)) {
                         const word = document.getText(d.range).toLowerCase();
                         if (suppressedWords.has(word)) return false;
                     }

@@ -71,5 +71,8 @@
   "Open Issue": "Issue öffnen",
   "Report copied to clipboard.": "Bericht in die Zwischenablage kopiert.",
   "Switched to check on save": "Auf Prüfung beim Speichern umgestellt",
-  "Switched to check on change": "Auf Prüfung bei Änderung umgestellt"
+  "Switched to check on change": "Auf Prüfung bei Änderung umgestellt",
+  "Deactivate rule \"{0}\"": "Regel „{0}" deaktivieren",
+  "Rule \"{0}\" deactivated in project config": "Regel „{0}" in der Projektkonfiguration deaktiviert",
+  "Failed to deactivate rule: {0}": "Regel konnte nicht deaktiviert werden: {0}"
 }

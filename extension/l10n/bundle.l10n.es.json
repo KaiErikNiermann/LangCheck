@@ -71,5 +71,8 @@
   "Open Issue": "Abrir incidencia",
   "Report copied to clipboard.": "Informe copiado al portapapeles.",
   "Switched to check on save": "Verificación al guardar activada",
-  "Switched to check on change": "Verificación al modificar activada"
+  "Switched to check on change": "Verificación al modificar activada",
+  "Deactivate rule \"{0}\"": "Desactivar regla «{0}»",
+  "Rule \"{0}\" deactivated in project config": "Regla «{0}» desactivada en la configuración del proyecto",
+  "Failed to deactivate rule: {0}": "Error al desactivar la regla: {0}"
 }

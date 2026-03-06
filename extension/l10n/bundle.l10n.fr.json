@@ -71,5 +71,8 @@
   "Open Issue": "Ouvrir un ticket",
   "Report copied to clipboard.": "Rapport copié dans le presse-papiers.",
   "Switched to check on save": "Vérification à la sauvegarde activée",
-  "Switched to check on change": "Vérification à la modification activée"
+  "Switched to check on change": "Vérification à la modification activée",
+  "Deactivate rule \"{0}\"": "Désactiver la règle « {0} »",
+  "Rule \"{0}\" deactivated in project config": "Règle « {0} » désactivée dans la configuration du projet",
+  "Failed to deactivate rule: {0}": "Échec de la désactivation de la règle : {0}"
 }

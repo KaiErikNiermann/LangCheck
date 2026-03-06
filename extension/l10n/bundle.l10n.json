@@ -71,5 +71,8 @@
   "Open Issue": "Open Issue",
   "Report copied to clipboard.": "Report copied to clipboard.",
   "Switched to check on save": "Switched to check on save",
-  "Switched to check on change": "Switched to check on change"
+  "Switched to check on change": "Switched to check on change",
+  "Deactivate rule \"{0}\"": "Deactivate rule \"{0}\"",
+  "Rule \"{0}\" deactivated in project config": "Rule \"{0}\" deactivated in project config",
+  "Failed to deactivate rule: {0}": "Failed to deactivate rule: {0}"
 }
