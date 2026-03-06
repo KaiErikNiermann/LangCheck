@@ -69,5 +69,7 @@
   "Spell-check language set to \"{0}\". Reloading...": "Spell-check language set to \"{0}\". Reloading...",
   "The report includes file names, diagnostics, and timing data (not document text). This will be publicly visible on GitHub. Continue?": "The report includes file names, diagnostics, and timing data (not document text). This will be publicly visible on GitHub. Continue?",
   "Open Issue": "Open Issue",
-  "Report copied to clipboard.": "Report copied to clipboard."
+  "Report copied to clipboard.": "Report copied to clipboard.",
+  "Switched to check on save": "Switched to check on save",
+  "Switched to check on change": "Switched to check on change"
 }

@@ -69,5 +69,7 @@
   "Spell-check language set to \"{0}\". Reloading...": "Idioma de revisión ortográfica establecido en \"{0}\". Recargando...",
   "The report includes file names, diagnostics, and timing data (not document text). This will be publicly visible on GitHub. Continue?": "El informe incluye nombres de archivos, diagnósticos y datos de tiempo (no el texto del documento). Esta información será visible públicamente en GitHub. ¿Continuar?",
   "Open Issue": "Abrir incidencia",
-  "Report copied to clipboard.": "Informe copiado al portapapeles."
+  "Report copied to clipboard.": "Informe copiado al portapapeles.",
+  "Switched to check on save": "Verificación al guardar activada",
+  "Switched to check on change": "Verificación al modificar activada"
 }

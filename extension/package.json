@@ -99,6 +99,10 @@
         "title": "%command.toggleInlayHints%"
       },
       {
+        "command": "language-check.toggleCheckTrigger",
+        "title": "%command.toggleCheckTrigger%"
+      },
+      {
         "command": "language-check.managePlugins",
         "title": "%command.managePlugins%"
       }

@@ -14,6 +14,7 @@
   "command.restartLTDocker": "Language Check: Restart LanguageTool Docker",
   "command.restartLanguageServer": "Language Check: Restart Language Server",
   "command.toggleInlayHints": "Language Check: Toggle Inlay Hints",
+  "command.toggleCheckTrigger": "Language Check: Toggle Check on Save / Check on Change",
   "command.managePlugins": "Language Check: Manage Plugins",
   "config.title": "Language Check",
   "config.core.channel": "Which core binary channel to use.",

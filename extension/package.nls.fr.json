@@ -14,6 +14,7 @@
   "command.restartLTDocker": "Language Check : Redémarrer Docker LanguageTool",
   "command.restartLanguageServer": "Language Check : Redémarrer le serveur de langue",
   "command.toggleInlayHints": "Language Check : Activer/désactiver les indications en ligne",
+  "command.toggleCheckTrigger": "Language Check : Basculer vérification à la sauvegarde / à la modification",
   "command.managePlugins": "Language Check : Gérer les plugins",
   "config.title": "Language Check",
   "config.core.channel": "Quel canal de binaire core utiliser.",

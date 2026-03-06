@@ -758,6 +758,17 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage(`Language Check inlay hints ${inlayHintsEnabled ? 'enabled' : 'disabled'}`);
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.toggleCheckTrigger', async () => {
+        const config = vscode.workspace.getConfiguration('languageCheck');
+        const current = config.get<string>('check.trigger', 'onChange');
+        const next = current === 'onChange' ? 'onSave' : 'onChange';
+        await config.update('check.trigger', next, vscode.ConfigurationTarget.Workspace);
+        const label = next === 'onSave'
+            ? vscode.l10n.t('Switched to check on save')
+            : vscode.l10n.t('Switched to check on change');
+        vscode.window.showInformationMessage(label);
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('language-check.managePlugins', async () => {
         const config = vscode.workspace.getConfiguration('languageCheck');
         const plugins: Array<{ path: string; enabled?: boolean; name?: string; languages?: string[] }> =
