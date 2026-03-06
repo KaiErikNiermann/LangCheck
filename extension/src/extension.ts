@@ -999,10 +999,12 @@ export async function activate(context: vscode.ExtensionContext) {
             const rpcMs = performance.now() - t0;
             if (response.ok) {
                 pushInspectorEvent('info', 'addToDictionary', `Server confirmed "${word}"`, { durationMs: rpcMs });
+                // Suppress this word in any in-flight check results until the re-check completes
+                const wordLower = word.toLowerCase();
+                suppressedWords.add(wordLower);
                 // Optimistic removal: remove all spelling diagnostics for this word immediately
                 const editor = findEditorWithDiagnostics();
                 let removedCount = 0;
-                const wordLower = word.toLowerCase();
                 if (editor) {
                     const uri = editor.document.uri.toString();
                     const diagnostics = diagnosticsMap.get(uri);
@@ -1024,6 +1026,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     pushInspectorEvent('debug', 'addToDictionary', `Removed ${removedCount} diagnostics, re-checking`);
                     // Full re-check for consistency (dictionary is now server-side updated)
                     await checkDocument(editor.document);
+                    suppressedWords.delete(wordLower);
                 }
                 const extra = removedCount > 1 ? vscode.l10n.t(' ({0} occurrences resolved)', removedCount) : '';
                 vscode.window.showInformationMessage(vscode.l10n.t('Added "{0}" to dictionary', word) + extra);
@@ -2087,6 +2090,8 @@ interface ExtendedDiagnostic extends vscode.Diagnostic {
 }
 
 const diagnosticsMap = new Map<string, ExtendedDiagnostic[]>();
+/** Words recently added to dictionary — suppress spelling diagnostics until the server catches up. */
+const suppressedWords = new Set<string>();
 
 function updateSpeedFixDiagnostics() {
     if (!speedFixPanel) return;
@@ -2233,6 +2238,19 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
                 return diagnostic;
             });
             timings.push({ name: 'Map diagnostics', durationMs: performance.now() - t2 });
+
+            // Filter out spelling diagnostics for words recently added to dictionary
+            if (suppressedWords.size > 0) {
+                const filtered = extendedDiagnostics.filter(d => {
+                    if (typeof d.code === 'string' && isSpellingRule(d.code)) {
+                        const word = document.getText(d.range).toLowerCase();
+                        if (suppressedWords.has(word)) return false;
+                    }
+                    return true;
+                });
+                extendedDiagnostics.length = 0;
+                extendedDiagnostics.push(...filtered);
+            }
 
             const t3 = performance.now();
             diagnosticCollection.set(document.uri, extendedDiagnostics);
