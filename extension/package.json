@@ -145,7 +145,7 @@
         },
         "languageCheck.check.trigger": {
           "type": "string",
-          "default": "onChange",
+          "default": "onSave",
           "enum": [
             "onChange",
             "onSave"
