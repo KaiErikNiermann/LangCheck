@@ -73,11 +73,11 @@ check-ts: typecheck-ts lint-ts build-ts check-l10n
 
 # Build docs locally
 docs:
-    cd docs && pip install -q -r requirements.txt && sphinx-build -b html . _build/html
+    cd docs && source .venv/bin/activate && pip install -q -r requirements.txt && sphinx-build -b html . _build/html
 
 # Serve docs locally with live reload
 docs-serve:
-    cd docs && pip install -q -r requirements.txt sphinx-autobuild && sphinx-autobuild . _build/html
+    cd docs && source .venv/bin/activate && pip install -q -r requirements.txt sphinx-autobuild && sphinx-autobuild . _build/html
 
 # Extract translatable strings from docs into .pot files
 docs-gettext:
