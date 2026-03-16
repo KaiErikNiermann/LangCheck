@@ -79,6 +79,38 @@ else
   errors=$((errors + 1))
 fi
 
+# ── VS Code engine vs @types/vscode ──
+# vsce package fails if @types/vscode exceeds engines.vscode.
+# Extract the minimum semver from each "^X.Y.Z" constraint and compare majors+minors.
+engine_vscode=$(
+  grep -o '"vscode":[[:space:]]*"[^"]*"' "$REPO_ROOT/extension/package.json" \
+    | head -1 | grep -o '[0-9][0-9.]*'
+)
+types_vscode=$(
+  grep -o '"@types/vscode":[[:space:]]*"[^"]*"' "$REPO_ROOT/extension/package.json" \
+    | grep -o '[0-9][0-9.]*'
+)
+
+if [[ -n "$engine_vscode" && -n "$types_vscode" ]]; then
+  # Compare major.minor (patch doesn't matter for API compat)
+  engine_mm="${engine_vscode%.*}"  # e.g. 1.110
+  types_mm="${types_vscode%.*}"
+  engine_major="${engine_mm%%.*}"
+  engine_minor="${engine_mm#*.}"
+  types_major="${types_mm%%.*}"
+  types_minor="${types_mm#*.}"
+
+  if [[ "$types_major" -gt "$engine_major" ]] || \
+     { [[ "$types_major" -eq "$engine_major" ]] && [[ "$types_minor" -gt "$engine_minor" ]]; }; then
+    red "✗ @types/vscode ^$types_vscode exceeds engines.vscode ^$engine_vscode — bump engines.vscode"
+    errors=$((errors + 1))
+  else
+    green "✓ @types/vscode ^$types_vscode <= engines.vscode ^$engine_vscode"
+  fi
+else
+  dim "⚠ Could not parse vscode versions from package.json"
+fi
+
 # ── Summary ──
 echo ""
 if [[ $errors -gt 0 ]]; then
