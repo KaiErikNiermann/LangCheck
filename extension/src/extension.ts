@@ -112,18 +112,31 @@ const PROSE_ENVS = new Set([
 
 // User-configured skip_environments from .languagecheck.yaml
 let userSkipEnvs = new Set<string>();
+// User-configured prose_environments from .languagecheck.yaml (suppress inlay hints, keep checking)
+let userProseEnvs = new Set<string>();
 
-/** Parse skip_environments list items from a YAML config string. */
-function parseSkipEnvironments(content: string): Set<string> {
-    const envs = new Set<string>();
-    const match = content.match(/skip_environments:\s*\n((?:\s+-\s+\S+\n?)*)/);
+/** Parse a YAML list under the given key from a config string. */
+function parseYamlList(content: string, key: string): Set<string> {
+    const items = new Set<string>();
+    const re = new RegExp(`${key}:\\s*\\n((?:\\s+-\\s+\\S+\\n?)*)`);
+    const match = content.match(re);
     if (match?.[1]) {
         for (const line of match[1].split('\n')) {
             const item = line.match(/^\s+-\s+(\S+)/);
-            if (item?.[1]) envs.add(item[1]);
+            if (item?.[1]) items.add(item[1]);
         }
     }
-    return envs;
+    return items;
+}
+
+/** Parse skip_environments list items from a YAML config string. */
+function parseSkipEnvironments(content: string): Set<string> {
+    return parseYamlList(content, 'skip_environments');
+}
+
+/** Parse prose_environments list items from a YAML config string. */
+function parseProseEnvironments(content: string): Set<string> {
+    return parseYamlList(content, 'prose_environments');
 }
 
 // Built-in LaTeX commands whose arguments the checker always skips (mirrors SKIP_GENERIC_COMMANDS in latex.rs)
@@ -144,15 +157,7 @@ let userSkipCommands = new Set<string>();
 
 /** Parse skip_commands list items from a YAML config string. */
 function parseSkipCommands(content: string): Set<string> {
-    const cmds = new Set<string>();
-    const match = content.match(/skip_commands:\s*\n((?:\s+-\s+\S+\n?)*)/);
-    if (match?.[1]) {
-        for (const line of match[1].split('\n')) {
-            const item = line.match(/^\s+-\s+(\S+)/);
-            if (item?.[1]) cmds.add(item[1]);
-        }
-    }
-    return cmds;
+    return parseYamlList(content, 'skip_commands');
 }
 
 /** Push a timestamped event to the Inspector event log (if open). */
@@ -472,21 +477,31 @@ export async function activate(context: vscode.ExtensionContext) {
                 let m: RegExpExecArray | null;
                 while ((m = re.exec(text)) !== null) {
                     const envName = m[1]!;
-                    if (BUILTIN_SKIP_ENVS.has(envName) || PROSE_ENVS.has(envName) || userSkipEnvs.has(envName)) continue;
+                    if (BUILTIN_SKIP_ENVS.has(envName) || PROSE_ENVS.has(envName) || userSkipEnvs.has(envName) || userProseEnvs.has(envName)) continue;
                     const pos = document.positionAt(m.index + m[0].length);
                     const hint = new vscode.InlayHint(
                         pos,
-                        [{
-                            value: ' \u2298 skip',
-                            command: {
-                                command: 'language-check.skipLatexEnv',
-                                title: 'Skip this LaTeX environment',
-                                arguments: [envName]
+                        [
+                            {
+                                value: ' \u2298 skip',
+                                command: {
+                                    command: 'language-check.skipLatexEnv',
+                                    title: 'Skip checking this environment',
+                                    arguments: [envName]
+                                }
+                            },
+                            {
+                                value: ' | hide hint',
+                                command: {
+                                    command: 'language-check.hideLatexEnvHint',
+                                    title: 'Hide this hint (keep checking)',
+                                    arguments: [envName]
+                                }
                             }
-                        }],
+                        ],
                         vscode.InlayHintKind.Parameter
                     );
-                    hint.tooltip = `Add "${envName}" to skip_environments in .languagecheck.yaml`;
+                    hint.tooltip = `"skip" adds to skip_environments, "hide hint" adds to prose_environments`;
                     hints.push(hint);
                 }
                 return hints;
@@ -1356,6 +1371,55 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.hideLatexEnvHint', async (envName: string) => {
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            vscode.window.showWarningMessage(vscode.l10n.t('No workspace folder open.'));
+            return;
+        }
+
+        const configNames = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
+        let configUri: vscode.Uri | undefined;
+        for (const name of configNames) {
+            const uri = vscode.Uri.joinPath(workspaceFolder.uri, name);
+            try {
+                await vscode.workspace.fs.stat(uri);
+                configUri = uri;
+                break;
+            } catch { /* not found */ }
+        }
+
+        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
+        try {
+            let content: string;
+            try {
+                const raw = await vscode.workspace.fs.readFile(targetUri);
+                content = Buffer.from(raw).toString('utf8');
+            } catch {
+                content = '';
+            }
+
+            if (content.match(/prose_environments:/)) {
+                content = content.replace(/prose_environments:/, `prose_environments:\n      - ${envName}`);
+            } else if (content.match(/latex:/)) {
+                content = content.replace(/latex:/, `latex:\n    prose_environments:\n      - ${envName}`);
+            } else if (content.match(/languages:/)) {
+                content = content.replace(/languages:/, `languages:\n  latex:\n    prose_environments:\n      - ${envName}`);
+            } else {
+                content = `languages:\n  latex:\n    prose_environments:\n      - ${envName}\n${content}`;
+            }
+
+            await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Hint hidden for "{0}". Checking continues.', envName)
+            );
+            userProseEnvs.add(envName);
+            inlayHintEmitter.fire();
+        } catch (err) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to update config: {0}', String(err)));
+        }
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('language-check.skipLatexCommand', async (cmdName: string) => {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
@@ -1743,6 +1807,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
                 userSkipEnvs = parseSkipEnvironments(raw);
                 userSkipCommands = parseSkipCommands(raw);
+                userProseEnvs = parseProseEnvironments(raw);
                 inlayHintEmitter.fire();
                 return;
             } catch { /* not found, try next */ }
@@ -1766,6 +1831,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     languageStatusBarItem.text = `$(book) ${lastKnownSpellLanguage}`;
                     userSkipEnvs = parseSkipEnvironments(raw);
                     userSkipCommands = parseSkipCommands(raw);
+                    userProseEnvs = parseProseEnvironments(raw);
                     break;
                 } catch { /* not found, try next */ }
             }

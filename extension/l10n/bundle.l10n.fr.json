@@ -74,5 +74,6 @@
   "Switched to check on change": "Vérification à la modification activée",
   "Deactivate rule \"{0}\"": "Désactiver la règle « {0} »",
   "Rule \"{0}\" deactivated in project config": "Règle « {0} » désactivée dans la configuration du projet",
-  "Failed to deactivate rule: {0}": "Échec de la désactivation de la règle : {0}"
+  "Failed to deactivate rule: {0}": "Échec de la désactivation de la règle : {0}",
+  "Hint hidden for \"{0}\". Checking continues.": "Indication masquée pour « {0} ». La vérification continue."
 }
