@@ -34,7 +34,7 @@ codebook-tree-sitter-latex = "0.6"
 tree-sitter-rst = "0.2"
 anyhow = "1.0"
 bytes = "1.0"
-harper-core = { version = "1.9.0", features = ["concurrent"] }
+harper-core = { version = "1.12.0", features = ["concurrent"] }
 reqwest = { version = "0.13", features = ["json", "form"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -57,7 +57,7 @@ tower-lsp = "0.20"
 dashmap = "6"
 
 [dev-dependencies]
-insta = { version = "1.42", features = ["yaml"] }
+insta = { version = "1.47", features = ["yaml"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde = { version = "1.0", features = ["derive"] }
 tree-sitter-md = { version = "0.5", default-features = false }
@@ -75,4 +75,4 @@ opt-level = 2
 
 [build-dependencies]
 prost-build = "0.14"
-cc = "1.0"
+cc = "1.2"
