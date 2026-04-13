@@ -54,7 +54,7 @@ jobs:
       #   working-directory: docs
       #   run: sphinx-build -b html -D language=ja . _build/html/ja
 
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs/_build/html
 
