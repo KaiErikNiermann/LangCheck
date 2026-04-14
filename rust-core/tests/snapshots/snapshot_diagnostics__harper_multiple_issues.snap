@@ -1,6 +1,5 @@
 ---
 source: tests/snapshot_diagnostics.rs
-assertion_line: 152
 expression: snap
 ---
 - start_byte: 8
@@ -28,7 +27,7 @@ expression: snap
   unified_id: spelling.typo
   severity: 2
   suggestions:
-    - ruling
     - running
     - ruing
+    - ruining
   confidence: 0.8
