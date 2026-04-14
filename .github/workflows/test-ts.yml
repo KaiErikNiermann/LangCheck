@@ -26,9 +26,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@v5
         with:
-          version: 10.14.0
+          package_json_file: extension/package.json
 
       - uses: actions/setup-node@v6
         with:
