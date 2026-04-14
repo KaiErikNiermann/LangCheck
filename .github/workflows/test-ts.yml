@@ -29,7 +29,6 @@ jobs:
       - uses: pnpm/action-setup@v6
         with:
           version: 10
-          package_json_file: extension/package.json
 
       - uses: actions/setup-node@v6
         with:
