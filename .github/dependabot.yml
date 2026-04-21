@@ -37,6 +37,12 @@ updates:
     labels:
       - "dependencies"
       - "ci"
+    # pnpm/action-setup@v6 self-installer pulls pnpm 11 even when a v10.x
+    # 'version' input is set, which breaks the v9 lockfile parser. Stay on v5
+    # until upstream is fixed.
+    ignore:
+      - dependency-name: "pnpm/action-setup"
+        versions: [">=6"]
     groups:
       actions-deps:
         patterns:
