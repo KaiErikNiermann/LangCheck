@@ -215,22 +215,16 @@ fn strip_unmatched_brackets(bytes: &mut [u8]) {
     for (i, &b) in bytes.iter().enumerate() {
         match b {
             b'(' => paren_stack.push(i),
-            b')' => {
-                if paren_stack.pop().is_none() {
-                    unmatched.push(i);
-                }
+            b')' if paren_stack.pop().is_none() => {
+                unmatched.push(i);
             }
             b'[' => bracket_stack.push(i),
-            b']' => {
-                if bracket_stack.pop().is_none() {
-                    unmatched.push(i);
-                }
+            b']' if bracket_stack.pop().is_none() => {
+                unmatched.push(i);
             }
             b'{' => brace_stack.push(i),
-            b'}' => {
-                if brace_stack.pop().is_none() {
-                    unmatched.push(i);
-                }
+            b'}' if brace_stack.pop().is_none() => {
+                unmatched.push(i);
             }
             _ => {}
         }

@@ -266,7 +266,7 @@ async fn main() -> Result<()> {
                     }
                     info!(root = %root.display(), "Finished workspace indexing");
                 }
-                tokio::time::sleep(Duration::from_secs(600)).await; // Re-index every 10 minutes
+                tokio::time::sleep(Duration::from_mins(10)).await;
             }
         })
     };
