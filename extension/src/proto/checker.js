@@ -43,7 +43,7 @@ $root.languagecheck = (function() {
         function Request(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -172,9 +172,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Request.decode = function decode(reader, length, error) {
+        Request.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.Request();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -186,27 +190,27 @@ $root.languagecheck = (function() {
                         break;
                     }
                 case 2: {
-                        message.checkProse = $root.languagecheck.CheckRequest.decode(reader, reader.uint32());
+                        message.checkProse = $root.languagecheck.CheckRequest.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 3: {
-                        message.getMetadata = $root.languagecheck.MetadataRequest.decode(reader, reader.uint32());
+                        message.getMetadata = $root.languagecheck.MetadataRequest.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 4: {
-                        message.ignore = $root.languagecheck.IgnoreRequest.decode(reader, reader.uint32());
+                        message.ignore = $root.languagecheck.IgnoreRequest.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 5: {
-                        message.initialize = $root.languagecheck.InitializeRequest.decode(reader, reader.uint32());
+                        message.initialize = $root.languagecheck.InitializeRequest.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 6: {
-                        message.addDictionaryWord = $root.languagecheck.AddDictionaryWordRequest.decode(reader, reader.uint32());
+                        message.addDictionaryWord = $root.languagecheck.AddDictionaryWordRequest.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -237,9 +241,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Request.verify = function verify(message) {
+        Request.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             var properties = {};
             if (message.id != null && message.hasOwnProperty("id"))
                 if (!$util.isInteger(message.id) && !(message.id && $util.isInteger(message.id.low) && $util.isInteger(message.id.high)))
@@ -247,7 +255,7 @@ $root.languagecheck = (function() {
             if (message.checkProse != null && message.hasOwnProperty("checkProse")) {
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.CheckRequest.verify(message.checkProse);
+                    var error = $root.languagecheck.CheckRequest.verify(message.checkProse, long + 1);
                     if (error)
                         return "checkProse." + error;
                 }
@@ -257,7 +265,7 @@ $root.languagecheck = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.MetadataRequest.verify(message.getMetadata);
+                    var error = $root.languagecheck.MetadataRequest.verify(message.getMetadata, long + 1);
                     if (error)
                         return "getMetadata." + error;
                 }
@@ -267,7 +275,7 @@ $root.languagecheck = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.IgnoreRequest.verify(message.ignore);
+                    var error = $root.languagecheck.IgnoreRequest.verify(message.ignore, long + 1);
                     if (error)
                         return "ignore." + error;
                 }
@@ -277,7 +285,7 @@ $root.languagecheck = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.InitializeRequest.verify(message.initialize);
+                    var error = $root.languagecheck.InitializeRequest.verify(message.initialize, long + 1);
                     if (error)
                         return "initialize." + error;
                 }
@@ -287,7 +295,7 @@ $root.languagecheck = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.AddDictionaryWordRequest.verify(message.addDictionaryWord);
+                    var error = $root.languagecheck.AddDictionaryWordRequest.verify(message.addDictionaryWord, long + 1);
                     if (error)
                         return "addDictionaryWord." + error;
                 }
@@ -303,9 +311,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.Request} Request
          */
-        Request.fromObject = function fromObject(object) {
+        Request.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.Request)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var message = new $root.languagecheck.Request();
             if (object.id != null)
                 if ($util.Long)
@@ -319,27 +331,27 @@ $root.languagecheck = (function() {
             if (object.checkProse != null) {
                 if (typeof object.checkProse !== "object")
                     throw TypeError(".languagecheck.Request.checkProse: object expected");
-                message.checkProse = $root.languagecheck.CheckRequest.fromObject(object.checkProse);
+                message.checkProse = $root.languagecheck.CheckRequest.fromObject(object.checkProse, long + 1);
             }
             if (object.getMetadata != null) {
                 if (typeof object.getMetadata !== "object")
                     throw TypeError(".languagecheck.Request.getMetadata: object expected");
-                message.getMetadata = $root.languagecheck.MetadataRequest.fromObject(object.getMetadata);
+                message.getMetadata = $root.languagecheck.MetadataRequest.fromObject(object.getMetadata, long + 1);
             }
             if (object.ignore != null) {
                 if (typeof object.ignore !== "object")
                     throw TypeError(".languagecheck.Request.ignore: object expected");
-                message.ignore = $root.languagecheck.IgnoreRequest.fromObject(object.ignore);
+                message.ignore = $root.languagecheck.IgnoreRequest.fromObject(object.ignore, long + 1);
             }
             if (object.initialize != null) {
                 if (typeof object.initialize !== "object")
                     throw TypeError(".languagecheck.Request.initialize: object expected");
-                message.initialize = $root.languagecheck.InitializeRequest.fromObject(object.initialize);
+                message.initialize = $root.languagecheck.InitializeRequest.fromObject(object.initialize, long + 1);
             }
             if (object.addDictionaryWord != null) {
                 if (typeof object.addDictionaryWord !== "object")
                     throw TypeError(".languagecheck.Request.addDictionaryWord: object expected");
-                message.addDictionaryWord = $root.languagecheck.AddDictionaryWordRequest.fromObject(object.addDictionaryWord);
+                message.addDictionaryWord = $root.languagecheck.AddDictionaryWordRequest.fromObject(object.addDictionaryWord, long + 1);
             }
             return message;
         };
@@ -447,7 +459,7 @@ $root.languagecheck = (function() {
         function InitializeRequest(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -547,9 +559,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        InitializeRequest.decode = function decode(reader, length, error) {
+        InitializeRequest.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.InitializeRequest();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -569,7 +585,7 @@ $root.languagecheck = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -600,9 +616,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        InitializeRequest.verify = function verify(message) {
+        InitializeRequest.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             var properties = {};
             if (message.workspaceRoot != null && message.hasOwnProperty("workspaceRoot"))
                 if (!$util.isString(message.workspaceRoot))
@@ -628,9 +648,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.InitializeRequest} InitializeRequest
          */
-        InitializeRequest.fromObject = function fromObject(object) {
+        InitializeRequest.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.InitializeRequest)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var message = new $root.languagecheck.InitializeRequest();
             if (object.workspaceRoot != null)
                 message.workspaceRoot = String(object.workspaceRoot);
@@ -724,7 +748,7 @@ $root.languagecheck = (function() {
         function IgnoreRequest(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -829,9 +853,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        IgnoreRequest.decode = function decode(reader, length, error) {
+        IgnoreRequest.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.IgnoreRequest();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -859,7 +887,7 @@ $root.languagecheck = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -890,9 +918,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        IgnoreRequest.verify = function verify(message) {
+        IgnoreRequest.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             if (message.message != null && message.hasOwnProperty("message"))
                 if (!$util.isString(message.message))
                     return "message: string expected";
@@ -919,9 +951,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.IgnoreRequest} IgnoreRequest
          */
-        IgnoreRequest.fromObject = function fromObject(object) {
+        IgnoreRequest.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.IgnoreRequest)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var message = new $root.languagecheck.IgnoreRequest();
             if (object.message != null)
                 message.message = String(object.message);
@@ -1022,7 +1058,7 @@ $root.languagecheck = (function() {
         function Response(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -1141,9 +1177,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Response.decode = function decode(reader, length, error) {
+        Response.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.Response();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -1155,23 +1195,23 @@ $root.languagecheck = (function() {
                         break;
                     }
                 case 2: {
-                        message.checkProse = $root.languagecheck.CheckResponse.decode(reader, reader.uint32());
+                        message.checkProse = $root.languagecheck.CheckResponse.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 3: {
-                        message.getMetadata = $root.languagecheck.MetadataResponse.decode(reader, reader.uint32());
+                        message.getMetadata = $root.languagecheck.MetadataResponse.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 4: {
-                        message.error = $root.languagecheck.ErrorResponse.decode(reader, reader.uint32());
+                        message.error = $root.languagecheck.ErrorResponse.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 5: {
-                        message.ok = $root.languagecheck.OkResponse.decode(reader, reader.uint32());
+                        message.ok = $root.languagecheck.OkResponse.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -1202,9 +1242,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Response.verify = function verify(message) {
+        Response.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             var properties = {};
             if (message.id != null && message.hasOwnProperty("id"))
                 if (!$util.isInteger(message.id) && !(message.id && $util.isInteger(message.id.low) && $util.isInteger(message.id.high)))
@@ -1212,7 +1256,7 @@ $root.languagecheck = (function() {
             if (message.checkProse != null && message.hasOwnProperty("checkProse")) {
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.CheckResponse.verify(message.checkProse);
+                    var error = $root.languagecheck.CheckResponse.verify(message.checkProse, long + 1);
                     if (error)
                         return "checkProse." + error;
                 }
@@ -1222,7 +1266,7 @@ $root.languagecheck = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.MetadataResponse.verify(message.getMetadata);
+                    var error = $root.languagecheck.MetadataResponse.verify(message.getMetadata, long + 1);
                     if (error)
                         return "getMetadata." + error;
                 }
@@ -1232,7 +1276,7 @@ $root.languagecheck = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.ErrorResponse.verify(message.error);
+                    var error = $root.languagecheck.ErrorResponse.verify(message.error, long + 1);
                     if (error)
                         return "error." + error;
                 }
@@ -1242,7 +1286,7 @@ $root.languagecheck = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.OkResponse.verify(message.ok);
+                    var error = $root.languagecheck.OkResponse.verify(message.ok, long + 1);
                     if (error)
                         return "ok." + error;
                 }
@@ -1258,9 +1302,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.Response} Response
          */
-        Response.fromObject = function fromObject(object) {
+        Response.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.Response)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var message = new $root.languagecheck.Response();
             if (object.id != null)
                 if ($util.Long)
@@ -1274,22 +1322,22 @@ $root.languagecheck = (function() {
             if (object.checkProse != null) {
                 if (typeof object.checkProse !== "object")
                     throw TypeError(".languagecheck.Response.checkProse: object expected");
-                message.checkProse = $root.languagecheck.CheckResponse.fromObject(object.checkProse);
+                message.checkProse = $root.languagecheck.CheckResponse.fromObject(object.checkProse, long + 1);
             }
             if (object.getMetadata != null) {
                 if (typeof object.getMetadata !== "object")
                     throw TypeError(".languagecheck.Response.getMetadata: object expected");
-                message.getMetadata = $root.languagecheck.MetadataResponse.fromObject(object.getMetadata);
+                message.getMetadata = $root.languagecheck.MetadataResponse.fromObject(object.getMetadata, long + 1);
             }
             if (object.error != null) {
                 if (typeof object.error !== "object")
                     throw TypeError(".languagecheck.Response.error: object expected");
-                message.error = $root.languagecheck.ErrorResponse.fromObject(object.error);
+                message.error = $root.languagecheck.ErrorResponse.fromObject(object.error, long + 1);
             }
             if (object.ok != null) {
                 if (typeof object.ok !== "object")
                     throw TypeError(".languagecheck.Response.ok: object expected");
-                message.ok = $root.languagecheck.OkResponse.fromObject(object.ok);
+                message.ok = $root.languagecheck.OkResponse.fromObject(object.ok, long + 1);
             }
             return message;
         };
@@ -1389,7 +1437,7 @@ $root.languagecheck = (function() {
         function OkResponse(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -1444,9 +1492,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        OkResponse.decode = function decode(reader, length, error) {
+        OkResponse.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.OkResponse();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -1454,7 +1506,7 @@ $root.languagecheck = (function() {
                     break;
                 switch (tag >>> 3) {
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -1485,9 +1537,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        OkResponse.verify = function verify(message) {
+        OkResponse.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             return null;
         };
 
@@ -1499,9 +1555,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.OkResponse} OkResponse
          */
-        OkResponse.fromObject = function fromObject(object) {
+        OkResponse.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.OkResponse)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             return new $root.languagecheck.OkResponse();
         };
 
@@ -1567,7 +1627,7 @@ $root.languagecheck = (function() {
         function ErrorResponse(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -1632,9 +1692,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ErrorResponse.decode = function decode(reader, length, error) {
+        ErrorResponse.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.ErrorResponse();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -1646,7 +1710,7 @@ $root.languagecheck = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -1677,9 +1741,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ErrorResponse.verify = function verify(message) {
+        ErrorResponse.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             if (message.message != null && message.hasOwnProperty("message"))
                 if (!$util.isString(message.message))
                     return "message: string expected";
@@ -1694,9 +1762,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.ErrorResponse} ErrorResponse
          */
-        ErrorResponse.fromObject = function fromObject(object) {
+        ErrorResponse.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.ErrorResponse)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var message = new $root.languagecheck.ErrorResponse();
             if (object.message != null)
                 message.message = String(object.message);
@@ -1877,7 +1949,7 @@ $root.languagecheck = (function() {
             this.settings = {};
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -1982,9 +2054,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        CheckRequest.decode = function decode(reader, length, error) {
+        CheckRequest.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.CheckRequest(), key, value;
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -2015,10 +2091,12 @@ $root.languagecheck = (function() {
                                 value = reader.string();
                                 break;
                             default:
-                                reader.skipType(tag2 & 7);
+                                reader.skipType(tag2 & 7, long);
                                 break;
                             }
                         }
+                        if (key === "__proto__")
+                            $util.makeProp(message.settings, key);
                         message.settings[key] = value;
                         break;
                     }
@@ -2027,7 +2105,7 @@ $root.languagecheck = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -2058,9 +2136,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        CheckRequest.verify = function verify(message) {
+        CheckRequest.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             var properties = {};
             if (message.text != null && message.hasOwnProperty("text"))
                 if (!$util.isString(message.text))
@@ -2092,9 +2174,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.CheckRequest} CheckRequest
          */
-        CheckRequest.fromObject = function fromObject(object) {
+        CheckRequest.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.CheckRequest)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var message = new $root.languagecheck.CheckRequest();
             if (object.text != null)
                 message.text = String(object.text);
@@ -2104,8 +2190,11 @@ $root.languagecheck = (function() {
                 if (typeof object.settings !== "object")
                     throw TypeError(".languagecheck.CheckRequest.settings: object expected");
                 message.settings = {};
-                for (var keys = Object.keys(object.settings), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(object.settings), i = 0; i < keys.length; ++i) {
+                    if (keys[i] === "__proto__")
+                        $util.makeProp(message.settings, keys[i]);
                     message.settings[keys[i]] = String(object.settings[keys[i]]);
+                }
             }
             if (object.filePath != null)
                 message.filePath = String(object.filePath);
@@ -2138,8 +2227,11 @@ $root.languagecheck = (function() {
             var keys2;
             if (message.settings && (keys2 = Object.keys(message.settings)).length) {
                 object.settings = {};
-                for (var j = 0; j < keys2.length; ++j)
+                for (var j = 0; j < keys2.length; ++j) {
+                    if (keys2[j] === "__proto__")
+                        $util.makeProp(object.settings, keys2[j]);
                     object.settings[keys2[j]] = message.settings[keys2[j]];
+                }
             }
             if (message.filePath != null && message.hasOwnProperty("filePath")) {
                 object.filePath = message.filePath;
@@ -2202,7 +2294,7 @@ $root.languagecheck = (function() {
             this.engineHealth = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -2289,9 +2381,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        CheckResponse.decode = function decode(reader, length, error) {
+        CheckResponse.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.CheckResponse();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -2301,21 +2397,21 @@ $root.languagecheck = (function() {
                 case 1: {
                         if (!(message.diagnostics && message.diagnostics.length))
                             message.diagnostics = [];
-                        message.diagnostics.push($root.languagecheck.Diagnostic.decode(reader, reader.uint32()));
+                        message.diagnostics.push($root.languagecheck.Diagnostic.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 case 2: {
-                        message.extraction = $root.languagecheck.ExtractionInfo.decode(reader, reader.uint32());
+                        message.extraction = $root.languagecheck.ExtractionInfo.decode(reader, reader.uint32(), undefined, long + 1);
                         break;
                     }
                 case 3: {
                         if (!(message.engineHealth && message.engineHealth.length))
                             message.engineHealth = [];
-                        message.engineHealth.push($root.languagecheck.EngineHealth.decode(reader, reader.uint32()));
+                        message.engineHealth.push($root.languagecheck.EngineHealth.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -2346,20 +2442,24 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        CheckResponse.verify = function verify(message) {
+        CheckResponse.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             if (message.diagnostics != null && message.hasOwnProperty("diagnostics")) {
                 if (!Array.isArray(message.diagnostics))
                     return "diagnostics: array expected";
                 for (var i = 0; i < message.diagnostics.length; ++i) {
-                    var error = $root.languagecheck.Diagnostic.verify(message.diagnostics[i]);
+                    var error = $root.languagecheck.Diagnostic.verify(message.diagnostics[i], long + 1);
                     if (error)
                         return "diagnostics." + error;
                 }
             }
             if (message.extraction != null && message.hasOwnProperty("extraction")) {
-                var error = $root.languagecheck.ExtractionInfo.verify(message.extraction);
+                var error = $root.languagecheck.ExtractionInfo.verify(message.extraction, long + 1);
                 if (error)
                     return "extraction." + error;
             }
@@ -2367,7 +2467,7 @@ $root.languagecheck = (function() {
                 if (!Array.isArray(message.engineHealth))
                     return "engineHealth: array expected";
                 for (var i = 0; i < message.engineHealth.length; ++i) {
-                    var error = $root.languagecheck.EngineHealth.verify(message.engineHealth[i]);
+                    var error = $root.languagecheck.EngineHealth.verify(message.engineHealth[i], long + 1);
                     if (error)
                         return "engineHealth." + error;
                 }
@@ -2383,9 +2483,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.CheckResponse} CheckResponse
          */
-        CheckResponse.fromObject = function fromObject(object) {
+        CheckResponse.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.CheckResponse)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var message = new $root.languagecheck.CheckResponse();
             if (object.diagnostics) {
                 if (!Array.isArray(object.diagnostics))
@@ -2394,13 +2498,13 @@ $root.languagecheck = (function() {
                 for (var i = 0; i < object.diagnostics.length; ++i) {
                     if (typeof object.diagnostics[i] !== "object")
                         throw TypeError(".languagecheck.CheckResponse.diagnostics: object expected");
-                    message.diagnostics[i] = $root.languagecheck.Diagnostic.fromObject(object.diagnostics[i]);
+                    message.diagnostics[i] = $root.languagecheck.Diagnostic.fromObject(object.diagnostics[i], long + 1);
                 }
             }
             if (object.extraction != null) {
                 if (typeof object.extraction !== "object")
                     throw TypeError(".languagecheck.CheckResponse.extraction: object expected");
-                message.extraction = $root.languagecheck.ExtractionInfo.fromObject(object.extraction);
+                message.extraction = $root.languagecheck.ExtractionInfo.fromObject(object.extraction, long + 1);
             }
             if (object.engineHealth) {
                 if (!Array.isArray(object.engineHealth))
@@ -2409,7 +2513,7 @@ $root.languagecheck = (function() {
                 for (var i = 0; i < object.engineHealth.length; ++i) {
                     if (typeof object.engineHealth[i] !== "object")
                         throw TypeError(".languagecheck.CheckResponse.engineHealth: object expected");
-                    message.engineHealth[i] = $root.languagecheck.EngineHealth.fromObject(object.engineHealth[i]);
+                    message.engineHealth[i] = $root.languagecheck.EngineHealth.fromObject(object.engineHealth[i], long + 1);
                 }
             }
             return message;
@@ -2502,7 +2606,7 @@ $root.languagecheck = (function() {
         function EngineHealth(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -2607,9 +2711,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        EngineHealth.decode = function decode(reader, length, error) {
+        EngineHealth.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.EngineHealth();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -2637,7 +2745,7 @@ $root.languagecheck = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -2668,9 +2776,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        EngineHealth.verify = function verify(message) {
+        EngineHealth.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             if (message.name != null && message.hasOwnProperty("name"))
                 if (!$util.isString(message.name))
                     return "name: string expected";
@@ -2697,9 +2809,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.EngineHealth} EngineHealth
          */
-        EngineHealth.fromObject = function fromObject(object) {
+        EngineHealth.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.EngineHealth)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var message = new $root.languagecheck.EngineHealth();
             if (object.name != null)
                 message.name = String(object.name);
@@ -2811,7 +2927,7 @@ $root.languagecheck = (function() {
         function ExtractionExclusion(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -2886,9 +3002,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ExtractionExclusion.decode = function decode(reader, length, error) {
+        ExtractionExclusion.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.ExtractionExclusion();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -2904,7 +3024,7 @@ $root.languagecheck = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -2935,9 +3055,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ExtractionExclusion.verify = function verify(message) {
+        ExtractionExclusion.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             if (message.startByte != null && message.hasOwnProperty("startByte"))
                 if (!$util.isInteger(message.startByte))
                     return "startByte: integer expected";
@@ -2955,9 +3079,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.ExtractionExclusion} ExtractionExclusion
          */
-        ExtractionExclusion.fromObject = function fromObject(object) {
+        ExtractionExclusion.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.ExtractionExclusion)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var message = new $root.languagecheck.ExtractionExclusion();
             if (object.startByte != null)
                 message.startByte = object.startByte >>> 0;
@@ -3042,7 +3170,7 @@ $root.languagecheck = (function() {
             this.exclusions = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -3128,9 +3256,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ExtractionProseRange.decode = function decode(reader, length, error) {
+        ExtractionProseRange.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.ExtractionProseRange();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -3148,11 +3280,11 @@ $root.languagecheck = (function() {
                 case 3: {
                         if (!(message.exclusions && message.exclusions.length))
                             message.exclusions = [];
-                        message.exclusions.push($root.languagecheck.ExtractionExclusion.decode(reader, reader.uint32()));
+                        message.exclusions.push($root.languagecheck.ExtractionExclusion.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -3183,9 +3315,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ExtractionProseRange.verify = function verify(message) {
+        ExtractionProseRange.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             if (message.startByte != null && message.hasOwnProperty("startByte"))
                 if (!$util.isInteger(message.startByte))
                     return "startByte: integer expected";
@@ -3196,7 +3332,7 @@ $root.languagecheck = (function() {
                 if (!Array.isArray(message.exclusions))
                     return "exclusions: array expected";
                 for (var i = 0; i < message.exclusions.length; ++i) {
-                    var error = $root.languagecheck.ExtractionExclusion.verify(message.exclusions[i]);
+                    var error = $root.languagecheck.ExtractionExclusion.verify(message.exclusions[i], long + 1);
                     if (error)
                         return "exclusions." + error;
                 }
@@ -3212,9 +3348,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.ExtractionProseRange} ExtractionProseRange
          */
-        ExtractionProseRange.fromObject = function fromObject(object) {
+        ExtractionProseRange.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.ExtractionProseRange)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var message = new $root.languagecheck.ExtractionProseRange();
             if (object.startByte != null)
                 message.startByte = object.startByte >>> 0;
@@ -3227,7 +3367,7 @@ $root.languagecheck = (function() {
                 for (var i = 0; i < object.exclusions.length; ++i) {
                     if (typeof object.exclusions[i] !== "object")
                         throw TypeError(".languagecheck.ExtractionProseRange.exclusions: object expected");
-                    message.exclusions[i] = $root.languagecheck.ExtractionExclusion.fromObject(object.exclusions[i]);
+                    message.exclusions[i] = $root.languagecheck.ExtractionExclusion.fromObject(object.exclusions[i], long + 1);
                 }
             }
             return message;
@@ -3314,7 +3454,7 @@ $root.languagecheck = (function() {
             this.proseRanges = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -3380,9 +3520,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ExtractionInfo.decode = function decode(reader, length, error) {
+        ExtractionInfo.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.ExtractionInfo();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -3392,11 +3536,11 @@ $root.languagecheck = (function() {
                 case 1: {
                         if (!(message.proseRanges && message.proseRanges.length))
                             message.proseRanges = [];
-                        message.proseRanges.push($root.languagecheck.ExtractionProseRange.decode(reader, reader.uint32()));
+                        message.proseRanges.push($root.languagecheck.ExtractionProseRange.decode(reader, reader.uint32(), undefined, long + 1));
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -3427,14 +3571,18 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ExtractionInfo.verify = function verify(message) {
+        ExtractionInfo.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             if (message.proseRanges != null && message.hasOwnProperty("proseRanges")) {
                 if (!Array.isArray(message.proseRanges))
                     return "proseRanges: array expected";
                 for (var i = 0; i < message.proseRanges.length; ++i) {
-                    var error = $root.languagecheck.ExtractionProseRange.verify(message.proseRanges[i]);
+                    var error = $root.languagecheck.ExtractionProseRange.verify(message.proseRanges[i], long + 1);
                     if (error)
                         return "proseRanges." + error;
                 }
@@ -3450,9 +3598,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.ExtractionInfo} ExtractionInfo
          */
-        ExtractionInfo.fromObject = function fromObject(object) {
+        ExtractionInfo.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.ExtractionInfo)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var message = new $root.languagecheck.ExtractionInfo();
             if (object.proseRanges) {
                 if (!Array.isArray(object.proseRanges))
@@ -3461,7 +3613,7 @@ $root.languagecheck = (function() {
                 for (var i = 0; i < object.proseRanges.length; ++i) {
                     if (typeof object.proseRanges[i] !== "object")
                         throw TypeError(".languagecheck.ExtractionInfo.proseRanges: object expected");
-                    message.proseRanges[i] = $root.languagecheck.ExtractionProseRange.fromObject(object.proseRanges[i]);
+                    message.proseRanges[i] = $root.languagecheck.ExtractionProseRange.fromObject(object.proseRanges[i], long + 1);
                 }
             }
             return message;
@@ -3547,7 +3699,7 @@ $root.languagecheck = (function() {
             this.suggestions = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -3683,9 +3835,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Diagnostic.decode = function decode(reader, length, error) {
+        Diagnostic.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.Diagnostic();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -3727,7 +3883,7 @@ $root.languagecheck = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -3758,9 +3914,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Diagnostic.verify = function verify(message) {
+        Diagnostic.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             if (message.startByte != null && message.hasOwnProperty("startByte"))
                 if (!$util.isInteger(message.startByte))
                     return "startByte: integer expected";
@@ -3808,9 +3968,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.Diagnostic} Diagnostic
          */
-        Diagnostic.fromObject = function fromObject(object) {
+        Diagnostic.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.Diagnostic)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var message = new $root.languagecheck.Diagnostic();
             if (object.startByte != null)
                 message.startByte = object.startByte >>> 0;
@@ -3977,7 +4141,7 @@ $root.languagecheck = (function() {
         function AddDictionaryWordRequest(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -4042,9 +4206,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        AddDictionaryWordRequest.decode = function decode(reader, length, error) {
+        AddDictionaryWordRequest.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.AddDictionaryWordRequest();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -4056,7 +4224,7 @@ $root.languagecheck = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -4087,9 +4255,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        AddDictionaryWordRequest.verify = function verify(message) {
+        AddDictionaryWordRequest.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             if (message.word != null && message.hasOwnProperty("word"))
                 if (!$util.isString(message.word))
                     return "word: string expected";
@@ -4104,9 +4276,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.AddDictionaryWordRequest} AddDictionaryWordRequest
          */
-        AddDictionaryWordRequest.fromObject = function fromObject(object) {
+        AddDictionaryWordRequest.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.AddDictionaryWordRequest)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var message = new $root.languagecheck.AddDictionaryWordRequest();
             if (object.word != null)
                 message.word = String(object.word);
@@ -4181,7 +4357,7 @@ $root.languagecheck = (function() {
         function MetadataRequest(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -4236,9 +4412,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        MetadataRequest.decode = function decode(reader, length, error) {
+        MetadataRequest.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.MetadataRequest();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -4246,7 +4426,7 @@ $root.languagecheck = (function() {
                     break;
                 switch (tag >>> 3) {
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -4277,9 +4457,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        MetadataRequest.verify = function verify(message) {
+        MetadataRequest.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             return null;
         };
 
@@ -4291,9 +4475,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.MetadataRequest} MetadataRequest
          */
-        MetadataRequest.fromObject = function fromObject(object) {
+        MetadataRequest.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.MetadataRequest)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             return new $root.languagecheck.MetadataRequest();
         };
 
@@ -4363,7 +4551,7 @@ $root.languagecheck = (function() {
             this.supportedLanguages = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
-                    if (properties[keys[i]] != null)
+                    if (properties[keys[i]] != null && keys[i] !== "__proto__")
                         this[keys[i]] = properties[keys[i]];
         }
 
@@ -4459,9 +4647,13 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        MetadataResponse.decode = function decode(reader, length, error) {
+        MetadataResponse.decode = function decode(reader, length, error, long) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
+            if (long === undefined)
+                long = 0;
+            if (long > $Reader.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.MetadataResponse();
             while (reader.pos < end) {
                 var tag = reader.uint32();
@@ -4487,7 +4679,7 @@ $root.languagecheck = (function() {
                         break;
                     }
                 default:
-                    reader.skipType(tag & 7);
+                    reader.skipType(tag & 7, long);
                     break;
                 }
             }
@@ -4518,9 +4710,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        MetadataResponse.verify = function verify(message) {
+        MetadataResponse.verify = function verify(message, long) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                return "maximum nesting depth exceeded";
             if (message.name != null && message.hasOwnProperty("name"))
                 if (!$util.isString(message.name))
                     return "name: string expected";
@@ -4548,9 +4744,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.MetadataResponse} MetadataResponse
          */
-        MetadataResponse.fromObject = function fromObject(object) {
+        MetadataResponse.fromObject = function fromObject(object, long) {
             if (object instanceof $root.languagecheck.MetadataResponse)
                 return object;
+            if (long === undefined)
+                long = 0;
+            if (long > $util.recursionLimit)
+                throw Error("maximum nesting depth exceeded");
             var message = new $root.languagecheck.MetadataResponse();
             if (object.name != null)
                 message.name = String(object.name);
