@@ -284,13 +284,13 @@
     "@eslint/js": "^10.0.1",
     "@types/long": "^5.0.0",
     "@types/node": "^25.6.0",
-    "@types/vscode": "^1.116.0",
+    "@types/vscode": "^1.118.0",
     "esbuild": "^0.28.0",
-    "eslint": "^10.2.1",
-    "protobufjs-cli": "^2.0.2",
+    "eslint": "^10.3.0",
+    "protobufjs-cli": "^2.0.3",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.59.1",
+    "typescript-eslint": "^8.59.2",
     "vitest": "^4.1.5"
   }
 }
