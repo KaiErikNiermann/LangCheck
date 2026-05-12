@@ -1,4 +1,4 @@
-/*eslint-disable block-scoped-var, id-length, no-control-regex, no-magic-numbers, no-prototype-builtins, no-redeclare, no-shadow, no-var, sort-vars*/
+/*eslint-disable block-scoped-var, id-length, no-control-regex, no-magic-numbers, no-prototype-builtins, no-redeclare, no-shadow, no-var, sort-vars, default-case, jsdoc/require-param*/
 "use strict";
 
 var $protobuf = require("protobufjs/minimal");
@@ -30,6 +30,7 @@ $root.languagecheck = (function() {
          * @property {languagecheck.IIgnoreRequest|null} [ignore] Request ignore
          * @property {languagecheck.IInitializeRequest|null} [initialize] Request initialize
          * @property {languagecheck.IAddDictionaryWordRequest|null} [addDictionaryWord] Request addDictionaryWord
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -39,6 +40,7 @@ $root.languagecheck = (function() {
          * @implements IRequest
          * @constructor
          * @param {languagecheck.IRequest=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function Request(properties) {
             if (properties)
@@ -145,6 +147,9 @@ $root.languagecheck = (function() {
                 $root.languagecheck.InitializeRequest.encode(message.initialize, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
             if (message.addDictionaryWord != null && Object.hasOwnProperty.call(message, "addDictionaryWord"))
                 $root.languagecheck.AddDictionaryWordRequest.encode(message.addDictionaryWord, writer.uint32(/* id 6, wireType 2 =*/50).fork()).ldelim();
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -172,48 +177,74 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Request.decode = function decode(reader, length, error, long) {
+        Request.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.Request();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.Request(), value;
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.id = reader.uint64();
-                        break;
-                    }
-                case 2: {
-                        message.checkProse = $root.languagecheck.CheckRequest.decode(reader, reader.uint32(), undefined, long + 1);
-                        break;
-                    }
-                case 3: {
-                        message.getMetadata = $root.languagecheck.MetadataRequest.decode(reader, reader.uint32(), undefined, long + 1);
-                        break;
-                    }
-                case 4: {
-                        message.ignore = $root.languagecheck.IgnoreRequest.decode(reader, reader.uint32(), undefined, long + 1);
-                        break;
-                    }
-                case 5: {
-                        message.initialize = $root.languagecheck.InitializeRequest.decode(reader, reader.uint32(), undefined, long + 1);
-                        break;
-                    }
-                case 6: {
-                        message.addDictionaryWord = $root.languagecheck.AddDictionaryWordRequest.decode(reader, reader.uint32(), undefined, long + 1);
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7, long);
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
                 }
+                var wireType = tag & 7;
+                switch (tag >>>= 3) {
+                case 1: {
+                        if (wireType !== 0)
+                            break;
+                        if (typeof (value = reader.uint64()) === "object" ? value.low || value.high : value !== 0)
+                            message.id = value;
+                        else
+                            delete message.id;
+                        continue;
+                    }
+                case 2: {
+                        if (wireType !== 2)
+                            break;
+                        message.checkProse = $root.languagecheck.CheckRequest.decode(reader, reader.uint32(), undefined, _depth + 1, message.checkProse);
+                        message.payload = "checkProse";
+                        continue;
+                    }
+                case 3: {
+                        if (wireType !== 2)
+                            break;
+                        message.getMetadata = $root.languagecheck.MetadataRequest.decode(reader, reader.uint32(), undefined, _depth + 1, message.getMetadata);
+                        message.payload = "getMetadata";
+                        continue;
+                    }
+                case 4: {
+                        if (wireType !== 2)
+                            break;
+                        message.ignore = $root.languagecheck.IgnoreRequest.decode(reader, reader.uint32(), undefined, _depth + 1, message.ignore);
+                        message.payload = "ignore";
+                        continue;
+                    }
+                case 5: {
+                        if (wireType !== 2)
+                            break;
+                        message.initialize = $root.languagecheck.InitializeRequest.decode(reader, reader.uint32(), undefined, _depth + 1, message.initialize);
+                        message.payload = "initialize";
+                        continue;
+                    }
+                case 6: {
+                        if (wireType !== 2)
+                            break;
+                        message.addDictionaryWord = $root.languagecheck.AddDictionaryWordRequest.decode(reader, reader.uint32(), undefined, _depth + 1, message.addDictionaryWord);
+                        message.payload = "addDictionaryWord";
+                        continue;
+                    }
+                }
+                reader.skipType(wireType, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -241,13 +272,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Request.verify = function verify(message, long) {
+        Request.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             var properties = {};
             if (message.id != null && message.hasOwnProperty("id"))
                 if (!$util.isInteger(message.id) && !(message.id && $util.isInteger(message.id.low) && $util.isInteger(message.id.high)))
@@ -255,7 +286,7 @@ $root.languagecheck = (function() {
             if (message.checkProse != null && message.hasOwnProperty("checkProse")) {
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.CheckRequest.verify(message.checkProse, long + 1);
+                    var error = $root.languagecheck.CheckRequest.verify(message.checkProse, _depth + 1);
                     if (error)
                         return "checkProse." + error;
                 }
@@ -265,7 +296,7 @@ $root.languagecheck = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.MetadataRequest.verify(message.getMetadata, long + 1);
+                    var error = $root.languagecheck.MetadataRequest.verify(message.getMetadata, _depth + 1);
                     if (error)
                         return "getMetadata." + error;
                 }
@@ -275,7 +306,7 @@ $root.languagecheck = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.IgnoreRequest.verify(message.ignore, long + 1);
+                    var error = $root.languagecheck.IgnoreRequest.verify(message.ignore, _depth + 1);
                     if (error)
                         return "ignore." + error;
                 }
@@ -285,7 +316,7 @@ $root.languagecheck = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.InitializeRequest.verify(message.initialize, long + 1);
+                    var error = $root.languagecheck.InitializeRequest.verify(message.initialize, _depth + 1);
                     if (error)
                         return "initialize." + error;
                 }
@@ -295,7 +326,7 @@ $root.languagecheck = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.AddDictionaryWordRequest.verify(message.addDictionaryWord, long + 1);
+                    var error = $root.languagecheck.AddDictionaryWordRequest.verify(message.addDictionaryWord, _depth + 1);
                     if (error)
                         return "addDictionaryWord." + error;
                 }
@@ -311,47 +342,48 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.Request} Request
          */
-        Request.fromObject = function fromObject(object, long) {
+        Request.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.Request)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var message = new $root.languagecheck.Request();
             if (object.id != null)
-                if ($util.Long)
-                    (message.id = $util.Long.fromValue(object.id)).unsigned = true;
-                else if (typeof object.id === "string")
-                    message.id = parseInt(object.id, 10);
-                else if (typeof object.id === "number")
-                    message.id = object.id;
-                else if (typeof object.id === "object")
-                    message.id = new $util.LongBits(object.id.low >>> 0, object.id.high >>> 0).toNumber(true);
+                if (typeof object.id === "object" ? object.id.low || object.id.high : Number(object.id) !== 0)
+                    if ($util.Long)
+                        (message.id = $util.Long.fromValue(object.id)).unsigned = true;
+                    else if (typeof object.id === "string")
+                        message.id = parseInt(object.id, 10);
+                    else if (typeof object.id === "number")
+                        message.id = object.id;
+                    else if (typeof object.id === "object")
+                        message.id = new $util.LongBits(object.id.low >>> 0, object.id.high >>> 0).toNumber(true);
             if (object.checkProse != null) {
                 if (typeof object.checkProse !== "object")
                     throw TypeError(".languagecheck.Request.checkProse: object expected");
-                message.checkProse = $root.languagecheck.CheckRequest.fromObject(object.checkProse, long + 1);
+                message.checkProse = $root.languagecheck.CheckRequest.fromObject(object.checkProse, _depth + 1);
             }
             if (object.getMetadata != null) {
                 if (typeof object.getMetadata !== "object")
                     throw TypeError(".languagecheck.Request.getMetadata: object expected");
-                message.getMetadata = $root.languagecheck.MetadataRequest.fromObject(object.getMetadata, long + 1);
+                message.getMetadata = $root.languagecheck.MetadataRequest.fromObject(object.getMetadata, _depth + 1);
             }
             if (object.ignore != null) {
                 if (typeof object.ignore !== "object")
                     throw TypeError(".languagecheck.Request.ignore: object expected");
-                message.ignore = $root.languagecheck.IgnoreRequest.fromObject(object.ignore, long + 1);
+                message.ignore = $root.languagecheck.IgnoreRequest.fromObject(object.ignore, _depth + 1);
             }
             if (object.initialize != null) {
                 if (typeof object.initialize !== "object")
                     throw TypeError(".languagecheck.Request.initialize: object expected");
-                message.initialize = $root.languagecheck.InitializeRequest.fromObject(object.initialize, long + 1);
+                message.initialize = $root.languagecheck.InitializeRequest.fromObject(object.initialize, _depth + 1);
             }
             if (object.addDictionaryWord != null) {
                 if (typeof object.addDictionaryWord !== "object")
                     throw TypeError(".languagecheck.Request.addDictionaryWord: object expected");
-                message.addDictionaryWord = $root.languagecheck.AddDictionaryWordRequest.fromObject(object.addDictionaryWord, long + 1);
+                message.addDictionaryWord = $root.languagecheck.AddDictionaryWordRequest.fromObject(object.addDictionaryWord, _depth + 1);
             }
             return message;
         };
@@ -420,18 +452,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for Request
+         * Gets the type url for Request
          * @function getTypeUrl
          * @memberof languagecheck.Request
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        Request.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.Request";
+        Request.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.Request";
         };
 
         return Request;
@@ -446,6 +477,7 @@ $root.languagecheck = (function() {
          * @property {string|null} [workspaceRoot] InitializeRequest workspaceRoot
          * @property {boolean|null} [indexOnOpen] InitializeRequest indexOnOpen
          * @property {string|null} [dbPath] InitializeRequest dbPath
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -455,6 +487,7 @@ $root.languagecheck = (function() {
          * @implements IInitializeRequest
          * @constructor
          * @param {languagecheck.IInitializeRequest=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function InitializeRequest(properties) {
             if (properties)
@@ -532,6 +565,9 @@ $root.languagecheck = (function() {
                 writer.uint32(/* id 2, wireType 0 =*/16).bool(message.indexOnOpen);
             if (message.dbPath != null && Object.hasOwnProperty.call(message, "dbPath"))
                 writer.uint32(/* id 3, wireType 2 =*/26).string(message.dbPath);
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -559,36 +595,53 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        InitializeRequest.decode = function decode(reader, length, error, long) {
+        InitializeRequest.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.InitializeRequest();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.InitializeRequest(), value;
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.workspaceRoot = reader.string();
-                        break;
-                    }
-                case 2: {
-                        message.indexOnOpen = reader.bool();
-                        break;
-                    }
-                case 3: {
-                        message.dbPath = reader.string();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7, long);
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
                 }
+                var wireType = tag & 7;
+                switch (tag >>>= 3) {
+                case 1: {
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.workspaceRoot = value;
+                        else
+                            delete message.workspaceRoot;
+                        continue;
+                    }
+                case 2: {
+                        if (wireType !== 0)
+                            break;
+                        message.indexOnOpen = reader.bool();
+                        message._indexOnOpen = "indexOnOpen";
+                        continue;
+                    }
+                case 3: {
+                        if (wireType !== 2)
+                            break;
+                        message.dbPath = reader.string();
+                        message._dbPath = "dbPath";
+                        continue;
+                    }
+                }
+                reader.skipType(wireType, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -616,13 +669,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        InitializeRequest.verify = function verify(message, long) {
+        InitializeRequest.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             var properties = {};
             if (message.workspaceRoot != null && message.hasOwnProperty("workspaceRoot"))
                 if (!$util.isString(message.workspaceRoot))
@@ -648,16 +701,17 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.InitializeRequest} InitializeRequest
          */
-        InitializeRequest.fromObject = function fromObject(object, long) {
+        InitializeRequest.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.InitializeRequest)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var message = new $root.languagecheck.InitializeRequest();
             if (object.workspaceRoot != null)
-                message.workspaceRoot = String(object.workspaceRoot);
+                if (typeof object.workspaceRoot !== "string" || object.workspaceRoot.length)
+                    message.workspaceRoot = String(object.workspaceRoot);
             if (object.indexOnOpen != null)
                 message.indexOnOpen = Boolean(object.indexOnOpen);
             if (object.dbPath != null)
@@ -707,18 +761,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for InitializeRequest
+         * Gets the type url for InitializeRequest
          * @function getTypeUrl
          * @memberof languagecheck.InitializeRequest
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        InitializeRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.InitializeRequest";
+        InitializeRequest.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.InitializeRequest";
         };
 
         return InitializeRequest;
@@ -735,6 +788,7 @@ $root.languagecheck = (function() {
          * @property {string|null} [text] IgnoreRequest text
          * @property {number|null} [startByte] IgnoreRequest startByte
          * @property {number|null} [endByte] IgnoreRequest endByte
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -744,6 +798,7 @@ $root.languagecheck = (function() {
          * @implements IIgnoreRequest
          * @constructor
          * @param {languagecheck.IIgnoreRequest=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function IgnoreRequest(properties) {
             if (properties)
@@ -826,6 +881,9 @@ $root.languagecheck = (function() {
                 writer.uint32(/* id 4, wireType 0 =*/32).uint32(message.startByte);
             if (message.endByte != null && Object.hasOwnProperty.call(message, "endByte"))
                 writer.uint32(/* id 5, wireType 0 =*/40).uint32(message.endByte);
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -853,44 +911,75 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        IgnoreRequest.decode = function decode(reader, length, error, long) {
+        IgnoreRequest.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.IgnoreRequest();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.IgnoreRequest(), value;
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.message = reader.string();
-                        break;
-                    }
-                case 2: {
-                        message.context = reader.string();
-                        break;
-                    }
-                case 3: {
-                        message.text = reader.string();
-                        break;
-                    }
-                case 4: {
-                        message.startByte = reader.uint32();
-                        break;
-                    }
-                case 5: {
-                        message.endByte = reader.uint32();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7, long);
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
                 }
+                var wireType = tag & 7;
+                switch (tag >>>= 3) {
+                case 1: {
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.message = value;
+                        else
+                            delete message.message;
+                        continue;
+                    }
+                case 2: {
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.context = value;
+                        else
+                            delete message.context;
+                        continue;
+                    }
+                case 3: {
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.text = value;
+                        else
+                            delete message.text;
+                        continue;
+                    }
+                case 4: {
+                        if (wireType !== 0)
+                            break;
+                        if (value = reader.uint32())
+                            message.startByte = value;
+                        else
+                            delete message.startByte;
+                        continue;
+                    }
+                case 5: {
+                        if (wireType !== 0)
+                            break;
+                        if (value = reader.uint32())
+                            message.endByte = value;
+                        else
+                            delete message.endByte;
+                        continue;
+                    }
+                }
+                reader.skipType(wireType, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -918,13 +1007,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        IgnoreRequest.verify = function verify(message, long) {
+        IgnoreRequest.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             if (message.message != null && message.hasOwnProperty("message"))
                 if (!$util.isString(message.message))
                     return "message: string expected";
@@ -951,24 +1040,29 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.IgnoreRequest} IgnoreRequest
          */
-        IgnoreRequest.fromObject = function fromObject(object, long) {
+        IgnoreRequest.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.IgnoreRequest)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var message = new $root.languagecheck.IgnoreRequest();
             if (object.message != null)
-                message.message = String(object.message);
+                if (typeof object.message !== "string" || object.message.length)
+                    message.message = String(object.message);
             if (object.context != null)
-                message.context = String(object.context);
+                if (typeof object.context !== "string" || object.context.length)
+                    message.context = String(object.context);
             if (object.text != null)
-                message.text = String(object.text);
+                if (typeof object.text !== "string" || object.text.length)
+                    message.text = String(object.text);
             if (object.startByte != null)
-                message.startByte = object.startByte >>> 0;
+                if (Number(object.startByte) !== 0)
+                    message.startByte = object.startByte >>> 0;
             if (object.endByte != null)
-                message.endByte = object.endByte >>> 0;
+                if (Number(object.endByte) !== 0)
+                    message.endByte = object.endByte >>> 0;
             return message;
         };
 
@@ -1017,18 +1111,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for IgnoreRequest
+         * Gets the type url for IgnoreRequest
          * @function getTypeUrl
          * @memberof languagecheck.IgnoreRequest
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        IgnoreRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.IgnoreRequest";
+        IgnoreRequest.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.IgnoreRequest";
         };
 
         return IgnoreRequest;
@@ -1045,6 +1138,7 @@ $root.languagecheck = (function() {
          * @property {languagecheck.IMetadataResponse|null} [getMetadata] Response getMetadata
          * @property {languagecheck.IErrorResponse|null} [error] Response error
          * @property {languagecheck.IOkResponse|null} [ok] Response ok
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -1054,6 +1148,7 @@ $root.languagecheck = (function() {
          * @implements IResponse
          * @constructor
          * @param {languagecheck.IResponse=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function Response(properties) {
             if (properties)
@@ -1150,6 +1245,9 @@ $root.languagecheck = (function() {
                 $root.languagecheck.ErrorResponse.encode(message.error, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
             if (message.ok != null && Object.hasOwnProperty.call(message, "ok"))
                 $root.languagecheck.OkResponse.encode(message.ok, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -1177,44 +1275,67 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Response.decode = function decode(reader, length, error, long) {
+        Response.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.Response();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.Response(), value;
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.id = reader.uint64();
-                        break;
-                    }
-                case 2: {
-                        message.checkProse = $root.languagecheck.CheckResponse.decode(reader, reader.uint32(), undefined, long + 1);
-                        break;
-                    }
-                case 3: {
-                        message.getMetadata = $root.languagecheck.MetadataResponse.decode(reader, reader.uint32(), undefined, long + 1);
-                        break;
-                    }
-                case 4: {
-                        message.error = $root.languagecheck.ErrorResponse.decode(reader, reader.uint32(), undefined, long + 1);
-                        break;
-                    }
-                case 5: {
-                        message.ok = $root.languagecheck.OkResponse.decode(reader, reader.uint32(), undefined, long + 1);
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7, long);
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
                 }
+                var wireType = tag & 7;
+                switch (tag >>>= 3) {
+                case 1: {
+                        if (wireType !== 0)
+                            break;
+                        if (typeof (value = reader.uint64()) === "object" ? value.low || value.high : value !== 0)
+                            message.id = value;
+                        else
+                            delete message.id;
+                        continue;
+                    }
+                case 2: {
+                        if (wireType !== 2)
+                            break;
+                        message.checkProse = $root.languagecheck.CheckResponse.decode(reader, reader.uint32(), undefined, _depth + 1, message.checkProse);
+                        message.payload = "checkProse";
+                        continue;
+                    }
+                case 3: {
+                        if (wireType !== 2)
+                            break;
+                        message.getMetadata = $root.languagecheck.MetadataResponse.decode(reader, reader.uint32(), undefined, _depth + 1, message.getMetadata);
+                        message.payload = "getMetadata";
+                        continue;
+                    }
+                case 4: {
+                        if (wireType !== 2)
+                            break;
+                        message.error = $root.languagecheck.ErrorResponse.decode(reader, reader.uint32(), undefined, _depth + 1, message.error);
+                        message.payload = "error";
+                        continue;
+                    }
+                case 5: {
+                        if (wireType !== 2)
+                            break;
+                        message.ok = $root.languagecheck.OkResponse.decode(reader, reader.uint32(), undefined, _depth + 1, message.ok);
+                        message.payload = "ok";
+                        continue;
+                    }
+                }
+                reader.skipType(wireType, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -1242,13 +1363,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Response.verify = function verify(message, long) {
+        Response.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             var properties = {};
             if (message.id != null && message.hasOwnProperty("id"))
                 if (!$util.isInteger(message.id) && !(message.id && $util.isInteger(message.id.low) && $util.isInteger(message.id.high)))
@@ -1256,7 +1377,7 @@ $root.languagecheck = (function() {
             if (message.checkProse != null && message.hasOwnProperty("checkProse")) {
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.CheckResponse.verify(message.checkProse, long + 1);
+                    var error = $root.languagecheck.CheckResponse.verify(message.checkProse, _depth + 1);
                     if (error)
                         return "checkProse." + error;
                 }
@@ -1266,7 +1387,7 @@ $root.languagecheck = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.MetadataResponse.verify(message.getMetadata, long + 1);
+                    var error = $root.languagecheck.MetadataResponse.verify(message.getMetadata, _depth + 1);
                     if (error)
                         return "getMetadata." + error;
                 }
@@ -1276,7 +1397,7 @@ $root.languagecheck = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.ErrorResponse.verify(message.error, long + 1);
+                    var error = $root.languagecheck.ErrorResponse.verify(message.error, _depth + 1);
                     if (error)
                         return "error." + error;
                 }
@@ -1286,7 +1407,7 @@ $root.languagecheck = (function() {
                     return "payload: multiple values";
                 properties.payload = 1;
                 {
-                    var error = $root.languagecheck.OkResponse.verify(message.ok, long + 1);
+                    var error = $root.languagecheck.OkResponse.verify(message.ok, _depth + 1);
                     if (error)
                         return "ok." + error;
                 }
@@ -1302,42 +1423,43 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.Response} Response
          */
-        Response.fromObject = function fromObject(object, long) {
+        Response.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.Response)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var message = new $root.languagecheck.Response();
             if (object.id != null)
-                if ($util.Long)
-                    (message.id = $util.Long.fromValue(object.id)).unsigned = true;
-                else if (typeof object.id === "string")
-                    message.id = parseInt(object.id, 10);
-                else if (typeof object.id === "number")
-                    message.id = object.id;
-                else if (typeof object.id === "object")
-                    message.id = new $util.LongBits(object.id.low >>> 0, object.id.high >>> 0).toNumber(true);
+                if (typeof object.id === "object" ? object.id.low || object.id.high : Number(object.id) !== 0)
+                    if ($util.Long)
+                        (message.id = $util.Long.fromValue(object.id)).unsigned = true;
+                    else if (typeof object.id === "string")
+                        message.id = parseInt(object.id, 10);
+                    else if (typeof object.id === "number")
+                        message.id = object.id;
+                    else if (typeof object.id === "object")
+                        message.id = new $util.LongBits(object.id.low >>> 0, object.id.high >>> 0).toNumber(true);
             if (object.checkProse != null) {
                 if (typeof object.checkProse !== "object")
                     throw TypeError(".languagecheck.Response.checkProse: object expected");
-                message.checkProse = $root.languagecheck.CheckResponse.fromObject(object.checkProse, long + 1);
+                message.checkProse = $root.languagecheck.CheckResponse.fromObject(object.checkProse, _depth + 1);
             }
             if (object.getMetadata != null) {
                 if (typeof object.getMetadata !== "object")
                     throw TypeError(".languagecheck.Response.getMetadata: object expected");
-                message.getMetadata = $root.languagecheck.MetadataResponse.fromObject(object.getMetadata, long + 1);
+                message.getMetadata = $root.languagecheck.MetadataResponse.fromObject(object.getMetadata, _depth + 1);
             }
             if (object.error != null) {
                 if (typeof object.error !== "object")
                     throw TypeError(".languagecheck.Response.error: object expected");
-                message.error = $root.languagecheck.ErrorResponse.fromObject(object.error, long + 1);
+                message.error = $root.languagecheck.ErrorResponse.fromObject(object.error, _depth + 1);
             }
             if (object.ok != null) {
                 if (typeof object.ok !== "object")
                     throw TypeError(".languagecheck.Response.ok: object expected");
-                message.ok = $root.languagecheck.OkResponse.fromObject(object.ok, long + 1);
+                message.ok = $root.languagecheck.OkResponse.fromObject(object.ok, _depth + 1);
             }
             return message;
         };
@@ -1401,18 +1523,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for Response
+         * Gets the type url for Response
          * @function getTypeUrl
          * @memberof languagecheck.Response
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        Response.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.Response";
+        Response.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.Response";
         };
 
         return Response;
@@ -1424,6 +1545,7 @@ $root.languagecheck = (function() {
          * Properties of an OkResponse.
          * @memberof languagecheck
          * @interface IOkResponse
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -1433,6 +1555,7 @@ $root.languagecheck = (function() {
          * @implements IOkResponse
          * @constructor
          * @param {languagecheck.IOkResponse=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function OkResponse(properties) {
             if (properties)
@@ -1465,6 +1588,9 @@ $root.languagecheck = (function() {
         OkResponse.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -1492,24 +1618,27 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        OkResponse.decode = function decode(reader, length, error, long) {
+        OkResponse.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.OkResponse();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.OkResponse();
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                default:
-                    reader.skipType(tag & 7, long);
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
                 }
+                reader.skipType(tag & 7, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -1537,13 +1666,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        OkResponse.verify = function verify(message, long) {
+        OkResponse.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             return null;
         };
 
@@ -1555,13 +1684,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.OkResponse} OkResponse
          */
-        OkResponse.fromObject = function fromObject(object, long) {
+        OkResponse.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.OkResponse)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             return new $root.languagecheck.OkResponse();
         };
 
@@ -1590,18 +1719,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for OkResponse
+         * Gets the type url for OkResponse
          * @function getTypeUrl
          * @memberof languagecheck.OkResponse
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        OkResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.OkResponse";
+        OkResponse.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.OkResponse";
         };
 
         return OkResponse;
@@ -1614,6 +1742,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck
          * @interface IErrorResponse
          * @property {string|null} [message] ErrorResponse message
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -1623,6 +1752,7 @@ $root.languagecheck = (function() {
          * @implements IErrorResponse
          * @constructor
          * @param {languagecheck.IErrorResponse=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function ErrorResponse(properties) {
             if (properties)
@@ -1665,6 +1795,9 @@ $root.languagecheck = (function() {
                 writer = $Writer.create();
             if (message.message != null && Object.hasOwnProperty.call(message, "message"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.message);
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -1692,28 +1825,39 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ErrorResponse.decode = function decode(reader, length, error, long) {
+        ErrorResponse.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.ErrorResponse();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.ErrorResponse(), value;
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.message = reader.string();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7, long);
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
                 }
+                var wireType = tag & 7;
+                switch (tag >>>= 3) {
+                case 1: {
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.message = value;
+                        else
+                            delete message.message;
+                        continue;
+                    }
+                }
+                reader.skipType(wireType, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -1741,13 +1885,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ErrorResponse.verify = function verify(message, long) {
+        ErrorResponse.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             if (message.message != null && message.hasOwnProperty("message"))
                 if (!$util.isString(message.message))
                     return "message: string expected";
@@ -1762,16 +1906,17 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.ErrorResponse} ErrorResponse
          */
-        ErrorResponse.fromObject = function fromObject(object, long) {
+        ErrorResponse.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.ErrorResponse)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var message = new $root.languagecheck.ErrorResponse();
             if (object.message != null)
-                message.message = String(object.message);
+                if (typeof object.message !== "string" || object.message.length)
+                    message.message = String(object.message);
             return message;
         };
 
@@ -1807,18 +1952,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for ErrorResponse
+         * Gets the type url for ErrorResponse
          * @function getTypeUrl
          * @memberof languagecheck.ErrorResponse
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        ErrorResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.ErrorResponse";
+        ErrorResponse.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.ErrorResponse";
         };
 
         return ErrorResponse;
@@ -1935,6 +2079,7 @@ $root.languagecheck = (function() {
          * @property {string|null} [languageId] CheckRequest languageId
          * @property {Object.<string,string>|null} [settings] CheckRequest settings
          * @property {string|null} [filePath] CheckRequest filePath
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -1944,6 +2089,7 @@ $root.languagecheck = (function() {
          * @implements ICheckRequest
          * @constructor
          * @param {languagecheck.ICheckRequest=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function CheckRequest(properties) {
             this.settings = {};
@@ -2027,6 +2173,9 @@ $root.languagecheck = (function() {
                     writer.uint32(/* id 3, wireType 2 =*/26).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]).uint32(/* id 2, wireType 2 =*/18).string(message.settings[keys[i]]).ldelim();
             if (message.filePath != null && Object.hasOwnProperty.call(message, "filePath"))
                 writer.uint32(/* id 4, wireType 2 =*/34).string(message.filePath);
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -2054,61 +2203,85 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        CheckRequest.decode = function decode(reader, length, error, long) {
+        CheckRequest.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.CheckRequest(), key, value;
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.CheckRequest(), key, value;
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
-                switch (tag >>> 3) {
+                }
+                var wireType = tag & 7;
+                switch (tag >>>= 3) {
                 case 1: {
-                        message.text = reader.string();
-                        break;
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.text = value;
+                        else
+                            delete message.text;
+                        continue;
                     }
                 case 2: {
-                        message.languageId = reader.string();
-                        break;
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.languageId = value;
+                        else
+                            delete message.languageId;
+                        continue;
                     }
                 case 3: {
+                        if (wireType !== 2)
+                            break;
                         if (message.settings === $util.emptyObject)
                             message.settings = {};
                         var end2 = reader.uint32() + reader.pos;
                         key = "";
                         value = "";
                         while (reader.pos < end2) {
-                            var tag2 = reader.uint32();
-                            switch (tag2 >>> 3) {
+                            var tag2 = reader.tag();
+                            wireType = tag2 & 7;
+                            switch (tag2 >>>= 3) {
                             case 1:
+                                if (wireType !== 2)
+                                    break;
                                 key = reader.string();
-                                break;
+                                continue;
                             case 2:
+                                if (wireType !== 2)
+                                    break;
                                 value = reader.string();
-                                break;
-                            default:
-                                reader.skipType(tag2 & 7, long);
-                                break;
+                                continue;
                             }
+                            reader.skipType(wireType, _depth, tag2);
                         }
                         if (key === "__proto__")
                             $util.makeProp(message.settings, key);
                         message.settings[key] = value;
-                        break;
+                        continue;
                     }
                 case 4: {
+                        if (wireType !== 2)
+                            break;
                         message.filePath = reader.string();
-                        break;
+                        message._filePath = "filePath";
+                        continue;
                     }
-                default:
-                    reader.skipType(tag & 7, long);
-                    break;
                 }
+                reader.skipType(wireType, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -2136,13 +2309,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        CheckRequest.verify = function verify(message, long) {
+        CheckRequest.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             var properties = {};
             if (message.text != null && message.hasOwnProperty("text"))
                 if (!$util.isString(message.text))
@@ -2174,18 +2347,20 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.CheckRequest} CheckRequest
          */
-        CheckRequest.fromObject = function fromObject(object, long) {
+        CheckRequest.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.CheckRequest)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var message = new $root.languagecheck.CheckRequest();
             if (object.text != null)
-                message.text = String(object.text);
+                if (typeof object.text !== "string" || object.text.length)
+                    message.text = String(object.text);
             if (object.languageId != null)
-                message.languageId = String(object.languageId);
+                if (typeof object.languageId !== "string" || object.languageId.length)
+                    message.languageId = String(object.languageId);
             if (object.settings) {
                 if (typeof object.settings !== "object")
                     throw TypeError(".languagecheck.CheckRequest.settings: object expected");
@@ -2253,18 +2428,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for CheckRequest
+         * Gets the type url for CheckRequest
          * @function getTypeUrl
          * @memberof languagecheck.CheckRequest
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        CheckRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.CheckRequest";
+        CheckRequest.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.CheckRequest";
         };
 
         return CheckRequest;
@@ -2279,6 +2453,7 @@ $root.languagecheck = (function() {
          * @property {Array.<languagecheck.IDiagnostic>|null} [diagnostics] CheckResponse diagnostics
          * @property {languagecheck.IExtractionInfo|null} [extraction] CheckResponse extraction
          * @property {Array.<languagecheck.IEngineHealth>|null} [engineHealth] CheckResponse engineHealth
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -2288,6 +2463,7 @@ $root.languagecheck = (function() {
          * @implements ICheckResponse
          * @constructor
          * @param {languagecheck.ICheckResponse=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function CheckResponse(properties) {
             this.diagnostics = [];
@@ -2354,6 +2530,9 @@ $root.languagecheck = (function() {
             if (message.engineHealth != null && message.engineHealth.length)
                 for (var i = 0; i < message.engineHealth.length; ++i)
                     $root.languagecheck.EngineHealth.encode(message.engineHealth[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -2381,40 +2560,52 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        CheckResponse.decode = function decode(reader, length, error, long) {
+        CheckResponse.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.CheckResponse();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.CheckResponse(), value;
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        if (!(message.diagnostics && message.diagnostics.length))
-                            message.diagnostics = [];
-                        message.diagnostics.push($root.languagecheck.Diagnostic.decode(reader, reader.uint32(), undefined, long + 1));
-                        break;
-                    }
-                case 2: {
-                        message.extraction = $root.languagecheck.ExtractionInfo.decode(reader, reader.uint32(), undefined, long + 1);
-                        break;
-                    }
-                case 3: {
-                        if (!(message.engineHealth && message.engineHealth.length))
-                            message.engineHealth = [];
-                        message.engineHealth.push($root.languagecheck.EngineHealth.decode(reader, reader.uint32(), undefined, long + 1));
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7, long);
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
                 }
+                var wireType = tag & 7;
+                switch (tag >>>= 3) {
+                case 1: {
+                        if (wireType !== 2)
+                            break;
+                        if (!(message.diagnostics && message.diagnostics.length))
+                            message.diagnostics = [];
+                        message.diagnostics.push($root.languagecheck.Diagnostic.decode(reader, reader.uint32(), undefined, _depth + 1));
+                        continue;
+                    }
+                case 2: {
+                        if (wireType !== 2)
+                            break;
+                        message.extraction = $root.languagecheck.ExtractionInfo.decode(reader, reader.uint32(), undefined, _depth + 1, message.extraction);
+                        continue;
+                    }
+                case 3: {
+                        if (wireType !== 2)
+                            break;
+                        if (!(message.engineHealth && message.engineHealth.length))
+                            message.engineHealth = [];
+                        message.engineHealth.push($root.languagecheck.EngineHealth.decode(reader, reader.uint32(), undefined, _depth + 1));
+                        continue;
+                    }
+                }
+                reader.skipType(wireType, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -2442,24 +2633,24 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        CheckResponse.verify = function verify(message, long) {
+        CheckResponse.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             if (message.diagnostics != null && message.hasOwnProperty("diagnostics")) {
                 if (!Array.isArray(message.diagnostics))
                     return "diagnostics: array expected";
                 for (var i = 0; i < message.diagnostics.length; ++i) {
-                    var error = $root.languagecheck.Diagnostic.verify(message.diagnostics[i], long + 1);
+                    var error = $root.languagecheck.Diagnostic.verify(message.diagnostics[i], _depth + 1);
                     if (error)
                         return "diagnostics." + error;
                 }
             }
             if (message.extraction != null && message.hasOwnProperty("extraction")) {
-                var error = $root.languagecheck.ExtractionInfo.verify(message.extraction, long + 1);
+                var error = $root.languagecheck.ExtractionInfo.verify(message.extraction, _depth + 1);
                 if (error)
                     return "extraction." + error;
             }
@@ -2467,7 +2658,7 @@ $root.languagecheck = (function() {
                 if (!Array.isArray(message.engineHealth))
                     return "engineHealth: array expected";
                 for (var i = 0; i < message.engineHealth.length; ++i) {
-                    var error = $root.languagecheck.EngineHealth.verify(message.engineHealth[i], long + 1);
+                    var error = $root.languagecheck.EngineHealth.verify(message.engineHealth[i], _depth + 1);
                     if (error)
                         return "engineHealth." + error;
                 }
@@ -2483,37 +2674,37 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.CheckResponse} CheckResponse
          */
-        CheckResponse.fromObject = function fromObject(object, long) {
+        CheckResponse.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.CheckResponse)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var message = new $root.languagecheck.CheckResponse();
             if (object.diagnostics) {
                 if (!Array.isArray(object.diagnostics))
                     throw TypeError(".languagecheck.CheckResponse.diagnostics: array expected");
-                message.diagnostics = [];
+                message.diagnostics = Array(object.diagnostics.length);
                 for (var i = 0; i < object.diagnostics.length; ++i) {
                     if (typeof object.diagnostics[i] !== "object")
                         throw TypeError(".languagecheck.CheckResponse.diagnostics: object expected");
-                    message.diagnostics[i] = $root.languagecheck.Diagnostic.fromObject(object.diagnostics[i], long + 1);
+                    message.diagnostics[i] = $root.languagecheck.Diagnostic.fromObject(object.diagnostics[i], _depth + 1);
                 }
             }
             if (object.extraction != null) {
                 if (typeof object.extraction !== "object")
                     throw TypeError(".languagecheck.CheckResponse.extraction: object expected");
-                message.extraction = $root.languagecheck.ExtractionInfo.fromObject(object.extraction, long + 1);
+                message.extraction = $root.languagecheck.ExtractionInfo.fromObject(object.extraction, _depth + 1);
             }
             if (object.engineHealth) {
                 if (!Array.isArray(object.engineHealth))
                     throw TypeError(".languagecheck.CheckResponse.engineHealth: array expected");
-                message.engineHealth = [];
+                message.engineHealth = Array(object.engineHealth.length);
                 for (var i = 0; i < object.engineHealth.length; ++i) {
                     if (typeof object.engineHealth[i] !== "object")
                         throw TypeError(".languagecheck.CheckResponse.engineHealth: object expected");
-                    message.engineHealth[i] = $root.languagecheck.EngineHealth.fromObject(object.engineHealth[i], long + 1);
+                    message.engineHealth[i] = $root.languagecheck.EngineHealth.fromObject(object.engineHealth[i], _depth + 1);
                 }
             }
             return message;
@@ -2539,14 +2730,14 @@ $root.languagecheck = (function() {
             if (options.defaults)
                 object.extraction = null;
             if (message.diagnostics && message.diagnostics.length) {
-                object.diagnostics = [];
+                object.diagnostics = Array(message.diagnostics.length);
                 for (var j = 0; j < message.diagnostics.length; ++j)
                     object.diagnostics[j] = $root.languagecheck.Diagnostic.toObject(message.diagnostics[j], options);
             }
             if (message.extraction != null && message.hasOwnProperty("extraction"))
                 object.extraction = $root.languagecheck.ExtractionInfo.toObject(message.extraction, options);
             if (message.engineHealth && message.engineHealth.length) {
-                object.engineHealth = [];
+                object.engineHealth = Array(message.engineHealth.length);
                 for (var j = 0; j < message.engineHealth.length; ++j)
                     object.engineHealth[j] = $root.languagecheck.EngineHealth.toObject(message.engineHealth[j], options);
             }
@@ -2565,18 +2756,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for CheckResponse
+         * Gets the type url for CheckResponse
          * @function getTypeUrl
          * @memberof languagecheck.CheckResponse
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        CheckResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.CheckResponse";
+        CheckResponse.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.CheckResponse";
         };
 
         return CheckResponse;
@@ -2593,6 +2783,7 @@ $root.languagecheck = (function() {
          * @property {number|null} [consecutiveFailures] EngineHealth consecutiveFailures
          * @property {string|null} [lastError] EngineHealth lastError
          * @property {number|Long|null} [lastSuccessEpochMs] EngineHealth lastSuccessEpochMs
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -2602,6 +2793,7 @@ $root.languagecheck = (function() {
          * @implements IEngineHealth
          * @constructor
          * @param {languagecheck.IEngineHealth=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function EngineHealth(properties) {
             if (properties)
@@ -2684,6 +2876,9 @@ $root.languagecheck = (function() {
                 writer.uint32(/* id 4, wireType 2 =*/34).string(message.lastError);
             if (message.lastSuccessEpochMs != null && Object.hasOwnProperty.call(message, "lastSuccessEpochMs"))
                 writer.uint32(/* id 5, wireType 0 =*/40).uint64(message.lastSuccessEpochMs);
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -2711,44 +2906,75 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        EngineHealth.decode = function decode(reader, length, error, long) {
+        EngineHealth.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.EngineHealth();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.EngineHealth(), value;
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.name = reader.string();
-                        break;
-                    }
-                case 2: {
-                        message.status = reader.string();
-                        break;
-                    }
-                case 3: {
-                        message.consecutiveFailures = reader.uint32();
-                        break;
-                    }
-                case 4: {
-                        message.lastError = reader.string();
-                        break;
-                    }
-                case 5: {
-                        message.lastSuccessEpochMs = reader.uint64();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7, long);
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
                 }
+                var wireType = tag & 7;
+                switch (tag >>>= 3) {
+                case 1: {
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.name = value;
+                        else
+                            delete message.name;
+                        continue;
+                    }
+                case 2: {
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.status = value;
+                        else
+                            delete message.status;
+                        continue;
+                    }
+                case 3: {
+                        if (wireType !== 0)
+                            break;
+                        if (value = reader.uint32())
+                            message.consecutiveFailures = value;
+                        else
+                            delete message.consecutiveFailures;
+                        continue;
+                    }
+                case 4: {
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.lastError = value;
+                        else
+                            delete message.lastError;
+                        continue;
+                    }
+                case 5: {
+                        if (wireType !== 0)
+                            break;
+                        if (typeof (value = reader.uint64()) === "object" ? value.low || value.high : value !== 0)
+                            message.lastSuccessEpochMs = value;
+                        else
+                            delete message.lastSuccessEpochMs;
+                        continue;
+                    }
+                }
+                reader.skipType(wireType, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -2776,13 +3002,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        EngineHealth.verify = function verify(message, long) {
+        EngineHealth.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             if (message.name != null && message.hasOwnProperty("name"))
                 if (!$util.isString(message.name))
                     return "name: string expected";
@@ -2809,31 +3035,36 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.EngineHealth} EngineHealth
          */
-        EngineHealth.fromObject = function fromObject(object, long) {
+        EngineHealth.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.EngineHealth)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var message = new $root.languagecheck.EngineHealth();
             if (object.name != null)
-                message.name = String(object.name);
+                if (typeof object.name !== "string" || object.name.length)
+                    message.name = String(object.name);
             if (object.status != null)
-                message.status = String(object.status);
+                if (typeof object.status !== "string" || object.status.length)
+                    message.status = String(object.status);
             if (object.consecutiveFailures != null)
-                message.consecutiveFailures = object.consecutiveFailures >>> 0;
+                if (Number(object.consecutiveFailures) !== 0)
+                    message.consecutiveFailures = object.consecutiveFailures >>> 0;
             if (object.lastError != null)
-                message.lastError = String(object.lastError);
+                if (typeof object.lastError !== "string" || object.lastError.length)
+                    message.lastError = String(object.lastError);
             if (object.lastSuccessEpochMs != null)
-                if ($util.Long)
-                    (message.lastSuccessEpochMs = $util.Long.fromValue(object.lastSuccessEpochMs)).unsigned = true;
-                else if (typeof object.lastSuccessEpochMs === "string")
-                    message.lastSuccessEpochMs = parseInt(object.lastSuccessEpochMs, 10);
-                else if (typeof object.lastSuccessEpochMs === "number")
-                    message.lastSuccessEpochMs = object.lastSuccessEpochMs;
-                else if (typeof object.lastSuccessEpochMs === "object")
-                    message.lastSuccessEpochMs = new $util.LongBits(object.lastSuccessEpochMs.low >>> 0, object.lastSuccessEpochMs.high >>> 0).toNumber(true);
+                if (typeof object.lastSuccessEpochMs === "object" ? object.lastSuccessEpochMs.low || object.lastSuccessEpochMs.high : Number(object.lastSuccessEpochMs) !== 0)
+                    if ($util.Long)
+                        (message.lastSuccessEpochMs = $util.Long.fromValue(object.lastSuccessEpochMs)).unsigned = true;
+                    else if (typeof object.lastSuccessEpochMs === "string")
+                        message.lastSuccessEpochMs = parseInt(object.lastSuccessEpochMs, 10);
+                    else if (typeof object.lastSuccessEpochMs === "number")
+                        message.lastSuccessEpochMs = object.lastSuccessEpochMs;
+                    else if (typeof object.lastSuccessEpochMs === "object")
+                        message.lastSuccessEpochMs = new $util.LongBits(object.lastSuccessEpochMs.low >>> 0, object.lastSuccessEpochMs.high >>> 0).toNumber(true);
             return message;
         };
 
@@ -2889,18 +3120,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for EngineHealth
+         * Gets the type url for EngineHealth
          * @function getTypeUrl
          * @memberof languagecheck.EngineHealth
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        EngineHealth.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.EngineHealth";
+        EngineHealth.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.EngineHealth";
         };
 
         return EngineHealth;
@@ -2914,6 +3144,7 @@ $root.languagecheck = (function() {
          * @interface IExtractionExclusion
          * @property {number|null} [startByte] ExtractionExclusion startByte
          * @property {number|null} [endByte] ExtractionExclusion endByte
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -2923,6 +3154,7 @@ $root.languagecheck = (function() {
          * @implements IExtractionExclusion
          * @constructor
          * @param {languagecheck.IExtractionExclusion=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function ExtractionExclusion(properties) {
             if (properties)
@@ -2975,6 +3207,9 @@ $root.languagecheck = (function() {
                 writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.startByte);
             if (message.endByte != null && Object.hasOwnProperty.call(message, "endByte"))
                 writer.uint32(/* id 2, wireType 0 =*/16).uint32(message.endByte);
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -3002,32 +3237,48 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ExtractionExclusion.decode = function decode(reader, length, error, long) {
+        ExtractionExclusion.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.ExtractionExclusion();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.ExtractionExclusion(), value;
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.startByte = reader.uint32();
-                        break;
-                    }
-                case 2: {
-                        message.endByte = reader.uint32();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7, long);
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
                 }
+                var wireType = tag & 7;
+                switch (tag >>>= 3) {
+                case 1: {
+                        if (wireType !== 0)
+                            break;
+                        if (value = reader.uint32())
+                            message.startByte = value;
+                        else
+                            delete message.startByte;
+                        continue;
+                    }
+                case 2: {
+                        if (wireType !== 0)
+                            break;
+                        if (value = reader.uint32())
+                            message.endByte = value;
+                        else
+                            delete message.endByte;
+                        continue;
+                    }
+                }
+                reader.skipType(wireType, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -3055,13 +3306,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ExtractionExclusion.verify = function verify(message, long) {
+        ExtractionExclusion.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             if (message.startByte != null && message.hasOwnProperty("startByte"))
                 if (!$util.isInteger(message.startByte))
                     return "startByte: integer expected";
@@ -3079,18 +3330,20 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.ExtractionExclusion} ExtractionExclusion
          */
-        ExtractionExclusion.fromObject = function fromObject(object, long) {
+        ExtractionExclusion.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.ExtractionExclusion)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var message = new $root.languagecheck.ExtractionExclusion();
             if (object.startByte != null)
-                message.startByte = object.startByte >>> 0;
+                if (Number(object.startByte) !== 0)
+                    message.startByte = object.startByte >>> 0;
             if (object.endByte != null)
-                message.endByte = object.endByte >>> 0;
+                if (Number(object.endByte) !== 0)
+                    message.endByte = object.endByte >>> 0;
             return message;
         };
 
@@ -3130,18 +3383,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for ExtractionExclusion
+         * Gets the type url for ExtractionExclusion
          * @function getTypeUrl
          * @memberof languagecheck.ExtractionExclusion
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        ExtractionExclusion.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.ExtractionExclusion";
+        ExtractionExclusion.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.ExtractionExclusion";
         };
 
         return ExtractionExclusion;
@@ -3156,6 +3408,7 @@ $root.languagecheck = (function() {
          * @property {number|null} [startByte] ExtractionProseRange startByte
          * @property {number|null} [endByte] ExtractionProseRange endByte
          * @property {Array.<languagecheck.IExtractionExclusion>|null} [exclusions] ExtractionProseRange exclusions
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -3165,6 +3418,7 @@ $root.languagecheck = (function() {
          * @implements IExtractionProseRange
          * @constructor
          * @param {languagecheck.IExtractionProseRange=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function ExtractionProseRange(properties) {
             this.exclusions = [];
@@ -3229,6 +3483,9 @@ $root.languagecheck = (function() {
             if (message.exclusions != null && message.exclusions.length)
                 for (var i = 0; i < message.exclusions.length; ++i)
                     $root.languagecheck.ExtractionExclusion.encode(message.exclusions[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -3256,38 +3513,56 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ExtractionProseRange.decode = function decode(reader, length, error, long) {
+        ExtractionProseRange.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.ExtractionProseRange();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.ExtractionProseRange(), value;
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.startByte = reader.uint32();
-                        break;
-                    }
-                case 2: {
-                        message.endByte = reader.uint32();
-                        break;
-                    }
-                case 3: {
-                        if (!(message.exclusions && message.exclusions.length))
-                            message.exclusions = [];
-                        message.exclusions.push($root.languagecheck.ExtractionExclusion.decode(reader, reader.uint32(), undefined, long + 1));
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7, long);
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
                 }
+                var wireType = tag & 7;
+                switch (tag >>>= 3) {
+                case 1: {
+                        if (wireType !== 0)
+                            break;
+                        if (value = reader.uint32())
+                            message.startByte = value;
+                        else
+                            delete message.startByte;
+                        continue;
+                    }
+                case 2: {
+                        if (wireType !== 0)
+                            break;
+                        if (value = reader.uint32())
+                            message.endByte = value;
+                        else
+                            delete message.endByte;
+                        continue;
+                    }
+                case 3: {
+                        if (wireType !== 2)
+                            break;
+                        if (!(message.exclusions && message.exclusions.length))
+                            message.exclusions = [];
+                        message.exclusions.push($root.languagecheck.ExtractionExclusion.decode(reader, reader.uint32(), undefined, _depth + 1));
+                        continue;
+                    }
+                }
+                reader.skipType(wireType, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -3315,13 +3590,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ExtractionProseRange.verify = function verify(message, long) {
+        ExtractionProseRange.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             if (message.startByte != null && message.hasOwnProperty("startByte"))
                 if (!$util.isInteger(message.startByte))
                     return "startByte: integer expected";
@@ -3332,7 +3607,7 @@ $root.languagecheck = (function() {
                 if (!Array.isArray(message.exclusions))
                     return "exclusions: array expected";
                 for (var i = 0; i < message.exclusions.length; ++i) {
-                    var error = $root.languagecheck.ExtractionExclusion.verify(message.exclusions[i], long + 1);
+                    var error = $root.languagecheck.ExtractionExclusion.verify(message.exclusions[i], _depth + 1);
                     if (error)
                         return "exclusions." + error;
                 }
@@ -3348,26 +3623,28 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.ExtractionProseRange} ExtractionProseRange
          */
-        ExtractionProseRange.fromObject = function fromObject(object, long) {
+        ExtractionProseRange.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.ExtractionProseRange)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var message = new $root.languagecheck.ExtractionProseRange();
             if (object.startByte != null)
-                message.startByte = object.startByte >>> 0;
+                if (Number(object.startByte) !== 0)
+                    message.startByte = object.startByte >>> 0;
             if (object.endByte != null)
-                message.endByte = object.endByte >>> 0;
+                if (Number(object.endByte) !== 0)
+                    message.endByte = object.endByte >>> 0;
             if (object.exclusions) {
                 if (!Array.isArray(object.exclusions))
                     throw TypeError(".languagecheck.ExtractionProseRange.exclusions: array expected");
-                message.exclusions = [];
+                message.exclusions = Array(object.exclusions.length);
                 for (var i = 0; i < object.exclusions.length; ++i) {
                     if (typeof object.exclusions[i] !== "object")
                         throw TypeError(".languagecheck.ExtractionProseRange.exclusions: object expected");
-                    message.exclusions[i] = $root.languagecheck.ExtractionExclusion.fromObject(object.exclusions[i], long + 1);
+                    message.exclusions[i] = $root.languagecheck.ExtractionExclusion.fromObject(object.exclusions[i], _depth + 1);
                 }
             }
             return message;
@@ -3397,7 +3674,7 @@ $root.languagecheck = (function() {
             if (message.endByte != null && message.hasOwnProperty("endByte"))
                 object.endByte = message.endByte;
             if (message.exclusions && message.exclusions.length) {
-                object.exclusions = [];
+                object.exclusions = Array(message.exclusions.length);
                 for (var j = 0; j < message.exclusions.length; ++j)
                     object.exclusions[j] = $root.languagecheck.ExtractionExclusion.toObject(message.exclusions[j], options);
             }
@@ -3416,18 +3693,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for ExtractionProseRange
+         * Gets the type url for ExtractionProseRange
          * @function getTypeUrl
          * @memberof languagecheck.ExtractionProseRange
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        ExtractionProseRange.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.ExtractionProseRange";
+        ExtractionProseRange.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.ExtractionProseRange";
         };
 
         return ExtractionProseRange;
@@ -3440,6 +3716,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck
          * @interface IExtractionInfo
          * @property {Array.<languagecheck.IExtractionProseRange>|null} [proseRanges] ExtractionInfo proseRanges
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -3449,6 +3726,7 @@ $root.languagecheck = (function() {
          * @implements IExtractionInfo
          * @constructor
          * @param {languagecheck.IExtractionInfo=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function ExtractionInfo(properties) {
             this.proseRanges = [];
@@ -3493,6 +3771,9 @@ $root.languagecheck = (function() {
             if (message.proseRanges != null && message.proseRanges.length)
                 for (var i = 0; i < message.proseRanges.length; ++i)
                     $root.languagecheck.ExtractionProseRange.encode(message.proseRanges[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -3520,30 +3801,38 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        ExtractionInfo.decode = function decode(reader, length, error, long) {
+        ExtractionInfo.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.ExtractionInfo();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.ExtractionInfo();
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        if (!(message.proseRanges && message.proseRanges.length))
-                            message.proseRanges = [];
-                        message.proseRanges.push($root.languagecheck.ExtractionProseRange.decode(reader, reader.uint32(), undefined, long + 1));
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7, long);
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
                 }
+                var wireType = tag & 7;
+                switch (tag >>>= 3) {
+                case 1: {
+                        if (wireType !== 2)
+                            break;
+                        if (!(message.proseRanges && message.proseRanges.length))
+                            message.proseRanges = [];
+                        message.proseRanges.push($root.languagecheck.ExtractionProseRange.decode(reader, reader.uint32(), undefined, _depth + 1));
+                        continue;
+                    }
+                }
+                reader.skipType(wireType, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -3571,18 +3860,18 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        ExtractionInfo.verify = function verify(message, long) {
+        ExtractionInfo.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             if (message.proseRanges != null && message.hasOwnProperty("proseRanges")) {
                 if (!Array.isArray(message.proseRanges))
                     return "proseRanges: array expected";
                 for (var i = 0; i < message.proseRanges.length; ++i) {
-                    var error = $root.languagecheck.ExtractionProseRange.verify(message.proseRanges[i], long + 1);
+                    var error = $root.languagecheck.ExtractionProseRange.verify(message.proseRanges[i], _depth + 1);
                     if (error)
                         return "proseRanges." + error;
                 }
@@ -3598,22 +3887,22 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.ExtractionInfo} ExtractionInfo
          */
-        ExtractionInfo.fromObject = function fromObject(object, long) {
+        ExtractionInfo.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.ExtractionInfo)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var message = new $root.languagecheck.ExtractionInfo();
             if (object.proseRanges) {
                 if (!Array.isArray(object.proseRanges))
                     throw TypeError(".languagecheck.ExtractionInfo.proseRanges: array expected");
-                message.proseRanges = [];
+                message.proseRanges = Array(object.proseRanges.length);
                 for (var i = 0; i < object.proseRanges.length; ++i) {
                     if (typeof object.proseRanges[i] !== "object")
                         throw TypeError(".languagecheck.ExtractionInfo.proseRanges: object expected");
-                    message.proseRanges[i] = $root.languagecheck.ExtractionProseRange.fromObject(object.proseRanges[i], long + 1);
+                    message.proseRanges[i] = $root.languagecheck.ExtractionProseRange.fromObject(object.proseRanges[i], _depth + 1);
                 }
             }
             return message;
@@ -3635,7 +3924,7 @@ $root.languagecheck = (function() {
             if (options.arrays || options.defaults)
                 object.proseRanges = [];
             if (message.proseRanges && message.proseRanges.length) {
-                object.proseRanges = [];
+                object.proseRanges = Array(message.proseRanges.length);
                 for (var j = 0; j < message.proseRanges.length; ++j)
                     object.proseRanges[j] = $root.languagecheck.ExtractionProseRange.toObject(message.proseRanges[j], options);
             }
@@ -3654,18 +3943,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for ExtractionInfo
+         * Gets the type url for ExtractionInfo
          * @function getTypeUrl
          * @memberof languagecheck.ExtractionInfo
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        ExtractionInfo.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.ExtractionInfo";
+        ExtractionInfo.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.ExtractionInfo";
         };
 
         return ExtractionInfo;
@@ -3685,6 +3973,7 @@ $root.languagecheck = (function() {
          * @property {languagecheck.Severity|null} [severity] Diagnostic severity
          * @property {string|null} [unifiedId] Diagnostic unifiedId
          * @property {number|null} [confidence] Diagnostic confidence
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -3694,6 +3983,7 @@ $root.languagecheck = (function() {
          * @implements IDiagnostic
          * @constructor
          * @param {languagecheck.IDiagnostic=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function Diagnostic(properties) {
             this.suggestions = [];
@@ -3808,6 +4098,9 @@ $root.languagecheck = (function() {
                 writer.uint32(/* id 7, wireType 2 =*/58).string(message.unifiedId);
             if (message.confidence != null && Object.hasOwnProperty.call(message, "confidence"))
                 writer.uint32(/* id 8, wireType 5 =*/69).float(message.confidence);
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -3835,58 +4128,101 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        Diagnostic.decode = function decode(reader, length, error, long) {
+        Diagnostic.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.Diagnostic();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.Diagnostic(), value;
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
-                switch (tag >>> 3) {
+                }
+                var wireType = tag & 7;
+                switch (tag >>>= 3) {
                 case 1: {
-                        message.startByte = reader.uint32();
-                        break;
+                        if (wireType !== 0)
+                            break;
+                        if (value = reader.uint32())
+                            message.startByte = value;
+                        else
+                            delete message.startByte;
+                        continue;
                     }
                 case 2: {
-                        message.endByte = reader.uint32();
-                        break;
+                        if (wireType !== 0)
+                            break;
+                        if (value = reader.uint32())
+                            message.endByte = value;
+                        else
+                            delete message.endByte;
+                        continue;
                     }
                 case 3: {
-                        message.message = reader.string();
-                        break;
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.message = value;
+                        else
+                            delete message.message;
+                        continue;
                     }
                 case 4: {
+                        if (wireType !== 2)
+                            break;
                         if (!(message.suggestions && message.suggestions.length))
                             message.suggestions = [];
                         message.suggestions.push(reader.string());
-                        break;
+                        continue;
                     }
                 case 5: {
-                        message.ruleId = reader.string();
-                        break;
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.ruleId = value;
+                        else
+                            delete message.ruleId;
+                        continue;
                     }
                 case 6: {
-                        message.severity = reader.int32();
-                        break;
+                        if (wireType !== 0)
+                            break;
+                        if (value = reader.int32())
+                            message.severity = value;
+                        else
+                            delete message.severity;
+                        continue;
                     }
                 case 7: {
-                        message.unifiedId = reader.string();
-                        break;
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.unifiedId = value;
+                        else
+                            delete message.unifiedId;
+                        continue;
                     }
                 case 8: {
-                        message.confidence = reader.float();
-                        break;
+                        if (wireType !== 5)
+                            break;
+                        if ((value = reader.float()) !== 0)
+                            message.confidence = value;
+                        else
+                            delete message.confidence;
+                        continue;
                     }
-                default:
-                    reader.skipType(tag & 7, long);
-                    break;
                 }
+                reader.skipType(wireType, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -3914,13 +4250,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        Diagnostic.verify = function verify(message, long) {
+        Diagnostic.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             if (message.startByte != null && message.hasOwnProperty("startByte"))
                 if (!$util.isInteger(message.startByte))
                     return "startByte: integer expected";
@@ -3968,61 +4304,68 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.Diagnostic} Diagnostic
          */
-        Diagnostic.fromObject = function fromObject(object, long) {
+        Diagnostic.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.Diagnostic)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var message = new $root.languagecheck.Diagnostic();
             if (object.startByte != null)
-                message.startByte = object.startByte >>> 0;
+                if (Number(object.startByte) !== 0)
+                    message.startByte = object.startByte >>> 0;
             if (object.endByte != null)
-                message.endByte = object.endByte >>> 0;
+                if (Number(object.endByte) !== 0)
+                    message.endByte = object.endByte >>> 0;
             if (object.message != null)
-                message.message = String(object.message);
+                if (typeof object.message !== "string" || object.message.length)
+                    message.message = String(object.message);
             if (object.suggestions) {
                 if (!Array.isArray(object.suggestions))
                     throw TypeError(".languagecheck.Diagnostic.suggestions: array expected");
-                message.suggestions = [];
+                message.suggestions = Array(object.suggestions.length);
                 for (var i = 0; i < object.suggestions.length; ++i)
                     message.suggestions[i] = String(object.suggestions[i]);
             }
             if (object.ruleId != null)
-                message.ruleId = String(object.ruleId);
-            switch (object.severity) {
-            default:
-                if (typeof object.severity === "number") {
-                    message.severity = object.severity;
+                if (typeof object.ruleId !== "string" || object.ruleId.length)
+                    message.ruleId = String(object.ruleId);
+            if (object.severity !== 0 && (typeof object.severity !== "string" || $root.languagecheck.Severity[object.severity] !== 0))
+                switch (object.severity) {
+                default:
+                    if (typeof object.severity === "number") {
+                        message.severity = object.severity;
+                        break;
+                    }
+                    break;
+                case "SEVERITY_UNSPECIFIED":
+                case 0:
+                    message.severity = 0;
+                    break;
+                case "SEVERITY_INFORMATION":
+                case 1:
+                    message.severity = 1;
+                    break;
+                case "SEVERITY_WARNING":
+                case 2:
+                    message.severity = 2;
+                    break;
+                case "SEVERITY_ERROR":
+                case 3:
+                    message.severity = 3;
+                    break;
+                case "SEVERITY_HINT":
+                case 4:
+                    message.severity = 4;
                     break;
                 }
-                break;
-            case "SEVERITY_UNSPECIFIED":
-            case 0:
-                message.severity = 0;
-                break;
-            case "SEVERITY_INFORMATION":
-            case 1:
-                message.severity = 1;
-                break;
-            case "SEVERITY_WARNING":
-            case 2:
-                message.severity = 2;
-                break;
-            case "SEVERITY_ERROR":
-            case 3:
-                message.severity = 3;
-                break;
-            case "SEVERITY_HINT":
-            case 4:
-                message.severity = 4;
-                break;
-            }
             if (object.unifiedId != null)
-                message.unifiedId = String(object.unifiedId);
+                if (typeof object.unifiedId !== "string" || object.unifiedId.length)
+                    message.unifiedId = String(object.unifiedId);
             if (object.confidence != null)
-                message.confidence = Number(object.confidence);
+                if (Number(object.confidence) !== 0)
+                    message.confidence = Number(object.confidence);
             return message;
         };
 
@@ -4057,7 +4400,7 @@ $root.languagecheck = (function() {
             if (message.message != null && message.hasOwnProperty("message"))
                 object.message = message.message;
             if (message.suggestions && message.suggestions.length) {
-                object.suggestions = [];
+                object.suggestions = Array(message.suggestions.length);
                 for (var j = 0; j < message.suggestions.length; ++j)
                     object.suggestions[j] = message.suggestions[j];
             }
@@ -4084,18 +4427,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for Diagnostic
+         * Gets the type url for Diagnostic
          * @function getTypeUrl
          * @memberof languagecheck.Diagnostic
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        Diagnostic.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.Diagnostic";
+        Diagnostic.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.Diagnostic";
         };
 
         return Diagnostic;
@@ -4128,6 +4470,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck
          * @interface IAddDictionaryWordRequest
          * @property {string|null} [word] AddDictionaryWordRequest word
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -4137,6 +4480,7 @@ $root.languagecheck = (function() {
          * @implements IAddDictionaryWordRequest
          * @constructor
          * @param {languagecheck.IAddDictionaryWordRequest=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function AddDictionaryWordRequest(properties) {
             if (properties)
@@ -4179,6 +4523,9 @@ $root.languagecheck = (function() {
                 writer = $Writer.create();
             if (message.word != null && Object.hasOwnProperty.call(message, "word"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.word);
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -4206,28 +4553,39 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        AddDictionaryWordRequest.decode = function decode(reader, length, error, long) {
+        AddDictionaryWordRequest.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.AddDictionaryWordRequest();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.AddDictionaryWordRequest(), value;
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                case 1: {
-                        message.word = reader.string();
-                        break;
-                    }
-                default:
-                    reader.skipType(tag & 7, long);
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
                 }
+                var wireType = tag & 7;
+                switch (tag >>>= 3) {
+                case 1: {
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.word = value;
+                        else
+                            delete message.word;
+                        continue;
+                    }
+                }
+                reader.skipType(wireType, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -4255,13 +4613,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        AddDictionaryWordRequest.verify = function verify(message, long) {
+        AddDictionaryWordRequest.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             if (message.word != null && message.hasOwnProperty("word"))
                 if (!$util.isString(message.word))
                     return "word: string expected";
@@ -4276,16 +4634,17 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.AddDictionaryWordRequest} AddDictionaryWordRequest
          */
-        AddDictionaryWordRequest.fromObject = function fromObject(object, long) {
+        AddDictionaryWordRequest.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.AddDictionaryWordRequest)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var message = new $root.languagecheck.AddDictionaryWordRequest();
             if (object.word != null)
-                message.word = String(object.word);
+                if (typeof object.word !== "string" || object.word.length)
+                    message.word = String(object.word);
             return message;
         };
 
@@ -4321,18 +4680,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for AddDictionaryWordRequest
+         * Gets the type url for AddDictionaryWordRequest
          * @function getTypeUrl
          * @memberof languagecheck.AddDictionaryWordRequest
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        AddDictionaryWordRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.AddDictionaryWordRequest";
+        AddDictionaryWordRequest.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.AddDictionaryWordRequest";
         };
 
         return AddDictionaryWordRequest;
@@ -4344,6 +4702,7 @@ $root.languagecheck = (function() {
          * Properties of a MetadataRequest.
          * @memberof languagecheck
          * @interface IMetadataRequest
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -4353,6 +4712,7 @@ $root.languagecheck = (function() {
          * @implements IMetadataRequest
          * @constructor
          * @param {languagecheck.IMetadataRequest=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function MetadataRequest(properties) {
             if (properties)
@@ -4385,6 +4745,9 @@ $root.languagecheck = (function() {
         MetadataRequest.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -4412,24 +4775,27 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        MetadataRequest.decode = function decode(reader, length, error, long) {
+        MetadataRequest.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.MetadataRequest();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.MetadataRequest();
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
-                    break;
-                switch (tag >>> 3) {
-                default:
-                    reader.skipType(tag & 7, long);
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
                 }
+                reader.skipType(tag & 7, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -4457,13 +4823,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        MetadataRequest.verify = function verify(message, long) {
+        MetadataRequest.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             return null;
         };
 
@@ -4475,13 +4841,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.MetadataRequest} MetadataRequest
          */
-        MetadataRequest.fromObject = function fromObject(object, long) {
+        MetadataRequest.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.MetadataRequest)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             return new $root.languagecheck.MetadataRequest();
         };
 
@@ -4510,18 +4876,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for MetadataRequest
+         * Gets the type url for MetadataRequest
          * @function getTypeUrl
          * @memberof languagecheck.MetadataRequest
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        MetadataRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.MetadataRequest";
+        MetadataRequest.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.MetadataRequest";
         };
 
         return MetadataRequest;
@@ -4537,6 +4902,7 @@ $root.languagecheck = (function() {
          * @property {string|null} [version] MetadataResponse version
          * @property {Array.<string>|null} [supportedLanguages] MetadataResponse supportedLanguages
          * @property {string|null} [spellLanguage] MetadataResponse spellLanguage
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
@@ -4546,6 +4912,7 @@ $root.languagecheck = (function() {
          * @implements IMetadataResponse
          * @constructor
          * @param {languagecheck.IMetadataResponse=} [properties] Properties to set
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function MetadataResponse(properties) {
             this.supportedLanguages = [];
@@ -4620,6 +4987,9 @@ $root.languagecheck = (function() {
                     writer.uint32(/* id 3, wireType 2 =*/26).string(message.supportedLanguages[i]);
             if (message.spellLanguage != null && Object.hasOwnProperty.call(message, "spellLanguage"))
                 writer.uint32(/* id 4, wireType 2 =*/34).string(message.spellLanguage);
+            if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
+                for (var i = 0; i < message.$unknowns.length; ++i)
+                    writer.raw(message.$unknowns[i]);
             return writer;
         };
 
@@ -4647,42 +5017,65 @@ $root.languagecheck = (function() {
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        MetadataResponse.decode = function decode(reader, length, error, long) {
+        MetadataResponse.decode = function decode(reader, length, _end, _depth, _target) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            if (long === undefined)
-                long = 0;
-            if (long > $Reader.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.languagecheck.MetadataResponse();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $Reader.recursionLimit)
+                throw Error("max depth exceeded");
+            var end = length === undefined ? reader.len : reader.pos + length, message = _target || new $root.languagecheck.MetadataResponse(), value;
             while (reader.pos < end) {
-                var tag = reader.uint32();
-                if (tag === error)
+                var start = reader.pos;
+                var tag = reader.tag();
+                if (tag === _end) {
+                    _end = undefined;
                     break;
-                switch (tag >>> 3) {
+                }
+                var wireType = tag & 7;
+                switch (tag >>>= 3) {
                 case 1: {
-                        message.name = reader.string();
-                        break;
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.name = value;
+                        else
+                            delete message.name;
+                        continue;
                     }
                 case 2: {
-                        message.version = reader.string();
-                        break;
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.version = value;
+                        else
+                            delete message.version;
+                        continue;
                     }
                 case 3: {
+                        if (wireType !== 2)
+                            break;
                         if (!(message.supportedLanguages && message.supportedLanguages.length))
                             message.supportedLanguages = [];
                         message.supportedLanguages.push(reader.string());
-                        break;
+                        continue;
                     }
                 case 4: {
-                        message.spellLanguage = reader.string();
-                        break;
+                        if (wireType !== 2)
+                            break;
+                        if ((value = reader.string()).length)
+                            message.spellLanguage = value;
+                        else
+                            delete message.spellLanguage;
+                        continue;
                     }
-                default:
-                    reader.skipType(tag & 7, long);
-                    break;
                 }
+                reader.skipType(wireType, _depth, tag);
+                $util.makeProp(message, "$unknowns", false);
+                (message.$unknowns || (message.$unknowns = [])).push(reader.raw(start, reader.pos));
             }
+            if (_end !== undefined)
+                throw Error("missing end group");
             return message;
         };
 
@@ -4710,13 +5103,13 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        MetadataResponse.verify = function verify(message, long) {
+        MetadataResponse.verify = function verify(message, _depth) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                return "maximum nesting depth exceeded";
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                return "max depth exceeded";
             if (message.name != null && message.hasOwnProperty("name"))
                 if (!$util.isString(message.name))
                     return "name: string expected";
@@ -4744,27 +5137,30 @@ $root.languagecheck = (function() {
          * @param {Object.<string,*>} object Plain object
          * @returns {languagecheck.MetadataResponse} MetadataResponse
          */
-        MetadataResponse.fromObject = function fromObject(object, long) {
+        MetadataResponse.fromObject = function fromObject(object, _depth) {
             if (object instanceof $root.languagecheck.MetadataResponse)
                 return object;
-            if (long === undefined)
-                long = 0;
-            if (long > $util.recursionLimit)
-                throw Error("maximum nesting depth exceeded");
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var message = new $root.languagecheck.MetadataResponse();
             if (object.name != null)
-                message.name = String(object.name);
+                if (typeof object.name !== "string" || object.name.length)
+                    message.name = String(object.name);
             if (object.version != null)
-                message.version = String(object.version);
+                if (typeof object.version !== "string" || object.version.length)
+                    message.version = String(object.version);
             if (object.supportedLanguages) {
                 if (!Array.isArray(object.supportedLanguages))
                     throw TypeError(".languagecheck.MetadataResponse.supportedLanguages: array expected");
-                message.supportedLanguages = [];
+                message.supportedLanguages = Array(object.supportedLanguages.length);
                 for (var i = 0; i < object.supportedLanguages.length; ++i)
                     message.supportedLanguages[i] = String(object.supportedLanguages[i]);
             }
             if (object.spellLanguage != null)
-                message.spellLanguage = String(object.spellLanguage);
+                if (typeof object.spellLanguage !== "string" || object.spellLanguage.length)
+                    message.spellLanguage = String(object.spellLanguage);
             return message;
         };
 
@@ -4793,7 +5189,7 @@ $root.languagecheck = (function() {
             if (message.version != null && message.hasOwnProperty("version"))
                 object.version = message.version;
             if (message.supportedLanguages && message.supportedLanguages.length) {
-                object.supportedLanguages = [];
+                object.supportedLanguages = Array(message.supportedLanguages.length);
                 for (var j = 0; j < message.supportedLanguages.length; ++j)
                     object.supportedLanguages[j] = message.supportedLanguages[j];
             }
@@ -4814,18 +5210,17 @@ $root.languagecheck = (function() {
         };
 
         /**
-         * Gets the default type url for MetadataResponse
+         * Gets the type url for MetadataResponse
          * @function getTypeUrl
          * @memberof languagecheck.MetadataResponse
          * @static
-         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns {string} The default type url
+         * @param {string} [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns {string} The type url
          */
-        MetadataResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
-            if (typeUrlPrefix === undefined) {
-                typeUrlPrefix = "type.googleapis.com";
-            }
-            return typeUrlPrefix + "/languagecheck.MetadataResponse";
+        MetadataResponse.getTypeUrl = function getTypeUrl(prefix) {
+            if (prefix === undefined)
+                prefix = "type.googleapis.com";
+            return prefix + "/languagecheck.MetadataResponse";
         };
 
         return MetadataResponse;

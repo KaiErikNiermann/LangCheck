@@ -23,6 +23,9 @@ export namespace languagecheck {
 
         /** Request addDictionaryWord */
         addDictionaryWord?: (languagecheck.IAddDictionaryWordRequest|null);
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents a Request. */
@@ -33,6 +36,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.IRequest);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /** Request id. */
         public id: (number|Long);
@@ -126,11 +132,11 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for Request
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for Request
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 
     /** Properties of an InitializeRequest. */
@@ -144,6 +150,9 @@ export namespace languagecheck {
 
         /** InitializeRequest dbPath */
         dbPath?: (string|null);
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents an InitializeRequest. */
@@ -154,6 +163,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.IInitializeRequest);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /** InitializeRequest workspaceRoot. */
         public workspaceRoot: string;
@@ -235,11 +247,11 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for InitializeRequest
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for InitializeRequest
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 
     /** Properties of an IgnoreRequest. */
@@ -259,6 +271,9 @@ export namespace languagecheck {
 
         /** IgnoreRequest endByte */
         endByte?: (number|null);
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents an IgnoreRequest. */
@@ -269,6 +284,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.IIgnoreRequest);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /** IgnoreRequest message. */
         public message: string;
@@ -356,11 +374,11 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for IgnoreRequest
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for IgnoreRequest
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 
     /** Properties of a Response. */
@@ -380,6 +398,9 @@ export namespace languagecheck {
 
         /** Response ok */
         ok?: (languagecheck.IOkResponse|null);
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents a Response. */
@@ -390,6 +411,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.IResponse);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /** Response id. */
         public id: (number|Long);
@@ -480,15 +504,18 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for Response
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for Response
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 
     /** Properties of an OkResponse. */
     interface IOkResponse {
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents an OkResponse. */
@@ -499,6 +526,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.IOkResponse);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /**
          * Creates a new OkResponse instance using the specified properties.
@@ -571,11 +601,11 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for OkResponse
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for OkResponse
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 
     /** Properties of an ErrorResponse. */
@@ -583,6 +613,9 @@ export namespace languagecheck {
 
         /** ErrorResponse message */
         message?: (string|null);
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents an ErrorResponse. */
@@ -593,6 +626,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.IErrorResponse);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /** ErrorResponse message. */
         public message: string;
@@ -668,11 +704,11 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for ErrorResponse
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for ErrorResponse
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 
     /** Represents a CheckerProvider */
@@ -755,6 +791,9 @@ export namespace languagecheck {
 
         /** CheckRequest filePath */
         filePath?: (string|null);
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents a CheckRequest. */
@@ -765,6 +804,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.ICheckRequest);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /** CheckRequest text. */
         public text: string;
@@ -849,11 +891,11 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for CheckRequest
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for CheckRequest
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 
     /** Properties of a CheckResponse. */
@@ -867,6 +909,9 @@ export namespace languagecheck {
 
         /** CheckResponse engineHealth */
         engineHealth?: (languagecheck.IEngineHealth[]|null);
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents a CheckResponse. */
@@ -877,6 +922,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.ICheckResponse);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /** CheckResponse diagnostics. */
         public diagnostics: languagecheck.IDiagnostic[];
@@ -958,11 +1006,11 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for CheckResponse
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for CheckResponse
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 
     /** Properties of an EngineHealth. */
@@ -982,6 +1030,9 @@ export namespace languagecheck {
 
         /** EngineHealth lastSuccessEpochMs */
         lastSuccessEpochMs?: (number|Long|null);
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents an EngineHealth. */
@@ -992,6 +1043,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.IEngineHealth);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /** EngineHealth name. */
         public name: string;
@@ -1079,11 +1133,11 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for EngineHealth
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for EngineHealth
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 
     /** Properties of an ExtractionExclusion. */
@@ -1094,6 +1148,9 @@ export namespace languagecheck {
 
         /** ExtractionExclusion endByte */
         endByte?: (number|null);
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents an ExtractionExclusion. */
@@ -1104,6 +1161,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.IExtractionExclusion);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /** ExtractionExclusion startByte. */
         public startByte: number;
@@ -1182,11 +1242,11 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for ExtractionExclusion
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for ExtractionExclusion
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 
     /** Properties of an ExtractionProseRange. */
@@ -1200,6 +1260,9 @@ export namespace languagecheck {
 
         /** ExtractionProseRange exclusions */
         exclusions?: (languagecheck.IExtractionExclusion[]|null);
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents an ExtractionProseRange. */
@@ -1210,6 +1273,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.IExtractionProseRange);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /** ExtractionProseRange startByte. */
         public startByte: number;
@@ -1291,11 +1357,11 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for ExtractionProseRange
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for ExtractionProseRange
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 
     /** Properties of an ExtractionInfo. */
@@ -1303,6 +1369,9 @@ export namespace languagecheck {
 
         /** ExtractionInfo proseRanges */
         proseRanges?: (languagecheck.IExtractionProseRange[]|null);
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents an ExtractionInfo. */
@@ -1313,6 +1382,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.IExtractionInfo);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /** ExtractionInfo proseRanges. */
         public proseRanges: languagecheck.IExtractionProseRange[];
@@ -1388,11 +1460,11 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for ExtractionInfo
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for ExtractionInfo
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 
     /** Properties of a Diagnostic. */
@@ -1421,6 +1493,9 @@ export namespace languagecheck {
 
         /** Diagnostic confidence */
         confidence?: (number|null);
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents a Diagnostic. */
@@ -1431,6 +1506,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.IDiagnostic);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /** Diagnostic startByte. */
         public startByte: number;
@@ -1527,11 +1605,11 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for Diagnostic
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for Diagnostic
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 
     /** Severity enum. */
@@ -1548,6 +1626,9 @@ export namespace languagecheck {
 
         /** AddDictionaryWordRequest word */
         word?: (string|null);
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents an AddDictionaryWordRequest. */
@@ -1558,6 +1639,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.IAddDictionaryWordRequest);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /** AddDictionaryWordRequest word. */
         public word: string;
@@ -1633,15 +1717,18 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for AddDictionaryWordRequest
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for AddDictionaryWordRequest
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 
     /** Properties of a MetadataRequest. */
     interface IMetadataRequest {
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents a MetadataRequest. */
@@ -1652,6 +1739,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.IMetadataRequest);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /**
          * Creates a new MetadataRequest instance using the specified properties.
@@ -1724,11 +1814,11 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for MetadataRequest
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for MetadataRequest
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 
     /** Properties of a MetadataResponse. */
@@ -1745,6 +1835,9 @@ export namespace languagecheck {
 
         /** MetadataResponse spellLanguage */
         spellLanguage?: (string|null);
+
+        /** Unknown fields preserved while decoding */
+        $unknowns?: Uint8Array[];
     }
 
     /** Represents a MetadataResponse. */
@@ -1755,6 +1848,9 @@ export namespace languagecheck {
          * @param [properties] Properties to set
          */
         constructor(properties?: languagecheck.IMetadataResponse);
+
+        /** Unknown fields preserved while decoding */
+        public $unknowns?: Uint8Array[];
 
         /** MetadataResponse name. */
         public name: string;
@@ -1839,10 +1935,10 @@ export namespace languagecheck {
         public toJSON(): { [k: string]: any };
 
         /**
-         * Gets the default type url for MetadataResponse
-         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
-         * @returns The default type url
+         * Gets the type url for MetadataResponse
+         * @param [prefix] Custom type url prefix, defaults to `"type.googleapis.com"`
+         * @returns The type url
          */
-        public static getTypeUrl(typeUrlPrefix?: string): string;
+        public static getTypeUrl(prefix?: string): string;
     }
 }
