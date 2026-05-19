@@ -22,24 +22,46 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of a Request.
+         * @typedef {Object} languagecheck.Request.$Properties
+         * @property {number|Long|null} [id] Request id
+         * @property {languagecheck.CheckRequest.$Properties|null} [checkProse] Request checkProse
+         * @property {languagecheck.MetadataRequest.$Properties|null} [getMetadata] Request getMetadata
+         * @property {languagecheck.IgnoreRequest.$Properties|null} [ignore] Request ignore
+         * @property {languagecheck.InitializeRequest.$Properties|null} [initialize] Request initialize
+         * @property {languagecheck.AddDictionaryWordRequest.$Properties|null} [addDictionaryWord] Request addDictionaryWord
+         * @property {"checkProse"|"getMetadata"|"ignore"|"initialize"|"addDictionaryWord"} [payload] Request payload
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
+         */
+
+        /**
+         * Properties of a Request.
          * @memberof languagecheck
          * @interface IRequest
-         * @property {number|Long|null} [id] Request id
-         * @property {languagecheck.ICheckRequest|null} [checkProse] Request checkProse
-         * @property {languagecheck.IMetadataRequest|null} [getMetadata] Request getMetadata
-         * @property {languagecheck.IIgnoreRequest|null} [ignore] Request ignore
-         * @property {languagecheck.IInitializeRequest|null} [initialize] Request initialize
-         * @property {languagecheck.IAddDictionaryWordRequest|null} [addDictionaryWord] Request addDictionaryWord
-         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
+         * @augments languagecheck.Request.$Properties
+         * @deprecated Use languagecheck.Request.$Properties instead.
+         */
+
+        /**
+         * Narrowed shape of a Request.
+         * @typedef {{
+         *   id?: number|Long|null;
+         *   checkProse?: languagecheck.CheckRequest.$Shape|null;
+         *   getMetadata?: languagecheck.MetadataRequest.$Shape|null;
+         *   ignore?: languagecheck.IgnoreRequest.$Shape|null;
+         *   initialize?: languagecheck.InitializeRequest.$Shape|null;
+         *   addDictionaryWord?: languagecheck.AddDictionaryWordRequest.$Shape|null;
+         *   $unknowns?: Array.<Uint8Array>;
+         * } & (
+         *   ({ payload?: undefined; checkProse?: null; getMetadata?: null; ignore?: null; initialize?: null; addDictionaryWord?: null }|{ payload?: "checkProse"; checkProse: languagecheck.CheckRequest.$Shape; getMetadata?: null; ignore?: null; initialize?: null; addDictionaryWord?: null }|{ payload?: "getMetadata"; checkProse?: null; getMetadata: languagecheck.MetadataRequest.$Shape; ignore?: null; initialize?: null; addDictionaryWord?: null }|{ payload?: "ignore"; checkProse?: null; getMetadata?: null; ignore: languagecheck.IgnoreRequest.$Shape; initialize?: null; addDictionaryWord?: null }|{ payload?: "initialize"; checkProse?: null; getMetadata?: null; ignore?: null; initialize: languagecheck.InitializeRequest.$Shape; addDictionaryWord?: null }|{ payload?: "addDictionaryWord"; checkProse?: null; getMetadata?: null; ignore?: null; initialize?: null; addDictionaryWord: languagecheck.AddDictionaryWordRequest.$Shape })
+         * )} languagecheck.Request.$Shape
          */
 
         /**
          * Constructs a new Request.
          * @memberof languagecheck
          * @classdesc Represents a Request.
-         * @implements IRequest
          * @constructor
-         * @param {languagecheck.IRequest=} [properties] Properties to set
+         * @param {languagecheck.Request.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function Request(properties) {
@@ -59,7 +81,7 @@ $root.languagecheck = (function() {
 
         /**
          * Request checkProse.
-         * @member {languagecheck.ICheckRequest|null|undefined} checkProse
+         * @member {languagecheck.CheckRequest.$Properties|null|undefined} checkProse
          * @memberof languagecheck.Request
          * @instance
          */
@@ -67,7 +89,7 @@ $root.languagecheck = (function() {
 
         /**
          * Request getMetadata.
-         * @member {languagecheck.IMetadataRequest|null|undefined} getMetadata
+         * @member {languagecheck.MetadataRequest.$Properties|null|undefined} getMetadata
          * @memberof languagecheck.Request
          * @instance
          */
@@ -75,7 +97,7 @@ $root.languagecheck = (function() {
 
         /**
          * Request ignore.
-         * @member {languagecheck.IIgnoreRequest|null|undefined} ignore
+         * @member {languagecheck.IgnoreRequest.$Properties|null|undefined} ignore
          * @memberof languagecheck.Request
          * @instance
          */
@@ -83,7 +105,7 @@ $root.languagecheck = (function() {
 
         /**
          * Request initialize.
-         * @member {languagecheck.IInitializeRequest|null|undefined} initialize
+         * @member {languagecheck.InitializeRequest.$Properties|null|undefined} initialize
          * @memberof languagecheck.Request
          * @instance
          */
@@ -91,7 +113,7 @@ $root.languagecheck = (function() {
 
         /**
          * Request addDictionaryWord.
-         * @member {languagecheck.IAddDictionaryWordRequest|null|undefined} addDictionaryWord
+         * @member {languagecheck.AddDictionaryWordRequest.$Properties|null|undefined} addDictionaryWord
          * @memberof languagecheck.Request
          * @instance
          */
@@ -116,8 +138,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.Request
          * @static
-         * @param {languagecheck.IRequest=} [properties] Properties to set
+         * @param {languagecheck.Request.$Properties=} [properties] Properties to set
          * @returns {languagecheck.Request} Request instance
+         * @type {{
+         *   (properties: languagecheck.Request.$Shape): languagecheck.Request & languagecheck.Request.$Shape;
+         *   (properties?: languagecheck.Request.$Properties): languagecheck.Request;
+         * }}
          */
         Request.create = function create(properties) {
             return new Request(properties);
@@ -128,7 +154,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.Request
          * @static
-         * @param {languagecheck.IRequest} message Request message or plain object to encode
+         * @param {languagecheck.Request.$Properties} message Request message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -158,7 +184,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.Request
          * @static
-         * @param {languagecheck.IRequest} message Request message or plain object to encode
+         * @param {languagecheck.Request.$Properties} message Request message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -173,7 +199,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.Request} Request
+         * @returns {languagecheck.Request & languagecheck.Request.$Shape} Request
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -254,7 +280,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.Request
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.Request} Request
+         * @returns {languagecheck.Request & languagecheck.Request.$Shape} Request
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -404,11 +430,13 @@ $root.languagecheck = (function() {
             if (options.defaults)
                 if ($util.Long) {
                     var long = new $util.Long(0, 0, true);
-                    object.id = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object.id = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : typeof BigInt !== "undefined" && options.longs === BigInt ? long.toBigInt() : long;
                 } else
-                    object.id = options.longs === String ? "0" : 0;
+                    object.id = options.longs === String ? "0" : typeof BigInt !== "undefined" && options.longs === BigInt ? BigInt("0") : 0;
             if (message.id != null && message.hasOwnProperty("id"))
-                if (typeof message.id === "number")
+                if (typeof BigInt !== "undefined" && options.longs === BigInt)
+                    object.id = typeof message.id === "number" ? BigInt(message.id) : $util.Long.fromBits(message.id.low >>> 0, message.id.high >>> 0, true).toBigInt();
+                else if (typeof message.id === "number")
                     object.id = options.longs === String ? String(message.id) : message.id;
                 else
                     object.id = options.longs === String ? $util.Long.prototype.toString.call(message.id) : options.longs === Number ? new $util.LongBits(message.id.low >>> 0, message.id.high >>> 0).toNumber(true) : message.id;
@@ -472,8 +500,7 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of an InitializeRequest.
-         * @memberof languagecheck
-         * @interface IInitializeRequest
+         * @typedef {Object} languagecheck.InitializeRequest.$Properties
          * @property {string|null} [workspaceRoot] InitializeRequest workspaceRoot
          * @property {boolean|null} [indexOnOpen] InitializeRequest indexOnOpen
          * @property {string|null} [dbPath] InitializeRequest dbPath
@@ -481,12 +508,24 @@ $root.languagecheck = (function() {
          */
 
         /**
+         * Properties of an InitializeRequest.
+         * @memberof languagecheck
+         * @interface IInitializeRequest
+         * @augments languagecheck.InitializeRequest.$Properties
+         * @deprecated Use languagecheck.InitializeRequest.$Properties instead.
+         */
+
+        /**
+         * Shape of an InitializeRequest.
+         * @typedef {languagecheck.InitializeRequest.$Properties} languagecheck.InitializeRequest.$Shape
+         */
+
+        /**
          * Constructs a new InitializeRequest.
          * @memberof languagecheck
          * @classdesc Represents an InitializeRequest.
-         * @implements IInitializeRequest
          * @constructor
-         * @param {languagecheck.IInitializeRequest=} [properties] Properties to set
+         * @param {languagecheck.InitializeRequest.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function InitializeRequest(properties) {
@@ -540,8 +579,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.InitializeRequest
          * @static
-         * @param {languagecheck.IInitializeRequest=} [properties] Properties to set
+         * @param {languagecheck.InitializeRequest.$Properties=} [properties] Properties to set
          * @returns {languagecheck.InitializeRequest} InitializeRequest instance
+         * @type {{
+         *   (properties: languagecheck.InitializeRequest.$Shape): languagecheck.InitializeRequest & languagecheck.InitializeRequest.$Shape;
+         *   (properties?: languagecheck.InitializeRequest.$Properties): languagecheck.InitializeRequest;
+         * }}
          */
         InitializeRequest.create = function create(properties) {
             return new InitializeRequest(properties);
@@ -552,7 +595,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.InitializeRequest
          * @static
-         * @param {languagecheck.IInitializeRequest} message InitializeRequest message or plain object to encode
+         * @param {languagecheck.InitializeRequest.$Properties} message InitializeRequest message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -576,7 +619,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.InitializeRequest
          * @static
-         * @param {languagecheck.IInitializeRequest} message InitializeRequest message or plain object to encode
+         * @param {languagecheck.InitializeRequest.$Properties} message InitializeRequest message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -591,7 +634,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.InitializeRequest} InitializeRequest
+         * @returns {languagecheck.InitializeRequest & languagecheck.InitializeRequest.$Shape} InitializeRequest
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -651,7 +694,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.InitializeRequest
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.InitializeRequest} InitializeRequest
+         * @returns {languagecheck.InitializeRequest & languagecheck.InitializeRequest.$Shape} InitializeRequest
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -781,8 +824,7 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of an IgnoreRequest.
-         * @memberof languagecheck
-         * @interface IIgnoreRequest
+         * @typedef {Object} languagecheck.IgnoreRequest.$Properties
          * @property {string|null} [message] IgnoreRequest message
          * @property {string|null} [context] IgnoreRequest context
          * @property {string|null} [text] IgnoreRequest text
@@ -792,12 +834,24 @@ $root.languagecheck = (function() {
          */
 
         /**
+         * Properties of an IgnoreRequest.
+         * @memberof languagecheck
+         * @interface IIgnoreRequest
+         * @augments languagecheck.IgnoreRequest.$Properties
+         * @deprecated Use languagecheck.IgnoreRequest.$Properties instead.
+         */
+
+        /**
+         * Shape of an IgnoreRequest.
+         * @typedef {languagecheck.IgnoreRequest.$Properties} languagecheck.IgnoreRequest.$Shape
+         */
+
+        /**
          * Constructs a new IgnoreRequest.
          * @memberof languagecheck
          * @classdesc Represents an IgnoreRequest.
-         * @implements IIgnoreRequest
          * @constructor
-         * @param {languagecheck.IIgnoreRequest=} [properties] Properties to set
+         * @param {languagecheck.IgnoreRequest.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function IgnoreRequest(properties) {
@@ -852,8 +906,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.IgnoreRequest
          * @static
-         * @param {languagecheck.IIgnoreRequest=} [properties] Properties to set
+         * @param {languagecheck.IgnoreRequest.$Properties=} [properties] Properties to set
          * @returns {languagecheck.IgnoreRequest} IgnoreRequest instance
+         * @type {{
+         *   (properties: languagecheck.IgnoreRequest.$Shape): languagecheck.IgnoreRequest & languagecheck.IgnoreRequest.$Shape;
+         *   (properties?: languagecheck.IgnoreRequest.$Properties): languagecheck.IgnoreRequest;
+         * }}
          */
         IgnoreRequest.create = function create(properties) {
             return new IgnoreRequest(properties);
@@ -864,7 +922,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.IgnoreRequest
          * @static
-         * @param {languagecheck.IIgnoreRequest} message IgnoreRequest message or plain object to encode
+         * @param {languagecheck.IgnoreRequest.$Properties} message IgnoreRequest message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -892,7 +950,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.IgnoreRequest
          * @static
-         * @param {languagecheck.IIgnoreRequest} message IgnoreRequest message or plain object to encode
+         * @param {languagecheck.IgnoreRequest.$Properties} message IgnoreRequest message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -907,7 +965,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.IgnoreRequest} IgnoreRequest
+         * @returns {languagecheck.IgnoreRequest & languagecheck.IgnoreRequest.$Shape} IgnoreRequest
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -989,7 +1047,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.IgnoreRequest
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.IgnoreRequest} IgnoreRequest
+         * @returns {languagecheck.IgnoreRequest & languagecheck.IgnoreRequest.$Shape} IgnoreRequest
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -1131,23 +1189,44 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of a Response.
+         * @typedef {Object} languagecheck.Response.$Properties
+         * @property {number|Long|null} [id] Response id
+         * @property {languagecheck.CheckResponse.$Properties|null} [checkProse] Response checkProse
+         * @property {languagecheck.MetadataResponse.$Properties|null} [getMetadata] Response getMetadata
+         * @property {languagecheck.ErrorResponse.$Properties|null} [error] Response error
+         * @property {languagecheck.OkResponse.$Properties|null} [ok] Response ok
+         * @property {"checkProse"|"getMetadata"|"error"|"ok"} [payload] Response payload
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
+         */
+
+        /**
+         * Properties of a Response.
          * @memberof languagecheck
          * @interface IResponse
-         * @property {number|Long|null} [id] Response id
-         * @property {languagecheck.ICheckResponse|null} [checkProse] Response checkProse
-         * @property {languagecheck.IMetadataResponse|null} [getMetadata] Response getMetadata
-         * @property {languagecheck.IErrorResponse|null} [error] Response error
-         * @property {languagecheck.IOkResponse|null} [ok] Response ok
-         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
+         * @augments languagecheck.Response.$Properties
+         * @deprecated Use languagecheck.Response.$Properties instead.
+         */
+
+        /**
+         * Narrowed shape of a Response.
+         * @typedef {{
+         *   id?: number|Long|null;
+         *   checkProse?: languagecheck.CheckResponse.$Shape|null;
+         *   getMetadata?: languagecheck.MetadataResponse.$Shape|null;
+         *   error?: languagecheck.ErrorResponse.$Shape|null;
+         *   ok?: languagecheck.OkResponse.$Shape|null;
+         *   $unknowns?: Array.<Uint8Array>;
+         * } & (
+         *   ({ payload?: undefined; checkProse?: null; getMetadata?: null; error?: null; ok?: null }|{ payload?: "checkProse"; checkProse: languagecheck.CheckResponse.$Shape; getMetadata?: null; error?: null; ok?: null }|{ payload?: "getMetadata"; checkProse?: null; getMetadata: languagecheck.MetadataResponse.$Shape; error?: null; ok?: null }|{ payload?: "error"; checkProse?: null; getMetadata?: null; error: languagecheck.ErrorResponse.$Shape; ok?: null }|{ payload?: "ok"; checkProse?: null; getMetadata?: null; error?: null; ok: languagecheck.OkResponse.$Shape })
+         * )} languagecheck.Response.$Shape
          */
 
         /**
          * Constructs a new Response.
          * @memberof languagecheck
          * @classdesc Represents a Response.
-         * @implements IResponse
          * @constructor
-         * @param {languagecheck.IResponse=} [properties] Properties to set
+         * @param {languagecheck.Response.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function Response(properties) {
@@ -1167,7 +1246,7 @@ $root.languagecheck = (function() {
 
         /**
          * Response checkProse.
-         * @member {languagecheck.ICheckResponse|null|undefined} checkProse
+         * @member {languagecheck.CheckResponse.$Properties|null|undefined} checkProse
          * @memberof languagecheck.Response
          * @instance
          */
@@ -1175,7 +1254,7 @@ $root.languagecheck = (function() {
 
         /**
          * Response getMetadata.
-         * @member {languagecheck.IMetadataResponse|null|undefined} getMetadata
+         * @member {languagecheck.MetadataResponse.$Properties|null|undefined} getMetadata
          * @memberof languagecheck.Response
          * @instance
          */
@@ -1183,7 +1262,7 @@ $root.languagecheck = (function() {
 
         /**
          * Response error.
-         * @member {languagecheck.IErrorResponse|null|undefined} error
+         * @member {languagecheck.ErrorResponse.$Properties|null|undefined} error
          * @memberof languagecheck.Response
          * @instance
          */
@@ -1191,7 +1270,7 @@ $root.languagecheck = (function() {
 
         /**
          * Response ok.
-         * @member {languagecheck.IOkResponse|null|undefined} ok
+         * @member {languagecheck.OkResponse.$Properties|null|undefined} ok
          * @memberof languagecheck.Response
          * @instance
          */
@@ -1216,8 +1295,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.Response
          * @static
-         * @param {languagecheck.IResponse=} [properties] Properties to set
+         * @param {languagecheck.Response.$Properties=} [properties] Properties to set
          * @returns {languagecheck.Response} Response instance
+         * @type {{
+         *   (properties: languagecheck.Response.$Shape): languagecheck.Response & languagecheck.Response.$Shape;
+         *   (properties?: languagecheck.Response.$Properties): languagecheck.Response;
+         * }}
          */
         Response.create = function create(properties) {
             return new Response(properties);
@@ -1228,7 +1311,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.Response
          * @static
-         * @param {languagecheck.IResponse} message Response message or plain object to encode
+         * @param {languagecheck.Response.$Properties} message Response message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -1256,7 +1339,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.Response
          * @static
-         * @param {languagecheck.IResponse} message Response message or plain object to encode
+         * @param {languagecheck.Response.$Properties} message Response message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -1271,7 +1354,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.Response} Response
+         * @returns {languagecheck.Response & languagecheck.Response.$Shape} Response
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -1345,7 +1428,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.Response
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.Response} Response
+         * @returns {languagecheck.Response & languagecheck.Response.$Shape} Response
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -1480,11 +1563,13 @@ $root.languagecheck = (function() {
             if (options.defaults)
                 if ($util.Long) {
                     var long = new $util.Long(0, 0, true);
-                    object.id = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object.id = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : typeof BigInt !== "undefined" && options.longs === BigInt ? long.toBigInt() : long;
                 } else
-                    object.id = options.longs === String ? "0" : 0;
+                    object.id = options.longs === String ? "0" : typeof BigInt !== "undefined" && options.longs === BigInt ? BigInt("0") : 0;
             if (message.id != null && message.hasOwnProperty("id"))
-                if (typeof message.id === "number")
+                if (typeof BigInt !== "undefined" && options.longs === BigInt)
+                    object.id = typeof message.id === "number" ? BigInt(message.id) : $util.Long.fromBits(message.id.low >>> 0, message.id.high >>> 0, true).toBigInt();
+                else if (typeof message.id === "number")
                     object.id = options.longs === String ? String(message.id) : message.id;
                 else
                     object.id = options.longs === String ? $util.Long.prototype.toString.call(message.id) : options.longs === Number ? new $util.LongBits(message.id.low >>> 0, message.id.high >>> 0).toNumber(true) : message.id;
@@ -1543,18 +1628,29 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of an OkResponse.
+         * @typedef {Object} languagecheck.OkResponse.$Properties
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
+         */
+
+        /**
+         * Properties of an OkResponse.
          * @memberof languagecheck
          * @interface IOkResponse
-         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
+         * @augments languagecheck.OkResponse.$Properties
+         * @deprecated Use languagecheck.OkResponse.$Properties instead.
+         */
+
+        /**
+         * Shape of an OkResponse.
+         * @typedef {languagecheck.OkResponse.$Properties} languagecheck.OkResponse.$Shape
          */
 
         /**
          * Constructs a new OkResponse.
          * @memberof languagecheck
          * @classdesc Represents an OkResponse.
-         * @implements IOkResponse
          * @constructor
-         * @param {languagecheck.IOkResponse=} [properties] Properties to set
+         * @param {languagecheck.OkResponse.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function OkResponse(properties) {
@@ -1569,8 +1665,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.OkResponse
          * @static
-         * @param {languagecheck.IOkResponse=} [properties] Properties to set
+         * @param {languagecheck.OkResponse.$Properties=} [properties] Properties to set
          * @returns {languagecheck.OkResponse} OkResponse instance
+         * @type {{
+         *   (properties: languagecheck.OkResponse.$Shape): languagecheck.OkResponse & languagecheck.OkResponse.$Shape;
+         *   (properties?: languagecheck.OkResponse.$Properties): languagecheck.OkResponse;
+         * }}
          */
         OkResponse.create = function create(properties) {
             return new OkResponse(properties);
@@ -1581,7 +1681,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.OkResponse
          * @static
-         * @param {languagecheck.IOkResponse} message OkResponse message or plain object to encode
+         * @param {languagecheck.OkResponse.$Properties} message OkResponse message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -1599,7 +1699,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.OkResponse
          * @static
-         * @param {languagecheck.IOkResponse} message OkResponse message or plain object to encode
+         * @param {languagecheck.OkResponse.$Properties} message OkResponse message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -1614,7 +1714,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.OkResponse} OkResponse
+         * @returns {languagecheck.OkResponse & languagecheck.OkResponse.$Shape} OkResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -1648,7 +1748,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.OkResponse
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.OkResponse} OkResponse
+         * @returns {languagecheck.OkResponse & languagecheck.OkResponse.$Shape} OkResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -1739,19 +1839,30 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of an ErrorResponse.
-         * @memberof languagecheck
-         * @interface IErrorResponse
+         * @typedef {Object} languagecheck.ErrorResponse.$Properties
          * @property {string|null} [message] ErrorResponse message
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
+         */
+
+        /**
+         * Properties of an ErrorResponse.
+         * @memberof languagecheck
+         * @interface IErrorResponse
+         * @augments languagecheck.ErrorResponse.$Properties
+         * @deprecated Use languagecheck.ErrorResponse.$Properties instead.
+         */
+
+        /**
+         * Shape of an ErrorResponse.
+         * @typedef {languagecheck.ErrorResponse.$Properties} languagecheck.ErrorResponse.$Shape
          */
 
         /**
          * Constructs a new ErrorResponse.
          * @memberof languagecheck
          * @classdesc Represents an ErrorResponse.
-         * @implements IErrorResponse
          * @constructor
-         * @param {languagecheck.IErrorResponse=} [properties] Properties to set
+         * @param {languagecheck.ErrorResponse.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function ErrorResponse(properties) {
@@ -1774,8 +1885,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.ErrorResponse
          * @static
-         * @param {languagecheck.IErrorResponse=} [properties] Properties to set
+         * @param {languagecheck.ErrorResponse.$Properties=} [properties] Properties to set
          * @returns {languagecheck.ErrorResponse} ErrorResponse instance
+         * @type {{
+         *   (properties: languagecheck.ErrorResponse.$Shape): languagecheck.ErrorResponse & languagecheck.ErrorResponse.$Shape;
+         *   (properties?: languagecheck.ErrorResponse.$Properties): languagecheck.ErrorResponse;
+         * }}
          */
         ErrorResponse.create = function create(properties) {
             return new ErrorResponse(properties);
@@ -1786,7 +1901,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.ErrorResponse
          * @static
-         * @param {languagecheck.IErrorResponse} message ErrorResponse message or plain object to encode
+         * @param {languagecheck.ErrorResponse.$Properties} message ErrorResponse message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -1806,7 +1921,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.ErrorResponse
          * @static
-         * @param {languagecheck.IErrorResponse} message ErrorResponse message or plain object to encode
+         * @param {languagecheck.ErrorResponse.$Properties} message ErrorResponse message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -1821,7 +1936,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.ErrorResponse} ErrorResponse
+         * @returns {languagecheck.ErrorResponse & languagecheck.ErrorResponse.$Shape} ErrorResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -1867,7 +1982,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.ErrorResponse
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.ErrorResponse} ErrorResponse
+         * @returns {languagecheck.ErrorResponse & languagecheck.ErrorResponse.$Shape} ErrorResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -2073,8 +2188,7 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of a CheckRequest.
-         * @memberof languagecheck
-         * @interface ICheckRequest
+         * @typedef {Object} languagecheck.CheckRequest.$Properties
          * @property {string|null} [text] CheckRequest text
          * @property {string|null} [languageId] CheckRequest languageId
          * @property {Object.<string,string>|null} [settings] CheckRequest settings
@@ -2083,12 +2197,24 @@ $root.languagecheck = (function() {
          */
 
         /**
+         * Properties of a CheckRequest.
+         * @memberof languagecheck
+         * @interface ICheckRequest
+         * @augments languagecheck.CheckRequest.$Properties
+         * @deprecated Use languagecheck.CheckRequest.$Properties instead.
+         */
+
+        /**
+         * Shape of a CheckRequest.
+         * @typedef {languagecheck.CheckRequest.$Properties} languagecheck.CheckRequest.$Shape
+         */
+
+        /**
          * Constructs a new CheckRequest.
          * @memberof languagecheck
          * @classdesc Represents a CheckRequest.
-         * @implements ICheckRequest
          * @constructor
-         * @param {languagecheck.ICheckRequest=} [properties] Properties to set
+         * @param {languagecheck.CheckRequest.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function CheckRequest(properties) {
@@ -2145,8 +2271,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.CheckRequest
          * @static
-         * @param {languagecheck.ICheckRequest=} [properties] Properties to set
+         * @param {languagecheck.CheckRequest.$Properties=} [properties] Properties to set
          * @returns {languagecheck.CheckRequest} CheckRequest instance
+         * @type {{
+         *   (properties: languagecheck.CheckRequest.$Shape): languagecheck.CheckRequest & languagecheck.CheckRequest.$Shape;
+         *   (properties?: languagecheck.CheckRequest.$Properties): languagecheck.CheckRequest;
+         * }}
          */
         CheckRequest.create = function create(properties) {
             return new CheckRequest(properties);
@@ -2157,7 +2287,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.CheckRequest
          * @static
-         * @param {languagecheck.ICheckRequest} message CheckRequest message or plain object to encode
+         * @param {languagecheck.CheckRequest.$Properties} message CheckRequest message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -2184,7 +2314,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.CheckRequest
          * @static
-         * @param {languagecheck.ICheckRequest} message CheckRequest message or plain object to encode
+         * @param {languagecheck.CheckRequest.$Properties} message CheckRequest message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -2199,7 +2329,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.CheckRequest} CheckRequest
+         * @returns {languagecheck.CheckRequest & languagecheck.CheckRequest.$Shape} CheckRequest
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -2291,7 +2421,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.CheckRequest
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.CheckRequest} CheckRequest
+         * @returns {languagecheck.CheckRequest & languagecheck.CheckRequest.$Shape} CheckRequest
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -2448,21 +2578,32 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of a CheckResponse.
+         * @typedef {Object} languagecheck.CheckResponse.$Properties
+         * @property {Array.<languagecheck.Diagnostic.$Properties>|null} [diagnostics] CheckResponse diagnostics
+         * @property {languagecheck.ExtractionInfo.$Properties|null} [extraction] CheckResponse extraction
+         * @property {Array.<languagecheck.EngineHealth.$Properties>|null} [engineHealth] CheckResponse engineHealth
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
+         */
+
+        /**
+         * Properties of a CheckResponse.
          * @memberof languagecheck
          * @interface ICheckResponse
-         * @property {Array.<languagecheck.IDiagnostic>|null} [diagnostics] CheckResponse diagnostics
-         * @property {languagecheck.IExtractionInfo|null} [extraction] CheckResponse extraction
-         * @property {Array.<languagecheck.IEngineHealth>|null} [engineHealth] CheckResponse engineHealth
-         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
+         * @augments languagecheck.CheckResponse.$Properties
+         * @deprecated Use languagecheck.CheckResponse.$Properties instead.
+         */
+
+        /**
+         * Shape of a CheckResponse.
+         * @typedef {languagecheck.CheckResponse.$Properties} languagecheck.CheckResponse.$Shape
          */
 
         /**
          * Constructs a new CheckResponse.
          * @memberof languagecheck
          * @classdesc Represents a CheckResponse.
-         * @implements ICheckResponse
          * @constructor
-         * @param {languagecheck.ICheckResponse=} [properties] Properties to set
+         * @param {languagecheck.CheckResponse.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function CheckResponse(properties) {
@@ -2476,7 +2617,7 @@ $root.languagecheck = (function() {
 
         /**
          * CheckResponse diagnostics.
-         * @member {Array.<languagecheck.IDiagnostic>} diagnostics
+         * @member {Array.<languagecheck.Diagnostic.$Properties>} diagnostics
          * @memberof languagecheck.CheckResponse
          * @instance
          */
@@ -2484,7 +2625,7 @@ $root.languagecheck = (function() {
 
         /**
          * CheckResponse extraction.
-         * @member {languagecheck.IExtractionInfo|null|undefined} extraction
+         * @member {languagecheck.ExtractionInfo.$Properties|null|undefined} extraction
          * @memberof languagecheck.CheckResponse
          * @instance
          */
@@ -2492,7 +2633,7 @@ $root.languagecheck = (function() {
 
         /**
          * CheckResponse engineHealth.
-         * @member {Array.<languagecheck.IEngineHealth>} engineHealth
+         * @member {Array.<languagecheck.EngineHealth.$Properties>} engineHealth
          * @memberof languagecheck.CheckResponse
          * @instance
          */
@@ -2503,8 +2644,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.CheckResponse
          * @static
-         * @param {languagecheck.ICheckResponse=} [properties] Properties to set
+         * @param {languagecheck.CheckResponse.$Properties=} [properties] Properties to set
          * @returns {languagecheck.CheckResponse} CheckResponse instance
+         * @type {{
+         *   (properties: languagecheck.CheckResponse.$Shape): languagecheck.CheckResponse & languagecheck.CheckResponse.$Shape;
+         *   (properties?: languagecheck.CheckResponse.$Properties): languagecheck.CheckResponse;
+         * }}
          */
         CheckResponse.create = function create(properties) {
             return new CheckResponse(properties);
@@ -2515,7 +2660,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.CheckResponse
          * @static
-         * @param {languagecheck.ICheckResponse} message CheckResponse message or plain object to encode
+         * @param {languagecheck.CheckResponse.$Properties} message CheckResponse message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -2541,7 +2686,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.CheckResponse
          * @static
-         * @param {languagecheck.ICheckResponse} message CheckResponse message or plain object to encode
+         * @param {languagecheck.CheckResponse.$Properties} message CheckResponse message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -2556,7 +2701,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.CheckResponse} CheckResponse
+         * @returns {languagecheck.CheckResponse & languagecheck.CheckResponse.$Shape} CheckResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -2615,7 +2760,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.CheckResponse
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.CheckResponse} CheckResponse
+         * @returns {languagecheck.CheckResponse & languagecheck.CheckResponse.$Shape} CheckResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -2776,8 +2921,7 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of an EngineHealth.
-         * @memberof languagecheck
-         * @interface IEngineHealth
+         * @typedef {Object} languagecheck.EngineHealth.$Properties
          * @property {string|null} [name] EngineHealth name
          * @property {string|null} [status] EngineHealth status
          * @property {number|null} [consecutiveFailures] EngineHealth consecutiveFailures
@@ -2787,12 +2931,24 @@ $root.languagecheck = (function() {
          */
 
         /**
+         * Properties of an EngineHealth.
+         * @memberof languagecheck
+         * @interface IEngineHealth
+         * @augments languagecheck.EngineHealth.$Properties
+         * @deprecated Use languagecheck.EngineHealth.$Properties instead.
+         */
+
+        /**
+         * Shape of an EngineHealth.
+         * @typedef {languagecheck.EngineHealth.$Properties} languagecheck.EngineHealth.$Shape
+         */
+
+        /**
          * Constructs a new EngineHealth.
          * @memberof languagecheck
          * @classdesc Represents an EngineHealth.
-         * @implements IEngineHealth
          * @constructor
-         * @param {languagecheck.IEngineHealth=} [properties] Properties to set
+         * @param {languagecheck.EngineHealth.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function EngineHealth(properties) {
@@ -2847,8 +3003,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.EngineHealth
          * @static
-         * @param {languagecheck.IEngineHealth=} [properties] Properties to set
+         * @param {languagecheck.EngineHealth.$Properties=} [properties] Properties to set
          * @returns {languagecheck.EngineHealth} EngineHealth instance
+         * @type {{
+         *   (properties: languagecheck.EngineHealth.$Shape): languagecheck.EngineHealth & languagecheck.EngineHealth.$Shape;
+         *   (properties?: languagecheck.EngineHealth.$Properties): languagecheck.EngineHealth;
+         * }}
          */
         EngineHealth.create = function create(properties) {
             return new EngineHealth(properties);
@@ -2859,7 +3019,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.EngineHealth
          * @static
-         * @param {languagecheck.IEngineHealth} message EngineHealth message or plain object to encode
+         * @param {languagecheck.EngineHealth.$Properties} message EngineHealth message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -2887,7 +3047,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.EngineHealth
          * @static
-         * @param {languagecheck.IEngineHealth} message EngineHealth message or plain object to encode
+         * @param {languagecheck.EngineHealth.$Properties} message EngineHealth message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -2902,7 +3062,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.EngineHealth} EngineHealth
+         * @returns {languagecheck.EngineHealth & languagecheck.EngineHealth.$Shape} EngineHealth
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -2984,7 +3144,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.EngineHealth
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.EngineHealth} EngineHealth
+         * @returns {languagecheck.EngineHealth & languagecheck.EngineHealth.$Shape} EngineHealth
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -3088,9 +3248,9 @@ $root.languagecheck = (function() {
                 object.lastError = "";
                 if ($util.Long) {
                     var long = new $util.Long(0, 0, true);
-                    object.lastSuccessEpochMs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    object.lastSuccessEpochMs = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : typeof BigInt !== "undefined" && options.longs === BigInt ? long.toBigInt() : long;
                 } else
-                    object.lastSuccessEpochMs = options.longs === String ? "0" : 0;
+                    object.lastSuccessEpochMs = options.longs === String ? "0" : typeof BigInt !== "undefined" && options.longs === BigInt ? BigInt("0") : 0;
             }
             if (message.name != null && message.hasOwnProperty("name"))
                 object.name = message.name;
@@ -3101,7 +3261,9 @@ $root.languagecheck = (function() {
             if (message.lastError != null && message.hasOwnProperty("lastError"))
                 object.lastError = message.lastError;
             if (message.lastSuccessEpochMs != null && message.hasOwnProperty("lastSuccessEpochMs"))
-                if (typeof message.lastSuccessEpochMs === "number")
+                if (typeof BigInt !== "undefined" && options.longs === BigInt)
+                    object.lastSuccessEpochMs = typeof message.lastSuccessEpochMs === "number" ? BigInt(message.lastSuccessEpochMs) : $util.Long.fromBits(message.lastSuccessEpochMs.low >>> 0, message.lastSuccessEpochMs.high >>> 0, true).toBigInt();
+                else if (typeof message.lastSuccessEpochMs === "number")
                     object.lastSuccessEpochMs = options.longs === String ? String(message.lastSuccessEpochMs) : message.lastSuccessEpochMs;
                 else
                     object.lastSuccessEpochMs = options.longs === String ? $util.Long.prototype.toString.call(message.lastSuccessEpochMs) : options.longs === Number ? new $util.LongBits(message.lastSuccessEpochMs.low >>> 0, message.lastSuccessEpochMs.high >>> 0).toNumber(true) : message.lastSuccessEpochMs;
@@ -3140,20 +3302,31 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of an ExtractionExclusion.
-         * @memberof languagecheck
-         * @interface IExtractionExclusion
+         * @typedef {Object} languagecheck.ExtractionExclusion.$Properties
          * @property {number|null} [startByte] ExtractionExclusion startByte
          * @property {number|null} [endByte] ExtractionExclusion endByte
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
 
         /**
+         * Properties of an ExtractionExclusion.
+         * @memberof languagecheck
+         * @interface IExtractionExclusion
+         * @augments languagecheck.ExtractionExclusion.$Properties
+         * @deprecated Use languagecheck.ExtractionExclusion.$Properties instead.
+         */
+
+        /**
+         * Shape of an ExtractionExclusion.
+         * @typedef {languagecheck.ExtractionExclusion.$Properties} languagecheck.ExtractionExclusion.$Shape
+         */
+
+        /**
          * Constructs a new ExtractionExclusion.
          * @memberof languagecheck
          * @classdesc Represents an ExtractionExclusion.
-         * @implements IExtractionExclusion
          * @constructor
-         * @param {languagecheck.IExtractionExclusion=} [properties] Properties to set
+         * @param {languagecheck.ExtractionExclusion.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function ExtractionExclusion(properties) {
@@ -3184,8 +3357,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.ExtractionExclusion
          * @static
-         * @param {languagecheck.IExtractionExclusion=} [properties] Properties to set
+         * @param {languagecheck.ExtractionExclusion.$Properties=} [properties] Properties to set
          * @returns {languagecheck.ExtractionExclusion} ExtractionExclusion instance
+         * @type {{
+         *   (properties: languagecheck.ExtractionExclusion.$Shape): languagecheck.ExtractionExclusion & languagecheck.ExtractionExclusion.$Shape;
+         *   (properties?: languagecheck.ExtractionExclusion.$Properties): languagecheck.ExtractionExclusion;
+         * }}
          */
         ExtractionExclusion.create = function create(properties) {
             return new ExtractionExclusion(properties);
@@ -3196,7 +3373,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.ExtractionExclusion
          * @static
-         * @param {languagecheck.IExtractionExclusion} message ExtractionExclusion message or plain object to encode
+         * @param {languagecheck.ExtractionExclusion.$Properties} message ExtractionExclusion message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -3218,7 +3395,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.ExtractionExclusion
          * @static
-         * @param {languagecheck.IExtractionExclusion} message ExtractionExclusion message or plain object to encode
+         * @param {languagecheck.ExtractionExclusion.$Properties} message ExtractionExclusion message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -3233,7 +3410,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.ExtractionExclusion} ExtractionExclusion
+         * @returns {languagecheck.ExtractionExclusion & languagecheck.ExtractionExclusion.$Shape} ExtractionExclusion
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -3288,7 +3465,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.ExtractionExclusion
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.ExtractionExclusion} ExtractionExclusion
+         * @returns {languagecheck.ExtractionExclusion & languagecheck.ExtractionExclusion.$Shape} ExtractionExclusion
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -3403,21 +3580,32 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of an ExtractionProseRange.
-         * @memberof languagecheck
-         * @interface IExtractionProseRange
+         * @typedef {Object} languagecheck.ExtractionProseRange.$Properties
          * @property {number|null} [startByte] ExtractionProseRange startByte
          * @property {number|null} [endByte] ExtractionProseRange endByte
-         * @property {Array.<languagecheck.IExtractionExclusion>|null} [exclusions] ExtractionProseRange exclusions
+         * @property {Array.<languagecheck.ExtractionExclusion.$Properties>|null} [exclusions] ExtractionProseRange exclusions
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
+         */
+
+        /**
+         * Properties of an ExtractionProseRange.
+         * @memberof languagecheck
+         * @interface IExtractionProseRange
+         * @augments languagecheck.ExtractionProseRange.$Properties
+         * @deprecated Use languagecheck.ExtractionProseRange.$Properties instead.
+         */
+
+        /**
+         * Shape of an ExtractionProseRange.
+         * @typedef {languagecheck.ExtractionProseRange.$Properties} languagecheck.ExtractionProseRange.$Shape
          */
 
         /**
          * Constructs a new ExtractionProseRange.
          * @memberof languagecheck
          * @classdesc Represents an ExtractionProseRange.
-         * @implements IExtractionProseRange
          * @constructor
-         * @param {languagecheck.IExtractionProseRange=} [properties] Properties to set
+         * @param {languagecheck.ExtractionProseRange.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function ExtractionProseRange(properties) {
@@ -3446,7 +3634,7 @@ $root.languagecheck = (function() {
 
         /**
          * ExtractionProseRange exclusions.
-         * @member {Array.<languagecheck.IExtractionExclusion>} exclusions
+         * @member {Array.<languagecheck.ExtractionExclusion.$Properties>} exclusions
          * @memberof languagecheck.ExtractionProseRange
          * @instance
          */
@@ -3457,8 +3645,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.ExtractionProseRange
          * @static
-         * @param {languagecheck.IExtractionProseRange=} [properties] Properties to set
+         * @param {languagecheck.ExtractionProseRange.$Properties=} [properties] Properties to set
          * @returns {languagecheck.ExtractionProseRange} ExtractionProseRange instance
+         * @type {{
+         *   (properties: languagecheck.ExtractionProseRange.$Shape): languagecheck.ExtractionProseRange & languagecheck.ExtractionProseRange.$Shape;
+         *   (properties?: languagecheck.ExtractionProseRange.$Properties): languagecheck.ExtractionProseRange;
+         * }}
          */
         ExtractionProseRange.create = function create(properties) {
             return new ExtractionProseRange(properties);
@@ -3469,7 +3661,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.ExtractionProseRange
          * @static
-         * @param {languagecheck.IExtractionProseRange} message ExtractionProseRange message or plain object to encode
+         * @param {languagecheck.ExtractionProseRange.$Properties} message ExtractionProseRange message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -3494,7 +3686,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.ExtractionProseRange
          * @static
-         * @param {languagecheck.IExtractionProseRange} message ExtractionProseRange message or plain object to encode
+         * @param {languagecheck.ExtractionProseRange.$Properties} message ExtractionProseRange message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -3509,7 +3701,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.ExtractionProseRange} ExtractionProseRange
+         * @returns {languagecheck.ExtractionProseRange & languagecheck.ExtractionProseRange.$Shape} ExtractionProseRange
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -3572,7 +3764,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.ExtractionProseRange
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.ExtractionProseRange} ExtractionProseRange
+         * @returns {languagecheck.ExtractionProseRange & languagecheck.ExtractionProseRange.$Shape} ExtractionProseRange
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -3713,19 +3905,30 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of an ExtractionInfo.
+         * @typedef {Object} languagecheck.ExtractionInfo.$Properties
+         * @property {Array.<languagecheck.ExtractionProseRange.$Properties>|null} [proseRanges] ExtractionInfo proseRanges
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
+         */
+
+        /**
+         * Properties of an ExtractionInfo.
          * @memberof languagecheck
          * @interface IExtractionInfo
-         * @property {Array.<languagecheck.IExtractionProseRange>|null} [proseRanges] ExtractionInfo proseRanges
-         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
+         * @augments languagecheck.ExtractionInfo.$Properties
+         * @deprecated Use languagecheck.ExtractionInfo.$Properties instead.
+         */
+
+        /**
+         * Shape of an ExtractionInfo.
+         * @typedef {languagecheck.ExtractionInfo.$Properties} languagecheck.ExtractionInfo.$Shape
          */
 
         /**
          * Constructs a new ExtractionInfo.
          * @memberof languagecheck
          * @classdesc Represents an ExtractionInfo.
-         * @implements IExtractionInfo
          * @constructor
-         * @param {languagecheck.IExtractionInfo=} [properties] Properties to set
+         * @param {languagecheck.ExtractionInfo.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function ExtractionInfo(properties) {
@@ -3738,7 +3941,7 @@ $root.languagecheck = (function() {
 
         /**
          * ExtractionInfo proseRanges.
-         * @member {Array.<languagecheck.IExtractionProseRange>} proseRanges
+         * @member {Array.<languagecheck.ExtractionProseRange.$Properties>} proseRanges
          * @memberof languagecheck.ExtractionInfo
          * @instance
          */
@@ -3749,8 +3952,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.ExtractionInfo
          * @static
-         * @param {languagecheck.IExtractionInfo=} [properties] Properties to set
+         * @param {languagecheck.ExtractionInfo.$Properties=} [properties] Properties to set
          * @returns {languagecheck.ExtractionInfo} ExtractionInfo instance
+         * @type {{
+         *   (properties: languagecheck.ExtractionInfo.$Shape): languagecheck.ExtractionInfo & languagecheck.ExtractionInfo.$Shape;
+         *   (properties?: languagecheck.ExtractionInfo.$Properties): languagecheck.ExtractionInfo;
+         * }}
          */
         ExtractionInfo.create = function create(properties) {
             return new ExtractionInfo(properties);
@@ -3761,7 +3968,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.ExtractionInfo
          * @static
-         * @param {languagecheck.IExtractionInfo} message ExtractionInfo message or plain object to encode
+         * @param {languagecheck.ExtractionInfo.$Properties} message ExtractionInfo message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -3782,7 +3989,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.ExtractionInfo
          * @static
-         * @param {languagecheck.IExtractionInfo} message ExtractionInfo message or plain object to encode
+         * @param {languagecheck.ExtractionInfo.$Properties} message ExtractionInfo message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -3797,7 +4004,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.ExtractionInfo} ExtractionInfo
+         * @returns {languagecheck.ExtractionInfo & languagecheck.ExtractionInfo.$Shape} ExtractionInfo
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -3842,7 +4049,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.ExtractionInfo
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.ExtractionInfo} ExtractionInfo
+         * @returns {languagecheck.ExtractionInfo & languagecheck.ExtractionInfo.$Shape} ExtractionInfo
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -3963,8 +4170,7 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of a Diagnostic.
-         * @memberof languagecheck
-         * @interface IDiagnostic
+         * @typedef {Object} languagecheck.Diagnostic.$Properties
          * @property {number|null} [startByte] Diagnostic startByte
          * @property {number|null} [endByte] Diagnostic endByte
          * @property {string|null} [message] Diagnostic message
@@ -3977,12 +4183,24 @@ $root.languagecheck = (function() {
          */
 
         /**
+         * Properties of a Diagnostic.
+         * @memberof languagecheck
+         * @interface IDiagnostic
+         * @augments languagecheck.Diagnostic.$Properties
+         * @deprecated Use languagecheck.Diagnostic.$Properties instead.
+         */
+
+        /**
+         * Shape of a Diagnostic.
+         * @typedef {languagecheck.Diagnostic.$Properties} languagecheck.Diagnostic.$Shape
+         */
+
+        /**
          * Constructs a new Diagnostic.
          * @memberof languagecheck
          * @classdesc Represents a Diagnostic.
-         * @implements IDiagnostic
          * @constructor
-         * @param {languagecheck.IDiagnostic=} [properties] Properties to set
+         * @param {languagecheck.Diagnostic.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function Diagnostic(properties) {
@@ -4062,8 +4280,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.Diagnostic
          * @static
-         * @param {languagecheck.IDiagnostic=} [properties] Properties to set
+         * @param {languagecheck.Diagnostic.$Properties=} [properties] Properties to set
          * @returns {languagecheck.Diagnostic} Diagnostic instance
+         * @type {{
+         *   (properties: languagecheck.Diagnostic.$Shape): languagecheck.Diagnostic & languagecheck.Diagnostic.$Shape;
+         *   (properties?: languagecheck.Diagnostic.$Properties): languagecheck.Diagnostic;
+         * }}
          */
         Diagnostic.create = function create(properties) {
             return new Diagnostic(properties);
@@ -4074,7 +4296,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.Diagnostic
          * @static
-         * @param {languagecheck.IDiagnostic} message Diagnostic message or plain object to encode
+         * @param {languagecheck.Diagnostic.$Properties} message Diagnostic message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -4109,7 +4331,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.Diagnostic
          * @static
-         * @param {languagecheck.IDiagnostic} message Diagnostic message or plain object to encode
+         * @param {languagecheck.Diagnostic.$Properties} message Diagnostic message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -4124,7 +4346,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.Diagnostic} Diagnostic
+         * @returns {languagecheck.Diagnostic & languagecheck.Diagnostic.$Shape} Diagnostic
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -4232,7 +4454,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.Diagnostic
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.Diagnostic} Diagnostic
+         * @returns {languagecheck.Diagnostic & languagecheck.Diagnostic.$Shape} Diagnostic
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -4467,19 +4689,30 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of an AddDictionaryWordRequest.
-         * @memberof languagecheck
-         * @interface IAddDictionaryWordRequest
+         * @typedef {Object} languagecheck.AddDictionaryWordRequest.$Properties
          * @property {string|null} [word] AddDictionaryWordRequest word
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
+         */
+
+        /**
+         * Properties of an AddDictionaryWordRequest.
+         * @memberof languagecheck
+         * @interface IAddDictionaryWordRequest
+         * @augments languagecheck.AddDictionaryWordRequest.$Properties
+         * @deprecated Use languagecheck.AddDictionaryWordRequest.$Properties instead.
+         */
+
+        /**
+         * Shape of an AddDictionaryWordRequest.
+         * @typedef {languagecheck.AddDictionaryWordRequest.$Properties} languagecheck.AddDictionaryWordRequest.$Shape
          */
 
         /**
          * Constructs a new AddDictionaryWordRequest.
          * @memberof languagecheck
          * @classdesc Represents an AddDictionaryWordRequest.
-         * @implements IAddDictionaryWordRequest
          * @constructor
-         * @param {languagecheck.IAddDictionaryWordRequest=} [properties] Properties to set
+         * @param {languagecheck.AddDictionaryWordRequest.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function AddDictionaryWordRequest(properties) {
@@ -4502,8 +4735,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.AddDictionaryWordRequest
          * @static
-         * @param {languagecheck.IAddDictionaryWordRequest=} [properties] Properties to set
+         * @param {languagecheck.AddDictionaryWordRequest.$Properties=} [properties] Properties to set
          * @returns {languagecheck.AddDictionaryWordRequest} AddDictionaryWordRequest instance
+         * @type {{
+         *   (properties: languagecheck.AddDictionaryWordRequest.$Shape): languagecheck.AddDictionaryWordRequest & languagecheck.AddDictionaryWordRequest.$Shape;
+         *   (properties?: languagecheck.AddDictionaryWordRequest.$Properties): languagecheck.AddDictionaryWordRequest;
+         * }}
          */
         AddDictionaryWordRequest.create = function create(properties) {
             return new AddDictionaryWordRequest(properties);
@@ -4514,7 +4751,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.AddDictionaryWordRequest
          * @static
-         * @param {languagecheck.IAddDictionaryWordRequest} message AddDictionaryWordRequest message or plain object to encode
+         * @param {languagecheck.AddDictionaryWordRequest.$Properties} message AddDictionaryWordRequest message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -4534,7 +4771,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.AddDictionaryWordRequest
          * @static
-         * @param {languagecheck.IAddDictionaryWordRequest} message AddDictionaryWordRequest message or plain object to encode
+         * @param {languagecheck.AddDictionaryWordRequest.$Properties} message AddDictionaryWordRequest message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -4549,7 +4786,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.AddDictionaryWordRequest} AddDictionaryWordRequest
+         * @returns {languagecheck.AddDictionaryWordRequest & languagecheck.AddDictionaryWordRequest.$Shape} AddDictionaryWordRequest
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -4595,7 +4832,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.AddDictionaryWordRequest
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.AddDictionaryWordRequest} AddDictionaryWordRequest
+         * @returns {languagecheck.AddDictionaryWordRequest & languagecheck.AddDictionaryWordRequest.$Shape} AddDictionaryWordRequest
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -4700,18 +4937,29 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of a MetadataRequest.
+         * @typedef {Object} languagecheck.MetadataRequest.$Properties
+         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
+         */
+
+        /**
+         * Properties of a MetadataRequest.
          * @memberof languagecheck
          * @interface IMetadataRequest
-         * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
+         * @augments languagecheck.MetadataRequest.$Properties
+         * @deprecated Use languagecheck.MetadataRequest.$Properties instead.
+         */
+
+        /**
+         * Shape of a MetadataRequest.
+         * @typedef {languagecheck.MetadataRequest.$Properties} languagecheck.MetadataRequest.$Shape
          */
 
         /**
          * Constructs a new MetadataRequest.
          * @memberof languagecheck
          * @classdesc Represents a MetadataRequest.
-         * @implements IMetadataRequest
          * @constructor
-         * @param {languagecheck.IMetadataRequest=} [properties] Properties to set
+         * @param {languagecheck.MetadataRequest.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function MetadataRequest(properties) {
@@ -4726,8 +4974,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.MetadataRequest
          * @static
-         * @param {languagecheck.IMetadataRequest=} [properties] Properties to set
+         * @param {languagecheck.MetadataRequest.$Properties=} [properties] Properties to set
          * @returns {languagecheck.MetadataRequest} MetadataRequest instance
+         * @type {{
+         *   (properties: languagecheck.MetadataRequest.$Shape): languagecheck.MetadataRequest & languagecheck.MetadataRequest.$Shape;
+         *   (properties?: languagecheck.MetadataRequest.$Properties): languagecheck.MetadataRequest;
+         * }}
          */
         MetadataRequest.create = function create(properties) {
             return new MetadataRequest(properties);
@@ -4738,7 +4990,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.MetadataRequest
          * @static
-         * @param {languagecheck.IMetadataRequest} message MetadataRequest message or plain object to encode
+         * @param {languagecheck.MetadataRequest.$Properties} message MetadataRequest message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -4756,7 +5008,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.MetadataRequest
          * @static
-         * @param {languagecheck.IMetadataRequest} message MetadataRequest message or plain object to encode
+         * @param {languagecheck.MetadataRequest.$Properties} message MetadataRequest message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -4771,7 +5023,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.MetadataRequest} MetadataRequest
+         * @returns {languagecheck.MetadataRequest & languagecheck.MetadataRequest.$Shape} MetadataRequest
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -4805,7 +5057,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.MetadataRequest
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.MetadataRequest} MetadataRequest
+         * @returns {languagecheck.MetadataRequest & languagecheck.MetadataRequest.$Shape} MetadataRequest
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -4896,8 +5148,7 @@ $root.languagecheck = (function() {
 
         /**
          * Properties of a MetadataResponse.
-         * @memberof languagecheck
-         * @interface IMetadataResponse
+         * @typedef {Object} languagecheck.MetadataResponse.$Properties
          * @property {string|null} [name] MetadataResponse name
          * @property {string|null} [version] MetadataResponse version
          * @property {Array.<string>|null} [supportedLanguages] MetadataResponse supportedLanguages
@@ -4906,12 +5157,24 @@ $root.languagecheck = (function() {
          */
 
         /**
+         * Properties of a MetadataResponse.
+         * @memberof languagecheck
+         * @interface IMetadataResponse
+         * @augments languagecheck.MetadataResponse.$Properties
+         * @deprecated Use languagecheck.MetadataResponse.$Properties instead.
+         */
+
+        /**
+         * Shape of a MetadataResponse.
+         * @typedef {languagecheck.MetadataResponse.$Properties} languagecheck.MetadataResponse.$Shape
+         */
+
+        /**
          * Constructs a new MetadataResponse.
          * @memberof languagecheck
          * @classdesc Represents a MetadataResponse.
-         * @implements IMetadataResponse
          * @constructor
-         * @param {languagecheck.IMetadataResponse=} [properties] Properties to set
+         * @param {languagecheck.MetadataResponse.$Properties=} [properties] Properties to set
          * @property {Array.<Uint8Array>} [$unknowns] Unknown fields preserved while decoding
          */
         function MetadataResponse(properties) {
@@ -4959,8 +5222,12 @@ $root.languagecheck = (function() {
          * @function create
          * @memberof languagecheck.MetadataResponse
          * @static
-         * @param {languagecheck.IMetadataResponse=} [properties] Properties to set
+         * @param {languagecheck.MetadataResponse.$Properties=} [properties] Properties to set
          * @returns {languagecheck.MetadataResponse} MetadataResponse instance
+         * @type {{
+         *   (properties: languagecheck.MetadataResponse.$Shape): languagecheck.MetadataResponse & languagecheck.MetadataResponse.$Shape;
+         *   (properties?: languagecheck.MetadataResponse.$Properties): languagecheck.MetadataResponse;
+         * }}
          */
         MetadataResponse.create = function create(properties) {
             return new MetadataResponse(properties);
@@ -4971,7 +5238,7 @@ $root.languagecheck = (function() {
          * @function encode
          * @memberof languagecheck.MetadataResponse
          * @static
-         * @param {languagecheck.IMetadataResponse} message MetadataResponse message or plain object to encode
+         * @param {languagecheck.MetadataResponse.$Properties} message MetadataResponse message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -4998,7 +5265,7 @@ $root.languagecheck = (function() {
          * @function encodeDelimited
          * @memberof languagecheck.MetadataResponse
          * @static
-         * @param {languagecheck.IMetadataResponse} message MetadataResponse message or plain object to encode
+         * @param {languagecheck.MetadataResponse.$Properties} message MetadataResponse message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
@@ -5013,7 +5280,7 @@ $root.languagecheck = (function() {
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {languagecheck.MetadataResponse} MetadataResponse
+         * @returns {languagecheck.MetadataResponse & languagecheck.MetadataResponse.$Shape} MetadataResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
@@ -5085,7 +5352,7 @@ $root.languagecheck = (function() {
          * @memberof languagecheck.MetadataResponse
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {languagecheck.MetadataResponse} MetadataResponse
+         * @returns {languagecheck.MetadataResponse & languagecheck.MetadataResponse.$Shape} MetadataResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
