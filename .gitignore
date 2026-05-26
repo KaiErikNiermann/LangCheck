@@ -12,6 +12,10 @@ extension/package-lock.json
 # Protobuf
 /proto/gen/
 /rust-core/proto/
+# extension proto bindings — regenerated from proto/checker.proto on each
+# `pnpm install` (via prepare) and before build/lint/typecheck.
+/extension/src/proto/checker.js
+/extension/src/proto/checker.d.ts
 
 # Sphinx docs
 docs/_build/
