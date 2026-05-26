@@ -1,4 +1,4 @@
-/*eslint-disable block-scoped-var, id-length, no-control-regex, no-magic-numbers, no-prototype-builtins, no-redeclare, no-shadow, no-var, sort-vars, default-case, jsdoc/require-param*/
+/*eslint-disable block-scoped-var, id-length, no-control-regex, no-magic-numbers, no-mixed-operators, no-prototype-builtins, no-redeclare, no-shadow, no-var, sort-vars, default-case, jsdoc/require-param*/
 "use strict";
 
 var $protobuf = require("protobufjs/minimal");
@@ -158,21 +158,25 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Request.encode = function encode(message, writer) {
+        Request.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.id != null && Object.hasOwnProperty.call(message, "id"))
                 writer.uint32(/* id 1, wireType 0 =*/8).uint64(message.id);
             if (message.checkProse != null && Object.hasOwnProperty.call(message, "checkProse"))
-                $root.languagecheck.CheckRequest.encode(message.checkProse, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+                $root.languagecheck.CheckRequest.encode(message.checkProse, writer.uint32(/* id 2, wireType 2 =*/18).fork(), _depth + 1).ldelim();
             if (message.getMetadata != null && Object.hasOwnProperty.call(message, "getMetadata"))
-                $root.languagecheck.MetadataRequest.encode(message.getMetadata, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                $root.languagecheck.MetadataRequest.encode(message.getMetadata, writer.uint32(/* id 3, wireType 2 =*/26).fork(), _depth + 1).ldelim();
             if (message.ignore != null && Object.hasOwnProperty.call(message, "ignore"))
-                $root.languagecheck.IgnoreRequest.encode(message.ignore, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+                $root.languagecheck.IgnoreRequest.encode(message.ignore, writer.uint32(/* id 4, wireType 2 =*/34).fork(), _depth + 1).ldelim();
             if (message.initialize != null && Object.hasOwnProperty.call(message, "initialize"))
-                $root.languagecheck.InitializeRequest.encode(message.initialize, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+                $root.languagecheck.InitializeRequest.encode(message.initialize, writer.uint32(/* id 5, wireType 2 =*/42).fork(), _depth + 1).ldelim();
             if (message.addDictionaryWord != null && Object.hasOwnProperty.call(message, "addDictionaryWord"))
-                $root.languagecheck.AddDictionaryWordRequest.encode(message.addDictionaryWord, writer.uint32(/* id 6, wireType 2 =*/50).fork()).ldelim();
+                $root.languagecheck.AddDictionaryWordRequest.encode(message.addDictionaryWord, writer.uint32(/* id 6, wireType 2 =*/50).fork(), _depth + 1).ldelim();
             if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
                 for (var i = 0; i < message.$unknowns.length; ++i)
                     writer.raw(message.$unknowns[i]);
@@ -189,7 +193,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         Request.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -379,7 +383,7 @@ $root.languagecheck = (function() {
             if (object.id != null)
                 if (typeof object.id === "object" ? object.id.low || object.id.high : Number(object.id) !== 0)
                     if ($util.Long)
-                        (message.id = $util.Long.fromValue(object.id)).unsigned = true;
+                        message.id = $util.Long.fromValue(object.id, true);
                     else if (typeof object.id === "string")
                         message.id = parseInt(object.id, 10);
                     else if (typeof object.id === "number")
@@ -423,9 +427,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Request.toObject = function toObject(message, options) {
+        Request.toObject = function toObject(message, options, _depth) {
             if (!options)
                 options = {};
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var object = {};
             if (options.defaults)
                 if ($util.Long) {
@@ -441,27 +449,27 @@ $root.languagecheck = (function() {
                 else
                     object.id = options.longs === String ? $util.Long.prototype.toString.call(message.id) : options.longs === Number ? new $util.LongBits(message.id.low >>> 0, message.id.high >>> 0).toNumber(true) : message.id;
             if (message.checkProse != null && message.hasOwnProperty("checkProse")) {
-                object.checkProse = $root.languagecheck.CheckRequest.toObject(message.checkProse, options);
+                object.checkProse = $root.languagecheck.CheckRequest.toObject(message.checkProse, options, _depth + 1);
                 if (options.oneofs)
                     object.payload = "checkProse";
             }
             if (message.getMetadata != null && message.hasOwnProperty("getMetadata")) {
-                object.getMetadata = $root.languagecheck.MetadataRequest.toObject(message.getMetadata, options);
+                object.getMetadata = $root.languagecheck.MetadataRequest.toObject(message.getMetadata, options, _depth + 1);
                 if (options.oneofs)
                     object.payload = "getMetadata";
             }
             if (message.ignore != null && message.hasOwnProperty("ignore")) {
-                object.ignore = $root.languagecheck.IgnoreRequest.toObject(message.ignore, options);
+                object.ignore = $root.languagecheck.IgnoreRequest.toObject(message.ignore, options, _depth + 1);
                 if (options.oneofs)
                     object.payload = "ignore";
             }
             if (message.initialize != null && message.hasOwnProperty("initialize")) {
-                object.initialize = $root.languagecheck.InitializeRequest.toObject(message.initialize, options);
+                object.initialize = $root.languagecheck.InitializeRequest.toObject(message.initialize, options, _depth + 1);
                 if (options.oneofs)
                     object.payload = "initialize";
             }
             if (message.addDictionaryWord != null && message.hasOwnProperty("addDictionaryWord")) {
-                object.addDictionaryWord = $root.languagecheck.AddDictionaryWordRequest.toObject(message.addDictionaryWord, options);
+                object.addDictionaryWord = $root.languagecheck.AddDictionaryWordRequest.toObject(message.addDictionaryWord, options, _depth + 1);
                 if (options.oneofs)
                     object.payload = "addDictionaryWord";
             }
@@ -599,9 +607,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        InitializeRequest.encode = function encode(message, writer) {
+        InitializeRequest.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.workspaceRoot != null && Object.hasOwnProperty.call(message, "workspaceRoot"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.workspaceRoot);
             if (message.indexOnOpen != null && Object.hasOwnProperty.call(message, "indexOnOpen"))
@@ -624,7 +636,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         InitializeRequest.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -771,24 +783,22 @@ $root.languagecheck = (function() {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        InitializeRequest.toObject = function toObject(message, options) {
+        InitializeRequest.toObject = function toObject(message, options, _depth) {
             if (!options)
                 options = {};
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var object = {};
             if (options.defaults)
                 object.workspaceRoot = "";
             if (message.workspaceRoot != null && message.hasOwnProperty("workspaceRoot"))
                 object.workspaceRoot = message.workspaceRoot;
-            if (message.indexOnOpen != null && message.hasOwnProperty("indexOnOpen")) {
+            if (message.indexOnOpen != null && message.hasOwnProperty("indexOnOpen"))
                 object.indexOnOpen = message.indexOnOpen;
-                if (options.oneofs)
-                    object._indexOnOpen = "indexOnOpen";
-            }
-            if (message.dbPath != null && message.hasOwnProperty("dbPath")) {
+            if (message.dbPath != null && message.hasOwnProperty("dbPath"))
                 object.dbPath = message.dbPath;
-                if (options.oneofs)
-                    object._dbPath = "dbPath";
-            }
             return object;
         };
 
@@ -926,9 +936,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        IgnoreRequest.encode = function encode(message, writer) {
+        IgnoreRequest.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.message != null && Object.hasOwnProperty.call(message, "message"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.message);
             if (message.context != null && Object.hasOwnProperty.call(message, "context"))
@@ -955,7 +969,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         IgnoreRequest.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -1133,9 +1147,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        IgnoreRequest.toObject = function toObject(message, options) {
+        IgnoreRequest.toObject = function toObject(message, options, _depth) {
             if (!options)
                 options = {};
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var object = {};
             if (options.defaults) {
                 object.message = "";
@@ -1315,19 +1333,23 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Response.encode = function encode(message, writer) {
+        Response.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.id != null && Object.hasOwnProperty.call(message, "id"))
                 writer.uint32(/* id 1, wireType 0 =*/8).uint64(message.id);
             if (message.checkProse != null && Object.hasOwnProperty.call(message, "checkProse"))
-                $root.languagecheck.CheckResponse.encode(message.checkProse, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+                $root.languagecheck.CheckResponse.encode(message.checkProse, writer.uint32(/* id 2, wireType 2 =*/18).fork(), _depth + 1).ldelim();
             if (message.getMetadata != null && Object.hasOwnProperty.call(message, "getMetadata"))
-                $root.languagecheck.MetadataResponse.encode(message.getMetadata, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                $root.languagecheck.MetadataResponse.encode(message.getMetadata, writer.uint32(/* id 3, wireType 2 =*/26).fork(), _depth + 1).ldelim();
             if (message.error != null && Object.hasOwnProperty.call(message, "error"))
-                $root.languagecheck.ErrorResponse.encode(message.error, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+                $root.languagecheck.ErrorResponse.encode(message.error, writer.uint32(/* id 4, wireType 2 =*/34).fork(), _depth + 1).ldelim();
             if (message.ok != null && Object.hasOwnProperty.call(message, "ok"))
-                $root.languagecheck.OkResponse.encode(message.ok, writer.uint32(/* id 5, wireType 2 =*/42).fork()).ldelim();
+                $root.languagecheck.OkResponse.encode(message.ok, writer.uint32(/* id 5, wireType 2 =*/42).fork(), _depth + 1).ldelim();
             if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
                 for (var i = 0; i < message.$unknowns.length; ++i)
                     writer.raw(message.$unknowns[i]);
@@ -1344,7 +1366,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         Response.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -1517,7 +1539,7 @@ $root.languagecheck = (function() {
             if (object.id != null)
                 if (typeof object.id === "object" ? object.id.low || object.id.high : Number(object.id) !== 0)
                     if ($util.Long)
-                        (message.id = $util.Long.fromValue(object.id)).unsigned = true;
+                        message.id = $util.Long.fromValue(object.id, true);
                     else if (typeof object.id === "string")
                         message.id = parseInt(object.id, 10);
                     else if (typeof object.id === "number")
@@ -1556,9 +1578,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Response.toObject = function toObject(message, options) {
+        Response.toObject = function toObject(message, options, _depth) {
             if (!options)
                 options = {};
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var object = {};
             if (options.defaults)
                 if ($util.Long) {
@@ -1574,22 +1600,22 @@ $root.languagecheck = (function() {
                 else
                     object.id = options.longs === String ? $util.Long.prototype.toString.call(message.id) : options.longs === Number ? new $util.LongBits(message.id.low >>> 0, message.id.high >>> 0).toNumber(true) : message.id;
             if (message.checkProse != null && message.hasOwnProperty("checkProse")) {
-                object.checkProse = $root.languagecheck.CheckResponse.toObject(message.checkProse, options);
+                object.checkProse = $root.languagecheck.CheckResponse.toObject(message.checkProse, options, _depth + 1);
                 if (options.oneofs)
                     object.payload = "checkProse";
             }
             if (message.getMetadata != null && message.hasOwnProperty("getMetadata")) {
-                object.getMetadata = $root.languagecheck.MetadataResponse.toObject(message.getMetadata, options);
+                object.getMetadata = $root.languagecheck.MetadataResponse.toObject(message.getMetadata, options, _depth + 1);
                 if (options.oneofs)
                     object.payload = "getMetadata";
             }
             if (message.error != null && message.hasOwnProperty("error")) {
-                object.error = $root.languagecheck.ErrorResponse.toObject(message.error, options);
+                object.error = $root.languagecheck.ErrorResponse.toObject(message.error, options, _depth + 1);
                 if (options.oneofs)
                     object.payload = "error";
             }
             if (message.ok != null && message.hasOwnProperty("ok")) {
-                object.ok = $root.languagecheck.OkResponse.toObject(message.ok, options);
+                object.ok = $root.languagecheck.OkResponse.toObject(message.ok, options, _depth + 1);
                 if (options.oneofs)
                     object.payload = "ok";
             }
@@ -1685,9 +1711,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        OkResponse.encode = function encode(message, writer) {
+        OkResponse.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
                 for (var i = 0; i < message.$unknowns.length; ++i)
                     writer.raw(message.$unknowns[i]);
@@ -1704,7 +1734,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         OkResponse.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -1905,9 +1935,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ErrorResponse.encode = function encode(message, writer) {
+        ErrorResponse.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.message != null && Object.hasOwnProperty.call(message, "message"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.message);
             if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
@@ -1926,7 +1960,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         ErrorResponse.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -2044,9 +2078,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ErrorResponse.toObject = function toObject(message, options) {
+        ErrorResponse.toObject = function toObject(message, options, _depth) {
             if (!options)
                 options = {};
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var object = {};
             if (options.defaults)
                 object.message = "";
@@ -2291,9 +2329,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        CheckRequest.encode = function encode(message, writer) {
+        CheckRequest.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.text != null && Object.hasOwnProperty.call(message, "text"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.text);
             if (message.languageId != null && Object.hasOwnProperty.call(message, "languageId"))
@@ -2319,7 +2361,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         CheckRequest.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -2515,9 +2557,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        CheckRequest.toObject = function toObject(message, options) {
+        CheckRequest.toObject = function toObject(message, options, _depth) {
             if (!options)
                 options = {};
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var object = {};
             if (options.objects || options.defaults)
                 object.settings = {};
@@ -2538,11 +2584,8 @@ $root.languagecheck = (function() {
                     object.settings[keys2[j]] = message.settings[keys2[j]];
                 }
             }
-            if (message.filePath != null && message.hasOwnProperty("filePath")) {
+            if (message.filePath != null && message.hasOwnProperty("filePath"))
                 object.filePath = message.filePath;
-                if (options.oneofs)
-                    object._filePath = "filePath";
-            }
             return object;
         };
 
@@ -2664,17 +2707,21 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        CheckResponse.encode = function encode(message, writer) {
+        CheckResponse.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.diagnostics != null && message.diagnostics.length)
                 for (var i = 0; i < message.diagnostics.length; ++i)
-                    $root.languagecheck.Diagnostic.encode(message.diagnostics[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                    $root.languagecheck.Diagnostic.encode(message.diagnostics[i], writer.uint32(/* id 1, wireType 2 =*/10).fork(), _depth + 1).ldelim();
             if (message.extraction != null && Object.hasOwnProperty.call(message, "extraction"))
-                $root.languagecheck.ExtractionInfo.encode(message.extraction, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+                $root.languagecheck.ExtractionInfo.encode(message.extraction, writer.uint32(/* id 2, wireType 2 =*/18).fork(), _depth + 1).ldelim();
             if (message.engineHealth != null && message.engineHealth.length)
                 for (var i = 0; i < message.engineHealth.length; ++i)
-                    $root.languagecheck.EngineHealth.encode(message.engineHealth[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                    $root.languagecheck.EngineHealth.encode(message.engineHealth[i], writer.uint32(/* id 3, wireType 2 =*/26).fork(), _depth + 1).ldelim();
             if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
                 for (var i = 0; i < message.$unknowns.length; ++i)
                     writer.raw(message.$unknowns[i]);
@@ -2691,7 +2738,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         CheckResponse.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -2864,9 +2911,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        CheckResponse.toObject = function toObject(message, options) {
+        CheckResponse.toObject = function toObject(message, options, _depth) {
             if (!options)
                 options = {};
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var object = {};
             if (options.arrays || options.defaults) {
                 object.diagnostics = [];
@@ -2877,14 +2928,14 @@ $root.languagecheck = (function() {
             if (message.diagnostics && message.diagnostics.length) {
                 object.diagnostics = Array(message.diagnostics.length);
                 for (var j = 0; j < message.diagnostics.length; ++j)
-                    object.diagnostics[j] = $root.languagecheck.Diagnostic.toObject(message.diagnostics[j], options);
+                    object.diagnostics[j] = $root.languagecheck.Diagnostic.toObject(message.diagnostics[j], options, _depth + 1);
             }
             if (message.extraction != null && message.hasOwnProperty("extraction"))
-                object.extraction = $root.languagecheck.ExtractionInfo.toObject(message.extraction, options);
+                object.extraction = $root.languagecheck.ExtractionInfo.toObject(message.extraction, options, _depth + 1);
             if (message.engineHealth && message.engineHealth.length) {
                 object.engineHealth = Array(message.engineHealth.length);
                 for (var j = 0; j < message.engineHealth.length; ++j)
-                    object.engineHealth[j] = $root.languagecheck.EngineHealth.toObject(message.engineHealth[j], options);
+                    object.engineHealth[j] = $root.languagecheck.EngineHealth.toObject(message.engineHealth[j], options, _depth + 1);
             }
             return object;
         };
@@ -3023,9 +3074,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        EngineHealth.encode = function encode(message, writer) {
+        EngineHealth.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.name != null && Object.hasOwnProperty.call(message, "name"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.name);
             if (message.status != null && Object.hasOwnProperty.call(message, "status"))
@@ -3052,7 +3107,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         EngineHealth.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -3218,7 +3273,7 @@ $root.languagecheck = (function() {
             if (object.lastSuccessEpochMs != null)
                 if (typeof object.lastSuccessEpochMs === "object" ? object.lastSuccessEpochMs.low || object.lastSuccessEpochMs.high : Number(object.lastSuccessEpochMs) !== 0)
                     if ($util.Long)
-                        (message.lastSuccessEpochMs = $util.Long.fromValue(object.lastSuccessEpochMs)).unsigned = true;
+                        message.lastSuccessEpochMs = $util.Long.fromValue(object.lastSuccessEpochMs, true);
                     else if (typeof object.lastSuccessEpochMs === "string")
                         message.lastSuccessEpochMs = parseInt(object.lastSuccessEpochMs, 10);
                     else if (typeof object.lastSuccessEpochMs === "number")
@@ -3237,9 +3292,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        EngineHealth.toObject = function toObject(message, options) {
+        EngineHealth.toObject = function toObject(message, options, _depth) {
             if (!options)
                 options = {};
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var object = {};
             if (options.defaults) {
                 object.name = "";
@@ -3377,9 +3436,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ExtractionExclusion.encode = function encode(message, writer) {
+        ExtractionExclusion.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.startByte != null && Object.hasOwnProperty.call(message, "startByte"))
                 writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.startByte);
             if (message.endByte != null && Object.hasOwnProperty.call(message, "endByte"))
@@ -3400,7 +3463,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         ExtractionExclusion.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -3533,9 +3596,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ExtractionExclusion.toObject = function toObject(message, options) {
+        ExtractionExclusion.toObject = function toObject(message, options, _depth) {
             if (!options)
                 options = {};
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var object = {};
             if (options.defaults) {
                 object.startByte = 0;
@@ -3665,16 +3732,20 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ExtractionProseRange.encode = function encode(message, writer) {
+        ExtractionProseRange.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.startByte != null && Object.hasOwnProperty.call(message, "startByte"))
                 writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.startByte);
             if (message.endByte != null && Object.hasOwnProperty.call(message, "endByte"))
                 writer.uint32(/* id 2, wireType 0 =*/16).uint32(message.endByte);
             if (message.exclusions != null && message.exclusions.length)
                 for (var i = 0; i < message.exclusions.length; ++i)
-                    $root.languagecheck.ExtractionExclusion.encode(message.exclusions[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+                    $root.languagecheck.ExtractionExclusion.encode(message.exclusions[i], writer.uint32(/* id 3, wireType 2 =*/26).fork(), _depth + 1).ldelim();
             if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
                 for (var i = 0; i < message.$unknowns.length; ++i)
                     writer.raw(message.$unknowns[i]);
@@ -3691,7 +3762,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         ExtractionProseRange.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -3851,9 +3922,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ExtractionProseRange.toObject = function toObject(message, options) {
+        ExtractionProseRange.toObject = function toObject(message, options, _depth) {
             if (!options)
                 options = {};
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var object = {};
             if (options.arrays || options.defaults)
                 object.exclusions = [];
@@ -3868,7 +3943,7 @@ $root.languagecheck = (function() {
             if (message.exclusions && message.exclusions.length) {
                 object.exclusions = Array(message.exclusions.length);
                 for (var j = 0; j < message.exclusions.length; ++j)
-                    object.exclusions[j] = $root.languagecheck.ExtractionExclusion.toObject(message.exclusions[j], options);
+                    object.exclusions[j] = $root.languagecheck.ExtractionExclusion.toObject(message.exclusions[j], options, _depth + 1);
             }
             return object;
         };
@@ -3972,12 +4047,16 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        ExtractionInfo.encode = function encode(message, writer) {
+        ExtractionInfo.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.proseRanges != null && message.proseRanges.length)
                 for (var i = 0; i < message.proseRanges.length; ++i)
-                    $root.languagecheck.ExtractionProseRange.encode(message.proseRanges[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+                    $root.languagecheck.ExtractionProseRange.encode(message.proseRanges[i], writer.uint32(/* id 1, wireType 2 =*/10).fork(), _depth + 1).ldelim();
             if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
                 for (var i = 0; i < message.$unknowns.length; ++i)
                     writer.raw(message.$unknowns[i]);
@@ -3994,7 +4073,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         ExtractionInfo.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -4124,16 +4203,20 @@ $root.languagecheck = (function() {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        ExtractionInfo.toObject = function toObject(message, options) {
+        ExtractionInfo.toObject = function toObject(message, options, _depth) {
             if (!options)
                 options = {};
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var object = {};
             if (options.arrays || options.defaults)
                 object.proseRanges = [];
             if (message.proseRanges && message.proseRanges.length) {
                 object.proseRanges = Array(message.proseRanges.length);
                 for (var j = 0; j < message.proseRanges.length; ++j)
-                    object.proseRanges[j] = $root.languagecheck.ExtractionProseRange.toObject(message.proseRanges[j], options);
+                    object.proseRanges[j] = $root.languagecheck.ExtractionProseRange.toObject(message.proseRanges[j], options, _depth + 1);
             }
             return object;
         };
@@ -4300,9 +4383,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        Diagnostic.encode = function encode(message, writer) {
+        Diagnostic.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.startByte != null && Object.hasOwnProperty.call(message, "startByte"))
                 writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.startByte);
             if (message.endByte != null && Object.hasOwnProperty.call(message, "endByte"))
@@ -4336,7 +4423,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         Diagnostic.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -4600,9 +4687,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        Diagnostic.toObject = function toObject(message, options) {
+        Diagnostic.toObject = function toObject(message, options, _depth) {
             if (!options)
                 options = {};
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var object = {};
             if (options.arrays || options.defaults)
                 object.suggestions = [];
@@ -4755,9 +4846,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        AddDictionaryWordRequest.encode = function encode(message, writer) {
+        AddDictionaryWordRequest.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.word != null && Object.hasOwnProperty.call(message, "word"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.word);
             if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
@@ -4776,7 +4871,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         AddDictionaryWordRequest.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -4894,9 +4989,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        AddDictionaryWordRequest.toObject = function toObject(message, options) {
+        AddDictionaryWordRequest.toObject = function toObject(message, options, _depth) {
             if (!options)
                 options = {};
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var object = {};
             if (options.defaults)
                 object.word = "";
@@ -4994,9 +5093,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        MetadataRequest.encode = function encode(message, writer) {
+        MetadataRequest.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.$unknowns != null && Object.hasOwnProperty.call(message, "$unknowns"))
                 for (var i = 0; i < message.$unknowns.length; ++i)
                     writer.raw(message.$unknowns[i]);
@@ -5013,7 +5116,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         MetadataRequest.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -5242,9 +5345,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        MetadataResponse.encode = function encode(message, writer) {
+        MetadataResponse.encode = function encode(message, writer, _depth) {
             if (!writer)
                 writer = $Writer.create();
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             if (message.name != null && Object.hasOwnProperty.call(message, "name"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.name);
             if (message.version != null && Object.hasOwnProperty.call(message, "version"))
@@ -5270,7 +5377,7 @@ $root.languagecheck = (function() {
          * @returns {$protobuf.Writer} Writer
          */
         MetadataResponse.encodeDelimited = function encodeDelimited(message, writer) {
-            return this.encode(message, writer).ldelim();
+            return this.encode(message, writer && writer.len ? writer.fork() : writer).ldelim();
         };
 
         /**
@@ -5440,9 +5547,13 @@ $root.languagecheck = (function() {
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        MetadataResponse.toObject = function toObject(message, options) {
+        MetadataResponse.toObject = function toObject(message, options, _depth) {
             if (!options)
                 options = {};
+            if (_depth === undefined)
+                _depth = 0;
+            if (_depth > $util.recursionLimit)
+                throw Error("max depth exceeded");
             var object = {};
             if (options.arrays || options.defaults)
                 object.supportedLanguages = [];
