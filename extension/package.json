@@ -262,7 +262,12 @@
     ]
   },
   "scripts": {
-    "proto:gen": "pbjs -t static-module -w commonjs -o src/proto/checker.js ../proto/checker.proto && pbts -o src/proto/checker.d.ts src/proto/checker.js",
+    "proto:gen": "mkdir -p src/proto && pbjs -t static-module -w commonjs -o src/proto/checker.js ../proto/checker.proto && pbts -o src/proto/checker.d.ts src/proto/checker.js",
+    "prepare": "pnpm run proto:gen",
+    "pretypecheck": "pnpm run proto:gen",
+    "prelint": "pnpm run proto:gen",
+    "prebuild": "pnpm run proto:gen",
+    "prebuild:dev": "pnpm run proto:gen",
     "build": "node esbuild.mjs --production",
     "build:dev": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
