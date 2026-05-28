@@ -262,7 +262,7 @@
     ]
   },
   "scripts": {
-    "proto:gen": "pbjs -t static-module -w commonjs -o src/proto/checker.js ../proto/checker.proto && pbts -o src/proto/checker.d.ts src/proto/checker.js",
+    "proto:gen": "mkdir -p src/proto && pbjs -t static-module -w commonjs -o src/proto/checker.js ../proto/checker.proto && pbts -o src/proto/checker.d.ts src/proto/checker.js",
     "prepare": "pnpm run proto:gen",
     "pretypecheck": "pnpm run proto:gen",
     "prelint": "pnpm run proto:gen",
@@ -283,20 +283,20 @@
   "dependencies": {
     "@vscode/l10n": "^0.0.18",
     "long": "^5.3.2",
-    "protobufjs": "^8.4.0"
+    "protobufjs": "^8.4.2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/long": "^5.0.0",
-    "@types/node": "^25.9.0",
+    "@types/node": "^25.9.1",
     "@types/vscode": "^1.120.0",
     "esbuild": "^0.28.0",
     "eslint": "^10.4.0",
-    "protobufjs-cli": "^2.4.0",
+    "protobufjs-cli": "^2.4.2",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.59.4",
-    "vitest": "^4.1.6"
+    "typescript-eslint": "^8.60.0",
+    "vitest": "^4.1.7"
   },
   "pnpm": {
     "overrides": {
