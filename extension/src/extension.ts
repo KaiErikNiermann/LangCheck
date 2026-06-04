@@ -8,6 +8,7 @@ import { languagecheck } from './proto/checker';
 import { TraceLogger } from './trace';
 import { createAPI } from './api';
 import { binaryExists, downloadBinary } from './downloader';
+import { formatSuggestionLabel } from './inlayLabels';
 import type { LanguageCheckDiagnostic } from './api';
 import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth, InspectorEngineInfo } from './events';
 import { Logger } from './logger';
@@ -365,38 +366,7 @@ export async function activate(context: vscode.ExtensionContext) {
     ): { label: string; applyValue: string } | null {
         const suggestion = d.suggestions?.[0];
         if (suggestion === undefined) return null;
-
-        // Harper "Insert ..." pattern (e.g. Insert "comma")
-        const insertMatch = suggestion.match(/^Insert "(.+)"$/);
-        if (insertMatch) {
-            return { label: ` → insert ${insertMatch[1]}`, applyValue: suggestion };
-        }
-
-        // Deletion — empty suggestion
-        if (suggestion === '') {
-            return { label: ' → (remove)', applyValue: '' };
-        }
-
-        const originalText = document.getText(d.range);
-
-        // Punctuation insertion — suggestion starts with original + punctuation
-        if (originalText.length > 0 && suggestion.startsWith(originalText) && suggestion.length > originalText.length) {
-            const added = suggestion.slice(originalText.length);
-            if (/^[.,;:!?'"\-–—]+$/.test(added)) {
-                return { label: ` → insert "${added}"`, applyValue: suggestion };
-            }
-        }
-
-        // Punctuation removal — original starts with suggestion + trailing punctuation
-        if (suggestion.length > 0 && originalText.startsWith(suggestion) && originalText.length > suggestion.length) {
-            const removed = originalText.slice(suggestion.length);
-            if (/^[.,;:!?'"\-–—]+$/.test(removed)) {
-                return { label: ` → remove "${removed}"`, applyValue: suggestion };
-            }
-        }
-
-        // Default — show raw suggestion
-        return { label: ` → ${suggestion}`, applyValue: suggestion };
+        return formatSuggestionLabel(document.getText(d.range), suggestion);
     }
 
     // Register Inlay Hints Provider with invalidation support
