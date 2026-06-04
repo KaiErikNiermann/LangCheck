@@ -41,6 +41,15 @@ fmt:
 deny:
     cd rust-core && cargo deny check
 
+# Run Miri (UB / aliasing checker) over the FFI-free unsafe paths. The full
+# suite can't run under Miri — tree-sitter grammars are C and extism/wasmtime
+# are native — so this targets the hand-rolled byte manipulation (extract_text's
+# `as_bytes_mut` blanking, the prose merge/skip utils, and the offset tables).
+# Requires the nightly toolchain with the `miri` component.
+miri:
+    cd rust-core && cargo +nightly miri test --lib -- \
+        extract_text 'prose::shared::tests' to_byte
+
 # Run all rust checks
 check-rust: fmt-check clippy test-rust deny
 
