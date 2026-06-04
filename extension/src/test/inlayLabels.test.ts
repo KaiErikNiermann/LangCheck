@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { formatSuggestionLabel, visualizeWhitespace, describeWhitespaceFix } from '../inlayLabels';
+import {
+    formatSuggestionLabel,
+    visualizeWhitespace,
+    describeWhitespaceFix,
+    speedFixSuggestionLabel,
+    displayOriginalText,
+} from '../inlayLabels';
 
 describe('visualizeWhitespace', () => {
     it('renders spaces, tabs and newlines as visible glyphs', () => {
@@ -11,14 +17,14 @@ describe('visualizeWhitespace', () => {
 });
 
 describe('describeWhitespaceFix', () => {
-    it('describes collapsing redundant spaces', () => {
-        expect(describeWhitespaceFix('  ', ' ')).toBe(' → remove extra space');
-        expect(describeWhitespaceFix('   ', ' ')).toBe(' → remove 2 extra spaces');
-        expect(describeWhitespaceFix('     ', ' ')).toBe(' → remove 4 extra spaces');
+    it('describes collapsing redundant spaces (bare phrase, no prefix)', () => {
+        expect(describeWhitespaceFix('  ', ' ')).toBe('remove extra space');
+        expect(describeWhitespaceFix('   ', ' ')).toBe('remove 2 extra spaces');
+        expect(describeWhitespaceFix('     ', ' ')).toBe('remove 4 extra spaces');
     });
 
     it('falls back to visible glyphs for non-space whitespace', () => {
-        expect(describeWhitespaceFix('\t', ' ')).toBe(' → "␣"');
+        expect(describeWhitespaceFix('\t', ' ')).toBe('"␣"');
     });
 });
 
@@ -70,5 +76,31 @@ describe('formatSuggestionLabel', () => {
             label: ' → remove "."',
             applyValue: 'word',
         });
+    });
+});
+
+describe('speedFixSuggestionLabel (panel action buttons)', () => {
+    it('describes whitespace fixes (capitalized, no arrow)', () => {
+        expect(speedFixSuggestionLabel('  ', ' ')).toBe('Remove extra space');
+        expect(speedFixSuggestionLabel('    ', ' ')).toBe('Remove 3 extra spaces');
+    });
+
+    it('keeps existing wording for empty and insert suggestions', () => {
+        expect(speedFixSuggestionLabel('foo', '')).toBe('Remove text');
+        expect(speedFixSuggestionLabel('x', 'Insert "comma"')).toBe('Insert "comma"');
+        expect(speedFixSuggestionLabel('x', 'Insert " "')).toBe('Insert "␣"');
+    });
+
+    it('passes normal word replacements through unchanged', () => {
+        expect(speedFixSuggestionLabel('teh', 'the')).toBe('the');
+    });
+});
+
+describe('displayOriginalText', () => {
+    it('visualizes whitespace-only spans, leaves real text alone', () => {
+        expect(displayOriginalText('  ')).toBe('␣␣');
+        expect(displayOriginalText('\t')).toBe('⇥');
+        expect(displayOriginalText('teh')).toBe('teh');
+        expect(displayOriginalText('')).toBe('');
     });
 });

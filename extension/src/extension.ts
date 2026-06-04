@@ -8,7 +8,7 @@ import { languagecheck } from './proto/checker';
 import { TraceLogger } from './trace';
 import { createAPI } from './api';
 import { binaryExists, downloadBinary } from './downloader';
-import { formatSuggestionLabel } from './inlayLabels';
+import { formatSuggestionLabel, speedFixSuggestionLabel, displayOriginalText } from './inlayLabels';
 import type { LanguageCheckDiagnostic } from './api';
 import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth, InspectorEngineInfo } from './events';
 import { Logger } from './logger';
@@ -2206,6 +2206,31 @@ interface ExtendedDiagnostic extends vscode.Diagnostic {
 }
 
 const diagnosticsMap = new Map<string, ExtendedDiagnostic[]>();
+
+/** Build the SpeedFix webview payload for one diagnostic, precomputing the
+ *  display labels so all formatting lives in `inlayLabels`. */
+function toSpeedFixDiagnostic(
+    d: ExtendedDiagnostic,
+    index: number,
+    document: vscode.TextDocument,
+    fileName: string,
+): SpeedFixDiagnostic {
+    const text = document.getText(d.range);
+    const suggestions = d.suggestions || [];
+    return {
+        id: `diag-${index}`,
+        message: d.message,
+        suggestions,
+        suggestionLabels: suggestions.map(s => speedFixSuggestionLabel(text, s)),
+        text,
+        displayText: displayOriginalText(text),
+        context: document.lineAt(d.range.start.line).text.trim(),
+        ruleId: (d.code as string) || 'unknown',
+        fileName,
+        lineNumber: d.range.start.line + 1,
+    };
+}
+
 /** Words recently added to dictionary — suppress spelling diagnostics until the server catches up. */
 const suppressedWords = new Set<string>();
 /** Rule IDs recently deactivated — suppress matching diagnostics until the server catches up. */
@@ -2220,16 +2245,8 @@ function updateSpeedFixDiagnostics() {
         if (diagnostics && diagnostics.length > 0) {
             speedFixTargetUri = editor.document.uri.toString();
             const fileName = path.basename(editor.document.uri.fsPath);
-            const payload: SpeedFixDiagnostic[] = diagnostics.map((d, i) => ({
-                id: `diag-${i}`,
-                message: d.message,
-                suggestions: d.suggestions || [],
-                text: editor.document.getText(d.range),
-                context: editor.document.lineAt(d.range.start.line).text.trim(),
-                ruleId: d.code as string || 'unknown',
-                fileName,
-                lineNumber: d.range.start.line + 1,
-            }));
+            const payload: SpeedFixDiagnostic[] = diagnostics.map((d, i) =>
+                toSpeedFixDiagnostic(d, i, editor.document, fileName));
             speedFixPanel.webview.postMessage({ type: 'setDiagnostics', payload });
             sendWorkspaceProgress();
             return;
@@ -2258,16 +2275,8 @@ async function advanceToNextFileWithDiagnostics(currentUri?: string): Promise<vo
         speedFixTargetUri = uriStr;
 
         const fileName = path.basename(doc.uri.fsPath);
-        const payload: SpeedFixDiagnostic[] = diags.map((d, i) => ({
-            id: `diag-${i}`,
-            message: d.message,
-            suggestions: d.suggestions || [],
-            text: doc.getText(d.range),
-            context: doc.lineAt(d.range.start.line).text.trim(),
-            ruleId: d.code as string || 'unknown',
-            fileName,
-            lineNumber: d.range.start.line + 1,
-        }));
+        const payload: SpeedFixDiagnostic[] = diags.map((d, i) =>
+            toSpeedFixDiagnostic(d, i, doc, fileName));
         speedFixPanel?.webview.postMessage({ type: 'setDiagnostics', payload });
         sendWorkspaceProgress();
         speedFixPanel?.reveal(vscode.ViewColumn.Beside, false);

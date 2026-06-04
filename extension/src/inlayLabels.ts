@@ -25,6 +25,8 @@ export function visualizeWhitespace(s: string): string {
  * Describe a whitespace-only correction in words instead of rendering the
  * (invisible) literal characters, e.g. "  " → " " reads as "remove extra
  * space" rather than the confusing "  →  ".
+ *
+ * Returns a bare phrase with no decoration; callers add any prefix.
  */
 export function describeWhitespaceFix(original: string, suggestion: string): string {
     // Pure-space run shortened to a pure-space run (the common redundant-space
@@ -32,15 +34,20 @@ export function describeWhitespaceFix(original: string, suggestion: string): str
     if (/^ +$/.test(original) && /^ +$/.test(suggestion)) {
         const delta = original.length - suggestion.length;
         if (suggestion.length === 1 && delta > 0) {
-            return delta === 1 ? ' → remove extra space' : ` → remove ${delta} extra spaces`;
+            return delta === 1 ? 'remove extra space' : `remove ${delta} extra spaces`;
         }
         if (delta > 0) {
-            return ` → ${suggestion.length} space${suggestion.length === 1 ? '' : 's'}`;
+            return `${suggestion.length} space${suggestion.length === 1 ? '' : 's'}`;
         }
     }
     // Any other whitespace-only change (tabs, newlines, mixed): show it with
     // visible glyphs.
-    return ` → "${visualizeWhitespace(suggestion)}"`;
+    return `"${visualizeWhitespace(suggestion)}"`;
+}
+
+/** True when a correction differs only in (invisible) whitespace. */
+function isWhitespaceOnly(original: string, suggestion: string): boolean {
+    return original.trim() === '' && suggestion.trim() === '';
 }
 
 /**
@@ -69,8 +76,8 @@ export function formatSuggestionLabel(
     }
 
     // Whitespace-only correction — describe it rather than show invisible chars.
-    if (originalText.trim() === '' && suggestion.trim() === '') {
-        return { label: describeWhitespaceFix(originalText, suggestion), applyValue: suggestion };
+    if (isWhitespaceOnly(originalText, suggestion)) {
+        return { label: ` → ${describeWhitespaceFix(originalText, suggestion)}`, applyValue: suggestion };
     }
 
     // Punctuation insertion — suggestion is original + trailing punctuation.
@@ -91,4 +98,42 @@ export function formatSuggestionLabel(
 
     // Default — show the raw suggestion.
     return { label: ` → ${suggestion}`, applyValue: suggestion };
+}
+
+/** Capitalize the first character (for sentence-style action labels). */
+function capitalize(s: string): string {
+    return s.length > 0 ? s[0]!.toUpperCase() + s.slice(1) : s;
+}
+
+/**
+ * Display text for a single suggestion in the SpeedFix panel (where each
+ * suggestion is its own selectable action button). Unlike the inlay label this
+ * has no " → " prefix; the raw suggestion is still what gets applied.
+ */
+export function speedFixSuggestionLabel(originalText: string, suggestion: string): string {
+    if (suggestion === '') return 'Remove text';
+
+    const insertMatch = suggestion.match(/^Insert "(.+)"$/);
+    if (insertMatch) {
+        const inserted = insertMatch[1]!;
+        const shown = inserted.trim() === '' ? visualizeWhitespace(inserted) : inserted;
+        return `Insert "${shown}"`;
+    }
+
+    if (isWhitespaceOnly(originalText, suggestion)) {
+        return capitalize(describeWhitespaceFix(originalText, suggestion));
+    }
+
+    return suggestion;
+}
+
+/**
+ * Display form of the flagged original text. Whitespace-only spans (which would
+ * render as an empty box) are shown with visible glyphs; everything else is
+ * returned unchanged.
+ */
+export function displayOriginalText(originalText: string): string {
+    return originalText.length > 0 && originalText.trim() === ''
+        ? visualizeWhitespace(originalText)
+        : originalText;
 }

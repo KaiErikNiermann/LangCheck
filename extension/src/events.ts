@@ -5,8 +5,10 @@
 export interface SpeedFixDiagnostic {
     id: string;
     message: string;
-    suggestions: string[];
+    suggestions: string[];        // Raw replacement values (applied verbatim)
+    suggestionLabels: string[];   // Human-readable label per suggestion (display only)
     text: string;       // The actual problematic word/phrase at the diagnostic range
+    displayText: string;          // `text` with whitespace made visible (display only)
     context: string;    // The full line of text for context display
     ruleId: string;
     fileName: string;

@@ -5,7 +5,9 @@
     id: string;
     message: string;
     suggestions: string[];
+    suggestionLabels: string[];
     text: string;
+    displayText: string;
     context: string;
     ruleId: string;
     fileName: string;
@@ -284,7 +286,7 @@
       </button>
 
       <!-- Error text (the flagged word/phrase) -->
-      <div class="error-text">{current.text}</div>
+      <div class="error-text">{current.displayText}</div>
 
       <!-- Context block with highlight -->
       <div class="context">
@@ -304,7 +306,7 @@
             type="button"
           >
             {#if i < 10}<span class="key">{i < 9 ? i + 1 : 0}</span>{/if}
-            <span class="action-title">{suggestion === '' ? 'Remove text' : suggestion.replace(/^Insert\s+[""\u201C](.+)[""\u201D]$/, 'Insert "$1"')}</span>
+            <span class="action-title">{current.suggestionLabels[i] ?? suggestion}</span>
           </button>
         {/each}
         {#if lowResource && current.suggestions.length > 3}
