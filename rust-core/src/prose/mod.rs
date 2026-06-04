@@ -177,15 +177,33 @@ impl ProseRange {
         if self.exclusions.is_empty() {
             return std::borrow::Cow::Borrowed(slice);
         }
+        // Each exclusion must be a char-aligned byte range: we blank it with
+        // ASCII spaces, and overwriting only part of a multibyte character
+        // would corrupt the UTF-8 buffer (UB via the `as_bytes_mut` write).
+        // Exclusion boundaries originate from tree-sitter node offsets and
+        // prose-range boundaries, which are always char-aligned — assert it in
+        // debug builds so a regression fails loudly instead of silently.
+        #[cfg(debug_assertions)]
+        for &(exc_start, exc_end) in &self.exclusions {
+            let s = exc_start.saturating_sub(self.start_byte).min(slice.len());
+            let e = exc_end.saturating_sub(self.start_byte).min(slice.len());
+            debug_assert!(
+                slice.is_char_boundary(s) && slice.is_char_boundary(e),
+                "exclusion ({s}, {e}) is not on a char boundary in {slice:?}"
+            );
+        }
+
         let mut buf = slice.to_string();
-        // SAFETY: we only replace valid UTF-8 ranges with ASCII spaces
+        // SAFETY: every write below blanks a whole, char-aligned byte range
+        // with ASCII spaces (0x20), which preserves the UTF-8 validity of `buf`.
         let bytes = unsafe { buf.as_bytes_mut() };
         for &(exc_start, exc_end) in &self.exclusions {
-            // Convert document-level offsets to slice-local offsets
-            let local_start = exc_start.saturating_sub(self.start_byte);
+            // Convert document-level offsets to slice-local offsets, clamping
+            // both ends into range so a stray exclusion can never index OOB.
+            let local_start = exc_start.saturating_sub(self.start_byte).min(bytes.len());
             let local_end = exc_end.saturating_sub(self.start_byte).min(bytes.len());
-            for b in &mut bytes[local_start..local_end] {
-                *b = b' ';
+            if local_start < local_end {
+                bytes[local_start..local_end].fill(b' ');
             }
         }
         strip_unmatched_brackets(bytes);
@@ -249,6 +267,67 @@ fn strip_unmatched_brackets(bytes: &mut [u8]) {
 mod tests {
     use super::*;
     use latex::LatexExtras;
+
+    // ---- extract_text byte-blanking (FFI-free; also exercised under Miri) ----
+
+    #[test]
+    fn extract_text_no_exclusions_is_borrowed() {
+        let text = "café — touché";
+        let range = ProseRange {
+            start_byte: 0,
+            end_byte: text.len(),
+            exclusions: Vec::new(),
+        };
+        let out = range.extract_text(text);
+        assert!(matches!(out, std::borrow::Cow::Borrowed(_)));
+        assert_eq!(out, text);
+    }
+
+    #[test]
+    fn extract_text_blanks_excluded_ascii_keeping_multibyte() {
+        // "café" keeps its multibyte 'é'; the ascii 'X' region is blanked.
+        let text = "café X tea";
+        let x = text.find('X').unwrap();
+        let range = ProseRange {
+            start_byte: 0,
+            end_byte: text.len(),
+            exclusions: vec![(x, x + 1)],
+        };
+        let out = range.extract_text(text);
+        assert_eq!(out, "café   tea");
+        assert!(std::str::from_utf8(out.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn extract_text_blanks_a_whole_multibyte_char() {
+        // Excluding the em-dash (3 UTF-8 bytes) must blank all 3 and stay valid.
+        let text = "a—b";
+        let dash_start = text.find('—').unwrap();
+        let dash_end = dash_start + '—'.len_utf8();
+        let range = ProseRange {
+            start_byte: 0,
+            end_byte: text.len(),
+            exclusions: vec![(dash_start, dash_end)],
+        };
+        let out = range.extract_text(text);
+        assert_eq!(out, "a   b");
+    }
+
+    #[test]
+    fn extract_text_handles_document_level_offsets() {
+        // Range starts partway into the document; exclusions are document-level.
+        let text = "PREFIX café — done";
+        let start = text.find("café").unwrap();
+        let dash = text.find('—').unwrap();
+        let range = ProseRange {
+            start_byte: start,
+            end_byte: text.len(),
+            exclusions: vec![(dash, dash + '—'.len_utf8())],
+        };
+        // " — " → space + 3 blanked em-dash bytes + space = 5 spaces.
+        let out = range.extract_text(text);
+        assert_eq!(out, "café     done");
+    }
 
     #[test]
     fn test_markdown_extraction() -> Result<()> {

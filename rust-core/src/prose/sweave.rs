@@ -11,7 +11,11 @@ use super::latex::{self, LatexExtras};
 /// preserve byte offsets.
 fn preprocess(text: &str) -> String {
     let mut result = text.to_string();
-    // SAFETY: we only replace valid UTF-8 bytes with ASCII spaces.
+    // SAFETY: blanked ranges run from one line start to another (`chunk_start`
+    // and the end cursor only advance to positions right after a `\n`, an ASCII
+    // byte), so they are always char-aligned, and every non-`\n` byte in the
+    // range is replaced — never leaving a partial multibyte sequence. Both
+    // preserve the UTF-8 validity of `result`.
     let bytes = unsafe { result.as_bytes_mut() };
     let len = bytes.len();
     let mut i = 0;
