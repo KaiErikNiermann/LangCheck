@@ -289,7 +289,7 @@
     "@eslint/js": "^10.0.1",
     "@types/long": "^5.0.0",
     "@types/node": "^25.9.1",
-    "@types/vscode": "^1.120.0",
+    "@types/vscode": "^1.110.0",
     "esbuild": "^0.28.0",
     "eslint": "^10.4.1",
     "protobufjs-cli": "^2.5.0",

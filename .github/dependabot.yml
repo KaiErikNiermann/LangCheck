@@ -23,6 +23,12 @@ updates:
     labels:
       - "dependencies"
       - "typescript"
+    # @types/vscode must not exceed engines.vscode (^1.110.0) — vsce refuses
+    # to package when the typings declare a newer API than the engine floor.
+    # Pin it to the minimum supported VS Code version; bump manually together
+    # with engines.vscode when raising the floor.
+    ignore:
+      - dependency-name: "@types/vscode"
     groups:
       npm-deps:
         patterns:
