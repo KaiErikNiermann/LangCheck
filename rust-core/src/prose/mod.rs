@@ -43,17 +43,23 @@ impl ProseExtractor {
 
         let root = tree.root_node();
 
-        match lang_id {
-            "latex" => Ok(latex::extract(text, root, latex_extras)),
-            "sweave" => Ok(sweave::extract(text, root, latex_extras)),
-            "forester" => Ok(forester::extract(text, root)),
-            "tinylang" => Ok(tinylang::extract(text, root)),
-            "rst" => Ok(rst::extract(text, root)),
-            "bibtex" => Ok(bibtex::extract(text, root)),
-            "org" => Ok(org::extract(text, root)),
-            "typst" => Ok(typst::extract(text, root)),
-            lang => query::extract(text, root, &self.language, lang),
-        }
+        let ranges = match lang_id {
+            "latex" => latex::extract(text, root, latex_extras),
+            "sweave" => sweave::extract(text, root, latex_extras),
+            "forester" => forester::extract(text, root),
+            "tinylang" => tinylang::extract(text, root),
+            "rst" => rst::extract(text, root),
+            "bibtex" => bibtex::extract(text, root),
+            "org" => org::extract(text, root),
+            "typst" => typst::extract(text, root),
+            lang => query::extract(text, root, &self.language, lang)?,
+        };
+
+        // Merge prose blocks split across markup boundaries (e.g. \p{…} math
+        // \p{…}) so a continuation isn't flagged as a new, uncapitalized
+        // sentence. Honors explicit `lang-check-begin block` overrides.
+        let force_regions = crate::ignore_rules::IgnoreParser::block_regions(text);
+        Ok(shared::merge_continuations(ranges, text, &force_regions))
     }
 }
 

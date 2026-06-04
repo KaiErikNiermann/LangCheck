@@ -1592,6 +1592,65 @@ so the result follows.}";
     }
 
     #[test]
+    fn test_prose_block_continuation_merges() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // The second \p is a logical continuation: the first didn't end in
+        // .!? and the second starts lowercase. They must be checked as one
+        // block so "continuation" isn't flagged as an uncapitalized sentence.
+        let text = r"\p{Here is something} ##{x = 5} \p{continuation of the idea.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+
+        assert_eq!(
+            ranges.len(),
+            1,
+            "continuation should merge, got: {ranges:?}"
+        );
+        let merged = ranges[0].extract_text(text);
+        assert!(merged.contains("Here is something"), "got: {merged:?}");
+        assert!(
+            merged.contains("continuation of the idea"),
+            "got: {merged:?}"
+        );
+        assert!(
+            !merged.contains("x = 5"),
+            "math stays excluded, got: {merged:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_prose_blocks_not_merged_when_separate_sentences() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Both blocks are complete, capitalized sentences — keep them separate.
+        let text = r"\p{First complete sentence.} \p{Second complete sentence.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        assert_eq!(
+            ranges.len(),
+            2,
+            "distinct sentences stay separate, got: {ranges:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_block_directive_forces_merge() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Two complete sentences would normally stay separate; a
+        // `lang-check-begin block` region forces them into one checked unit.
+        let text = "% lang-check-begin block\n\\p{First complete sentence.}\n\\p{Second complete sentence.}\n% lang-check-end";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        assert_eq!(
+            ranges.len(),
+            1,
+            "block directive forces one merged block, got: {ranges:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn test_subtree_bracket_id_excluded() -> Result<()> {
         let mut extractor = forester_extractor()?;
 

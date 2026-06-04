@@ -239,9 +239,145 @@ pub fn is_fully_excluded(range: &ProseRange) -> bool {
     covered >= range.end_byte
 }
 
+// ---------------------------------------------------------------------------
+// Cross-block continuation merging
+// ---------------------------------------------------------------------------
+
+/// Merge adjacent prose blocks that are a logical continuation of one another,
+/// so a sentence split across markup boundaries (e.g. `\p{Here is something}
+/// ##{math} \p{continuation.}`) is checked as one unit and does not raise a
+/// false "sentence should start with a capital" error.
+///
+/// Two adjacent blocks A, B are merged when either:
+/// 1. they both fall inside a `force_regions` range (an explicit
+///    `lang-check-begin block` … `lang-check-end` override), or
+/// 2. they form a *natural continuation*: A does not end in sentence-terminal
+///    punctuation (`.`, `!`, `?`), B begins with a lowercase letter, and no
+///    blank line separates them.
+///
+/// Merging emits one `ProseRange` spanning both, with the inter-block markup
+/// (and each block's own exclusions) recorded as exclusions so it is blanked to
+/// spaces — never concatenating the prose across removed regions.
+#[must_use]
+pub fn merge_continuations(
+    mut ranges: Vec<ProseRange>,
+    text: &str,
+    force_regions: &[std::ops::Range<usize>],
+) -> Vec<ProseRange> {
+    if ranges.len() < 2 {
+        return ranges;
+    }
+    ranges.sort_by_key(|r| r.start_byte);
+
+    let mut out: Vec<ProseRange> = Vec::with_capacity(ranges.len());
+    for next in ranges {
+        let merge = out.last().is_some_and(|prev| {
+            in_same_force_region(prev, &next, force_regions)
+                || is_natural_continuation(prev, &next, text)
+        });
+        if merge {
+            let prev = out.last_mut().expect("merge implies a previous range");
+            if prev.end_byte < next.start_byte {
+                prev.exclusions.push((prev.end_byte, next.start_byte));
+            }
+            prev.exclusions.extend(next.exclusions.iter().copied());
+            prev.end_byte = next.end_byte;
+        } else {
+            out.push(next);
+        }
+    }
+    out
+}
+
+/// True when both blocks lie inside the same explicit force-merge region.
+fn in_same_force_region(
+    prev: &ProseRange,
+    next: &ProseRange,
+    force_regions: &[std::ops::Range<usize>],
+) -> bool {
+    force_regions
+        .iter()
+        .any(|r| r.contains(&prev.start_byte) && r.contains(&next.start_byte))
+}
+
+/// True when `next` reads as a natural continuation of `prev`: `prev` does not
+/// end a sentence, `next` starts lowercase, and no blank line separates them.
+fn is_natural_continuation(prev: &ProseRange, next: &ProseRange, text: &str) -> bool {
+    // A blank line between the blocks is an explicit paragraph break.
+    let gap = &text[prev.end_byte..next.start_byte];
+    if gap.contains("\n\n") || gap.contains("\r\n\r\n") {
+        return false;
+    }
+
+    // `prev` must not end in sentence-terminal punctuation.
+    let prev_text = prev.extract_text(text);
+    match prev_text.trim_end().chars().next_back() {
+        Some('.' | '!' | '?') | None => return false,
+        Some(_) => {}
+    }
+
+    // `next` must begin with a lowercase letter — the continuation signature.
+    let next_text = next.extract_text(text);
+    matches!(next_text.trim_start().chars().next(), Some(c) if c.is_lowercase())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn range(start: usize, end: usize) -> ProseRange {
+        ProseRange {
+            start_byte: start,
+            end_byte: end,
+            exclusions: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn continuation_merges_lowercase_after_no_terminator() {
+        //       0                17  19
+        let text = "Here is something  continuation.";
+        let merged = merge_continuations(vec![range(0, 17), range(19, 32)], text, &[]);
+        assert_eq!(merged.len(), 1, "blocks should merge into one");
+        assert_eq!((merged[0].start_byte, merged[0].end_byte), (0, 32));
+        assert!(
+            merged[0].exclusions.contains(&(17, 19)),
+            "gap recorded as exclusion"
+        );
+    }
+
+    #[test]
+    fn no_merge_when_prev_ends_in_terminator() {
+        let text = "First sentence. Second one.";
+        let merged = merge_continuations(vec![range(0, 15), range(16, 27)], text, &[]);
+        assert_eq!(merged.len(), 2, "terminal '.' blocks the merge");
+    }
+
+    #[test]
+    fn no_merge_when_next_starts_uppercase() {
+        let text = "here we go Now more";
+        let merged = merge_continuations(vec![range(0, 10), range(11, 19)], text, &[]);
+        assert_eq!(merged.len(), 2, "uppercase next start blocks the merge");
+    }
+
+    #[test]
+    fn no_merge_across_blank_line() {
+        let text = "here we go\n\nmore stuff";
+        let merged = merge_continuations(vec![range(0, 10), range(12, 22)], text, &[]);
+        assert_eq!(merged.len(), 2, "a blank line is a paragraph break");
+    }
+
+    #[test]
+    fn force_region_overrides_heuristic() {
+        // Terminal '.' and uppercase start would normally block the merge.
+        let text = "First sentence. Second one.";
+        let merged = merge_continuations(vec![range(0, 15), range(16, 27)], text, &[0..text.len()]);
+        assert_eq!(
+            merged.len(),
+            1,
+            "force region merges regardless of heuristic"
+        );
+    }
 
     #[test]
     fn test_skip_balanced_bytes_simple() {
