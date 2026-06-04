@@ -2,8 +2,9 @@ use tree_sitter::Node;
 
 use super::{ProseRange, shared};
 
-/// Commands whose arguments contain identifiers/addresses, not prose.
-/// All arguments of these commands are skipped entirely.
+/// Commands whose arguments are not prose and are skipped entirely:
+/// identifiers/addresses (`\ref`, `\import`, …) or verbatim code
+/// (`\code`, `\codeblock`, `\pre`) that should not be spell/grammar checked.
 const STRUCTURAL_COMMANDS: &[&str] = &[
     "\\import",
     "\\export",
@@ -35,6 +36,7 @@ const STRUCTURAL_COMMANDS: &[&str] = &[
     "\\xmlns",
     "\\query",
     "\\datalog",
+    "\\code",
 ];
 
 /// Block-level commands that contain prose but create scope boundaries.
@@ -53,7 +55,7 @@ const BLOCK_COMMANDS: &[&str] = &[
 ];
 
 /// Inline commands whose content bridges with surrounding prose.
-const INLINE_COMMANDS: &[&str] = &["\\em", "\\strong", "\\code"];
+const INLINE_COMMANDS: &[&str] = &["\\em", "\\strong"];
 
 /// Node kinds that are never prose and whose subtrees should be skipped.
 const SKIP_KINDS: &[&str] = &[
@@ -1554,6 +1556,36 @@ so the result follows.}";
         assert!(
             all_clean.contains("defines the syntax"),
             "Prose should be extracted, got: {all_clean:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_inline_code_content_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Inline \code{...} holds code/identifiers, not prose: its content must
+        // be skipped while the surrounding sentence is still extracted.
+        let text = r"\p{Call \code{teh_function} to begin the proccess.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let all_clean: String = ranges
+            .iter()
+            .map(|r| r.extract_text(text).into_owned())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        assert!(
+            !all_clean.contains("teh_function"),
+            "Inline \\code content should not be checked, got: {all_clean:?}"
+        );
+        assert!(
+            all_clean.contains("Call"),
+            "Prose before \\code should be extracted, got: {all_clean:?}"
+        );
+        assert!(
+            all_clean.contains("proccess"),
+            "Prose after \\code should be extracted, got: {all_clean:?}"
         );
 
         Ok(())
