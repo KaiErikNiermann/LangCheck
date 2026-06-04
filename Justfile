@@ -13,9 +13,13 @@ dev:
 
 # --- Rust ---
 
-# Build rust-core
+# Build rust-core (debug)
 build-rust:
     cd rust-core && cargo build
+
+# Build rust-core (release) — the binary `install-local` wires VS Code to
+build-rust-release:
+    cd rust-core && cargo build --release
 
 # Run rust tests
 test-rust:
@@ -93,15 +97,31 @@ docs-lang lang:
 
 # --- Local install ---
 
-# Package the extension and install it locally in VS Code
-install-local: build-ts
+# Build the latest local core + extension and install into VS Code for live
+# testing. Unlike dev-mode (F5), this installs a real production extension, so
+# it must be pointed at the locally-built core via `languageCheck.core.binaryPath`
+# — otherwise it downloads the latest *released* binary instead of your build.
+install-local: build-rust-release build-ts
     #!/usr/bin/env bash
     set -euo pipefail
+    bin="$(pwd)/rust-core/target/release/language-check-server"
     cd extension
     npx @vscode/vsce package --no-dependencies
     vsix=$(ls -t *.vsix | head -1)
     code --install-extension "$vsix" --force
+    echo
     echo "Installed $vsix"
+    echo
+    echo "┌─ Live local testing ────────────────────────────────────────────────"
+    echo "│ This is a PRODUCTION install. To run it against the core you just"
+    echo "│ built (instead of the latest released binary), set in VS Code"
+    echo "│ user settings.json:"
+    echo "│"
+    echo "│   \"languageCheck.core.binaryPath\": \"$bin\""
+    echo "│"
+    echo "│ Then run 'Developer: Reload Window'. Re-run 'just install-local'"
+    echo "│ after any frontend or backend change to refresh the live build."
+    echo "└─────────────────────────────────────────────────────────────────────"
 
 # --- Lua ---
 
