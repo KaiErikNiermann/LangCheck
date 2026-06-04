@@ -40,6 +40,50 @@ pub fn engine_supports_language(engine: &(dyn Engine + Send), lang_tag: &str) ->
     supported.iter().any(|s| s.eq_ignore_ascii_case(primary))
 }
 
+/// Build a lookup from Unicode-scalar (char) index → UTF-8 byte offset, with a
+/// final entry for the end-of-text index (char count → `text.len()`).
+///
+/// The wire protocol reports diagnostic spans as UTF-8 byte offsets, but some
+/// engines count in `char`s (e.g. Harper, which operates on a `Vec<char>`).
+/// Without this conversion, any multi-byte character (em-dash `—`, accented
+/// letters, …) before a diagnostic shifts every later underline.
+fn char_to_byte_table(text: &str) -> Vec<u32> {
+    #[allow(clippy::cast_possible_truncation)]
+    let mut table: Vec<u32> = text.char_indices().map(|(b, _)| b as u32).collect();
+    #[allow(clippy::cast_possible_truncation)]
+    table.push(text.len() as u32);
+    table
+}
+
+/// Build a lookup from UTF-16 code-unit index → UTF-8 byte offset, with a final
+/// entry for the end-of-text index.
+///
+/// Used for engines that report UTF-16 offsets (e.g. `LanguageTool`, a Java
+/// service whose char offsets are UTF-16 code units). Astral chars occupy two
+/// UTF-16 units; both map to the char's starting byte.
+fn utf16_to_byte_table(text: &str) -> Vec<u32> {
+    let mut table: Vec<u32> = Vec::with_capacity(text.len() + 1);
+    for (byte_idx, ch) in text.char_indices() {
+        #[allow(clippy::cast_possible_truncation)]
+        let b = byte_idx as u32;
+        for _ in 0..ch.len_utf16() {
+            table.push(b);
+        }
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    table.push(text.len() as u32);
+    table
+}
+
+/// Clamp-safe lookup into an offset table built by [`char_to_byte_table`] or
+/// [`utf16_to_byte_table`]. Out-of-range indices map to end-of-text.
+fn lookup_offset(table: &[u32], idx: usize) -> u32 {
+    table
+        .get(idx)
+        .copied()
+        .unwrap_or_else(|| table.last().copied().unwrap_or(0))
+}
+
 pub struct HarperEngine {
     linter: LintGroup,
     dict: Lrc<FstDictionary>,
@@ -79,6 +123,9 @@ impl Engine for HarperEngine {
         let document = Document::new(text, &Markdown::default(), self.dict.as_ref());
         let lints = self.linter.lint(&document);
 
+        // Harper spans are char indices; the protocol wants UTF-8 byte offsets.
+        let char_to_byte = char_to_byte_table(text);
+
         let diagnostics = lints
             .into_iter()
             .map(|lint| {
@@ -99,10 +146,8 @@ impl Engine for HarperEngine {
                     .collect();
 
                 Diagnostic {
-                    #[allow(clippy::cast_possible_truncation)]
-                    start_byte: lint.span.start as u32,
-                    #[allow(clippy::cast_possible_truncation)]
-                    end_byte: lint.span.end as u32,
+                    start_byte: lookup_offset(&char_to_byte, lint.span.start),
+                    end_byte: lookup_offset(&char_to_byte, lint.span.end),
                     message: lint.message,
                     suggestions,
                     rule_id: format!("harper.{:?}", lint.lint_kind),
@@ -261,6 +306,9 @@ impl Engine for LanguageToolEngine {
             "LanguageTool check complete"
         );
 
+        // LanguageTool reports offsets in UTF-16 code units; convert to bytes.
+        let utf16_to_byte = utf16_to_byte_table(text);
+
         let diagnostics = res
             .matches
             .into_iter()
@@ -272,10 +320,8 @@ impl Engine for LanguageToolEngine {
                 };
 
                 Diagnostic {
-                    #[allow(clippy::cast_possible_truncation)]
-                    start_byte: m.offset as u32,
-                    #[allow(clippy::cast_possible_truncation)]
-                    end_byte: (m.offset + m.length) as u32,
+                    start_byte: lookup_offset(&utf16_to_byte, m.offset),
+                    end_byte: lookup_offset(&utf16_to_byte, m.offset + m.length),
                     message: m.message,
                     suggestions: m.replacements.into_iter().map(|r| r.value).collect(),
                     rule_id: format!("languagetool.{}", m.rule.id),
@@ -539,6 +585,34 @@ pub fn discover_wasm_plugins(plugin_dir: &std::path::Path) -> Vec<(String, PathB
 mod tests {
     use super::*;
 
+    #[test]
+    fn char_to_byte_handles_multibyte() {
+        // "a—b": 'a'=1 byte, '—'(U+2014)=3 bytes, 'b'=1 byte.
+        let table = char_to_byte_table("a—b");
+        assert_eq!(table, vec![0, 1, 4, 5]); // char idx 0,1,2 -> bytes; 3 -> len
+        assert_eq!(lookup_offset(&table, 2), 4); // 'b' starts at byte 4, not 2
+        assert_eq!(lookup_offset(&table, 3), 5); // end-of-text
+        assert_eq!(lookup_offset(&table, 99), 5); // clamp
+    }
+
+    #[test]
+    fn utf16_to_byte_handles_astral() {
+        // "a😀b": 'a'=1 byte/1 unit, '😀'(U+1F600)=4 bytes/2 units, 'b'=1 byte.
+        let table = utf16_to_byte_table("a😀b");
+        // units: 0->'a'@0, 1&2->'😀'@1, 3->'b'@5, 4->end@6
+        assert_eq!(table, vec![0, 1, 1, 5, 6]);
+        assert_eq!(lookup_offset(&table, 3), 5); // 'b' after surrogate pair
+    }
+
+    #[test]
+    fn em_dash_does_not_shift_byte_offsets() {
+        // A char-index span (Harper-style) for "b" in "a—b" is (2, 3); after
+        // conversion it must point at bytes (4, 5), not (2, 3).
+        let table = char_to_byte_table("a—b");
+        assert_eq!(lookup_offset(&table, 2), 4);
+        assert_eq!(lookup_offset(&table, 3), 5);
+    }
+
     #[tokio::test]
     async fn test_harper_engine() -> Result<()> {
         let mut engine = HarperEngine::new(&crate::config::HarperConfig::default());
@@ -548,6 +622,26 @@ mod tests {
         // Harper should find "an test" error
         assert!(!diagnostics.is_empty());
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn harper_offsets_are_bytes_after_em_dash() -> Result<()> {
+        // An em-dash before the error must not shift the diagnostic's byte span.
+        let mut engine = HarperEngine::new(&crate::config::HarperConfig::default());
+        let text = "Some prose — this is an test.";
+        let diagnostics = engine.check(text, "en-US").await?;
+        assert!(!diagnostics.is_empty(), "Harper should flag 'an test'");
+
+        // Every diagnostic span must land on valid UTF-8 byte boundaries of the
+        // ORIGINAL text and slice to non-empty content (char-index spans would
+        // fall short by 2 bytes per em-dash and could split the multibyte char).
+        for d in &diagnostics {
+            let (s, e) = (d.start_byte as usize, d.end_byte as usize);
+            assert!(text.is_char_boundary(s), "start {s} not a char boundary");
+            assert!(text.is_char_boundary(e), "end {e} not a char boundary");
+            assert!(s <= e && e <= text.len(), "span ({s},{e}) out of range");
+        }
         Ok(())
     }
 
