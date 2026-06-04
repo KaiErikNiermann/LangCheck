@@ -33,6 +33,11 @@ pub struct BeginOptions {
     pub match_pattern: Option<String>,
     /// Skip lines matching this regex pattern.
     pub exclude_pattern: Option<String>,
+    /// Force every prose block in this region to be checked as one continuous
+    /// block, overriding the continuation heuristic (e.g. to keep a paragraph
+    /// split across `\p{}`/math boundaries from being flagged as separate
+    /// sentences). Set by the `block` token on `lang-check-begin`.
+    pub block: bool,
 }
 
 /// A parsed inline ignore directive.
@@ -203,6 +208,18 @@ impl IgnoreParser {
     }
 
     /// Resolve `Begin`/`End` directives into `DirectiveRegion` entries.
+    /// Byte ranges of `lang-check-begin block` … `lang-check-end` regions,
+    /// within which prose blocks are force-merged for continuation checking.
+    #[must_use]
+    pub fn block_regions(text: &str) -> Vec<Range<usize>> {
+        let directives = Self::parse_directives(text);
+        Self::resolve_regions(text, &directives)
+            .into_iter()
+            .filter(|region| region.options.block)
+            .map(|region| region.byte_range)
+            .collect()
+    }
+
     fn resolve_regions(text: &str, directives: &[IgnoreDirective]) -> Vec<DirectiveRegion> {
         let mut regions = Vec::new();
         let mut open_begins: Vec<&IgnoreDirective> = Vec::new();
@@ -416,6 +433,8 @@ fn parse_begin_options(rest: &str) -> BeginOptions {
             let pat = pat.strip_prefix('/').unwrap_or(pat);
             let pat = pat.strip_suffix('/').unwrap_or(pat);
             opts.exclude_pattern = Some(pat.to_string());
+        } else if token == "block" {
+            opts.block = true;
         } else {
             opts.rule_ids.push(token.to_string());
         }
@@ -509,6 +528,23 @@ fn line_matches_filters(text: &str, byte_pos: usize, opts: &BeginOptions) -> boo
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn block_regions_parses_block_option() {
+        let text = "% lang-check-begin block\nsome prose here\n% lang-check-end\nafter";
+        let regions = IgnoreParser::block_regions(text);
+        assert_eq!(regions.len(), 1, "one block region expected");
+        let region = &regions[0];
+        assert!(text[region.clone()].contains("some prose here"));
+        assert!(!text[region.clone()].contains("after"));
+    }
+
+    #[test]
+    fn block_regions_ignores_plain_begin() {
+        // A `lang-check-begin` without the `block` token is not a force-merge region.
+        let text = "% lang-check-begin lang:fr\nbonjour\n% lang-check-end";
+        assert!(IgnoreParser::block_regions(text).is_empty());
+    }
 
     fn make_diag(text: &str, needle: &str, rule_id: &str, unified_id: &str) -> Diagnostic {
         let start = text.find(needle).unwrap();
