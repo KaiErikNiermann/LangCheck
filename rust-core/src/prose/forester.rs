@@ -151,18 +151,37 @@ fn strip_inline_commands_in_range(
     }
 }
 
-/// Check if an `inline_math` node contains exactly one ASCII letter.
-/// Returns `Some(byte_offset)` of the letter if so, `None` otherwise.
+/// Decide whether a single-letter inline-math interior should be kept as prose
+/// (with the `#{}` delimiters stripped) rather than excluded like other math.
+///
+/// Only single **uppercase** letters other than `I` qualify. Uppercase letters
+/// read as named mathematical objects (`#{F}`, `#{X}`), and keeping them as prose
+/// lets a sentence such as `#{F} is a functor.` satisfy sentence-start
+/// capitalization instead of flagging the following word.
+///
+/// Excluded — because `LanguageTool` grammar-checks them as English words, turning
+/// math content into false positives:
+/// - lowercase letters, including index variables `#{i}`, `#{j}`, `#{x}`
+///   (`i` triggers `I_LOWERCASE` plus a cascading `PERS_PRONOUN_AGREEMENT` on the
+///   neighbouring real word);
+/// - the pronoun `I` (`#{I}`, the imaginary unit / identity), which triggers
+///   `PERS_PRONOUN_AGREEMENT` / `NON3PRS_VERB`.
+fn single_letter_kept_as_prose(trimmed: &str) -> bool {
+    matches!(trimmed.as_bytes(), [b] if b.is_ascii_uppercase() && *b != b'I')
+}
+
+/// Check if an `inline_math` node holds a single letter that should be kept as
+/// prose (see [`single_letter_kept_as_prose`]). Returns `Some(byte_offset)` of
+/// the letter when it qualifies, `None` otherwise.
 ///
 /// Inline math in Forester looks like `#{F}`. The node text includes the
-/// `#{` prefix and `}` suffix. We strip those and check if the interior
-/// is a single ASCII letter (a-zA-Z), optionally surrounded by whitespace.
+/// `#{` prefix and `}` suffix, optionally with whitespace around the letter.
 fn inline_math_single_letter(node: Node, text: &str) -> Option<usize> {
     let raw = &text[node.start_byte()..node.end_byte()];
     // Strip the #{ prefix and } suffix
     let inner = raw.strip_prefix("#{")?.strip_suffix('}')?;
     let trimmed = inner.trim();
-    if trimmed.len() == 1 && trimmed.as_bytes()[0].is_ascii_alphabetic() {
+    if single_letter_kept_as_prose(trimmed) {
         // Find the byte offset of the letter in the original text
         let inner_start = node.start_byte() + "#{".len();
         let offset_in_inner = inner.find(trimmed)?;
@@ -275,8 +294,8 @@ fn collect_prose_nodes(
     let kind = node.kind();
 
     // Skip entire subtrees for non-prose node kinds.
-    // Exception: inline math containing a single ASCII letter (e.g. #{F})
-    // is included as prose with the math delimiters stripped.
+    // Exception: inline math containing a single uppercase letter other than `I`
+    // (e.g. #{F}) is included as prose with the math delimiters stripped.
     if SKIP_KINDS.contains(&kind) {
         if kind == "inline_math"
             && let Some(letter_byte) = inline_math_single_letter(node, text)
@@ -446,14 +465,15 @@ fn find_math_regions(text: &str) -> Vec<(usize, usize)> {
         }
 
         // Inline math: #{...}
-        // Exception: single ASCII letter (e.g. #{F}) is included as prose
-        // with delimiter-only skip regions so the letter survives.
+        // Exception: single uppercase letter other than `I` (e.g. #{F}) is
+        // included as prose with delimiter-only skip regions so the letter
+        // survives.
         if bytes[i] == b'#' && i + 1 < len && bytes[i + 1] == b'{' {
             let start = i;
             let end = shared::skip_balanced_bytes(bytes, i + 2, b'{', b'}', Some(b'\\'));
             let inner = &text[start + 2..end.saturating_sub(1).max(start + 2)];
             let trimmed = inner.trim();
-            if trimmed.len() == 1 && trimmed.as_bytes()[0].is_ascii_alphabetic() {
+            if single_letter_kept_as_prose(trimmed) {
                 // Skip only the delimiters, not the letter
                 let letter_offset = start + 2 + inner.find(trimmed).unwrap_or(0);
                 regions.push((start, letter_offset));
@@ -750,13 +770,34 @@ which proves our claim.}";
     fn test_inline_math_single_letter_various() -> Result<()> {
         let mut extractor = forester_extractor()?;
 
-        // Lowercase letter
-        let text = r"\p{The variable #{v} is defined.}";
+        // Lowercase letter — excluded (e.g. index variables); LanguageTool would
+        // otherwise grammar-check it as an English word.
+        let text = r"\p{The quantity #{v} is fixed here.}";
         let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
         let clean: String = ranges.iter().map(|r| r.extract_text(text)).collect();
         assert!(
-            clean.contains('v') && clean.contains("variable") && clean.contains("defined"),
-            "Lowercase single letter should be included, got: {clean:?}"
+            !clean.contains('v') && clean.contains("quantity") && clean.contains("fixed"),
+            "Lowercase single letter should be excluded, got: {clean:?}"
+        );
+
+        // Lowercase `i` — excluded; would trigger I_LOWERCASE + agreement errors.
+        // Surrounding prose is chosen to contain no other 'i'.
+        let text = r"\p{When #{i} equals zero we stop.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let clean: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            !clean.contains('i') && clean.contains("equals zero"),
+            "Lowercase i should be excluded, got: {clean:?}"
+        );
+
+        // Uppercase pronoun `I` — excluded; reads as the pronoun, not a math
+        // object. Surrounding prose contains no other capital 'I'.
+        let text = r"\p{Here #{I} denotes the unit.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let clean: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+        assert!(
+            !clean.contains('I') && clean.contains("denotes the unit"),
+            "Uppercase pronoun I should be excluded, got: {clean:?}"
         );
 
         // Multi-character math is still excluded
@@ -795,6 +836,19 @@ which proves our claim.}";
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn test_single_letter_kept_as_prose_predicate() {
+        use super::single_letter_kept_as_prose;
+        // Uppercase math objects are kept.
+        for s in ["F", "X", "G", "A", "Z"] {
+            assert!(single_letter_kept_as_prose(s), "{s:?} should be kept");
+        }
+        // Lowercase, the pronoun I, digits, and multi-char are excluded.
+        for s in ["i", "j", "x", "v", "I", "3", "xy", "", "+"] {
+            assert!(!single_letter_kept_as_prose(s), "{s:?} should be excluded");
+        }
     }
 
     #[test]
