@@ -186,18 +186,11 @@ impl Orchestrator {
                         };
                         d.unified_id = self.normalizer.normalize(provider, &d.rule_id);
 
-                        // Apply rule severity overrides from config
-                        if let Some(rule_config) = self.config.rules.get(&d.unified_id)
-                            && let Some(severity_str) = &rule_config.severity
+                        // Apply rule severity overrides from config.
+                        if let Some(severity) =
+                            rule_override_severity(&self.config, &d.rule_id, &d.unified_id)
                         {
-                            d.severity = match severity_str.to_lowercase().as_str() {
-                                "error" => Severity::Error as i32,
-                                "warning" => Severity::Warning as i32,
-                                "info" => Severity::Information as i32,
-                                "hint" => Severity::Hint as i32,
-                                "off" => -1, // Mark for removal
-                                _ => d.severity,
-                            };
+                            d.severity = severity;
                         }
                     }
 
@@ -254,5 +247,86 @@ impl Orchestrator {
         }
 
         Ok(all_diagnostics)
+    }
+}
+
+/// Resolve a configured severity override for a diagnostic.
+///
+/// Overrides may be keyed by the **native** rule id shown on the diagnostic
+/// (e.g. `languagetool.ARROWS`, what the "Deactivate rule" action writes) or by
+/// the **unified** category id (e.g. `typography.capitalization`). The native id
+/// is matched first. Returns the new severity (`-1` marks the diagnostic for
+/// removal), or `None` when there is no applicable override.
+fn rule_override_severity(config: &Config, rule_id: &str, unified_id: &str) -> Option<i32> {
+    let rule_config = config
+        .rules
+        .get(rule_id)
+        .or_else(|| config.rules.get(unified_id))?;
+    let severity = rule_config.severity.as_ref()?;
+    match severity.to_lowercase().as_str() {
+        "error" => Some(Severity::Error as i32),
+        "warning" => Some(Severity::Warning as i32),
+        "info" => Some(Severity::Information as i32),
+        "hint" => Some(Severity::Hint as i32),
+        "off" => Some(-1),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::RuleConfig;
+
+    fn config_with_rule(key: &str, severity: &str) -> Config {
+        let mut config = Config::default();
+        config.rules.insert(
+            key.to_string(),
+            RuleConfig {
+                severity: Some(severity.to_string()),
+            },
+        );
+        config
+    }
+
+    #[test]
+    fn override_matches_native_rule_id() {
+        // The user keys the override by the native id (what diagnostics show).
+        let config = config_with_rule("languagetool.ARROWS", "off");
+        assert_eq!(
+            rule_override_severity(&config, "languagetool.ARROWS", "style.unknown"),
+            Some(-1)
+        );
+    }
+
+    #[test]
+    fn override_matches_unified_id() {
+        let config = config_with_rule("typography.capitalization", "off");
+        assert_eq!(
+            rule_override_severity(
+                &config,
+                "languagetool.UPPERCASE_SENTENCE_START",
+                "typography.capitalization"
+            ),
+            Some(-1)
+        );
+    }
+
+    #[test]
+    fn override_absent_returns_none() {
+        let config = config_with_rule("languagetool.OTHER", "off");
+        assert_eq!(
+            rule_override_severity(&config, "languagetool.ARROWS", "style.unknown"),
+            None
+        );
+    }
+
+    #[test]
+    fn override_maps_named_severities() {
+        let config = config_with_rule("languagetool.ARROWS", "Error");
+        assert_eq!(
+            rule_override_severity(&config, "languagetool.ARROWS", "x"),
+            Some(Severity::Error as i32)
+        );
     }
 }

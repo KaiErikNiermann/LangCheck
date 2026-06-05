@@ -2,6 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
+use tracing::warn;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
@@ -434,10 +435,12 @@ impl Config {
 
         if yaml_path.exists() {
             let content = std::fs::read_to_string(yaml_path)?;
+            warn_duplicate_rule_keys(&content);
             let config: Self = serde_yaml::from_str(&content)?;
             Ok(config)
         } else if yml_path.exists() {
             let content = std::fs::read_to_string(yml_path)?;
+            warn_duplicate_rule_keys(&content);
             let config: Self = serde_yaml::from_str(&content)?;
             Ok(config)
         } else if json_path.exists() {
@@ -473,6 +476,64 @@ impl Config {
     }
 }
 
+/// Collect rule keys that appear more than once under the top-level `rules:`
+/// mapping of a raw YAML config, in first-seen order.
+///
+/// `serde_yaml` silently keeps only the last value for a duplicated mapping
+/// key, so duplicates vanish after parsing; this scans the raw text so they can
+/// be surfaced. Recognizes block-style child keys (`  some.rule:` on its own
+/// line) at the mapping's first child indentation.
+fn duplicate_rule_keys(content: &str) -> Vec<String> {
+    let mut in_rules = false;
+    let mut child_indent: Option<usize> = None;
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut duplicates: Vec<String> = Vec::new();
+
+    for line in content.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let indent = line.len() - line.trim_start().len();
+
+        if !in_rules {
+            if indent == 0 && line.trim() == "rules:" {
+                in_rules = true;
+            }
+            continue;
+        }
+
+        // A new top-level key ends the rules block.
+        if indent == 0 {
+            break;
+        }
+
+        let child = *child_indent.get_or_insert(indent);
+        if indent != child {
+            continue; // deeper line (e.g. `severity: ...`), not a rule key
+        }
+        if let Some(key) = line.trim().strip_suffix(':') {
+            let key = key.trim().to_string();
+            if !key.is_empty() && !seen.insert(key.clone()) && !duplicates.contains(&key) {
+                duplicates.push(key);
+            }
+        }
+    }
+
+    duplicates
+}
+
+/// Log a warning if a raw YAML config contains duplicate rule keys.
+fn warn_duplicate_rule_keys(content: &str) {
+    let duplicates = duplicate_rule_keys(content);
+    if !duplicates.is_empty() {
+        warn!(
+            duplicates = ?duplicates,
+            "Duplicate rule keys in .languagecheck.yaml; only the last entry for each takes \
+             effect. Remove the extra copies to keep the ignore list clean."
+        );
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -491,6 +552,36 @@ impl Default for Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn duplicate_rule_keys_detects_repeats() {
+        let yaml = "rules:\n  languagetool.ARROWS:\n    severity: \"off\"\n  \
+                    languagetool.UPPERCASE_SENTENCE_START:\n    severity: \"off\"\n  \
+                    languagetool.ARROWS:\n    severity: \"off\"\n  \
+                    languagetool.UPPERCASE_SENTENCE_START:\n    severity: \"off\"\n  \
+                    languagetool.THE_SUPERLATIVE:\n    severity: \"off\"\n";
+        let dups = duplicate_rule_keys(yaml);
+        assert_eq!(
+            dups,
+            vec![
+                "languagetool.ARROWS".to_string(),
+                "languagetool.UPPERCASE_SENTENCE_START".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn duplicate_rule_keys_clean_list_is_empty() {
+        let yaml = "rules:\n  a.B:\n    severity: \"off\"\n  c.D:\n    severity: \"off\"\n";
+        assert!(duplicate_rule_keys(yaml).is_empty());
+    }
+
+    #[test]
+    fn duplicate_rule_keys_stops_at_next_section() {
+        // A repeat under a *different* top-level section must not count.
+        let yaml = "rules:\n  a.B:\n    severity: \"off\"\nengines:\n  harper: false\n";
+        assert!(duplicate_rule_keys(yaml).is_empty());
+    }
 
     #[test]
     fn default_config_has_harper_enabled_lt_disabled() {
