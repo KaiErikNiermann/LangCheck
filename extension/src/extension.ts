@@ -1071,15 +1071,23 @@ export async function activate(context: vscode.ExtensionContext) {
                 content = '';
             }
 
-            // Build the YAML entry: rules:\n  <ruleId>:\n    severity: "off"
-            const ruleEntry = `  ${ruleId}:\n    severity: "off"`;
-            if (content.includes('rules:')) {
-                content = content.replace(/rules:/, `rules:\n${ruleEntry}`);
-            } else {
-                content = `${content}\nrules:\n${ruleEntry}\n`;
-            }
+            // Only write the entry if this rule isn't already deactivated —
+            // otherwise repeated "Deactivate rule" clicks pile up duplicate
+            // keys (serde_yaml silently keeps just the last, so they're dead
+            // weight). Matches an existing `  <ruleId>:` line at any indent.
+            const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const alreadyDeactivated = new RegExp(`^\\s*${escapeRe(ruleId)}:\\s*$`, 'm').test(content);
 
-            await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
+            if (!alreadyDeactivated) {
+                // Build the YAML entry: rules:\n  <ruleId>:\n    severity: "off"
+                const ruleEntry = `  ${ruleId}:\n    severity: "off"`;
+                if (/^rules:/m.test(content)) {
+                    content = content.replace(/^rules:/m, `rules:\n${ruleEntry}`);
+                } else {
+                    content = `${content}\nrules:\n${ruleEntry}\n`;
+                }
+                await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
+            }
 
             // Suppress this rule in any in-flight check results
             suppressedRules.add(ruleId);
@@ -1100,7 +1108,9 @@ export async function activate(context: vscode.ExtensionContext) {
             updateSpeedFixDiagnostics();
 
             vscode.window.showInformationMessage(
-                vscode.l10n.t('Rule "{0}" deactivated in project config', ruleId)
+                alreadyDeactivated
+                    ? vscode.l10n.t('Rule "{0}" is already deactivated in project config', ruleId)
+                    : vscode.l10n.t('Rule "{0}" deactivated in project config', ruleId)
             );
 
             await reinitializeAndRecheck();
