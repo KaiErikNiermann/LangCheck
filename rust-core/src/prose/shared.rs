@@ -182,25 +182,53 @@ pub fn skip_command_args_chars(chars: &[char], mut i: usize, pairs: &[(char, cha
 
 /// Install skip-node byte ranges as exclusions on merged prose ranges.
 ///
-/// For each `ProseRange`, finds all skip ranges that overlap `[start_byte, end_byte)`,
-/// extends each to cover surrounding whitespace (so the checker sees clean boundaries),
-/// and adds them as exclusions.
+/// For each `ProseRange`, finds all skip ranges that overlap `[start_byte, end_byte)`
+/// and adds them as exclusions. A flanking whitespace run is folded into the
+/// exclusion only when it contains a line break, so a hard newline around
+/// block/display math is flattened to spaces (otherwise the checker sees the
+/// next line as a new, uncapitalized sentence). Ordinary inline spacing is left
+/// outside the exclusion, keeping its bounds tight against the skipped content.
 pub fn install_skip_exclusions(ranges: &mut [ProseRange], skips: &[(usize, usize)], text: &[u8]) {
     for range in ranges.iter_mut() {
         for &(skip_start, skip_end) in skips {
             if skip_end <= range.start_byte || skip_start >= range.end_byte {
                 continue;
             }
-            let mut exc_start = skip_start.max(range.start_byte);
-            let mut exc_end = skip_end.min(range.end_byte);
-            while exc_start > range.start_byte && text[exc_start - 1].is_ascii_whitespace() {
-                exc_start -= 1;
-            }
-            while exc_end < range.end_byte && text[exc_end].is_ascii_whitespace() {
-                exc_end += 1;
-            }
-            range.exclusions.push((exc_start, exc_end));
+            let exc_start = skip_start.max(range.start_byte);
+            let exc_end = skip_end.min(range.end_byte);
+            range.exclusions.push((
+                absorb_linebreak_left(text, range.start_byte, exc_start),
+                absorb_linebreak_right(text, range.end_byte, exc_end),
+            ));
         }
+    }
+}
+
+/// Extend `from` leftward over a whitespace run iff that run contains a line
+/// break; returns the (possibly unchanged) new start.
+fn absorb_linebreak_left(text: &[u8], lower_bound: usize, from: usize) -> usize {
+    let mut s = from;
+    while s > lower_bound && text[s - 1].is_ascii_whitespace() {
+        s -= 1;
+    }
+    if text[s..from].iter().any(|&b| b == b'\n' || b == b'\r') {
+        s
+    } else {
+        from
+    }
+}
+
+/// Extend `from` rightward over a whitespace run iff that run contains a line
+/// break; returns the (possibly unchanged) new end.
+fn absorb_linebreak_right(text: &[u8], upper_bound: usize, from: usize) -> usize {
+    let mut e = from;
+    while e < upper_bound && text[e].is_ascii_whitespace() {
+        e += 1;
+    }
+    if text[from..e].iter().any(|&b| b == b'\n' || b == b'\r') {
+        e
+    } else {
+        from
     }
 }
 
@@ -324,6 +352,37 @@ fn is_natural_continuation(prev: &ProseRange, next: &ProseRange, text: &str) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn install_skip_keeps_inline_space_bounds_tight() {
+        // "ab #{G} cd" — the skip is the `#{G}` content at bytes [3, 8); the
+        // flanking spaces (bytes 2 and 8) are plain spaces, so the exclusion must
+        // NOT swallow them.
+        let text = "ab #{G} cd";
+        let mut ranges = [ProseRange {
+            start_byte: 0,
+            end_byte: text.len(),
+            exclusions: Vec::new(),
+        }];
+        install_skip_exclusions(&mut ranges, &[(3, 7)], text.as_bytes());
+        assert_eq!(ranges[0].exclusions, vec![(3, 7)]);
+    }
+
+    #[test]
+    fn install_skip_absorbs_flanking_newline() {
+        // "ab\n##\ncd" stand-in: skip at [3, 5) with a newline on each side; the
+        // line breaks must be folded in so the next line isn't seen as a new
+        // sentence. Bytes: a0 b1 \n2 #3 #4 \n5 c6 d7.
+        let text = "ab\n##\ncd";
+        let mut ranges = [ProseRange {
+            start_byte: 0,
+            end_byte: text.len(),
+            exclusions: Vec::new(),
+        }];
+        install_skip_exclusions(&mut ranges, &[(3, 5)], text.as_bytes());
+        // Grows left over '\n' (byte 2) and right over '\n' (byte 5).
+        assert_eq!(ranges[0].exclusions, vec![(2, 6)]);
+    }
 
     fn range(start: usize, end: usize) -> ProseRange {
         ProseRange {
