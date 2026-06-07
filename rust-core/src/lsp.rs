@@ -239,7 +239,9 @@ impl Backend {
             };
 
             if let Ok(mut diags) = check_result {
-                diags.retain(|d| !range.overlaps_exclusion(d.start_byte, d.end_byte));
+                diags.retain(|d| {
+                    !range.suppresses_diagnostic(text, d.start_byte, d.end_byte, &d.unified_id)
+                });
 
                 for d in &mut diags {
                     d.start_byte += range.start_byte as u32;

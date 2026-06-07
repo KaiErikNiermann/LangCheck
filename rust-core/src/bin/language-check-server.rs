@@ -93,7 +93,9 @@ async fn process_file_for_indexing(
         drop(orch);
 
         if let Ok(mut diagnostics) = check_result {
-            diagnostics.retain(|d| !range.overlaps_exclusion(d.start_byte, d.end_byte));
+            diagnostics.retain(|d| {
+                !range.suppresses_diagnostic(&text, d.start_byte, d.end_byte, &d.unified_id)
+            });
             for d in &mut diagnostics {
                 d.start_byte += range.start_byte as u32;
                 d.end_byte += range.start_byte as u32;
@@ -531,7 +533,12 @@ async fn main() -> Result<()> {
                                 let dict = dictionary_arc.lock().await;
                                 if let Ok(mut diagnostics) = check_result {
                                     diagnostics.retain(|d| {
-                                        !range.overlaps_exclusion(d.start_byte, d.end_byte)
+                                        !range.suppresses_diagnostic(
+                                            &req.text,
+                                            d.start_byte,
+                                            d.end_byte,
+                                            &d.unified_id,
+                                        )
                                     });
                                     for d in &mut diagnostics {
                                         d.start_byte += range.start_byte as u32;

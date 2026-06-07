@@ -256,7 +256,9 @@ async fn check_file(
     for range in ranges {
         let prose_text = range.extract_text(&text);
         let mut diagnostics = orchestrator.check(&prose_text, lang).await?;
-        diagnostics.retain(|d| !range.overlaps_exclusion(d.start_byte, d.end_byte));
+        diagnostics.retain(|d| {
+            !range.suppresses_diagnostic(&text, d.start_byte, d.end_byte, &d.unified_id)
+        });
 
         for d in diagnostics {
             found_issues += 1;
@@ -334,7 +336,9 @@ async fn fix_file(
     for range in &ranges {
         let prose_text = range.extract_text(&text);
         if let Ok(mut diagnostics) = orchestrator.check(&prose_text, lang).await {
-            diagnostics.retain(|d| !range.overlaps_exclusion(d.start_byte, d.end_byte));
+            diagnostics.retain(|d| {
+                !range.suppresses_diagnostic(&text, d.start_byte, d.end_byte, &d.unified_id)
+            });
             for d in &mut diagnostics {
                 d.start_byte += range.start_byte as u32;
                 d.end_byte += range.start_byte as u32;

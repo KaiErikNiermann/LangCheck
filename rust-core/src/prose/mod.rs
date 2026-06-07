@@ -223,6 +223,149 @@ impl ProseRange {
             doc_start < ee && doc_end > es
         })
     }
+
+    /// Classify how a diagnostic (range-local byte span) sits relative to the
+    /// skipped (excluded) segments in this range. Excluded segments are blanked
+    /// to spaces before checking, which breaks the surrounding sentence and
+    /// provokes false positives on the flanking text — this drives which of
+    /// those to suppress (see [`Self::suppresses_diagnostic`]).
+    #[must_use]
+    pub fn exclusion_adjacency(
+        &self,
+        text: &str,
+        local_start: u32,
+        local_end: u32,
+    ) -> ExclusionAdjacency {
+        if self.overlaps_exclusion(local_start, local_end) {
+            return ExclusionAdjacency::Overlapping;
+        }
+        let doc_start = self.start_byte + local_start as usize;
+        let doc_end = self.start_byte + local_end as usize;
+        let mut best = ExclusionAdjacency::None;
+        for &(es, ee) in &self.exclusions {
+            // No overlap, so the diagnostic lies entirely before or after this
+            // skip; the gap is the text between the two. When that gap is empty,
+            // the skip edge char decides glued-vs-adjacent: exclusion ranges can
+            // swallow a flanking space (e.g. inline-math delimiters), so a skip
+            // edge that is itself whitespace still means a real word separated by
+            // space, not a word-fragment fused to skip content.
+            let rel = if doc_start >= ee {
+                classify_gap(text, ee, doc_start, byte_before_is_whitespace(text, ee))
+            } else {
+                classify_gap(text, doc_end, es, byte_at_is_whitespace(text, es))
+            };
+            best = best.max_severity(rel);
+            if best == ExclusionAdjacency::Glued {
+                break; // strongest reachable here (overlap already handled)
+            }
+        }
+        best
+    }
+
+    /// Whether a diagnostic should be dropped as a skip-induced false positive.
+    ///
+    /// - Overlapping a skip, or glued to one with no character between them
+    ///   (blanking split a real word into a fragment): always suppressed.
+    /// - Separated from a skip by whitespace only (a real word flanking the
+    ///   cut): suppressed unless it is a spelling diagnostic. Removing a
+    ///   neighbour cannot misspell a real word, so genuine typos beside formulas
+    ///   are kept; the structural grammar/typography/style noise is dropped.
+    /// - Otherwise: kept.
+    #[must_use]
+    pub fn suppresses_diagnostic(
+        &self,
+        text: &str,
+        local_start: u32,
+        local_end: u32,
+        unified_id: &str,
+    ) -> bool {
+        match self.exclusion_adjacency(text, local_start, local_end) {
+            ExclusionAdjacency::Overlapping | ExclusionAdjacency::Glued => true,
+            ExclusionAdjacency::WhitespaceAdjacent => !is_spelling_category(unified_id),
+            ExclusionAdjacency::None => false,
+        }
+    }
+}
+
+/// How a diagnostic span sits relative to a range's skipped segments.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExclusionAdjacency {
+    /// The diagnostic span intersects a skip.
+    Overlapping,
+    /// The diagnostic directly abuts a skip with no character between them.
+    Glued,
+    /// The diagnostic is separated from a skip by whitespace only.
+    WhitespaceAdjacent,
+    /// The diagnostic is not near any skip.
+    None,
+}
+
+impl ExclusionAdjacency {
+    const fn rank(self) -> u8 {
+        match self {
+            Self::None => 0,
+            Self::WhitespaceAdjacent => 1,
+            Self::Glued => 2,
+            Self::Overlapping => 3,
+        }
+    }
+
+    /// The stronger (higher-priority) of two classifications.
+    #[must_use]
+    const fn max_severity(self, other: Self) -> Self {
+        if other.rank() > self.rank() {
+            other
+        } else {
+            self
+        }
+    }
+}
+
+/// Classify the document text in `[lo, hi)` as the gap between a diagnostic and
+/// a skip: an all-whitespace (non-empty) gap is
+/// [`ExclusionAdjacency::WhitespaceAdjacent`], anything else (a real word lies
+/// between) is [`ExclusionAdjacency::None`]. When the gap is empty the two touch
+/// directly, and `skip_edge_is_whitespace` (the skip's boundary char) decides:
+/// whitespace there means a real word separated by a swallowed space
+/// ([`ExclusionAdjacency::WhitespaceAdjacent`]); otherwise the diagnostic is a
+/// word-fragment fused to skip content ([`ExclusionAdjacency::Glued`]).
+fn classify_gap(
+    text: &str,
+    lo: usize,
+    hi: usize,
+    skip_edge_is_whitespace: bool,
+) -> ExclusionAdjacency {
+    if lo == hi {
+        return if skip_edge_is_whitespace {
+            ExclusionAdjacency::WhitespaceAdjacent
+        } else {
+            ExclusionAdjacency::Glued
+        };
+    }
+    match text.get(lo..hi) {
+        Some(gap) if gap.chars().all(char::is_whitespace) => ExclusionAdjacency::WhitespaceAdjacent,
+        _ => ExclusionAdjacency::None,
+    }
+}
+
+/// Whether the character ending at byte `pos` (i.e. just before it) is whitespace.
+fn byte_before_is_whitespace(text: &str, pos: usize) -> bool {
+    text.get(..pos)
+        .and_then(|s| s.chars().next_back())
+        .is_some_and(char::is_whitespace)
+}
+
+/// Whether the character starting at byte `pos` is whitespace.
+fn byte_at_is_whitespace(text: &str, pos: usize) -> bool {
+    text.get(pos..)
+        .and_then(|s| s.chars().next())
+        .is_some_and(char::is_whitespace)
+}
+
+/// Whether a unified rule id denotes a spelling diagnostic (e.g. `spelling.typo`).
+#[must_use]
+pub fn is_spelling_category(unified_id: &str) -> bool {
+    unified_id.starts_with("spelling.")
 }
 
 /// Replace provably-unmatched brackets `()[]{}` with spaces.
@@ -375,6 +518,99 @@ mod tests {
         // Diagnostic entirely outside exclusion
         assert!(!range.overlaps_exclusion(0, 40)); // doc 100..140, before exclusion
         assert!(!range.overlaps_exclusion(110, 130)); // doc 210..230, after exclusion
+    }
+
+    #[test]
+    fn test_exclusion_adjacency_classifies_position() {
+        // "a #{i} is b" — skip #{i} occupies bytes [2, 6).
+        let text = "a #{i} is b";
+        let range = ProseRange {
+            start_byte: 0,
+            end_byte: text.len(),
+            exclusions: vec![(2, 6)],
+        };
+        // "is" at [7, 9): one space after the skip → whitespace-adjacent.
+        assert_eq!(
+            range.exclusion_adjacency(text, 7, 9),
+            ExclusionAdjacency::WhitespaceAdjacent
+        );
+        // A span landing inside the skip → overlapping.
+        assert_eq!(
+            range.exclusion_adjacency(text, 3, 5),
+            ExclusionAdjacency::Overlapping
+        );
+        // "b" at [10, 11): a real word ("is") lies between it and the skip → none.
+        assert_eq!(
+            range.exclusion_adjacency(text, 10, 11),
+            ExclusionAdjacency::None
+        );
+    }
+
+    #[test]
+    fn test_exclusion_adjacency_detects_glued_fragment() {
+        // "#{n}th word" — skip #{n} is [0, 4); "th" is glued to it at [4, 6).
+        let text = "#{n}th word";
+        let range = ProseRange {
+            start_byte: 0,
+            end_byte: text.len(),
+            exclusions: vec![(0, 4)],
+        };
+        assert_eq!(
+            range.exclusion_adjacency(text, 4, 6),
+            ExclusionAdjacency::Glued
+        );
+    }
+
+    #[test]
+    fn test_exclusion_swallowing_flanking_space_is_not_glued() {
+        // Inline-math delimiter exclusions can include the flanking space, so the
+        // skip range starts at the space (byte 3), not at `#`. A real word ending
+        // exactly where the exclusion begins must still read as whitespace-
+        // separated, not glued.  Regression for spelling typos beside #{X}.
+        let text = "teh #{G} ok"; // exclusion ` #{` = bytes [3, 6)
+        let range = ProseRange {
+            start_byte: 0,
+            end_byte: text.len(),
+            exclusions: vec![(3, 6)],
+        };
+        assert_eq!(
+            range.exclusion_adjacency(text, 0, 3),
+            ExclusionAdjacency::WhitespaceAdjacent
+        );
+        // A genuine typo here is kept; only the grammar/structure noise is dropped.
+        assert!(!range.suppresses_diagnostic(text, 0, 3, "spelling.typo"));
+        assert!(range.suppresses_diagnostic(text, 0, 3, "typography.capitalization"));
+    }
+
+    #[test]
+    fn test_suppresses_diagnostic_keeps_spelling_near_skip() {
+        // "a #{i} wrd b" — skip at [2, 6); the misspelling "wrd" is at [7, 10),
+        // whitespace-adjacent to the skip.
+        let text = "a #{i} wrd b";
+        let range = ProseRange {
+            start_byte: 0,
+            end_byte: text.len(),
+            exclusions: vec![(2, 6)],
+        };
+        // Grammar/typography noise flanking the cut is suppressed...
+        assert!(range.suppresses_diagnostic(text, 7, 10, "typography.capitalization"));
+        // ...but a genuine adjacent typo is kept.
+        assert!(!range.suppresses_diagnostic(text, 7, 10, "spelling.typo"));
+    }
+
+    #[test]
+    fn test_suppresses_diagnostic_drops_glued_fragment_spelling() {
+        // "#{n}th word" — "th" is a fragment created by cutting the skip, so even
+        // a spelling diagnostic on it is suppressed.
+        let text = "#{n}th word";
+        let range = ProseRange {
+            start_byte: 0,
+            end_byte: text.len(),
+            exclusions: vec![(0, 4)],
+        };
+        assert!(range.suppresses_diagnostic(text, 4, 6, "spelling.typo"));
+        // A real word with text between it and the skip is untouched.
+        assert!(!range.suppresses_diagnostic(text, 7, 11, "spelling.typo"));
     }
 
     #[test]
