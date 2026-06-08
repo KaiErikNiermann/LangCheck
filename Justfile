@@ -201,7 +201,7 @@ release-version version:
 rerun version:
     #!/usr/bin/env bash
     set -euo pipefail
-    version="{{version}}"
+    version=$(just _normalize-version "{{version}}")
     git push
     git tag -d "v$version" 2>/dev/null || true
     git push --delete origin "v$version" 2>/dev/null || true
@@ -213,7 +213,7 @@ rerun version:
 rerelease version:
     #!/usr/bin/env bash
     set -euo pipefail
-    version="{{version}}"
+    version=$(just _normalize-version "{{version}}")
     gh release delete "v$version" -y 2>/dev/null || true
     just rerun "$version"
     gh release create "v$version" --title "v$version" --notes ""
@@ -222,7 +222,7 @@ rerelease version:
 _release version:
     #!/usr/bin/env bash
     set -euo pipefail
-    version="{{version}}"
+    version=$(just _normalize-version "{{version}}")
     just _sync-versions "$version"
     (cd rust-core && cargo check 2>/dev/null)  # regenerate Cargo.lock
     git add rust-core/Cargo.toml extension/package.json docs/conf.py
@@ -246,6 +246,18 @@ _sync-versions version:
     # docs/conf.py
     sed -i "s/^release = .*/release = \"$version\"/" docs/conf.py
     echo "Synced all versions to v$version"
+
+# Internal: strip an optional leading 'v' and validate X.Y.Z (prints normalized)
+_normalize-version version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    v="{{version}}"
+    v="${v#v}"  # tolerate a v-prefixed arg without producing a 'vv' tag
+    if [[ ! "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "error: invalid version '{{version}}' — expected X.Y.Z (a leading 'v' is allowed)" >&2
+        exit 1
+    fi
+    printf '%s' "$v"
 
 # --- Publishing (dry-run) ---
 
