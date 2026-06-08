@@ -6,24 +6,6 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-/// Round a byte offset down to the nearest char boundary.
-fn floor_char_boundary(s: &str, byte: usize) -> usize {
-    let mut i = byte.min(s.len());
-    while i > 0 && !s.is_char_boundary(i) {
-        i -= 1;
-    }
-    i
-}
-
-/// Round a byte offset up to the nearest char boundary.
-fn ceil_char_boundary(s: &str, byte: usize) -> usize {
-    let mut i = byte.min(s.len());
-    while i < s.len() && !s.is_char_boundary(i) {
-        i += 1;
-    }
-    i
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiagnosticFingerprint {
     pub message_hash: u64,
@@ -38,8 +20,8 @@ impl DiagnosticFingerprint {
         message.hash(&mut message_hasher);
 
         // Extract context: up to 20 chars before and after, snapped to char boundaries
-        let start = floor_char_boundary(text, start_byte.saturating_sub(20));
-        let end = ceil_char_boundary(text, (end_byte + 20).min(text.len()));
+        let start = text.floor_char_boundary(start_byte.saturating_sub(20));
+        let end = text.ceil_char_boundary((end_byte + 20).min(text.len()));
         let context = &text[start..end];
 
         let mut context_hasher = DefaultHasher::new();
@@ -57,7 +39,7 @@ impl DiagnosticFingerprint {
     }
 
     fn extract_word_anchor(text: &str, start_byte: usize, end_byte: usize) -> String {
-        let sb = floor_char_boundary(text, start_byte.min(text.len()));
+        let sb = text.floor_char_boundary(start_byte.min(text.len()));
         let before: String = text[..sb]
             .split_whitespace()
             .rev()
@@ -67,7 +49,7 @@ impl DiagnosticFingerprint {
             .rev()
             .collect::<Vec<_>>()
             .join(" ");
-        let eb = ceil_char_boundary(text, end_byte.min(text.len()));
+        let eb = text.ceil_char_boundary(end_byte.min(text.len()));
         let after: String = text[eb..]
             .split_whitespace()
             .take(3)
