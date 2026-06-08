@@ -19,6 +19,7 @@ use glob::glob;
 use hashing::{DiagnosticFingerprint, IgnoreStore};
 use insights::ProseInsights;
 use lang_check::sls::SchemaRegistry;
+use lang_check::text_util::safe_slice;
 use lang_check::{checker, config, dictionary, hashing, insights, orchestrator, prose, workspace};
 use orchestrator::Orchestrator;
 use prost::Message;
@@ -30,19 +31,6 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Mutex, Notify};
 use tracing::{debug, error, info, warn};
 use workspace::WorkspaceIndex;
-
-/// Slice a `&str` at byte offsets, snapping to the nearest char boundaries.
-fn safe_slice(s: &str, start: usize, end: usize) -> &str {
-    let mut lo = start.min(s.len());
-    while lo > 0 && !s.is_char_boundary(lo) {
-        lo -= 1;
-    }
-    let mut hi = end.min(s.len());
-    while hi < s.len() && !s.is_char_boundary(hi) {
-        hi += 1;
-    }
-    &s[lo..hi]
-}
 
 async fn process_file_for_indexing(
     file_path: PathBuf,

@@ -31,6 +31,7 @@ use crate::hashing::{DiagnosticFingerprint, IgnoreStore};
 use crate::orchestrator::Orchestrator;
 use crate::prose;
 use crate::sls::SchemaRegistry;
+use crate::text_util::safe_slice;
 
 // ── LSP settings ────────────────────────────────────────────────────────────
 
@@ -537,18 +538,6 @@ fn guess_lang_id(uri: &Url) -> String {
         _ => "markdown",
     }
     .to_string()
-}
-
-fn safe_slice(s: &str, start: usize, end: usize) -> &str {
-    let mut lo = start.min(s.len());
-    while lo > 0 && !s.is_char_boundary(lo) {
-        lo -= 1;
-    }
-    let mut hi = end.min(s.len());
-    while hi < s.len() && !s.is_char_boundary(hi) {
-        hi += 1;
-    }
-    &s[lo..hi]
 }
 
 /// Extract the word at a given LSP range from a document.
