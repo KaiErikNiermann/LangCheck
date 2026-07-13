@@ -284,19 +284,19 @@
   "dependencies": {
     "@vscode/l10n": "^0.0.18",
     "long": "^5.3.2",
-    "protobufjs": "^8.7.0"
+    "protobufjs": "^8.7.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/long": "^5.0.0",
-    "@types/node": "^26.1.0",
+    "@types/node": "^26.1.1",
     "@types/vscode": "^1.110.0",
     "esbuild": "^0.28.1",
-    "eslint": "^10.6.0",
-    "protobufjs-cli": "^2.6.0",
+    "eslint": "^10.7.0",
+    "protobufjs-cli": "^2.6.1",
     "ts-node": "^10.9.2",
-    "typescript": "^6.0.3",
-    "typescript-eslint": "^8.63.0",
+    "typescript": "^7.0.2",
+    "typescript-eslint": "^8.64.0",
     "vitest": "^4.1.10"
   },
   "pnpm": {
