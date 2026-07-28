@@ -27,8 +27,15 @@ updates:
     # to package when the typings declare a newer API than the engine floor.
     # Pin it to the minimum supported VS Code version; bump manually together
     # with engines.vscode when raising the floor.
+    #
+    # typescript-eslint has no support for TypeScript >=7 yet (its parser
+    # hard-throws "typescript-eslint does not support TS 7.0", tracked in
+    # typescript-eslint/typescript-eslint#10940). Stay on the 6.x line until
+    # upstream ships support.
     ignore:
       - dependency-name: "@types/vscode"
+      - dependency-name: "typescript"
+        versions: [">=7"]
     groups:
       npm-deps:
         patterns:
