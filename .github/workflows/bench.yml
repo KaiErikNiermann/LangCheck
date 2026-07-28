@@ -98,12 +98,19 @@ jobs:
               body += '\n⚠️ **Performance regression detected (>5% slower)**\n';
             }
 
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: body
-            });
+            try {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            } catch (error) {
+              // Dependabot PRs get a forced read-only GITHUB_TOKEN regardless
+              // of the `permissions:` block above, so posting a comment 403s.
+              // Regression detection below still runs either way.
+              core.warning(`Could not post benchmark comment: ${error.message}`);
+            }
 
             if (hasRegression) {
               core.setFailed('Benchmark regression >5% detected');
