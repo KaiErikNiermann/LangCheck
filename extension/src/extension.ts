@@ -242,6 +242,23 @@ export async function activate(context: vscode.ExtensionContext) {
     };
 
 
+    /** Surface a core that has stopped retrying. Until it is restarted nothing
+     *  will check, so say so plainly instead of leaving a silent dead client. */
+    const reportCoreFailure = async (reason: string, binaryPath: string) => {
+        log.error('Core unavailable', { reason, binary: binaryPath });
+        pushInspectorEvent('error', 'core', reason, { details: binaryPath });
+        setCheckingSpinner(false);
+
+        const message = fs.existsSync(binaryPath)
+            ? vscode.l10n.t('Language Check core stopped responding: {0}', reason)
+            : vscode.l10n.t('Language Check core binary not found at {0}', binaryPath);
+        const restart = vscode.l10n.t('Restart Core');
+        const selection = await vscode.window.showErrorMessage(message, restart);
+        if (selection === restart) {
+            vscode.commands.executeCommand('language-check.restartLanguageServer');
+        }
+    };
+
     const startClient = (channel?: string) => {
         if (client) {
             log.debug('Stopping existing client');
@@ -252,6 +269,7 @@ export async function activate(context: vscode.ExtensionContext) {
         client = new LanguageClient(binaryPath);
         if (traceLogger) client.setTraceLogger(traceLogger);
         client.onRestart(() => initializeClient());
+        client.onFailure(reason => reportCoreFailure(reason, binaryPath));
         client.start();
         traceLogger?.logEvent(`Core started: ${binaryPath} (channel: ${channel ?? 'stable'})`);
     };
@@ -2312,7 +2330,18 @@ function sendWorkspaceProgress() {
 
 /** Returns the number of issues found, or -1 on error. */
 async function checkDocument(document: vscode.TextDocument): Promise<number> {
-    if (!client) return -1;
+    // A client that has given up restarting can never answer. Bail out before
+    // taking a concurrency slot, or a down core starves the slots for a full
+    // request timeout each and every queued check backs up behind it.
+    if (!client?.isRunning) {
+        const reason = client?.lastFailure;
+        if (reason) {
+            pushInspectorEvent('error', 'checkDocument', `Core unavailable: ${reason}`, {
+                details: path.basename(document.fileName),
+            });
+        }
+        return -1;
+    }
 
     const shortName = path.basename(document.fileName);
     log.debug('checkDocument', { file: document.fileName, lang: document.languageId });
