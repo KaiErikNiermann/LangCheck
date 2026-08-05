@@ -62,6 +62,9 @@ const SKIP_KINDS: &[&str] = &[
     "inline_math",
     "display_math",
     "verbatim",
+    // `!{...}` verbatim arguments, e.g. `\texfig!{\begin{tikzpicture}...}`.
+    // The body is markup for another language, not prose.
+    "verbatim_group",
     "comment",
     "wiki_link",
     "command_name",
@@ -74,7 +77,8 @@ const SKIP_KINDS: &[&str] = &[
 /// commands (\em, \strong) bridge with surrounding text. Unknown macros are
 /// recursed into so nested known blocks are still extracted. Math (#{}, ##{})
 /// is excluded both via tree-sitter nodes and a text-based safety-net scanner.
-/// Verbatim, comments, and wiki links are always excluded.
+/// Verbatim (fenced code and `!{...}` groups), comments, and wiki links are
+/// always excluded.
 pub fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     let mut scopes: Vec<Vec<(usize, usize)>> = vec![vec![]];
     let mut skips: Vec<(usize, usize)> = Vec::new();
@@ -493,8 +497,8 @@ fn find_math_regions(text: &str) -> Vec<(usize, usize)> {
 
 #[cfg(test)]
 mod tests {
-    use crate::prose::ProseExtractor;
     use crate::prose::latex::LatexExtras;
+    use crate::prose::{ProseExtractor, ProseRange};
     use anyhow::Result;
 
     fn forester_extractor() -> Result<ProseExtractor> {
@@ -1641,6 +1645,110 @@ so the result follows.}";
             all_clean.contains("proccess"),
             "Prose after \\code should be extracted, got: {all_clean:?}"
         );
+
+        Ok(())
+    }
+
+    /// Join every range's checked text, the way an engine would see the document.
+    fn clean_text(ranges: &[ProseRange], text: &str) -> String {
+        ranges
+            .iter()
+            .map(|r| r.extract_text(text).into_owned())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    #[test]
+    fn test_verbatim_group_content_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // `!{...}` holds verbatim markup for another language (here TeX), so its
+        // body must not be spell-checked even though it reads like words.
+        let text = r"\p{See \texfig!{\node{teh mispelt lable};} for the proccess.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let all_clean = clean_text(&ranges, text);
+
+        assert!(
+            !all_clean.contains("mispelt"),
+            "!{{...}} body should not be checked, got: {all_clean:?}"
+        );
+        assert!(
+            !all_clean.contains("node"),
+            "!{{...}} markup should not be checked, got: {all_clean:?}"
+        );
+        assert!(
+            all_clean.contains("See"),
+            "Prose before !{{...}} should be extracted, got: {all_clean:?}"
+        );
+        assert!(
+            all_clean.contains("proccess"),
+            "Prose after !{{...}} should be extracted, got: {all_clean:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_verbatim_group_nested_braces_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // The group must close at its own matching brace, not the first one:
+        // everything up to the last `}` of the argument is verbatim.
+        let text = r"\p{Before \texfig!{\tikz{aaa}{bbb} and {ccc}} after.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let all_clean = clean_text(&ranges, text);
+
+        for leaked in ["aaa", "bbb", "ccc", "tikz"] {
+            assert!(
+                !all_clean.contains(leaked),
+                "Nested {leaked:?} should stay inside the verbatim group, got: {all_clean:?}"
+            );
+        }
+        assert!(
+            all_clean.contains("Before") && all_clean.contains("after"),
+            "Surrounding prose should survive, got: {all_clean:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_verbatim_group_standalone_excluded() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // A `!{...}` group need not follow a command name.
+        let text = r"\p{Alpha !{\raw{teh mispelt}} omega.}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let all_clean = clean_text(&ranges, text);
+
+        assert!(
+            !all_clean.contains("mispelt"),
+            "Standalone !{{...}} body should not be checked, got: {all_clean:?}"
+        );
+        assert!(
+            all_clean.contains("Alpha") && all_clean.contains("omega"),
+            "Surrounding prose should survive, got: {all_clean:?}"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_exclamation_in_prose_still_checked() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Splitting `!` out of the text token (so the scanner is offered the
+        // `!{` opener) must not fragment ordinary prose containing `!`.
+        let text = r"\p{What a mispelt sentance! It is stil wrong!}";
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let all_clean = clean_text(&ranges, text);
+
+        for kept in ["mispelt", "sentance!", "stil", "wrong!"] {
+            assert!(
+                all_clean.contains(kept),
+                "Prose with '!' should stay checkable, expected {kept:?} in: {all_clean:?}"
+            );
+        }
 
         Ok(())
     }
