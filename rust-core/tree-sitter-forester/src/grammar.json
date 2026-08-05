@@ -30,6 +30,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "verbatim_group"
+        },
+        {
+          "type": "SYMBOL",
           "name": "wiki_link"
         },
         {
@@ -88,6 +92,10 @@
                 {
                   "type": "SYMBOL",
                   "name": "paren_group"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "verbatim_group"
                 }
               ]
             }
@@ -421,8 +429,17 @@
         "type": "PREC",
         "value": -1,
         "content": {
-          "type": "PATTERN",
-          "value": "[^\\\\\\{\\}\\[\\]\\(\\)\\n\\t %`]+"
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "PATTERN",
+              "value": "[^\\\\\\{\\}\\[\\]\\(\\)\\n\\t %`!]+"
+            },
+            {
+              "type": "STRING",
+              "value": "!"
+            }
+          ]
         }
       }
     }
@@ -439,6 +456,10 @@
     {
       "type": "SYMBOL",
       "name": "verbatim"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "verbatim_group"
     }
   ],
   "inline": [],

@@ -52,6 +52,10 @@
           "named": true
         },
         {
+          "type": "verbatim_group",
+          "named": true
+        },
+        {
           "type": "wiki_link",
           "named": true
         }
@@ -111,6 +115,10 @@
           "named": true
         },
         {
+          "type": "verbatim_group",
+          "named": true
+        },
+        {
           "type": "wiki_link",
           "named": true
         }
@@ -139,6 +147,10 @@
         },
         {
           "type": "paren_group",
+          "named": true
+        },
+        {
+          "type": "verbatim_group",
           "named": true
         }
       ]
@@ -399,6 +411,10 @@
           "named": true
         },
         {
+          "type": "verbatim_group",
+          "named": true
+        },
+        {
           "type": "wiki_link",
           "named": true
         }
@@ -456,6 +472,10 @@
         },
         {
           "type": "verbatim",
+          "named": true
+        },
+        {
+          "type": "verbatim_group",
           "named": true
         },
         {
@@ -519,6 +539,10 @@
   },
   {
     "type": "verbatim",
+    "named": true
+  },
+  {
+    "type": "verbatim_group",
     "named": true
   },
   {

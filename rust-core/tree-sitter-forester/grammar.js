@@ -6,7 +6,7 @@ module.exports = grammar({
 
   extras: $ => [/[ \t\r\n]/],
 
-  externals: $ => [$.verbatim],
+  externals: $ => [$.verbatim, $.verbatim_group],
 
   rules: {
     source_file: $ => repeat($._node),
@@ -16,6 +16,7 @@ module.exports = grammar({
       $.display_math,
       $.inline_math,
       $.verbatim,
+      $.verbatim_group,
       $.wiki_link,
       $.markdown_link,
       $.escape,
@@ -26,13 +27,16 @@ module.exports = grammar({
       $.text,
     ),
 
-    // \name followed by zero or more argument groups
+    // \name followed by zero or more argument groups.
+    // A !{...} argument (e.g. \texfig!{...}) holds verbatim text — see the
+    // external scanner, which consumes it whole.
     command: $ => prec.right(seq(
       $.command_name,
       repeat(choice(
         $.brace_group,
         $.bracket_group,
         $.paren_group,
+        $.verbatim_group,
       )),
     )),
 
@@ -94,7 +98,14 @@ module.exports = grammar({
     // Line comments: % to end of line
     comment: $ => /%[^\n]*/,
 
-    // Plain text: runs of non-special characters (backtick excluded)
-    text: $ => token(prec(-1, /[^\\\{\}\[\]\(\)\n\t %`]+/)),
+    // Plain text: runs of non-special characters (backtick excluded).
+    // '!' is split into its own alternative rather than folded into the run:
+    // the external scanner only gets offered a position at a token boundary,
+    // so a greedy run ending in '!' would swallow the opener of a !{...}
+    // verbatim group and hide it from the scanner.
+    text: $ => token(prec(-1, choice(
+      /[^\\\{\}\[\]\(\)\n\t %`!]+/,
+      '!',
+    ))),
   },
 });
