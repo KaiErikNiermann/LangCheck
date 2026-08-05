@@ -6,6 +6,10 @@
   "dependencies": {
     "tree-sitter-cli": "^0.25.0"
   },
+  "pnpm": {
+    "// onlyBuiltDependencies": "tree-sitter-cli fetches its binary in a postinstall script; without this pnpm blocks it and `tree-sitter generate` cannot run.",
+    "onlyBuiltDependencies": ["tree-sitter-cli"]
+  },
   "tree-sitter": [
     {
       "scope": "source.forester",

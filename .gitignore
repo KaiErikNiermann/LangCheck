@@ -7,6 +7,8 @@
 /extension/dist/
 /extension/webview/dist/
 /extension/webview/node_modules/
+# tree-sitter-cli, installed only to regenerate the vendored forester parser
+/rust-core/tree-sitter-forester/node_modules/
 extension/package-lock.json
 # Packaged extension artifacts (produced by `just install-local`)
 extension/*.vsix
