@@ -21,6 +21,7 @@
   "config.core.channel.stable": "Production release",
   "config.core.channel.canary": "Pre-release with latest features",
   "config.core.channel.dev": "Development build with debug symbols",
+  "config.core.channel.debug": "Local cargo debug build (development host only)",
   "config.core.binaryPath": "Custom path to the language-check-server binary. Overrides the channel setting.",
   "config.trace.enable": "Enable Protobuf message tracing to the output channel.",
   "config.check.trigger": "When to trigger document checks.",

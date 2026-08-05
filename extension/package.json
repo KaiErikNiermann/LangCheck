@@ -124,12 +124,14 @@
           "enum": [
             "stable",
             "canary",
-            "dev"
+            "dev",
+            "debug"
           ],
           "enumDescriptions": [
             "%config.core.channel.stable%",
             "%config.core.channel.canary%",
-            "%config.core.channel.dev%"
+            "%config.core.channel.dev%",
+            "%config.core.channel.debug%"
           ],
           "description": "%config.core.channel%"
         },

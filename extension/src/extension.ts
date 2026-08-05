@@ -210,8 +210,14 @@ export async function activate(context: vscode.ExtensionContext) {
         const selectedChannel = channel ?? config.get<string>('core.channel', 'stable');
 
         if (context.extensionMode === vscode.ExtensionMode.Development) {
-            const target = selectedChannel === 'debug' ? 'debug' : 'release';
-            return path.join(context.extensionPath, '..', 'rust-core', 'target', target, 'language-check-server');
+            // Dev runs straight out of rust-core/target. Prefer the profile the
+            // channel asks for, but fall back to the other one: a checkout that
+            // only ran `cargo build` has no target/release, and pointing at a
+            // path that doesn't exist takes the core down for the whole session.
+            const targetDir = path.join(context.extensionPath, '..', 'rust-core', 'target');
+            const profiles = selectedChannel === 'debug' ? ['debug', 'release'] : ['release', 'debug'];
+            const candidates = profiles.map(p => path.join(targetDir, p, 'language-check-server'));
+            return candidates.find(candidate => fs.existsSync(candidate)) ?? candidates[0]!;
         }
 
         switch (selectedChannel) {
@@ -988,6 +994,14 @@ export async function activate(context: vscode.ExtensionContext) {
             { label: vscode.l10n.t('Canary'), description: vscode.l10n.t('Pre-release with latest features'), channel: 'canary' },
             { label: vscode.l10n.t('Dev'), description: vscode.l10n.t('Development build (debug symbols)'), channel: 'dev' },
         ];
+        // Only offered on a development host, where rust-core/target/debug exists.
+        if (isDev) {
+            channels.push({
+                label: vscode.l10n.t('Debug'),
+                description: vscode.l10n.t('Local cargo debug build'),
+                channel: 'debug',
+            });
+        }
         const selected = await vscode.window.showQuickPick(channels, {
             placeHolder: vscode.l10n.t('Select core binary channel'),
         });

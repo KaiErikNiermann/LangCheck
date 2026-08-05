@@ -21,6 +21,7 @@
   "config.core.channel.stable": "Version stable",
   "config.core.channel.canary": "Version préliminaire avec les dernières fonctionnalités",
   "config.core.channel.dev": "Version de développement avec symboles de débogage",
+  "config.core.channel.debug": "Build de débogage cargo local (hôte de développement uniquement)",
   "config.core.binaryPath": "Chemin personnalisé vers le binaire language-check-server. Remplace le paramètre de canal.",
   "config.trace.enable": "Activer la trace des messages Protobuf dans le canal de sortie.",
   "config.check.trigger": "Quand déclencher les vérifications de document.",

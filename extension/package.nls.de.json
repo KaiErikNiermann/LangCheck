@@ -21,6 +21,7 @@
   "config.core.channel.stable": "Stabile Version",
   "config.core.channel.canary": "Vorabversion mit neuesten Funktionen",
   "config.core.channel.dev": "Entwicklungsversion mit Debug-Symbolen",
+  "config.core.channel.debug": "Lokaler Cargo-Debug-Build (nur Entwicklungshost)",
   "config.core.binaryPath": "Benutzerdefinierter Pfad zur language-check-server-Binärdatei. Überschreibt die Kanaleinstellung.",
   "config.trace.enable": "Protobuf-Nachverfolgung im Ausgabekanal aktivieren.",
   "config.check.trigger": "Wann Dokumentprüfungen ausgelöst werden sollen.",
