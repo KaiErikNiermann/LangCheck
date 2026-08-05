@@ -8,7 +8,9 @@ vi.mock('child_process');
 
 function createMockProcess() {
     const mockStdout = new EventEmitter();
-    const mockStdin = { write: vi.fn() };
+    // stdin is an EventEmitter too: the client listens for 'error' on it to
+    // catch EPIPE writes, and detaches listeners when a handle is superseded.
+    const mockStdin = Object.assign(new EventEmitter(), { write: vi.fn() });
     const processEmitter = new EventEmitter();
     const mockProcess = Object.assign(processEmitter, {
         stdout: mockStdout,
@@ -239,8 +241,8 @@ describe('LanguageClient', () => {
                 client.start();
                 const promise = client.sendRequest({ getMetadata: {} });
 
-                // Advance past the 30s timeout
-                vi.advanceTimersByTime(30_001);
+                // Advance past REQUEST_TIMEOUT_MS (120s)
+                vi.advanceTimersByTime(120_001);
 
                 await expect(promise).rejects.toThrow('timed out');
             } finally {
@@ -276,6 +278,85 @@ describe('LanguageClient', () => {
             mock.mockProcess.emit('exit', 1);
 
             await expect(promise).rejects.toThrow('Process exited unexpectedly');
+        });
+    });
+
+    describe('terminal failure', () => {
+        /** Fail every spawn until the client stops retrying. */
+        function exhaustRestarts() {
+            client.start();
+            // Three restarts, then the fourth failure is terminal.
+            for (let i = 0; i <= 3; i++) {
+                mock.mockProcess.emit('error', new Error('spawn mock-binary ENOENT'));
+                vi.advanceTimersByTime(1001);
+            }
+        }
+
+        it('should stop reporting itself as running once it gives up', () => {
+            vi.useFakeTimers();
+            try {
+                exhaustRestarts();
+
+                expect(client.isRunning).toBe(false);
+                expect(client.lastFailure).toContain('ENOENT');
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        it('should fire onFailure exactly once with the underlying cause', () => {
+            vi.useFakeTimers();
+            try {
+                const reasons: string[] = [];
+                client.onFailure(reason => reasons.push(reason));
+
+                exhaustRestarts();
+
+                expect(reasons).toHaveLength(1);
+                expect(reasons[0]).toContain('ENOENT');
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        it('should reject in-flight requests instead of stranding them', async () => {
+            vi.useFakeTimers();
+            let promise: Promise<unknown>;
+            try {
+                client.start();
+                promise = client.sendRequest({ getMetadata: {} });
+                for (let i = 0; i <= 3; i++) {
+                    mock.mockProcess.emit('error', new Error('spawn mock-binary ENOENT'));
+                    vi.advanceTimersByTime(1001);
+                }
+            } finally {
+                vi.useRealTimers();
+            }
+
+            // Must settle now, not after REQUEST_TIMEOUT_MS.
+            await expect(promise).rejects.toThrow('ENOENT');
+        });
+
+        it('should reject new requests immediately after giving up', async () => {
+            vi.useFakeTimers();
+            try {
+                exhaustRestarts();
+            } finally {
+                vi.useRealTimers();
+            }
+
+            await expect(client.sendRequest({ getMetadata: {} })).rejects.toThrow(
+                'failed after 3 restart attempts'
+            );
+        });
+
+        it('should reject pending requests when the stdin pipe breaks', async () => {
+            client.start();
+            const promise = client.sendRequest({ getMetadata: {} });
+
+            mock.mockStdin.emit('error', new Error('write EPIPE'));
+
+            await expect(promise).rejects.toThrow('EPIPE');
         });
     });
 });
