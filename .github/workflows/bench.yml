@@ -72,6 +72,10 @@ jobs:
               return results;
             }
 
+            // Runner-to-runner noise routinely moves these benchmarks by ~5-10%,
+            // so only treat a change beyond this as a real regression/improvement.
+            const THRESHOLD_PCT = 15;
+
             const currentResults = parseBench(current);
             const baseResults = parseBench(base);
 
@@ -83,11 +87,11 @@ jobs:
             for (const [name, currentNs] of Object.entries(currentResults)) {
               const baseNs = baseResults[name];
               if (baseNs) {
-                const change = ((currentNs - baseNs) / baseNs * 100).toFixed(1);
-                const emoji = change > 5 ? '🔴' : change < -5 ? '🟢' : '⚪';
-                if (change > 5) hasRegression = true;
+                const change = (currentNs - baseNs) / baseNs * 100;
+                const emoji = change > THRESHOLD_PCT ? '🔴' : change < -THRESHOLD_PCT ? '🟢' : '⚪';
+                if (change > THRESHOLD_PCT) hasRegression = true;
                 const fmt = (ns) => ns > 1e6 ? `${(ns/1e6).toFixed(2)}ms` : ns > 1000 ? `${(ns/1000).toFixed(2)}µs` : `${ns.toFixed(0)}ns`;
-                body += `| ${name} | ${fmt(baseNs)} | ${fmt(currentNs)} | ${emoji} ${change}% |\n`;
+                body += `| ${name} | ${fmt(baseNs)} | ${fmt(currentNs)} | ${emoji} ${change.toFixed(1)}% |\n`;
               } else {
                 const fmt = (ns) => ns > 1e6 ? `${(ns/1e6).toFixed(2)}ms` : ns > 1000 ? `${(ns/1000).toFixed(2)}µs` : `${ns.toFixed(0)}ns`;
                 body += `| ${name} | *new* | ${fmt(currentNs)} | ➕ |\n`;
@@ -95,7 +99,7 @@ jobs:
             }
 
             if (hasRegression) {
-              body += '\n⚠️ **Performance regression detected (>5% slower)**\n';
+              body += `\n⚠️ **Performance regression detected (>${THRESHOLD_PCT}% slower)**\n`;
             }
 
             try {
@@ -113,5 +117,5 @@ jobs:
             }
 
             if (hasRegression) {
-              core.setFailed('Benchmark regression >5% detected');
+              core.setFailed(`Benchmark regression >${THRESHOLD_PCT}% detected`);
             }

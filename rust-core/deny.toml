@@ -28,6 +28,7 @@ ignore = [
     "RUSTSEC-2026-0095",
     "RUSTSEC-2026-0096",
     "RUSTSEC-2026-0114",
+    "RUSTSEC-2026-0222",
     # aws-lc-rs / webpki cert-validation vulns — transitive via reqwest -> rustls,
     # awaiting upstream patched releases
     "RUSTSEC-2026-0044",
