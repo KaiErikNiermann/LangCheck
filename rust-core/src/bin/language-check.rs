@@ -11,7 +11,9 @@ use clap::{Parser, Subcommand, ValueEnum};
 use config::Config;
 use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
+use lang_check::dictionary::Dictionary;
 use lang_check::sls::SchemaRegistry;
+use lang_check::suppression::{SuppressionContext, retain_visible};
 use lang_check::{checker::Diagnostic, config, orchestrator, prose, rules};
 use orchestrator::Orchestrator;
 use serde::Serialize;
@@ -128,7 +130,8 @@ async fn main() -> Result<()> {
                 || lang_check::languages::detect_language(&path, &config),
                 |l| lang_check::languages::resolve_language_id(&l).to_string(),
             );
-            check_path(path, lang, &format, config, &schema_registry).await?;
+            let dictionary = load_cli_dictionary(&current_dir, &config);
+            check_path(path, lang, &format, config, &schema_registry, &dictionary).await?;
         }
         Commands::Fix { path, lang } => {
             let schema_registry = SchemaRegistry::from_workspace(&current_dir)?;
@@ -136,7 +139,8 @@ async fn main() -> Result<()> {
                 || lang_check::languages::detect_language(&path, &config),
                 |l| lang_check::languages::resolve_language_id(&l).to_string(),
             );
-            fix_path(path, lang, config, &schema_registry).await?;
+            let dictionary = load_cli_dictionary(&current_dir, &config);
+            fix_path(path, lang, config, &schema_registry, &dictionary).await?;
         }
         Commands::ListRules {
             filter,
@@ -153,12 +157,31 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+/// Load the workspace dictionary for CLI runs.
+///
+/// The CLI previously ignored the user dictionary entirely, so words the user had
+/// explicitly whitelisted still surfaced as spelling errors here while being suppressed
+/// in the editor. A load failure is non-fatal — we fall back to an empty dictionary.
+fn load_cli_dictionary(workspace_root: &std::path::Path, config: &Config) -> Dictionary {
+    let mut dictionary = Dictionary::load(workspace_root).unwrap_or_default();
+    if config.dictionaries.bundled {
+        dictionary.load_bundled();
+    }
+    for path in &config.dictionaries.paths {
+        if let Err(e) = dictionary.load_wordlist_file(std::path::Path::new(path), workspace_root) {
+            eprintln!("{} {e}", style("warning:").yellow());
+        }
+    }
+    dictionary
+}
+
 async fn check_path(
     path: PathBuf,
     lang: String,
     format: &OutputFormat,
     config: Config,
     schema_registry: &SchemaRegistry,
+    dictionary: &Dictionary,
 ) -> Result<()> {
     let mut orchestrator = Orchestrator::new(config.clone());
     let mut all_json_diagnostics: Vec<JsonDiagnostic> = Vec::new();
@@ -168,6 +191,7 @@ async fn check_path(
             &path,
             &mut orchestrator,
             &lang,
+            dictionary,
             format,
             &mut all_json_diagnostics,
             schema_registry,
@@ -208,6 +232,7 @@ async fn check_path(
                 p,
                 &mut orchestrator,
                 &lang,
+                dictionary,
                 format,
                 &mut all_json_diagnostics,
                 schema_registry,
@@ -233,6 +258,7 @@ async fn check_file(
     path: &PathBuf,
     orchestrator: &mut Orchestrator,
     lang: &str,
+    dictionary: &Dictionary,
     format: &OutputFormat,
     json_diagnostics: &mut Vec<JsonDiagnostic>,
     schema_registry: &SchemaRegistry,
@@ -259,10 +285,19 @@ async fn check_file(
         diagnostics.retain(|d| {
             !range.suppresses_diagnostic(&text, d.start_byte, d.end_byte, &d.unified_id)
         });
+        for d in &mut diagnostics {
+            d.start_byte += range.start_byte as u32;
+            d.end_byte += range.start_byte as u32;
+        }
+        retain_visible(
+            &mut diagnostics,
+            &text,
+            &SuppressionContext::new().with_dictionary(dictionary),
+        );
 
         for d in diagnostics {
             found_issues += 1;
-            let byte_offset = range.start_byte + d.start_byte as usize;
+            let byte_offset = d.start_byte as usize;
 
             match format {
                 OutputFormat::Pretty => {
@@ -304,11 +339,12 @@ async fn fix_path(
     lang: String,
     config: Config,
     schema_registry: &SchemaRegistry,
+    dictionary: &Dictionary,
 ) -> Result<()> {
     let mut orchestrator = Orchestrator::new(config);
 
     if path.is_file() {
-        fix_file(&path, &mut orchestrator, &lang, schema_registry).await?;
+        fix_file(&path, &mut orchestrator, &lang, schema_registry, dictionary).await?;
     }
 
     Ok(())
@@ -319,6 +355,7 @@ async fn fix_file(
     orchestrator: &mut Orchestrator,
     lang: &str,
     schema_registry: &SchemaRegistry,
+    dictionary: &Dictionary,
 ) -> Result<()> {
     let mut text = fs::read_to_string(path)?;
     println!("Fixing {}...", style(path.to_string_lossy()).cyan());
@@ -343,6 +380,11 @@ async fn fix_file(
                 d.start_byte += range.start_byte as u32;
                 d.end_byte += range.start_byte as u32;
             }
+            retain_visible(
+                &mut diagnostics,
+                &text,
+                &SuppressionContext::new().with_dictionary(dictionary),
+            );
             all_diagnostics.extend(diagnostics);
         }
     }

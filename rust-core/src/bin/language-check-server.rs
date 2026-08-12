@@ -19,7 +19,7 @@ use glob::glob;
 use hashing::{DiagnosticFingerprint, IgnoreStore};
 use insights::ProseInsights;
 use lang_check::sls::SchemaRegistry;
-use lang_check::text_util::safe_slice;
+use lang_check::suppression::{SuppressionContext, retain_visible};
 use lang_check::{checker, config, dictionary, hashing, insights, orchestrator, prose, workspace};
 use orchestrator::Orchestrator;
 use prost::Message;
@@ -32,15 +32,33 @@ use tokio::sync::{Mutex, Notify};
 use tracing::{debug, error, info, warn};
 use workspace::WorkspaceIndex;
 
+/// Shared handles a background indexing task needs.
+///
+/// Bundled rather than passed positionally so adding a source (the dictionary here, and
+/// later the name filter) doesn't keep widening the call signature.
+#[derive(Clone)]
+struct IndexingContext {
+    orchestrator: Arc<Mutex<Orchestrator>>,
+    ignore_store: Arc<Mutex<IgnoreStore>>,
+    dictionary: Arc<Mutex<Dictionary>>,
+    schema_registry: Arc<Mutex<SchemaRegistry>>,
+    workspace_index: Arc<Mutex<Option<WorkspaceIndex>>>,
+    config: Arc<Mutex<Config>>,
+}
+
 async fn process_file_for_indexing(
     file_path: PathBuf,
-    orchestrator: Arc<Mutex<Orchestrator>>,
-    ignore_store_arc: Arc<Mutex<IgnoreStore>>,
-    schema_registry_arc: Arc<Mutex<SchemaRegistry>>,
-    workspace_index_arc: Arc<Mutex<Option<WorkspaceIndex>>>,
-    config_arc: Arc<Mutex<Config>>,
+    ctx: IndexingContext,
     lang_id: String,
 ) -> Result<()> {
+    let IndexingContext {
+        orchestrator,
+        ignore_store: ignore_store_arc,
+        dictionary: dictionary_arc,
+        schema_registry: schema_registry_arc,
+        workspace_index: workspace_index_arc,
+        config: config_arc,
+    } = ctx;
     if !file_path.is_file() {
         return Ok(());
     }
@@ -89,15 +107,15 @@ async fn process_file_for_indexing(
                 d.end_byte += range.start_byte as u32;
             }
             let ignore_store_lock = ignore_store_arc.lock().await;
-            diagnostics.retain(|d| {
-                let fingerprint = DiagnosticFingerprint::new(
-                    &d.message,
-                    &text,
-                    d.start_byte as usize,
-                    d.end_byte as usize,
-                );
-                !ignore_store_lock.is_ignored(&fingerprint)
-            });
+            let dictionary_lock = dictionary_arc.lock().await;
+            retain_visible(
+                &mut diagnostics,
+                &text,
+                &SuppressionContext::new()
+                    .with_ignore(&ignore_store_lock)
+                    .with_dictionary(&dictionary_lock),
+            );
+            drop(dictionary_lock);
             drop(ignore_store_lock);
             all_diagnostics.extend(diagnostics);
         }
@@ -166,6 +184,7 @@ async fn main() -> Result<()> {
     let indexing_handle = {
         let config_arc = config_arc.clone();
         let ignore_store_arc = ignore_store_arc.clone();
+        let dictionary_arc = dictionary_arc.clone();
         let schema_registry_arc = schema_registry_arc.clone();
         let workspace_index_arc = workspace_index_arc.clone();
         let indexing_notify = indexing_notify.clone();
@@ -229,21 +248,18 @@ async fn main() -> Result<()> {
                                     continue;
                                 }
 
-                                let task_orchestrator = indexing_orchestrator.clone();
-                                let task_config = config_arc.clone();
-                                let task_ignore_store = ignore_store_arc.clone();
-                                let task_schema_registry = schema_registry_arc.clone();
-                                let task_workspace_index = workspace_index_arc.clone();
+                                let task_ctx = IndexingContext {
+                                    orchestrator: indexing_orchestrator.clone(),
+                                    ignore_store: ignore_store_arc.clone(),
+                                    dictionary: dictionary_arc.clone(),
+                                    schema_registry: schema_registry_arc.clone(),
+                                    workspace_index: workspace_index_arc.clone(),
+                                    config: config_arc.clone(),
+                                };
                                 let lang_id = lang.clone();
 
                                 tasks.push(tokio::spawn(process_file_for_indexing(
-                                    path,
-                                    task_orchestrator,
-                                    task_ignore_store,
-                                    task_schema_registry,
-                                    task_workspace_index,
-                                    task_config,
-                                    lang_id,
+                                    path, task_ctx, lang_id,
                                 )));
                             }
                         }
@@ -533,28 +549,13 @@ async fn main() -> Result<()> {
                                         d.end_byte += range.start_byte as u32;
                                     }
 
-                                    diagnostics.retain(|d| {
-                                        let fingerprint = DiagnosticFingerprint::new(
-                                            &d.message,
-                                            &req.text,
-                                            d.start_byte as usize,
-                                            d.end_byte as usize,
-                                        );
-                                        if ignore_store.is_ignored(&fingerprint) {
-                                            return false;
-                                        }
-                                        if d.unified_id.starts_with("spelling.") {
-                                            let word = safe_slice(
-                                                &req.text,
-                                                d.start_byte as usize,
-                                                d.end_byte as usize,
-                                            );
-                                            if dict.contains(word) {
-                                                return false;
-                                            }
-                                        }
-                                        true
-                                    });
+                                    retain_visible(
+                                        &mut diagnostics,
+                                        &req.text,
+                                        &SuppressionContext::new()
+                                            .with_ignore(&ignore_store)
+                                            .with_dictionary(&dict),
+                                    );
 
                                     all_diagnostics.extend(diagnostics);
                                 }

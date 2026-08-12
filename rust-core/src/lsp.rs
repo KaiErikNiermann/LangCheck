@@ -31,6 +31,7 @@ use crate::hashing::{DiagnosticFingerprint, IgnoreStore};
 use crate::orchestrator::Orchestrator;
 use crate::prose;
 use crate::sls::SchemaRegistry;
+use crate::suppression::{SuppressionContext, retain_visible};
 use crate::text_util::safe_slice;
 
 // ── LSP settings ────────────────────────────────────────────────────────────
@@ -251,24 +252,13 @@ impl Backend {
 
                 let ignore = self.ignore_store.lock().await;
                 let dict = self.dictionary.lock().await;
-                diags.retain(|d| {
-                    let fp = DiagnosticFingerprint::new(
-                        &d.message,
-                        text,
-                        d.start_byte as usize,
-                        d.end_byte as usize,
-                    );
-                    if ignore.is_ignored(&fp) {
-                        return false;
-                    }
-                    if d.unified_id.starts_with("spelling.") {
-                        let word = safe_slice(text, d.start_byte as usize, d.end_byte as usize);
-                        if dict.contains(word) {
-                            return false;
-                        }
-                    }
-                    true
-                });
+                retain_visible(
+                    &mut diags,
+                    text,
+                    &SuppressionContext::new()
+                        .with_ignore(&ignore)
+                        .with_dictionary(&dict),
+                );
 
                 all_diagnostics.extend(diags.iter().map(|d| to_lsp_diagnostic(text, d)));
             }
