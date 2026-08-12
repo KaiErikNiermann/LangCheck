@@ -103,14 +103,24 @@ def read_lines(path: Path) -> Iterable[str]:
                 yield stripped
 
 
-def read_typos(path: Path) -> set[str]:
-    """The left column of typos' words.csv is the misspelling."""
-    typos: set[str] = set()
+def read_typos(path: Path) -> tuple[set[str], set[str]]:
+    """Split typos' words.csv into misspellings and correct English words.
+
+    Column 0 is the misspelling; the remaining columns are accepted corrections.
+    Both are subtracted from the gazetteer, for different reasons — see `build`.
+    """
+    misspellings: set[str] = set()
+    corrections: set[str] = set()
     with path.open(encoding="utf-8", errors="replace", newline="") as handle:
         for row in csv.reader(handle):
-            if row and row[0].strip():
-                typos.add(row[0].strip().lower())
-    return typos
+            if not row or not row[0].strip():
+                continue
+            misspellings.add(row[0].strip().lower())
+            for correction in row[1:]:
+                cleaned = correction.strip().lower()
+                if cleaned:
+                    corrections.add(cleaned)
+    return misspellings, corrections
 
 
 def is_plausible_name(token: str, min_length: int) -> bool:
@@ -141,8 +151,11 @@ def build(cache_dir: Path, out_path: Path, min_length: int) -> int:
     print("Fetching sources:")
     paths = {source.name: fetch(source, cache_dir) for source in SOURCES}
 
-    typos = read_typos(paths["typos-dict"])
-    print(f"\nLoaded {len(typos):,} known misspellings for subtraction.")
+    misspellings, english_words = read_typos(paths["typos-dict"])
+    print(
+        f"\nLoaded {len(misspellings):,} misspellings and {len(english_words):,} "
+        "correct English words for subtraction."
+    )
 
     raw: set[str] = set()
     for source in SOURCES:
@@ -157,12 +170,22 @@ def build(cache_dir: Path, out_path: Path, min_length: int) -> int:
     shaped = {token for token in raw if is_plausible_name(token, min_length)}
     print(f"  after shape/length filter : {len(shaped):,} (-{len(raw) - len(shaped):,})")
 
-    collisions = shaped & typos
-    final = shaped - typos
-    print(f"  after typo subtraction    : {len(final):,} (-{len(collisions):,})")
+    # Misspellings masquerading as names would silently hide real typos.
+    collisions = shaped & misspellings
+    after_typos = shaped - misspellings
+    print(f"  after misspelling subtraction: {len(after_typos):,} (-{len(collisions):,})")
     if collisions:
-        sample = ", ".join(sorted(collisions)[:12])
-        print(f"    removed misspelling-names: {sample} ...")
+        print(f"    e.g. {', '.join(sorted(collisions)[:12])} ...")
+
+    # Ordinary English words in the name list are dead weight and a liability: a spell
+    # checker never flags them, so the entry can never help, but it can fire on a
+    # misspelling that happens to coincide with it. `the` really is in the raw surname
+    # data, and without this it reached the two-signal bar.
+    word_collisions = after_typos & english_words
+    final = after_typos - english_words
+    print(f"  after English-word subtraction: {len(final):,} (-{len(word_collisions):,})")
+    if word_collisions:
+        print(f"    e.g. {', '.join(sorted(word_collisions)[:12])} ...")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     # fst::SetBuilder requires strictly increasing byte order.

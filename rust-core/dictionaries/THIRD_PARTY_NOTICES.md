@@ -80,11 +80,18 @@ Human given names and surnames used by the opt-in name-detection filter. Built b
 
 ### crate-ci/typos (subtractive use only)
 
-Used to **remove** entries, not to add them: the crowdsourced name lists contain
-several hundred entries that are actually common English misspellings (`thier`,
-`balck`, `alway`, `autor`, `aray`). Shipping those as names would silently
-suppress real typos, so they are subtracted at build time. No content from this
-project appears in the shipped gazetteer.
+Used to **remove** entries, not to add them. No content from this project appears
+in the shipped gazetteer. Both columns of `words.csv` are subtracted, for
+different reasons:
+
+- The misspelling column removes ~485 crowdsourced "names" that are actually
+  common English misspellings (`thier`, `balck`, `alway`, `autor`, `aray`).
+  Shipping those as names would silently suppress real typos.
+- The corrections column removes ~1,000 ordinary English words that the name
+  lists also contain (`the`, `able`, `alert`, `alias`, `album`). These are dead
+  weight — a spell checker never flags a common word, so the entry can never
+  help — while remaining a liability, because it can still fire on a misspelling
+  that coincides with it.
 
 - Repository: https://github.com/crate-ci/typos
 - License: Apache-2.0 (also available under MIT)
