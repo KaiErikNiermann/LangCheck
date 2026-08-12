@@ -58,6 +58,58 @@ Aggregated from three sources:
 - License: Apache-2.0
 - Attribution: Tier IV and contributors
 
+## names/names.fst, names/names.txt
+
+Human given names and surnames used by the opt-in name-detection filter. Built by
+`scripts/build-name-gazetteer.py`; `names.txt` is the reviewable word list and
+`names.fst` is the compiled form embedded in the binary.
+
+### smashew/NameDatabases
+
+- Repository: https://github.com/smashew/NameDatabases
+- License: The Unlicense (public domain dedication)
+- Attribution: Andrew Smashew and contributors
+- Source files: `NamesDatabases/surnames/all.txt`, `NamesDatabases/first names/all.txt`
+
+### dominictarr/random-name
+
+- Repository: https://github.com/dominictarr/random-name
+- License: MIT
+- Attribution: Dominic Tarr and contributors
+- Source files: `names.txt`, `first-names.txt`
+
+### crate-ci/typos (subtractive use only)
+
+Used to **remove** entries, not to add them: the crowdsourced name lists contain
+several hundred entries that are actually common English misspellings (`thier`,
+`balck`, `alway`, `autor`, `aray`). Shipping those as names would silently
+suppress real typos, so they are subtracted at build time. No content from this
+project appears in the shipped gazetteer.
+
+- Repository: https://github.com/crate-ci/typos
+- License: Apache-2.0 (also available under MIT)
+- Attribution: crate-ci contributors
+- Source file: `crates/typos-dict/assets/words.csv`
+
+---
+
+## The Unlicense (applicable to NameDatabases)
+
+```
+This is free and unencumbered software released into the public domain.
+
+Anyone is free to copy, modify, publish, use, compile, sell, or distribute this
+software, either in source code form or as a compiled binary, for any purpose,
+commercial or non-commercial, and by any means.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
 ---
 
 ## MIT License (applicable to cspell-dicts, hunspell-jargon, SpellCheckDic)

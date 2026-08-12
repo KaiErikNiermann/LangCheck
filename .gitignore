@@ -42,3 +42,4 @@ spellcheck_wordlists.json
 # Local prose-insights cache
 .languagecheck.db
 **/.languagecheck.db
+.cache/
