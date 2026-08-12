@@ -24,6 +24,7 @@ pub mod ignore_rules;
 pub mod insights;
 pub mod languages;
 pub mod lsp;
+pub mod names;
 pub mod orchestrator;
 pub mod org_ts;
 pub mod prose;
