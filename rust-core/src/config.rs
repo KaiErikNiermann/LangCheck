@@ -22,6 +22,29 @@ pub struct Config {
     pub languages: LanguageConfig,
     #[serde(default)]
     pub workspace: WorkspaceConfig,
+    #[serde(default)]
+    pub names: NameConfig,
+}
+
+/// Opt-in suppression of spelling diagnostics on human names.
+///
+/// Off by default: the failure mode is silently hiding a real misspelling, which is
+/// much harder to notice than a stray squiggle on a surname.
+///
+/// ```yaml
+/// names:
+///   enabled: true
+///   aggressiveness: balanced   # conservative | balanced | aggressive
+/// ```
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct NameConfig {
+    /// Whether to drop spelling diagnostics on tokens detected as human names.
+    #[serde(default)]
+    pub enabled: bool,
+    /// How much corroborating evidence a name needs before its diagnostic is dropped.
+    /// Default: `balanced`.
+    #[serde(default)]
+    pub aggressiveness: crate::names::Aggressiveness,
 }
 
 /// Language extension aliasing configuration.
@@ -545,6 +568,7 @@ impl Default for Config {
             dictionaries: DictionaryConfig::default(),
             languages: LanguageConfig::default(),
             workspace: WorkspaceConfig::default(),
+            names: NameConfig::default(),
         }
     }
 }

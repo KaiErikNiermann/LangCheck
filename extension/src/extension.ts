@@ -236,11 +236,12 @@ export async function activate(context: vscode.ExtensionContext) {
             const wsConfig = vscode.workspace.getConfiguration('languageCheck');
             const indexOnOpen = wsConfig.get<boolean>('workspace.indexOnOpen', false);
             const dbPath = wsConfig.get<string>('workspace.dbPath', '') || null;
-            log.debug('Sending Initialize request', { workspaceRoot: root, indexOnOpen, dbPath });
-            pushInspectorEvent('info', 'initialize', `Initializing (indexOnOpen=${indexOnOpen})`);
+            const detectNames = wsConfig.get<boolean>('names.enabled', false);
+            log.debug('Sending Initialize request', { workspaceRoot: root, indexOnOpen, dbPath, detectNames });
+            pushInspectorEvent('info', 'initialize', `Initializing (indexOnOpen=${indexOnOpen}, detectNames=${detectNames})`);
             const t0 = performance.now();
             await client.sendRequest({
-                initialize: { workspaceRoot: root, indexOnOpen, dbPath }
+                initialize: { workspaceRoot: root, indexOnOpen, dbPath, detectNames }
             });
             pushInspectorEvent('info', 'initialize', 'Server initialized', { durationMs: performance.now() - t0 });
             log.debug('Initialize response received');

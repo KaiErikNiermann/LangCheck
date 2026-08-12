@@ -22,6 +22,10 @@ message InitializeRequest {
   // Custom path for the workspace database file. When empty, the server
   // stores databases in the user data directory (~/.local/share/language-check/dbs/).
   optional string db_path = 3;
+  // VS Code global setting: whether to suppress spelling diagnostics on tokens
+  // detected as human names. Used as a fallback when .languagecheck.yaml doesn't
+  // set names.enabled.
+  optional bool detect_names = 4;
 }
 
 message IgnoreRequest {
@@ -87,8 +91,20 @@ message ExtractionProseRange {
   repeated ExtractionExclusion exclusions = 3;
 }
 
+// A span the name filter recognised as a human name and therefore silenced.
+// Surfaced in the inspector so the suppression is visible and debuggable.
+message NameSpan {
+  uint32 start_byte = 1;
+  uint32 end_byte = 2;
+  // Summed signal weight behind the decision; higher means stronger evidence.
+  float confidence = 3;
+  // Comma-separated signal tags, e.g. "gazetteer,shape".
+  string signals = 4;
+}
+
 message ExtractionInfo {
   repeated ExtractionProseRange prose_ranges = 1;
+  repeated NameSpan names = 2;
 }
 
 message Diagnostic {

@@ -18,6 +18,7 @@ use dictionary::Dictionary;
 use glob::glob;
 use hashing::{DiagnosticFingerprint, IgnoreStore};
 use insights::ProseInsights;
+use lang_check::names::NameFilter;
 use lang_check::sls::SchemaRegistry;
 use lang_check::suppression::{SuppressionContext, retain_visible};
 use lang_check::{checker, config, dictionary, hashing, insights, orchestrator, prose, workspace};
@@ -34,13 +35,14 @@ use workspace::WorkspaceIndex;
 
 /// Shared handles a background indexing task needs.
 ///
-/// Bundled rather than passed positionally so adding a source (the dictionary here, and
-/// later the name filter) doesn't keep widening the call signature.
+/// Bundled rather than passed positionally so adding a source doesn't keep widening the
+/// call signature.
 #[derive(Clone)]
 struct IndexingContext {
     orchestrator: Arc<Mutex<Orchestrator>>,
     ignore_store: Arc<Mutex<IgnoreStore>>,
     dictionary: Arc<Mutex<Dictionary>>,
+    name_filter: Arc<Mutex<Option<NameFilter>>>,
     schema_registry: Arc<Mutex<SchemaRegistry>>,
     workspace_index: Arc<Mutex<Option<WorkspaceIndex>>>,
     config: Arc<Mutex<Config>>,
@@ -55,6 +57,7 @@ async fn process_file_for_indexing(
         orchestrator,
         ignore_store: ignore_store_arc,
         dictionary: dictionary_arc,
+        name_filter: name_filter_arc,
         schema_registry: schema_registry_arc,
         workspace_index: workspace_index_arc,
         config: config_arc,
@@ -108,13 +111,15 @@ async fn process_file_for_indexing(
             }
             let ignore_store_lock = ignore_store_arc.lock().await;
             let dictionary_lock = dictionary_arc.lock().await;
-            retain_visible(
-                &mut diagnostics,
-                &text,
-                &SuppressionContext::new()
-                    .with_ignore(&ignore_store_lock)
-                    .with_dictionary(&dictionary_lock),
-            );
+            let name_filter_lock = name_filter_arc.lock().await;
+            let mut ctx = SuppressionContext::new()
+                .with_ignore(&ignore_store_lock)
+                .with_dictionary(&dictionary_lock);
+            if let Some(filter) = name_filter_lock.as_ref() {
+                ctx = ctx.with_names(filter);
+            }
+            retain_visible(&mut diagnostics, &text, &ctx);
+            drop(name_filter_lock);
             drop(dictionary_lock);
             drop(ignore_store_lock);
             all_diagnostics.extend(diagnostics);
@@ -174,6 +179,7 @@ async fn main() -> Result<()> {
     let config_arc: Arc<Mutex<Config>> = Arc::new(Mutex::new(Config::default()));
     let ignore_store_arc: Arc<Mutex<IgnoreStore>> = Arc::new(Mutex::new(IgnoreStore::new()));
     let dictionary_arc: Arc<Mutex<Dictionary>> = Arc::new(Mutex::new(Dictionary::new()));
+    let name_filter_arc: Arc<Mutex<Option<NameFilter>>> = Arc::new(Mutex::new(None));
     let schema_registry_arc: Arc<Mutex<SchemaRegistry>> =
         Arc::new(Mutex::new(SchemaRegistry::new()));
     let workspace_index_arc: Arc<Mutex<Option<WorkspaceIndex>>> = Arc::new(Mutex::new(None));
@@ -185,6 +191,7 @@ async fn main() -> Result<()> {
         let config_arc = config_arc.clone();
         let ignore_store_arc = ignore_store_arc.clone();
         let dictionary_arc = dictionary_arc.clone();
+        let name_filter_arc = name_filter_arc.clone();
         let schema_registry_arc = schema_registry_arc.clone();
         let workspace_index_arc = workspace_index_arc.clone();
         let indexing_notify = indexing_notify.clone();
@@ -252,6 +259,7 @@ async fn main() -> Result<()> {
                                     orchestrator: indexing_orchestrator.clone(),
                                     ignore_store: ignore_store_arc.clone(),
                                     dictionary: dictionary_arc.clone(),
+                                    name_filter: name_filter_arc.clone(),
                                     schema_registry: schema_registry_arc.clone(),
                                     workspace_index: workspace_index_arc.clone(),
                                     config: config_arc.clone(),
@@ -361,6 +369,7 @@ async fn main() -> Result<()> {
         let config_arc = config_arc.clone();
         let ignore_store_arc = ignore_store_arc.clone();
         let dictionary_arc = dictionary_arc.clone();
+        let name_filter_arc = name_filter_arc.clone();
         let schema_registry_arc = schema_registry_arc.clone();
         let workspace_index_arc = workspace_index_arc.clone();
         let indexing_notify = indexing_notify.clone();
@@ -413,6 +422,18 @@ async fn main() -> Result<()> {
                             warn!("Could not load dictionary: {e}");
                         }
                     }
+                    // The VS Code global acts as a fallback when the workspace config
+                    // doesn't set it, mirroring workspace.index_on_open.
+                    let names_enabled = config.names.enabled || req.detect_names.unwrap_or(false);
+                    *name_filter_arc.lock().await = names_enabled.then(|| {
+                        info!(
+                            aggressiveness = ?config.names.aggressiveness,
+                            language = config.engines.spell_language,
+                            "Name detection enabled"
+                        );
+                        NameFilter::new(config.names.aggressiveness, &config.engines.spell_language)
+                    });
+
                     match IgnoreStore::load(&root_path) {
                         Ok(loaded_store) => {
                             *ignore_store_arc.lock().await = loaded_store;
@@ -495,7 +516,7 @@ async fn main() -> Result<()> {
                                 ranges = ranges.len(),
                                 "CheckProse: extraction complete, checking ranges"
                             );
-                            let extraction_info = ExtractionInfo {
+                            let mut extraction_info = ExtractionInfo {
                                 prose_ranges: ranges
                                     .iter()
                                     .map(|r| ExtractionProseRange {
@@ -511,9 +532,11 @@ async fn main() -> Result<()> {
                                             .collect(),
                                     })
                                     .collect(),
+                                names: Vec::new(),
                             };
 
                             let mut all_diagnostics = Vec::new();
+                            let mut detected_names: Vec<checker::NameSpan> = Vec::new();
                             let check_start = std::time::Instant::now();
                             for (range_idx, range) in ranges.iter().enumerate() {
                                 let prose_text = range.extract_text(&req.text);
@@ -535,6 +558,7 @@ async fn main() -> Result<()> {
 
                                 let ignore_store = ignore_store_arc.lock().await;
                                 let dict = dictionary_arc.lock().await;
+                                let name_filter = name_filter_arc.lock().await;
                                 if let Ok(mut diagnostics) = check_result {
                                     diagnostics.retain(|d| {
                                         !range.suppresses_diagnostic(
@@ -549,12 +573,21 @@ async fn main() -> Result<()> {
                                         d.end_byte += range.start_byte as u32;
                                     }
 
-                                    retain_visible(
-                                        &mut diagnostics,
-                                        &req.text,
-                                        &SuppressionContext::new()
-                                            .with_ignore(&ignore_store)
-                                            .with_dictionary(&dict),
+                                    let mut ctx = SuppressionContext::new()
+                                        .with_ignore(&ignore_store)
+                                        .with_dictionary(&dict);
+                                    if let Some(filter) = name_filter.as_ref() {
+                                        ctx = ctx.with_names(filter);
+                                    }
+                                    detected_names.extend(
+                                        retain_visible(&mut diagnostics, &req.text, &ctx)
+                                            .into_iter()
+                                            .map(|n| checker::NameSpan {
+                                                start_byte: n.start_byte,
+                                                end_byte: n.end_byte,
+                                                confidence: n.confidence,
+                                                signals: n.signals,
+                                            }),
                                     );
 
                                     all_diagnostics.extend(diagnostics);
@@ -585,6 +618,7 @@ async fn main() -> Result<()> {
                             let engine_health =
                                 orchestrator_arc.lock().await.engine_health_report();
 
+                            extraction_info.names = detected_names;
                             Some(response::Payload::CheckProse(CheckResponse {
                                 diagnostics: all_diagnostics,
                                 extraction: Some(extraction_info),

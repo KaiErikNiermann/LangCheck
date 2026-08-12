@@ -15,17 +15,19 @@
 use crate::checker::Diagnostic;
 use crate::dictionary::Dictionary;
 use crate::hashing::{DiagnosticFingerprint, IgnoreStore};
+use crate::names::{NameFilter, NameQuery, NameVerdict};
 use crate::prose::is_spelling_category;
 use crate::text_util::safe_slice;
 
 /// The suppression sources available at a given call site.
 ///
 /// Each is optional because the entry points differ in what they have: the CLI has no
-/// ignore store, and the background indexer has no dictionary.
+/// ignore store, and the name filter is only present when the user opts in.
 #[derive(Default, Clone, Copy)]
 pub struct SuppressionContext<'a> {
     pub ignore: Option<&'a IgnoreStore>,
     pub dictionary: Option<&'a Dictionary>,
+    pub names: Option<&'a NameFilter>,
 }
 
 impl<'a> SuppressionContext<'a> {
@@ -34,6 +36,7 @@ impl<'a> SuppressionContext<'a> {
         Self {
             ignore: None,
             dictionary: None,
+            names: None,
         }
     }
 
@@ -48,13 +51,27 @@ impl<'a> SuppressionContext<'a> {
         self.dictionary = Some(dictionary);
         self
     }
+
+    #[must_use]
+    pub const fn with_names(mut self, names: &'a NameFilter) -> Self {
+        self.names = Some(names);
+        self
+    }
 }
 
-/// Whether `diagnostic` should be dropped before reaching the user.
-///
-/// `text` is the full document; `diagnostic`'s offsets must index into it.
-#[must_use]
-pub fn should_suppress(diagnostic: &Diagnostic, text: &str, ctx: &SuppressionContext<'_>) -> bool {
+/// What the suppression pass decided about one diagnostic.
+enum Outcome {
+    /// Show it.
+    Keep,
+    /// Drop it (ignore store or user dictionary).
+    Drop,
+    /// Drop it because the token is a human name.
+    DropAsName(NameVerdict),
+}
+
+/// The single decision point. Both public entry points route through this so the four
+/// call sites cannot diverge again.
+fn classify(diagnostic: &Diagnostic, text: &str, ctx: &SuppressionContext<'_>) -> Outcome {
     if let Some(ignore) = ctx.ignore {
         let fingerprint = DiagnosticFingerprint::new(
             &diagnostic.message,
@@ -63,29 +80,85 @@ pub fn should_suppress(diagnostic: &Diagnostic, text: &str, ctx: &SuppressionCon
             diagnostic.end_byte as usize,
         );
         if ignore.is_ignored(&fingerprint) {
-            return true;
+            return Outcome::Drop;
         }
     }
 
-    if is_spelling_category(&diagnostic.unified_id)
-        && let Some(dictionary) = ctx.dictionary
+    if !is_spelling_category(&diagnostic.unified_id) {
+        return Outcome::Keep;
+    }
+
+    let word = safe_slice(
+        text,
+        diagnostic.start_byte as usize,
+        diagnostic.end_byte as usize,
+    );
+
+    if let Some(dictionary) = ctx.dictionary
+        && dictionary.contains(word)
     {
-        let word = safe_slice(
-            text,
-            diagnostic.start_byte as usize,
-            diagnostic.end_byte as usize,
-        );
-        if dictionary.contains(word) {
-            return true;
-        }
+        return Outcome::Drop;
     }
 
-    false
+    let Some(filter) = ctx.names else {
+        return Outcome::Keep;
+    };
+    let verdict = filter.evaluate(&NameQuery {
+        token: word,
+        text,
+        start_byte: diagnostic.start_byte as usize,
+        end_byte: diagnostic.end_byte as usize,
+        suggestions: &diagnostic.suggestions,
+    });
+    if verdict.is_name {
+        Outcome::DropAsName(verdict)
+    } else {
+        Outcome::Keep
+    }
 }
 
-/// Convenience wrapper for the `Vec::retain` shape every call site uses.
-pub fn retain_visible(diagnostics: &mut Vec<Diagnostic>, text: &str, ctx: &SuppressionContext<'_>) {
-    diagnostics.retain(|d| !should_suppress(d, text, ctx));
+/// Whether `diagnostic` should be dropped before reaching the user.
+///
+/// `text` is the full document; `diagnostic`'s offsets must index into it.
+#[must_use]
+pub fn should_suppress(diagnostic: &Diagnostic, text: &str, ctx: &SuppressionContext<'_>) -> bool {
+    !matches!(classify(diagnostic, text, ctx), Outcome::Keep)
+}
+
+/// A span the name filter recognised, for the inspector.
+#[derive(Debug, Clone)]
+pub struct DetectedName {
+    pub start_byte: u32,
+    pub end_byte: u32,
+    pub confidence: f32,
+    pub signals: String,
+}
+
+/// Drop suppressed diagnostics, reporting any dropped because they were names.
+///
+/// The report exists so the inspector can show exactly what the filter silenced and on
+/// what evidence — without it the feature is invisible and undebuggable. Call sites that
+/// don't surface it simply discard the return value.
+pub fn retain_visible(
+    diagnostics: &mut Vec<Diagnostic>,
+    text: &str,
+    ctx: &SuppressionContext<'_>,
+) -> Vec<DetectedName> {
+    let mut detected = Vec::new();
+    diagnostics.retain(|d| match classify(d, text, ctx) {
+        Outcome::Keep => true,
+        Outcome::Drop => false,
+        Outcome::DropAsName(verdict) => {
+            detected.push(DetectedName {
+                start_byte: d.start_byte,
+                end_byte: d.end_byte,
+                confidence: verdict.score,
+                signals: verdict.signal_tags(),
+            });
+            false
+        }
+    });
+    detected
 }
 
 #[cfg(test)]

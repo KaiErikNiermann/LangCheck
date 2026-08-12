@@ -28,6 +28,7 @@ use crate::checker;
 use crate::config::Config;
 use crate::dictionary::Dictionary;
 use crate::hashing::{DiagnosticFingerprint, IgnoreStore};
+use crate::names::NameFilter;
 use crate::orchestrator::Orchestrator;
 use crate::prose;
 use crate::sls::SchemaRegistry;
@@ -49,6 +50,14 @@ struct LspSettings {
 struct LangCheckSettings {
     engines: Option<EngineSettings>,
     performance: Option<PerformanceSettings>,
+    names: Option<NameSettings>,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default)]
+struct NameSettings {
+    enabled: Option<bool>,
+    aggressiveness: Option<crate::names::Aggressiveness>,
 }
 
 #[derive(Debug, Default, serde::Deserialize)]
@@ -83,6 +92,7 @@ pub struct Backend {
     orchestrator: Arc<Mutex<Orchestrator>>,
     config: Arc<Mutex<Config>>,
     dictionary: Arc<Mutex<Dictionary>>,
+    name_filter: Arc<Mutex<Option<NameFilter>>>,
     ignore_store: Arc<Mutex<IgnoreStore>>,
     schema_registry: Arc<Mutex<SchemaRegistry>>,
     documents: DocumentStore,
@@ -96,6 +106,7 @@ impl Backend {
             orchestrator: Arc::new(Mutex::new(Orchestrator::new(Config::default()))),
             config: Arc::new(Mutex::new(Config::default())),
             dictionary: Arc::new(Mutex::new(Dictionary::new())),
+            name_filter: Arc::new(Mutex::new(None)),
             ignore_store: Arc::new(Mutex::new(IgnoreStore::new())),
             schema_registry: Arc::new(Mutex::new(SchemaRegistry::new())),
             documents: DashMap::new(),
@@ -132,6 +143,14 @@ impl Backend {
             Err(e) => warn!("Could not load dictionary: {e}"),
         }
 
+        *self.name_filter.lock().await = config.names.enabled.then(|| {
+            info!(
+                aggressiveness = ?config.names.aggressiveness,
+                "LSP: name detection enabled"
+            );
+            NameFilter::new(config.names.aggressiveness, &config.engines.spell_language)
+        });
+
         if let Ok(store) = IgnoreStore::load(root) {
             *self.ignore_store.lock().await = store;
         }
@@ -165,6 +184,14 @@ impl Backend {
                 config.engines.spell_language.clone_from(v);
             }
         }
+        if let Some(ref names) = settings.names {
+            if let Some(v) = names.enabled {
+                config.names.enabled = v;
+            }
+            if let Some(v) = names.aggressiveness {
+                config.names.aggressiveness = v;
+            }
+        }
         if let Some(ref perf) = settings.performance {
             if let Some(v) = perf.high_performance_mode {
                 config.performance.high_performance_mode = v;
@@ -178,6 +205,12 @@ impl Backend {
         }
         let updated = config.clone();
         drop(config);
+        *self.name_filter.lock().await = updated.names.enabled.then(|| {
+            NameFilter::new(
+                updated.names.aggressiveness,
+                &updated.engines.spell_language,
+            )
+        });
         self.orchestrator.lock().await.update_config(updated);
         info!("LSP: config updated via didChangeConfiguration");
     }
@@ -200,6 +233,12 @@ impl Backend {
     }
 
     /// Run diagnostics on a document and publish them.
+    // The three suppression-source guards are borrowed by `SuppressionContext`, so they
+    // genuinely have to outlive the `retain_visible` call; clippy's nursery lint reads
+    // the last direct mention of each guard as its last use and asks for an earlier drop
+    // that would not compile. The server binary allows this lint file-wide for the same
+    // pattern.
+    #[allow(clippy::significant_drop_tightening)]
     async fn diagnose(&self, uri: &Url, text: &str, lang_id: &str) {
         let canonical = crate::languages::resolve_language_id(lang_id);
 
@@ -250,15 +289,18 @@ impl Backend {
                     d.end_byte += range.start_byte as u32;
                 }
 
-                let ignore = self.ignore_store.lock().await;
-                let dict = self.dictionary.lock().await;
-                retain_visible(
-                    &mut diags,
-                    text,
-                    &SuppressionContext::new()
+                {
+                    let ignore = self.ignore_store.lock().await;
+                    let dict = self.dictionary.lock().await;
+                    let names = self.name_filter.lock().await;
+                    let mut ctx = SuppressionContext::new()
                         .with_ignore(&ignore)
-                        .with_dictionary(&dict),
-                );
+                        .with_dictionary(&dict);
+                    if let Some(filter) = names.as_ref() {
+                        ctx = ctx.with_names(filter);
+                    }
+                    retain_visible(&mut diags, text, &ctx);
+                }
 
                 all_diagnostics.extend(diags.iter().map(|d| to_lsp_diagnostic(text, d)));
             }

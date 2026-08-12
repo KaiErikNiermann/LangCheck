@@ -12,6 +12,7 @@ use config::Config;
 use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
 use lang_check::dictionary::Dictionary;
+use lang_check::names::NameFilter;
 use lang_check::sls::SchemaRegistry;
 use lang_check::suppression::{SuppressionContext, retain_visible};
 use lang_check::{checker::Diagnostic, config, orchestrator, prose, rules};
@@ -130,8 +131,8 @@ async fn main() -> Result<()> {
                 || lang_check::languages::detect_language(&path, &config),
                 |l| lang_check::languages::resolve_language_id(&l).to_string(),
             );
-            let dictionary = load_cli_dictionary(&current_dir, &config);
-            check_path(path, lang, &format, config, &schema_registry, &dictionary).await?;
+            let suppression = CliSuppression::load(&current_dir, &config);
+            check_path(path, lang, &format, config, &schema_registry, &suppression).await?;
         }
         Commands::Fix { path, lang } => {
             let schema_registry = SchemaRegistry::from_workspace(&current_dir)?;
@@ -139,8 +140,8 @@ async fn main() -> Result<()> {
                 || lang_check::languages::detect_language(&path, &config),
                 |l| lang_check::languages::resolve_language_id(&l).to_string(),
             );
-            let dictionary = load_cli_dictionary(&current_dir, &config);
-            fix_path(path, lang, config, &schema_registry, &dictionary).await?;
+            let suppression = CliSuppression::load(&current_dir, &config);
+            fix_path(path, lang, config, &schema_registry, &suppression).await?;
         }
         Commands::ListRules {
             filter,
@@ -157,22 +158,49 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// Load the workspace dictionary for CLI runs.
+/// Suppression sources shared by every file the CLI visits.
 ///
-/// The CLI previously ignored the user dictionary entirely, so words the user had
-/// explicitly whitelisted still surfaced as spelling errors here while being suppressed
-/// in the editor. A load failure is non-fatal — we fall back to an empty dictionary.
-fn load_cli_dictionary(workspace_root: &std::path::Path, config: &Config) -> Dictionary {
-    let mut dictionary = Dictionary::load(workspace_root).unwrap_or_default();
-    if config.dictionaries.bundled {
-        dictionary.load_bundled();
+/// Bundled so the per-file functions take one parameter instead of two, and so the
+/// `SuppressionContext` is built in exactly one place.
+struct CliSuppression {
+    dictionary: Dictionary,
+    names: Option<NameFilter>,
+}
+
+impl CliSuppression {
+    /// Load the workspace dictionary and, if opted in, the name filter.
+    ///
+    /// The CLI previously ignored the user dictionary entirely, so words the user had
+    /// explicitly whitelisted still surfaced as spelling errors here while being
+    /// suppressed in the editor. A load failure is non-fatal.
+    fn load(workspace_root: &std::path::Path, config: &Config) -> Self {
+        let mut dictionary = Dictionary::load(workspace_root).unwrap_or_default();
+        if config.dictionaries.bundled {
+            dictionary.load_bundled();
+        }
+        for path in &config.dictionaries.paths {
+            if let Err(e) =
+                dictionary.load_wordlist_file(std::path::Path::new(path), workspace_root)
+            {
+                eprintln!("{} {e}", style("warning:").yellow());
+            }
+        }
+
+        let names = config
+            .names
+            .enabled
+            .then(|| NameFilter::new(config.names.aggressiveness, &config.engines.spell_language));
+
+        Self { dictionary, names }
     }
-    for path in &config.dictionaries.paths {
-        if let Err(e) = dictionary.load_wordlist_file(std::path::Path::new(path), workspace_root) {
-            eprintln!("{} {e}", style("warning:").yellow());
+
+    const fn context(&self) -> SuppressionContext<'_> {
+        let ctx = SuppressionContext::new().with_dictionary(&self.dictionary);
+        match &self.names {
+            Some(filter) => ctx.with_names(filter),
+            None => ctx,
         }
     }
-    dictionary
 }
 
 async fn check_path(
@@ -181,7 +209,7 @@ async fn check_path(
     format: &OutputFormat,
     config: Config,
     schema_registry: &SchemaRegistry,
-    dictionary: &Dictionary,
+    suppression: &CliSuppression,
 ) -> Result<()> {
     let mut orchestrator = Orchestrator::new(config.clone());
     let mut all_json_diagnostics: Vec<JsonDiagnostic> = Vec::new();
@@ -191,7 +219,7 @@ async fn check_path(
             &path,
             &mut orchestrator,
             &lang,
-            dictionary,
+            suppression,
             format,
             &mut all_json_diagnostics,
             schema_registry,
@@ -232,7 +260,7 @@ async fn check_path(
                 p,
                 &mut orchestrator,
                 &lang,
-                dictionary,
+                suppression,
                 format,
                 &mut all_json_diagnostics,
                 schema_registry,
@@ -258,7 +286,7 @@ async fn check_file(
     path: &PathBuf,
     orchestrator: &mut Orchestrator,
     lang: &str,
-    dictionary: &Dictionary,
+    suppression: &CliSuppression,
     format: &OutputFormat,
     json_diagnostics: &mut Vec<JsonDiagnostic>,
     schema_registry: &SchemaRegistry,
@@ -289,11 +317,7 @@ async fn check_file(
             d.start_byte += range.start_byte as u32;
             d.end_byte += range.start_byte as u32;
         }
-        retain_visible(
-            &mut diagnostics,
-            &text,
-            &SuppressionContext::new().with_dictionary(dictionary),
-        );
+        retain_visible(&mut diagnostics, &text, &suppression.context());
 
         for d in diagnostics {
             found_issues += 1;
@@ -339,12 +363,19 @@ async fn fix_path(
     lang: String,
     config: Config,
     schema_registry: &SchemaRegistry,
-    dictionary: &Dictionary,
+    suppression: &CliSuppression,
 ) -> Result<()> {
     let mut orchestrator = Orchestrator::new(config);
 
     if path.is_file() {
-        fix_file(&path, &mut orchestrator, &lang, schema_registry, dictionary).await?;
+        fix_file(
+            &path,
+            &mut orchestrator,
+            &lang,
+            schema_registry,
+            suppression,
+        )
+        .await?;
     }
 
     Ok(())
@@ -355,7 +386,7 @@ async fn fix_file(
     orchestrator: &mut Orchestrator,
     lang: &str,
     schema_registry: &SchemaRegistry,
-    dictionary: &Dictionary,
+    suppression: &CliSuppression,
 ) -> Result<()> {
     let mut text = fs::read_to_string(path)?;
     println!("Fixing {}...", style(path.to_string_lossy()).cyan());
@@ -380,11 +411,7 @@ async fn fix_file(
                 d.start_byte += range.start_byte as u32;
                 d.end_byte += range.start_byte as u32;
             }
-            retain_visible(
-                &mut diagnostics,
-                &text,
-                &SuppressionContext::new().with_dictionary(dictionary),
-            );
+            retain_visible(&mut diagnostics, &text, &suppression.context());
             all_diagnostics.extend(diagnostics);
         }
     }
