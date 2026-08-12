@@ -10,7 +10,7 @@ import { createAPI } from './api';
 import { binaryExists, downloadBinary } from './downloader';
 import { formatSuggestionLabel, speedFixSuggestionLabel, displayOriginalText } from './inlayLabels';
 import type { LanguageCheckDiagnostic } from './api';
-import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth, InspectorEngineInfo } from './events';
+import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth, InspectorEngineInfo, InspectorNameSpan } from './events';
 import { Logger } from './logger';
 
 const GITHUB_REPO = 'KaiErikNiermann/LangCheck';
@@ -76,6 +76,8 @@ let lastCheckInfo: InspectorCheckInfo | null = null;
 
 // Cached extraction data per document URI (from real Rust core response)
 const extractionCache = new Map<string, { prose: InspectorProseRange[]; languageId: string }>();
+/** Words the name filter silenced on the last check, per document. */
+const detectedNamesCache = new Map<string, InspectorNameSpan[]>();
 
 // Tracked spell_language from config (for status bar + change detection)
 let lastKnownSpellLanguage: string | undefined;
@@ -2070,6 +2072,12 @@ async function updateInspectorData() {
         },
     });
 
+    // Send words the name filter silenced
+    inspectorPanel.webview.postMessage({
+        type: 'setNames',
+        payload: { names: detectedNamesCache.get(uri) ?? [] },
+    });
+
     // Send real benchmark timings if available
     if (lastCheckTimings.length > 0) {
         inspectorPanel.webview.postMessage({
@@ -2499,6 +2507,23 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
                 prose: inspectorRanges,
                 languageId: document.languageId,
             });
+
+            // Words the core silenced as names. Surfaced so the suppression is visible
+            // rather than a silent behaviour change.
+            const nameSpans: InspectorNameSpan[] = (response.checkProse.extraction?.names ?? []).map(n => {
+                const startByte = n.startByte as number;
+                const endByte = n.endByte as number;
+                const startChar = byteToChar(startByte);
+                return {
+                    startByte,
+                    endByte,
+                    text: textContent.substring(startChar, byteToChar(endByte)),
+                    confidence: (n.confidence as number) ?? 0,
+                    signals: (n.signals ?? '').split(',').filter(Boolean),
+                    line: document.positionAt(startChar).line + 1,
+                };
+            });
+            detectedNamesCache.set(document.uri.toString(), nameSpans);
 
             // Store timings and check info for inspector
             lastCheckTimings = timings;

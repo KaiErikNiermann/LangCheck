@@ -49,6 +49,19 @@ export interface InspectorExclusion {
     text: string;
 }
 
+/** A word the name filter recognised as a human name and therefore silenced. */
+export interface InspectorNameSpan {
+    startByte: number;
+    endByte: number;
+    /** The word as it appears in the document. */
+    text: string;
+    /** Summed signal weight; higher means stronger evidence. */
+    confidence: number;
+    /** Which signals fired, e.g. ["gazetteer", "shape"]. */
+    signals: string[];
+    line: number;
+}
+
 export interface InspectorProseRange {
     startByte: number;
     endByte: number;
@@ -109,6 +122,7 @@ export interface InspectorEngineInfo {
 // Messages from extension → Inspector webview
 export type ExtensionToInspectorMessage =
     | { type: 'setExtraction'; payload: { prose: InspectorProseRange[]; fileName: string; languageId: string } }
+    | { type: 'setNames'; payload: { names: InspectorNameSpan[] } }
     | { type: 'setLatency'; payload: { stages: InspectorLatencyStage[] } }
     | { type: 'setDiagnosticSummary'; payload: InspectorDiagnosticSummary }
     | { type: 'setCheckInfo'; payload: InspectorCheckInfo }

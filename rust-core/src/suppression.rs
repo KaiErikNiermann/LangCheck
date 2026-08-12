@@ -230,6 +230,43 @@ mod tests {
     }
 
     #[test]
+    fn detected_names_are_reported_for_the_inspector() {
+        use crate::names::{Aggressiveness, NameFilter};
+
+        let text = "The logic of Hoare is central.";
+        let filter = NameFilter::new(Aggressiveness::Balanced, "en-US");
+        let ctx = SuppressionContext::new().with_names(&filter);
+
+        let start = text.find("Hoare").unwrap() as u32;
+        let mut d = spelling_diagnostic(start, start + 5);
+        d.suggestions = vec!["Hare".to_string(), "Hoar".to_string()];
+        let mut diagnostics = vec![d];
+
+        let detected = retain_visible(&mut diagnostics, text, &ctx);
+
+        assert!(diagnostics.is_empty(), "the name should have been dropped");
+        assert_eq!(detected.len(), 1);
+        assert_eq!(detected[0].start_byte, start);
+        assert_eq!(detected[0].end_byte, start + 5);
+        assert!(detected[0].confidence > 0.0);
+        assert!(
+            detected[0].signals.contains("gazetteer"),
+            "signals were {}",
+            detected[0].signals
+        );
+    }
+
+    #[test]
+    fn nothing_is_reported_without_a_name_filter() {
+        let text = "The logic of Hoare is central.";
+        let start = text.find("Hoare").unwrap() as u32;
+        let mut diagnostics = vec![spelling_diagnostic(start, start + 5)];
+        let detected = retain_visible(&mut diagnostics, text, &SuppressionContext::new());
+        assert_eq!(diagnostics.len(), 1, "opt-in: must stay flagged");
+        assert!(detected.is_empty());
+    }
+
+    #[test]
     fn retain_visible_drops_only_suppressed() {
         let text = "Ackermann met Hoare.";
         let mut dict = Dictionary::new();

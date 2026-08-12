@@ -8,6 +8,15 @@
     text: string;
   }
 
+  interface NameSpan {
+    startByte: number;
+    endByte: number;
+    text: string;
+    confidence: number;
+    signals: string[];
+    line: number;
+  }
+
   interface ProseRange {
     startByte: number;
     endByte: number;
@@ -62,9 +71,10 @@
     configPath: string;
   }
 
-  type Tab = 'extraction' | 'cleantext' | 'latency' | 'diagnostics' | 'events' | 'health';
+  type Tab = 'extraction' | 'cleantext' | 'latency' | 'diagnostics' | 'names' | 'events' | 'health';
 
   let proseRanges: ProseRange[] = $state([]);
+  let detectedNames: NameSpan[] = $state([]);
   let latencyStages: LatencyStage[] = $state([]);
   let diagnosticSummary: DiagnosticSummary | null = $state(null);
   let checkInfo: CheckInfo | null = $state(null);
@@ -92,6 +102,9 @@
           fileName = message.payload.fileName ?? '';
           languageId = message.payload.languageId ?? '';
           selectedRangeIdx = null;
+          break;
+        case 'setNames':
+          detectedNames = message.payload.names ?? [];
           break;
         case 'setLatency':
           latencyStages = message.payload.stages ?? [];
@@ -125,6 +138,23 @@
 
     vscode.postMessage({ type: 'inspectorReady' });
   });
+
+  /** Distinct colour per signal so the evidence mix is readable at a glance. */
+  function signalColor(signal: string): string {
+    switch (signal) {
+      case 'gazetteer': return 'rgba(86, 156, 214, 0.30)';
+      case 'orphan': return 'rgba(197, 134, 192, 0.30)';
+      case 'no-suggestions': return 'rgba(181, 206, 168, 0.30)';
+      case 'repetition': return 'rgba(220, 220, 170, 0.30)';
+      case 'context': return 'rgba(206, 145, 120, 0.30)';
+      case 'shape': return 'rgba(156, 220, 254, 0.30)';
+      default: return 'rgba(128, 128, 128, 0.30)';
+    }
+  }
+
+  function highlightSpan(startByte: number, endByte: number) {
+    vscode.postMessage({ type: 'highlightRange', payload: { startByte, endByte } });
+  }
 
   function highlightRange(range: ProseRange, idx: number) {
     selectedRangeIdx = idx;
@@ -423,6 +453,9 @@
     <button class="tab" class:active={activeTab === 'diagnostics'} onclick={() => activeTab = 'diagnostics'}>
       Issues
     </button>
+    <button class="tab" class:active={activeTab === 'names'} onclick={() => activeTab = 'names'}>
+      Names{detectedNames.length > 0 ? ` (${detectedNames.length})` : ''}
+    </button>
     <button class="tab" class:active={activeTab === 'events'} onclick={() => activeTab = 'events'}>
       Events{events.length > 0 ? ` (${events.length})` : ''}
     </button>
@@ -647,6 +680,43 @@
         <div class="empty-state">No diagnostics reported yet.</div>
       {/if}
 
+    {:else if activeTab === 'names'}
+      {#if detectedNames.length === 0}
+        <div class="empty-state names-empty">
+          <span>No words were suppressed as names.</span>
+          <span class="names-empty-hint">
+            Name detection is opt-in — enable <code>languageCheck.names.enabled</code>
+            or set <code>names.enabled: true</code> in <code>.languagecheck.yaml</code>.
+          </span>
+        </div>
+      {:else}
+        <div class="section-list">
+          <div class="section-header">
+            <span class="section-title">Suppressed as names</span>
+            <span class="section-count">{detectedNames.length}</span>
+          </div>
+          <div class="names-hint">
+            These words were flagged as misspellings and then silenced. A word needs at
+            least two agreeing signals before it is treated as a name.
+          </div>
+          {#each detectedNames as name}
+            <button
+              class="name-row"
+              onclick={() => highlightSpan(name.startByte, name.endByte)}
+              title="Reveal in editor"
+            >
+              <span class="name-token">{name.text}</span>
+              <span class="name-line">line {name.line}</span>
+              <span class="name-signals">
+                {#each name.signals as signal}
+                  <span class="signal-chip" style="background: {signalColor(signal)}">{signal}</span>
+                {/each}
+              </span>
+              <span class="name-score">{name.confidence.toFixed(1)}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
     {:else if activeTab === 'events'}
       <!-- Event Log -->
       {#if events.length > 0}
@@ -1533,5 +1603,79 @@
     min-height: 200px;
     opacity: 0.4;
     font-size: 13px;
+  }
+
+  .names-empty {
+    flex-direction: column;
+    gap: 8px;
+    text-align: center;
+    padding: 0 24px;
+  }
+
+  .names-empty-hint {
+    font-size: 11px;
+    opacity: 0.8;
+    line-height: 1.5;
+  }
+
+  .names-hint {
+    font-size: 11px;
+    opacity: 0.5;
+    line-height: 1.5;
+    margin-bottom: 4px;
+  }
+
+  .name-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.08));
+    border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.15));
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    transition: border-color 0.1s;
+  }
+
+  .name-row:hover {
+    border-color: var(--vscode-focusBorder, rgba(128, 128, 128, 0.4));
+  }
+
+  .name-token {
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .name-line {
+    font-size: 10px;
+    opacity: 0.4;
+    white-space: nowrap;
+  }
+
+  .name-signals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .signal-chip {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  .name-score {
+    font-size: 10px;
+    font-family: var(--vscode-editor-font-family, monospace);
+    opacity: 0.45;
+    min-width: 24px;
+    text-align: right;
   }
 </style>
