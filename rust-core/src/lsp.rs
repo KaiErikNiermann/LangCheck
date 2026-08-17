@@ -271,39 +271,33 @@ impl Backend {
 
         let mut all_diagnostics: Vec<Diagnostic> = Vec::new();
 
-        for range in &ranges {
-            let prose_text = range.extract_text(text);
+        let prose_texts = crate::prose::range_texts(&ranges, text);
+        let batch = {
+            let mut orch = self.orchestrator.lock().await;
+            orch.check_batch(&prose_texts, lang_id).await
+        };
 
-            let check_result = {
-                let mut orch = self.orchestrator.lock().await;
-                orch.check(&prose_text, lang_id).await
-            };
+        let batch = batch.unwrap_or_else(|e| {
+            warn!(uri = %uri, "Check error: {e}");
+            Vec::new()
+        });
+        for (range, mut diags) in ranges.iter().zip(batch) {
+            range.adopt_diagnostics(text, &mut diags);
 
-            if let Ok(mut diags) = check_result {
-                diags.retain(|d| {
-                    !range.suppresses_diagnostic(text, d.start_byte, d.end_byte, &d.unified_id)
-                });
-
-                for d in &mut diags {
-                    d.start_byte += range.start_byte as u32;
-                    d.end_byte += range.start_byte as u32;
+            {
+                let ignore = self.ignore_store.lock().await;
+                let dict = self.dictionary.lock().await;
+                let names = self.name_filter.lock().await;
+                let mut ctx = SuppressionContext::new()
+                    .with_ignore(&ignore)
+                    .with_dictionary(&dict);
+                if let Some(filter) = names.as_ref() {
+                    ctx = ctx.with_names(filter);
                 }
-
-                {
-                    let ignore = self.ignore_store.lock().await;
-                    let dict = self.dictionary.lock().await;
-                    let names = self.name_filter.lock().await;
-                    let mut ctx = SuppressionContext::new()
-                        .with_ignore(&ignore)
-                        .with_dictionary(&dict);
-                    if let Some(filter) = names.as_ref() {
-                        ctx = ctx.with_names(filter);
-                    }
-                    retain_visible(&mut diags, text, &ctx);
-                }
-
-                all_diagnostics.extend(diags.iter().map(|d| to_lsp_diagnostic(text, d)));
+                retain_visible(&mut diags, text, &ctx);
             }
+
+            all_diagnostics.extend(diags.iter().map(|d| to_lsp_diagnostic(text, d)));
         }
 
         self.client

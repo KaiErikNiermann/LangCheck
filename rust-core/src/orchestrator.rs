@@ -128,35 +128,82 @@ impl Orchestrator {
             .collect()
     }
 
+    /// Check a single text. Thin wrapper over [`Self::check_batch`].
+    pub async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
+        let texts = [text.to_string()];
+        let mut batch = self.check_batch(&texts, language_id).await?;
+        Ok(batch.pop().unwrap_or_default())
+    }
+
+    /// Check independent texts (typically one document's prose ranges) in one
+    /// pass, returning one diagnostic list per input, in order.
+    ///
+    /// Batching exists so latency-bound engines can overlap their work: checking
+    /// range-by-range turns a page of prose into hundreds of serial round trips.
+    /// Engines still run one after another — most hold mutable state — but each
+    /// sees the whole batch and decides its own concurrency (see
+    /// [`Engine::check_many`]).
     #[allow(clippy::too_many_lines)]
-    pub async fn check(&mut self, text: &str, _language_id: &str) -> Result<Vec<Diagnostic>> {
-        // Skip checking if file exceeds max_file_size
+    pub async fn check_batch(
+        &mut self,
+        texts: &[String],
+        _language_id: &str,
+    ) -> Result<Vec<Vec<Diagnostic>>> {
+        // Texts over max_file_size are skipped, but keep their slot so the
+        // caller's results still line up one-to-one with its inputs.
         let max = self.config.performance.max_file_size;
-        if max > 0 && text.len() > max {
-            return Ok(Vec::new());
-        }
+        let skipped: Vec<bool> = texts.iter().map(|t| max > 0 && t.len() > max).collect();
+        let subset: Option<Vec<String>> = skipped.iter().any(|&s| s).then(|| {
+            texts
+                .iter()
+                .zip(&skipped)
+                .filter(|&(_, &s)| !s)
+                .map(|(t, _)| t.clone())
+                .collect()
+        });
+        let batch: &[String] = subset.as_deref().unwrap_or(texts);
 
-        let spell_language = &self.config.engines.spell_language;
-
-        let mut all_diagnostics = Vec::new();
+        let spell_language = self.config.engines.spell_language.clone();
+        let mut per_text: Vec<Vec<Diagnostic>> = vec![Vec::new(); batch.len()];
         let mut engines_ran = 0u32;
 
         for engine in &mut self.engines {
             let engine_name = engine.name();
 
             // Skip engines that don't support the configured language
-            if !engine_supports_language(engine.as_ref(), spell_language) {
+            if !engine_supports_language(engine.as_ref(), &spell_language) {
                 continue;
             }
 
             engines_ran += 1;
-            match engine.check(text, spell_language).await {
-                Ok(mut diagnostics) => {
-                    // Update health tracker: success
-                    let tracker = self
-                        .engine_health
-                        .entry(engine_name.to_string())
-                        .or_default();
+            let results = engine.check_many(batch, &spell_language).await;
+
+            // A batch is healthy if the engine answered at all: one bad text
+            // among hundreds says nothing about reachability, whereas a down
+            // server fails every one of them. A partial failure still costs the
+            // user diagnostics on those texts, so say so rather than only
+            // flipping health when everything breaks.
+            let first_error = results.iter().find_map(|r| r.as_ref().err());
+            let failed = results.iter().filter(|r| r.is_err()).count();
+            if failed > 0 && failed < results.len() {
+                warn!(
+                    engine = engine_name,
+                    failed,
+                    total = results.len(),
+                    "Some texts went unchecked; their diagnostics are missing"
+                );
+            }
+            let tracker = self
+                .engine_health
+                .entry(engine_name.to_string())
+                .or_default();
+            match first_error {
+                Some(e) if failed == results.len() => {
+                    tracker.consecutive_failures += 1;
+                    tracker.last_error = Some(e.to_string());
+                    warn!(engine = engine_name, "Engine error: {e}");
+                }
+                _ => {
                     tracker.consecutive_failures = 0;
                     tracker.last_error = None;
                     tracker.last_success = Some(Instant::now());
@@ -168,85 +215,98 @@ impl Orchestrator {
                             .as_millis()
                             as u64;
                     }
+                }
+            }
 
-                    // Normalize and filter based on config
-                    for d in &mut diagnostics {
-                        let provider = if d.rule_id.starts_with("harper") {
-                            "harper"
-                        } else if d.rule_id.starts_with("vale.") {
-                            "vale"
-                        } else if d.rule_id.starts_with("proselint.") {
-                            "proselint"
-                        } else if d.rule_id.starts_with("wasm.") {
-                            "wasm"
-                        } else if d.rule_id.starts_with("external.") {
-                            "external"
-                        } else {
-                            "languagetool"
-                        };
-                        d.unified_id = self.normalizer.normalize(provider, &d.rule_id);
+            for (slot, result) in per_text.iter_mut().zip(results) {
+                let Ok(mut diagnostics) = result else {
+                    continue;
+                };
 
-                        // Apply rule severity overrides from config.
-                        if let Some(severity) =
-                            rule_override_severity(&self.config, &d.rule_id, &d.unified_id)
-                        {
-                            d.severity = severity;
-                        }
+                // Normalize and filter based on config
+                for d in &mut diagnostics {
+                    let provider = if d.rule_id.starts_with("harper") {
+                        "harper"
+                    } else if d.rule_id.starts_with("vale.") {
+                        "vale"
+                    } else if d.rule_id.starts_with("proselint.") {
+                        "proselint"
+                    } else if d.rule_id.starts_with("wasm.") {
+                        "wasm"
+                    } else if d.rule_id.starts_with("external.") {
+                        "external"
+                    } else {
+                        "languagetool"
+                    };
+                    d.unified_id = self.normalizer.normalize(provider, &d.rule_id);
+
+                    // Apply rule severity overrides from config.
+                    if let Some(severity) =
+                        rule_override_severity(&self.config, &d.rule_id, &d.unified_id)
+                    {
+                        d.severity = severity;
                     }
-
-                    diagnostics.retain(|d| d.severity != -1);
-                    all_diagnostics.extend(diagnostics);
                 }
-                Err(e) => {
-                    // Update health tracker: failure
-                    let tracker = self
-                        .engine_health
-                        .entry(engine_name.to_string())
-                        .or_default();
-                    tracker.consecutive_failures += 1;
-                    tracker.last_error = Some(e.to_string());
 
-                    warn!(engine = engine_name, "Engine error: {e}");
-                }
+                diagnostics.retain(|d| d.severity != -1);
+                slot.extend(diagnostics);
             }
         }
 
-        // Warn when no engines ran (e.g. non-English language with only Harper enabled)
-        if engines_ran == 0 && all_diagnostics.is_empty() {
-            all_diagnostics.push(Diagnostic {
-                start_byte: 0,
-                end_byte: 0,
-                message: format!(
-                    "No active engine supports \"{spell_language}\". \
-                     Enable LanguageTool or add an external provider."
-                ),
-                suggestions: Vec::new(),
-                rule_id: "languagecheck.no-provider".to_string(),
-                severity: Severity::Information as i32,
-                unified_id: "languagecheck.no-provider".to_string(),
-                confidence: 1.0,
+        for (text, all_diagnostics) in batch.iter().zip(&mut per_text) {
+            // Warn when no engines ran (e.g. non-English language with only Harper enabled)
+            if engines_ran == 0 && all_diagnostics.is_empty() {
+                all_diagnostics.push(Diagnostic {
+                    start_byte: 0,
+                    end_byte: 0,
+                    message: format!(
+                        "No active engine supports \"{spell_language}\". \
+                         Enable LanguageTool or add an external provider."
+                    ),
+                    suggestions: Vec::new(),
+                    rule_id: "languagecheck.no-provider".to_string(),
+                    severity: Severity::Information as i32,
+                    unified_id: "languagecheck.no-provider".to_string(),
+                    confidence: 1.0,
+                });
+            }
+
+            // Advanced deduplication: if two engines report the same unified rule at the same range,
+            // prefer the one with higher severity or just keep one.
+            all_diagnostics.sort_by_key(|d| (d.start_byte, d.end_byte, d.unified_id.clone()));
+            all_diagnostics.dedup_by(|a, b| {
+                a.start_byte == b.start_byte
+                    && a.end_byte == b.end_byte
+                    && a.unified_id == b.unified_id
             });
+
+            // Filter out diagnostics suppressed by inline ignore directives
+            let directives = IgnoreParser::parse_directives(text);
+            let resolved = IgnoreParser::resolve_all(text, &directives);
+
+            if !resolved.ignore_ranges.is_empty() || !resolved.regions.is_empty() {
+                all_diagnostics.retain(|d| {
+                    !IgnoreParser::should_ignore(d, &resolved.ignore_ranges)
+                        && !IgnoreParser::should_ignore_by_region(d, text, &resolved.regions)
+                });
+            }
         }
 
-        // Advanced deduplication: if two engines report the same unified rule at the same range,
-        // prefer the one with higher severity or just keep one.
-        all_diagnostics.sort_by_key(|d| (d.start_byte, d.end_byte, d.unified_id.clone()));
-        all_diagnostics.dedup_by(|a, b| {
-            a.start_byte == b.start_byte && a.end_byte == b.end_byte && a.unified_id == b.unified_id
-        });
-
-        // Filter out diagnostics suppressed by inline ignore directives
-        let directives = IgnoreParser::parse_directives(text);
-        let resolved = IgnoreParser::resolve_all(text, &directives);
-
-        if !resolved.ignore_ranges.is_empty() || !resolved.regions.is_empty() {
-            all_diagnostics.retain(|d| {
-                !IgnoreParser::should_ignore(d, &resolved.ignore_ranges)
-                    && !IgnoreParser::should_ignore_by_region(d, text, &resolved.regions)
-            });
+        if subset.is_none() {
+            return Ok(per_text);
         }
-
-        Ok(all_diagnostics)
+        // Re-expand: skipped texts get an empty result in their original slot.
+        let mut checked = per_text.into_iter();
+        Ok(skipped
+            .into_iter()
+            .map(|s| {
+                if s {
+                    Vec::new()
+                } else {
+                    checked.next().unwrap_or_default()
+                }
+            })
+            .collect())
     }
 }
 
@@ -328,5 +388,91 @@ mod tests {
             rule_override_severity(&config, "languagetool.ARROWS", "x"),
             Some(Severity::Error as i32)
         );
+    }
+
+    /// Reports one diagnostic per text, carrying that text as its message, so a
+    /// batch's results can be matched back to the inputs that produced them.
+    struct EchoEngine;
+
+    #[async_trait::async_trait]
+    impl Engine for EchoEngine {
+        fn name(&self) -> &'static str {
+            "external"
+        }
+
+        async fn check(&mut self, text: &str, _language_id: &str) -> Result<Vec<Diagnostic>> {
+            Ok(vec![Diagnostic {
+                start_byte: 0,
+                end_byte: 0,
+                message: text.to_string(),
+                suggestions: Vec::new(),
+                rule_id: "external.echo".to_string(),
+                severity: Severity::Warning as i32,
+                unified_id: String::new(),
+                confidence: 1.0,
+            }])
+        }
+    }
+
+    fn orchestrator_with_echo(config: Config) -> Orchestrator {
+        let mut orchestrator = Orchestrator::new(config);
+        orchestrator.engines = vec![Box::new(EchoEngine)];
+        orchestrator
+    }
+
+    fn messages(batch: &[Vec<Diagnostic>]) -> Vec<Option<&str>> {
+        batch
+            .iter()
+            .map(|d| d.first().map(|d| d.message.as_str()))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn check_batch_returns_one_result_per_text_in_order() {
+        let mut orchestrator = orchestrator_with_echo(Config::default());
+        let texts = ["alpha".to_string(), "beta".to_string(), "gamma".to_string()];
+        let batch = orchestrator.check_batch(&texts, "en-US").await.unwrap();
+
+        assert_eq!(
+            messages(&batch),
+            vec![Some("alpha"), Some("beta"), Some("gamma")]
+        );
+    }
+
+    #[tokio::test]
+    async fn check_batch_keeps_a_slot_for_oversized_texts() {
+        // Callers zip results against their ranges, so a text skipped for size
+        // must still occupy its position rather than shift everything after it.
+        let mut config = Config::default();
+        config.performance.max_file_size = 5;
+        let mut orchestrator = orchestrator_with_echo(config);
+        let texts = [
+            "ok".to_string(),
+            "far too long".to_string(),
+            "fine".to_string(),
+        ];
+        let batch = orchestrator.check_batch(&texts, "en-US").await.unwrap();
+
+        assert_eq!(messages(&batch), vec![Some("ok"), None, Some("fine")]);
+    }
+
+    #[tokio::test]
+    async fn check_is_the_single_text_case_of_check_batch() {
+        let mut orchestrator = orchestrator_with_echo(Config::default());
+        let diagnostics = orchestrator.check("solo", "en-US").await.unwrap();
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].message, "solo");
+    }
+
+    #[tokio::test]
+    async fn check_batch_marks_an_engine_healthy_when_it_answers() {
+        let mut orchestrator = orchestrator_with_echo(Config::default());
+        let texts = ["one".to_string(), "two".to_string()];
+        orchestrator.check_batch(&texts, "en-US").await.unwrap();
+
+        let health = orchestrator.engine_health_report();
+        assert_eq!(health.len(), 1);
+        assert_eq!(health[0].status, "ok");
     }
 }

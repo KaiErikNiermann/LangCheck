@@ -15,6 +15,9 @@ use harper_core::{
 };
 use serde::Deserialize;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Semaphore;
+use tokio::task::JoinSet;
 use tracing::{debug, warn};
 
 #[async_trait::async_trait]
@@ -24,6 +27,25 @@ pub trait Engine {
     /// BCP-47 primary subtags this engine supports. Empty = all languages.
     fn supported_languages(&self) -> Vec<&'static str> {
         vec![]
+    }
+
+    /// Check a batch of independent texts, returning one result per input in
+    /// order.
+    ///
+    /// A document is checked one prose range at a time, so a single check is
+    /// hundreds of calls. Engines whose work is latency-bound (a network round
+    /// trip, a subprocess spawn) override this to overlap them; the default is
+    /// the same sequential loop callers would write by hand.
+    async fn check_many(
+        &mut self,
+        texts: &[String],
+        language_id: &str,
+    ) -> Vec<Result<Vec<Diagnostic>>> {
+        let mut results = Vec::with_capacity(texts.len());
+        for text in texts {
+            results.push(self.check(text, language_id).await);
+        }
+        results
     }
 }
 
@@ -170,6 +192,7 @@ pub struct LanguageToolEngine {
     enabled_rules: Vec<String>,
     disabled_categories: Vec<String>,
     enabled_categories: Vec<String>,
+    max_concurrent_requests: usize,
     client: reqwest::Client,
 }
 
@@ -215,9 +238,123 @@ impl LanguageToolEngine {
             enabled_rules: config.enabled_rules.clone(),
             disabled_categories: config.disabled_categories.clone(),
             enabled_categories: config.enabled_categories.clone(),
+            max_concurrent_requests: config.max_concurrent_requests.max(1),
             client,
         }
     }
+
+    /// The form fields every request shares — everything except `text`.
+    fn base_form(&self, language_id: &str) -> Vec<(&'static str, String)> {
+        // language_id is a BCP-47 tag from the orchestrator (e.g. "en-US", "de-DE").
+        let mut form: Vec<(&'static str, String)> = vec![("language", language_id.to_string())];
+        if self.level != "default" {
+            form.push(("level", self.level.clone()));
+        }
+        if let Some(ref mt) = self.mother_tongue {
+            form.push(("motherTongue", mt.clone()));
+        }
+        if !self.disabled_rules.is_empty() {
+            form.push(("disabledRules", self.disabled_rules.join(",")));
+        }
+        if !self.enabled_rules.is_empty() {
+            form.push(("enabledRules", self.enabled_rules.join(",")));
+        }
+        if !self.disabled_categories.is_empty() {
+            form.push(("disabledCategories", self.disabled_categories.join(",")));
+        }
+        if !self.enabled_categories.is_empty() {
+            form.push(("enabledCategories", self.enabled_categories.join(",")));
+        }
+        form
+    }
+}
+
+/// One `POST /v2/check`.
+///
+/// Free-standing rather than a method so a batch can drive many at once from
+/// cloned handles — `reqwest::Client` is an `Arc` internally, so the clones
+/// share one connection pool.
+#[allow(clippy::cast_possible_truncation)]
+async fn languagetool_request(
+    client: &reqwest::Client,
+    url: &str,
+    base_form: &[(&'static str, String)],
+    text: &str,
+) -> Result<Vec<Diagnostic>> {
+    debug!(url = %url, text_len = text.len(), "LanguageTool request");
+
+    let mut form_params: Vec<(&str, String)> = Vec::with_capacity(base_form.len() + 1);
+    form_params.push(("text", text.to_string()));
+    form_params.extend(base_form.iter().map(|(k, v)| (*k, v.clone())));
+
+    let request_start = std::time::Instant::now();
+    let response = match client.post(url).form(&form_params).send().await {
+        Ok(r) => {
+            let status = r.status();
+            debug!(
+                status = %status,
+                elapsed_ms = request_start.elapsed().as_millis() as u64,
+                "LanguageTool HTTP response"
+            );
+            if !status.is_success() {
+                let body = r.text().await.unwrap_or_default();
+                warn!(
+                    status = %status,
+                    body = %body,
+                    "LanguageTool returned non-200"
+                );
+                return Err(anyhow::anyhow!("LanguageTool HTTP {status}: {body}"));
+            }
+            r
+        }
+        Err(e) => {
+            warn!(
+                elapsed_ms = request_start.elapsed().as_millis() as u64,
+                "LanguageTool connection error: {e}"
+            );
+            return Err(anyhow::anyhow!("LanguageTool connection error: {e}"));
+        }
+    };
+
+    let res = match response.json::<LTResponse>().await {
+        Ok(r) => r,
+        Err(e) => {
+            warn!("LanguageTool JSON parse error: {e}");
+            return Err(anyhow::anyhow!("LanguageTool JSON parse error: {e}"));
+        }
+    };
+
+    debug!(
+        matches = res.matches.len(),
+        elapsed_ms = request_start.elapsed().as_millis() as u64,
+        "LanguageTool check complete"
+    );
+
+    // LanguageTool reports offsets in UTF-16 code units; convert to bytes.
+    let utf16_to_byte = utf16_to_byte_table(text);
+
+    Ok(res
+        .matches
+        .into_iter()
+        .map(|m| {
+            let severity = match m.rule.issue_type.as_str() {
+                "misspelling" => Severity::Error,
+                "typographical" => Severity::Warning,
+                _ => Severity::Information,
+            };
+
+            Diagnostic {
+                start_byte: lookup_offset(&utf16_to_byte, m.offset),
+                end_byte: lookup_offset(&utf16_to_byte, m.offset + m.length),
+                message: m.message,
+                suggestions: m.replacements.into_iter().map(|r| r.value).collect(),
+                rule_id: format!("languagetool.{}", m.rule.id),
+                severity: severity as i32,
+                unified_id: String::new(), // Will be filled by normalizer
+                confidence: 0.8,
+            }
+        })
+        .collect())
 }
 
 #[allow(clippy::too_many_lines, clippy::cast_possible_truncation)]
@@ -229,110 +366,62 @@ impl Engine for LanguageToolEngine {
 
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
         let url = format!("{}/v2/check", self.url);
+        languagetool_request(&self.client, &url, &self.base_form(language_id), text).await
+    }
 
-        // language_id is now a BCP-47 tag from the orchestrator (e.g. "en-US", "de-DE")
-        let lt_lang = language_id;
-
-        debug!(
-            url = %url,
-            language = lt_lang,
-            text_len = text.len(),
-            "LanguageTool request"
-        );
-
-        let mut form_params: Vec<(&str, String)> = vec![
-            ("text", text.to_string()),
-            ("language", lt_lang.to_string()),
-        ];
-        if self.level != "default" {
-            form_params.push(("level", self.level.clone()));
-        }
-        if let Some(ref mt) = self.mother_tongue {
-            form_params.push(("motherTongue", mt.clone()));
-        }
-        if !self.disabled_rules.is_empty() {
-            form_params.push(("disabledRules", self.disabled_rules.join(",")));
-        }
-        if !self.enabled_rules.is_empty() {
-            form_params.push(("enabledRules", self.enabled_rules.join(",")));
-        }
-        if !self.disabled_categories.is_empty() {
-            form_params.push(("disabledCategories", self.disabled_categories.join(",")));
-        }
-        if !self.enabled_categories.is_empty() {
-            form_params.push(("enabledCategories", self.enabled_categories.join(",")));
-        }
-
-        let request_start = std::time::Instant::now();
-        let response = match self.client.post(&url).form(&form_params).send().await {
-            Ok(r) => {
-                let status = r.status();
-                debug!(
-                    status = %status,
-                    elapsed_ms = request_start.elapsed().as_millis() as u64,
-                    "LanguageTool HTTP response"
-                );
-                if !status.is_success() {
-                    let body = r.text().await.unwrap_or_default();
-                    warn!(
-                        status = %status,
-                        body = %body,
-                        "LanguageTool returned non-200"
-                    );
-                    return Err(anyhow::anyhow!("LanguageTool HTTP {status}: {body}"));
-                }
-                r
+    /// Overlap the per-range requests instead of paying the round trip serially.
+    ///
+    /// A page of prose is hundreds of small ranges, so wall-clock is dominated
+    /// by request latency rather than by `LanguageTool`'s own work. Requests are
+    /// capped at `max_concurrent_requests` in flight so a shared server is not
+    /// swamped, and results are re-ordered to match `texts`.
+    async fn check_many(
+        &mut self,
+        texts: &[String],
+        language_id: &str,
+    ) -> Vec<Result<Vec<Diagnostic>>> {
+        let limit = self.max_concurrent_requests.max(1);
+        if limit == 1 || texts.len() <= 1 {
+            let mut results = Vec::with_capacity(texts.len());
+            for text in texts {
+                results.push(self.check(text, language_id).await);
             }
-            Err(e) => {
-                warn!(
-                    elapsed_ms = request_start.elapsed().as_millis() as u64,
-                    "LanguageTool connection error: {e}"
-                );
-                return Err(anyhow::anyhow!("LanguageTool connection error: {e}"));
+            return results;
+        }
+
+        let url = Arc::new(format!("{}/v2/check", self.url));
+        let base_form = Arc::new(self.base_form(language_id));
+        let permits = Arc::new(Semaphore::new(limit));
+        let mut tasks = JoinSet::new();
+
+        for (idx, text) in texts.iter().enumerate() {
+            let client = self.client.clone();
+            let url = Arc::clone(&url);
+            let base_form = Arc::clone(&base_form);
+            let permits = Arc::clone(&permits);
+            let text = text.clone();
+            tasks.spawn(async move {
+                // The semaphore is never closed, so acquiring only fails if the
+                // runtime is shutting down — treat that as "no slot, run anyway".
+                let _permit = permits.acquire().await.ok();
+                (
+                    idx,
+                    languagetool_request(&client, &url, &base_form, &text).await,
+                )
+            });
+        }
+
+        let mut slots: Vec<Option<Result<Vec<Diagnostic>>>> = texts.iter().map(|_| None).collect();
+        while let Some(joined) = tasks.join_next().await {
+            match joined {
+                Ok((idx, result)) => slots[idx] = Some(result),
+                Err(e) => warn!("LanguageTool batch task failed to join: {e}"),
             }
-        };
-
-        let res = match response.json::<LTResponse>().await {
-            Ok(r) => r,
-            Err(e) => {
-                warn!("LanguageTool JSON parse error: {e}");
-                return Err(anyhow::anyhow!("LanguageTool JSON parse error: {e}"));
-            }
-        };
-
-        debug!(
-            matches = res.matches.len(),
-            elapsed_ms = request_start.elapsed().as_millis() as u64,
-            "LanguageTool check complete"
-        );
-
-        // LanguageTool reports offsets in UTF-16 code units; convert to bytes.
-        let utf16_to_byte = utf16_to_byte_table(text);
-
-        let diagnostics = res
-            .matches
+        }
+        slots
             .into_iter()
-            .map(|m| {
-                let severity = match m.rule.issue_type.as_str() {
-                    "misspelling" => Severity::Error,
-                    "typographical" => Severity::Warning,
-                    _ => Severity::Information,
-                };
-
-                Diagnostic {
-                    start_byte: lookup_offset(&utf16_to_byte, m.offset),
-                    end_byte: lookup_offset(&utf16_to_byte, m.offset + m.length),
-                    message: m.message,
-                    suggestions: m.replacements.into_iter().map(|r| r.value).collect(),
-                    rule_id: format!("languagetool.{}", m.rule.id),
-                    severity: severity as i32,
-                    unified_id: String::new(), // Will be filled by normalizer
-                    confidence: 0.8,
-                }
-            })
-            .collect();
-
-        Ok(diagnostics)
+            .map(|slot| slot.unwrap_or_else(|| Err(anyhow::anyhow!("LanguageTool task dropped"))))
+            .collect()
     }
 }
 

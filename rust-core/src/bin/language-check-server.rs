@@ -93,37 +93,33 @@ async fn process_file_for_indexing(
     };
     let mut all_diagnostics = Vec::new();
 
-    for range in &ranges {
-        let prose_text = range.extract_text(&text);
-
-        // Uses a dedicated indexing orchestrator — no contention with foreground
+    // Uses a dedicated indexing orchestrator — no contention with foreground
+    let prose_texts = prose::range_texts(&ranges, &text);
+    let batch = {
         let mut orch = orchestrator.lock().await;
-        let check_result = orch.check(&prose_text, &lang_id).await;
-        drop(orch);
+        orch.check_batch(&prose_texts, &lang_id).await
+    };
 
-        if let Ok(mut diagnostics) = check_result {
-            diagnostics.retain(|d| {
-                !range.suppresses_diagnostic(&text, d.start_byte, d.end_byte, &d.unified_id)
-            });
-            for d in &mut diagnostics {
-                d.start_byte += range.start_byte as u32;
-                d.end_byte += range.start_byte as u32;
-            }
-            let ignore_store_lock = ignore_store_arc.lock().await;
-            let dictionary_lock = dictionary_arc.lock().await;
-            let name_filter_lock = name_filter_arc.lock().await;
-            let mut ctx = SuppressionContext::new()
-                .with_ignore(&ignore_store_lock)
-                .with_dictionary(&dictionary_lock);
-            if let Some(filter) = name_filter_lock.as_ref() {
-                ctx = ctx.with_names(filter);
-            }
-            retain_visible(&mut diagnostics, &text, &ctx);
-            drop(name_filter_lock);
-            drop(dictionary_lock);
-            drop(ignore_store_lock);
-            all_diagnostics.extend(diagnostics);
+    let batch = batch.unwrap_or_else(|e| {
+        warn!(file = %file_path.display(), "Indexing batch failed: {e}");
+        Vec::new()
+    });
+    for (range, mut diagnostics) in ranges.iter().zip(batch) {
+        range.adopt_diagnostics(&text, &mut diagnostics);
+        let ignore_store_lock = ignore_store_arc.lock().await;
+        let dictionary_lock = dictionary_arc.lock().await;
+        let name_filter_lock = name_filter_arc.lock().await;
+        let mut ctx = SuppressionContext::new()
+            .with_ignore(&ignore_store_lock)
+            .with_dictionary(&dictionary_lock);
+        if let Some(filter) = name_filter_lock.as_ref() {
+            ctx = ctx.with_names(filter);
         }
+        retain_visible(&mut diagnostics, &text, &ctx);
+        drop(name_filter_lock);
+        drop(dictionary_lock);
+        drop(ignore_store_lock);
+        all_diagnostics.extend(diagnostics);
 
         tokio::task::yield_now().await;
     }
@@ -538,61 +534,55 @@ async fn main() -> Result<()> {
                             let mut all_diagnostics = Vec::new();
                             let mut detected_names: Vec<checker::NameSpan> = Vec::new();
                             let check_start = std::time::Instant::now();
-                            for (range_idx, range) in ranges.iter().enumerate() {
-                                let prose_text = range.extract_text(&req.text);
-                                let range_start = std::time::Instant::now();
 
+                            // One batch, one lock: the engines decide internally
+                            // how much of it to run concurrently.
+                            let prose_texts = prose::range_texts(&ranges, &req.text);
+                            let batch = {
                                 let mut orchestrator = orchestrator_arc.lock().await;
-                                let check_result =
-                                    orchestrator.check(&prose_text, &req.language_id).await;
-                                drop(orchestrator);
+                                orchestrator
+                                    .check_batch(&prose_texts, &req.language_id)
+                                    .await
+                            };
+                            debug!(
+                                id = request_id,
+                                ranges = ranges.len(),
+                                elapsed_ms = check_start.elapsed().as_millis() as u64,
+                                "CheckProse: engines done"
+                            );
 
-                                debug!(
-                                    id = request_id,
-                                    range = range_idx,
-                                    start = range.start_byte,
-                                    end = range.end_byte,
-                                    elapsed_ms = range_start.elapsed().as_millis() as u64,
-                                    "CheckProse: range checked"
+                            let ignore_store = ignore_store_arc.lock().await;
+                            let dict = dictionary_arc.lock().await;
+                            let name_filter = name_filter_arc.lock().await;
+                            let batch = batch.unwrap_or_else(|e| {
+                                warn!(id = request_id, "CheckProse: batch failed: {e}");
+                                Vec::new()
+                            });
+                            for (range, mut diagnostics) in ranges.iter().zip(batch) {
+                                range.adopt_diagnostics(&req.text, &mut diagnostics);
+
+                                let mut ctx = SuppressionContext::new()
+                                    .with_ignore(&ignore_store)
+                                    .with_dictionary(&dict);
+                                if let Some(filter) = name_filter.as_ref() {
+                                    ctx = ctx.with_names(filter);
+                                }
+                                detected_names.extend(
+                                    retain_visible(&mut diagnostics, &req.text, &ctx)
+                                        .into_iter()
+                                        .map(|n| checker::NameSpan {
+                                            start_byte: n.start_byte,
+                                            end_byte: n.end_byte,
+                                            confidence: n.confidence,
+                                            signals: n.signals,
+                                        }),
                                 );
 
-                                let ignore_store = ignore_store_arc.lock().await;
-                                let dict = dictionary_arc.lock().await;
-                                let name_filter = name_filter_arc.lock().await;
-                                if let Ok(mut diagnostics) = check_result {
-                                    diagnostics.retain(|d| {
-                                        !range.suppresses_diagnostic(
-                                            &req.text,
-                                            d.start_byte,
-                                            d.end_byte,
-                                            &d.unified_id,
-                                        )
-                                    });
-                                    for d in &mut diagnostics {
-                                        d.start_byte += range.start_byte as u32;
-                                        d.end_byte += range.start_byte as u32;
-                                    }
-
-                                    let mut ctx = SuppressionContext::new()
-                                        .with_ignore(&ignore_store)
-                                        .with_dictionary(&dict);
-                                    if let Some(filter) = name_filter.as_ref() {
-                                        ctx = ctx.with_names(filter);
-                                    }
-                                    detected_names.extend(
-                                        retain_visible(&mut diagnostics, &req.text, &ctx)
-                                            .into_iter()
-                                            .map(|n| checker::NameSpan {
-                                                start_byte: n.start_byte,
-                                                end_byte: n.end_byte,
-                                                confidence: n.confidence,
-                                                signals: n.signals,
-                                            }),
-                                    );
-
-                                    all_diagnostics.extend(diagnostics);
-                                }
+                                all_diagnostics.extend(diagnostics);
                             }
+                            drop(name_filter);
+                            drop(dict);
+                            drop(ignore_store);
                             debug!(
                                 id = request_id,
                                 elapsed_ms = check_start.elapsed().as_millis() as u64,

@@ -307,16 +307,11 @@ async fn check_file(
     )?;
     let mut found_issues = 0;
 
-    for range in ranges {
-        let prose_text = range.extract_text(&text);
-        let mut diagnostics = orchestrator.check(&prose_text, lang).await?;
-        diagnostics.retain(|d| {
-            !range.suppresses_diagnostic(&text, d.start_byte, d.end_byte, &d.unified_id)
-        });
-        for d in &mut diagnostics {
-            d.start_byte += range.start_byte as u32;
-            d.end_byte += range.start_byte as u32;
-        }
+    let prose_texts = prose::range_texts(&ranges, &text);
+    let batch = orchestrator.check_batch(&prose_texts, lang).await?;
+
+    for (range, mut diagnostics) in ranges.iter().zip(batch) {
+        range.adopt_diagnostics(&text, &mut diagnostics);
         retain_visible(&mut diagnostics, &text, &suppression.context());
 
         for d in diagnostics {
@@ -401,19 +396,15 @@ async fn fix_file(
     let mut total_fixes = 0;
 
     let mut all_diagnostics = Vec::new();
-    for range in &ranges {
-        let prose_text = range.extract_text(&text);
-        if let Ok(mut diagnostics) = orchestrator.check(&prose_text, lang).await {
-            diagnostics.retain(|d| {
-                !range.suppresses_diagnostic(&text, d.start_byte, d.end_byte, &d.unified_id)
-            });
-            for d in &mut diagnostics {
-                d.start_byte += range.start_byte as u32;
-                d.end_byte += range.start_byte as u32;
-            }
-            retain_visible(&mut diagnostics, &text, &suppression.context());
-            all_diagnostics.extend(diagnostics);
-        }
+    let prose_texts = prose::range_texts(&ranges, &text);
+    let batch = orchestrator
+        .check_batch(&prose_texts, lang)
+        .await
+        .unwrap_or_default();
+    for (range, mut diagnostics) in ranges.iter().zip(batch) {
+        range.adopt_diagnostics(&text, &mut diagnostics);
+        retain_visible(&mut diagnostics, &text, &suppression.context());
+        all_diagnostics.extend(diagnostics);
     }
 
     all_diagnostics.sort_by_key(|d| std::cmp::Reverse(d.start_byte));

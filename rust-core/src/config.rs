@@ -296,6 +296,14 @@ pub struct LanguageToolConfig {
     /// Category IDs to enable.
     #[serde(default)]
     pub enabled_categories: Vec<String>,
+    /// How many `/v2/check` requests may be in flight at once.
+    ///
+    /// A document is checked one prose range at a time, so a page of prose is
+    /// hundreds of small requests; issuing them serially makes the round-trip
+    /// latency, not `LanguageTool` itself, the bottleneck. Lower this when
+    /// pointing at a shared or rate-limited server; `1` restores serial checking.
+    #[serde(default = "default_lt_max_concurrent_requests")]
+    pub max_concurrent_requests: usize,
 }
 
 impl Default for LanguageToolConfig {
@@ -309,12 +317,19 @@ impl Default for LanguageToolConfig {
             enabled_rules: Vec::new(),
             disabled_categories: Vec::new(),
             enabled_categories: Vec::new(),
+            max_concurrent_requests: default_lt_max_concurrent_requests(),
         }
     }
 }
 
 fn default_lt_level() -> String {
     "default".to_string()
+}
+
+/// Enough parallelism to hide per-request latency on a local server without
+/// swamping a shared one — measured saturation point is around 8.
+const fn default_lt_max_concurrent_requests() -> usize {
+    8
 }
 
 impl EngineToggle for LanguageToolConfig {
@@ -1051,6 +1066,20 @@ engines:
             config.engines.languagetool.disabled_rules,
             vec!["WHITESPACE_RULE"]
         );
+        assert_eq!(config.engines.languagetool.max_concurrent_requests, 8);
+    }
+
+    #[test]
+    fn languagetool_concurrency_can_be_pinned_to_serial() {
+        // Shared or rate-limited servers need the old one-at-a-time behaviour back.
+        let yaml = r"
+engines:
+  languagetool:
+    enabled: true
+    max_concurrent_requests: 1
+";
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.engines.languagetool.max_concurrent_requests, 1);
     }
 
     #[test]

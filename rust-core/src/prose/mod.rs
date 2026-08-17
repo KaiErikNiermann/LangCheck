@@ -14,6 +14,7 @@ use std::ops::Range;
 use std::path::Path;
 use tree_sitter::{Language, Parser};
 
+use crate::checker::Diagnostic;
 use crate::ignore_rules::{DirectiveRegion, IgnoreParser};
 
 use crate::sls::SchemaRegistry;
@@ -288,6 +289,29 @@ impl ProseRange {
             ExclusionAdjacency::None => false,
         }
     }
+
+    /// Take ownership of an engine's findings for this range: drop the
+    /// skip-induced false positives, then rebase the survivors from range-local
+    /// onto document byte offsets.
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn adopt_diagnostics(&self, text: &str, diagnostics: &mut Vec<Diagnostic>) {
+        diagnostics
+            .retain(|d| !self.suppresses_diagnostic(text, d.start_byte, d.end_byte, &d.unified_id));
+        for d in diagnostics {
+            d.start_byte += self.start_byte as u32;
+            d.end_byte += self.start_byte as u32;
+        }
+    }
+}
+
+/// The checkable text of every range, in order — the input to
+/// [`crate::orchestrator::Orchestrator::check_batch`].
+#[must_use]
+pub fn range_texts(ranges: &[ProseRange], text: &str) -> Vec<String> {
+    ranges
+        .iter()
+        .map(|r| r.extract_text(text).into_owned())
+        .collect()
 }
 
 /// How a diagnostic span sits relative to a range's skipped segments.
@@ -590,6 +614,82 @@ mod tests {
         let out = range_excluding(text, "#{m}").extract_text(text);
         assert_eq!(out, r#"Il dit      "café"."#);
         assert!(std::str::from_utf8(out.as_bytes()).is_ok());
+    }
+
+    fn diagnostic(start: u32, end: u32, unified_id: &str) -> Diagnostic {
+        Diagnostic {
+            start_byte: start,
+            end_byte: end,
+            message: String::new(),
+            suggestions: Vec::new(),
+            rule_id: String::new(),
+            severity: 2,
+            unified_id: unified_id.to_string(),
+            confidence: 1.0,
+        }
+    }
+
+    #[test]
+    fn adopt_diagnostics_rebases_survivors_onto_document_offsets() {
+        let text = "PREFIX one two";
+        let start = text.find("one").unwrap();
+        let range = ProseRange {
+            start_byte: start,
+            end_byte: text.len(),
+            exclusions: Vec::new(),
+        };
+        // "two" is at range-local 4..7.
+        let mut diagnostics = vec![diagnostic(4, 7, "spelling.typo")];
+        range.adopt_diagnostics(text, &mut diagnostics);
+
+        assert_eq!(diagnostics.len(), 1);
+        let d = &diagnostics[0];
+        assert_eq!(
+            &text[d.start_byte as usize..d.end_byte as usize],
+            "two",
+            "rebased span must slice the same word out of the document"
+        );
+    }
+
+    #[test]
+    fn adopt_diagnostics_drops_skip_induced_false_positives() {
+        let text = "one XXX two";
+        let range = ProseRange {
+            start_byte: 0,
+            end_byte: text.len(),
+            exclusions: vec![(4, 7)],
+        };
+        // Overlapping the skip, and a non-spelling diagnostic beside it.
+        let mut diagnostics = vec![
+            diagnostic(4, 7, "spelling.typo"),
+            diagnostic(8, 11, "typography.capitalization"),
+        ];
+        range.adopt_diagnostics(text, &mut diagnostics);
+
+        assert!(diagnostics.is_empty(), "got: {diagnostics:?}");
+    }
+
+    #[test]
+    fn range_texts_matches_per_range_extraction() {
+        let text = "alpha SKIP beta";
+        let ranges = vec![
+            ProseRange {
+                start_byte: 0,
+                end_byte: 5,
+                exclusions: Vec::new(),
+            },
+            ProseRange {
+                start_byte: 6,
+                end_byte: text.len(),
+                exclusions: vec![(6, 10)],
+            },
+        ];
+        let texts = range_texts(&ranges, text);
+
+        assert_eq!(texts.len(), ranges.len());
+        for (range, extracted) in ranges.iter().zip(&texts) {
+            assert_eq!(*extracted, range.extract_text(text));
+        }
     }
 
     #[test]

@@ -247,6 +247,23 @@ Or change the URL in VS Code settings:
 3. Set **Engines > LanguageTool** to `true`
 4. Set **Engines > LanguageTool URL** to `http://localhost:8010`
 
+### Request concurrency
+
+A document is checked one prose range at a time, and a page of prose is
+hundreds of small ranges — so wall-clock is dominated by request latency
+rather than by LanguageTool's own work. Up to `max_concurrent_requests`
+(default `8`) checks are therefore in flight at once.
+
+```yaml
+engines:
+  languagetool:
+    enabled: true
+    max_concurrent_requests: 1   # one at a time
+```
+
+Lower it when pointing at a shared or rate-limited server — the public
+`api.languagetool.org` in particular. `1` restores strictly serial checking.
+
 ## Multi-Engine Mode
 
 When both Harper and LanguageTool are enabled, they run concurrently and

@@ -33,6 +33,7 @@ engines:
     enabled_rules: []
     disabled_categories: []
     enabled_categories: []
+    max_concurrent_requests: 8  # In-flight /v2/check requests; 1 = serial
 
   vale:
     enabled: true
