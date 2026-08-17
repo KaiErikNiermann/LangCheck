@@ -2351,7 +2351,20 @@ function sendWorkspaceProgress() {
     });
 }
 
-/** Returns the number of issues found, or -1 on error. */
+/** Checks currently running, keyed by document URI, with the text they cover. */
+const inFlightChecks = new Map<string, { text: string; result: Promise<number> }>();
+
+/**
+ * Check a document, joining a check already running over the exact same text
+ * instead of starting a second one. Returns the number of issues found, or -1
+ * on error.
+ *
+ * Many things ask for a re-check — an edit, a save, a just-applied fix, the
+ * SpeedFix or Inspector panel opening — and on a large document a check takes
+ * seconds. Without coalescing, those requests pile up behind the concurrency
+ * limiter and each one re-derives an answer that is already on its way, so the
+ * latency the user sees is the queue depth times the real cost.
+ */
 async function checkDocument(document: vscode.TextDocument): Promise<number> {
     // A client that has given up restarting can never answer. Bail out before
     // taking a concurrency slot, or a down core starves the slots for a full
@@ -2366,6 +2379,37 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
         return -1;
     }
 
+    const t0 = performance.now();
+    const textContent = document.getText();
+    const readMs = performance.now() - t0;
+
+    const uri = document.uri.toString();
+    const inFlight = inFlightChecks.get(uri);
+    if (inFlight && inFlight.text === textContent) {
+        pushInspectorEvent('debug', 'checkDocument', `Joining in-flight check for ${path.basename(document.fileName)}`);
+        return inFlight.result;
+    }
+
+    const result = runCheck(document, client, textContent, readMs);
+    inFlightChecks.set(uri, { text: textContent, result });
+    try {
+        return await result;
+    } finally {
+        // Clear only our own entry: if the text changed mid-flight a newer check
+        // has already claimed the slot and must stay joinable.
+        if (inFlightChecks.get(uri)?.result === result) {
+            inFlightChecks.delete(uri);
+        }
+    }
+}
+
+/** The check itself, once {@link checkDocument} has decided one is needed. */
+async function runCheck(
+    document: vscode.TextDocument,
+    client: LanguageClient,
+    textContent: string,
+    readMs: number,
+): Promise<number> {
     const shortName = path.basename(document.fileName);
     log.debug('checkDocument', { file: document.fileName, lang: document.languageId });
     pushInspectorEvent('info', 'checkDocument', `Checking ${shortName} (${document.languageId})`);
@@ -2377,8 +2421,7 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
 
     try {
         const t0 = performance.now();
-        const textContent = document.getText();
-        timings.push({ name: 'Read document', durationMs: performance.now() - t0 });
+        timings.push({ name: 'Read document', durationMs: readMs });
 
         const t1 = performance.now();
         pushInspectorEvent('debug', 'checkDocument', `Sending CheckProse RPC (${textContent.length} chars)`);
