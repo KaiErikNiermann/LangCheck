@@ -843,6 +843,31 @@ which proves our claim.}";
     }
 
     #[test]
+    fn test_quoted_inline_math_keeps_quotes_paired() -> Result<()> {
+        let mut extractor = forester_extractor()?;
+
+        // Blanking `#{`/`}` used to leave the opening quote against whitespace,
+        // which LanguageTool reads as a closer — the closing quotes were then
+        // reported as `EN_UNPAIRED_QUOTES`. Every quote must still hug a word.
+        let text = r##"\p{This is why "#{R} is Noetherian" and "#{m} is a ring map" agree.}"##;
+        let ranges = extractor.extract(text, "forester", &LatexExtras::default())?;
+        let clean = clean_text(&ranges, text);
+
+        for (i, _) in clean.match_indices('"') {
+            let before = clean[..i].chars().next_back();
+            let after = clean[i + 1..].chars().next();
+            assert!(
+                before.is_some_and(char::is_alphanumeric)
+                    || after.is_some_and(char::is_alphanumeric),
+                "quote at {i} hugs no word in {clean:?}"
+            );
+        }
+        assert_eq!(clean.matches('"').count(), 4, "got: {clean:?}");
+
+        Ok(())
+    }
+
+    #[test]
     fn test_single_letter_kept_as_prose_predicate() {
         use super::single_letter_kept_as_prose;
         // Uppercase math objects are kept.

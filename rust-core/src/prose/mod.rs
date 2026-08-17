@@ -197,6 +197,7 @@ impl ProseRange {
         // SAFETY: every write below blanks a whole, char-aligned byte range
         // with ASCII spaces (0x20), which preserves the UTF-8 validity of `buf`.
         let bytes = unsafe { buf.as_bytes_mut() };
+        let mut blanked: Vec<(usize, usize)> = Vec::with_capacity(self.exclusions.len());
         for &(exc_start, exc_end) in &self.exclusions {
             // Convert document-level offsets to slice-local offsets, clamping
             // both ends into range so a stray exclusion can never index OOB.
@@ -204,9 +205,11 @@ impl ProseRange {
             let local_end = exc_end.saturating_sub(self.start_byte).min(bytes.len());
             if local_start < local_end {
                 bytes[local_start..local_end].fill(b' ');
+                blanked.push((local_start, local_end));
             }
         }
         strip_unmatched_brackets(bytes);
+        reseat_quotes_across_blanks(bytes, &blanked);
         std::borrow::Cow::Owned(buf)
     }
 
@@ -406,6 +409,83 @@ fn strip_unmatched_brackets(bytes: &mut [u8]) {
     }
 }
 
+/// Whether the character covering byte `i` is alphanumeric — the neighbour test
+/// behind a quote's role: a quote hugging a word is an opener on the word's left
+/// and a closer on its right.
+///
+/// `bytes` is always a valid UTF-8 buffer, so the character `i` falls inside is
+/// decoded rather than assuming every non-ASCII byte is a letter — an em-dash
+/// must not read as a word.
+fn is_word_byte(bytes: &[u8], i: usize) -> bool {
+    if i >= bytes.len() {
+        return false;
+    }
+    // Walk back off any continuation byte (`0b10xxxxxx`) to the char's lead byte.
+    let mut start = i;
+    while start > 0 && bytes[start] & 0b1100_0000 == 0b1000_0000 {
+        start -= 1;
+    }
+    (1..=4)
+        .find_map(|len| std::str::from_utf8(bytes.get(start..start + len)?).ok())
+        .and_then(|s| s.chars().next())
+        .is_some_and(char::is_alphanumeric)
+}
+
+/// Slide straight double quotes across an adjacent blanked region so that
+/// blanking cannot flip their open/close role.
+///
+/// Exclusions are blanked to spaces in place to keep byte offsets stable, which
+/// strands a quote against whitespace that was not there in the source:
+/// `"#{m} is a map"` becomes `"␣␣␣␣␣is a map"`. Grammar engines infer a quote's
+/// role from its neighbours — `LanguageTool`'s `EN_UNPAIRED_QUOTES` reads a
+/// quote followed by a space as a *closing* quote — so the opener is misread and
+/// the genuine closer is reported as unpaired. Swapping the quote with the space
+/// that now hugs the word restores the neighbour it had in the source, and since
+/// it is a swap the buffer's length and offsets are untouched.
+///
+/// Only ASCII `"` is reseated: curly quotes are multi-byte and could not be
+/// swapped with a one-byte space, and `'` is ambiguous with apostrophes. The
+/// scan crosses plain spaces only, so a quote never migrates over a line break.
+///
+/// A reseated quote can land inside the skip it crossed, so a report about a
+/// quote that really is unpaired next to math is dropped by
+/// [`ProseRange::suppresses_diagnostic`] — the same trade the skip machinery
+/// already makes for structural noise around excluded regions.
+fn reseat_quotes_across_blanks(bytes: &mut [u8], blanked: &[(usize, usize)]) {
+    for &(start, end) in blanked {
+        if start >= end {
+            continue;
+        }
+        // `"␣␣R` → `␣␣"R`: an opener (no word in front of it) stranded before the
+        // blank, with a word past the run to re-attach to.
+        if start > 0
+            && bytes[start - 1] == b'"'
+            && !start.checked_sub(2).is_some_and(|i| is_word_byte(bytes, i))
+        {
+            let word = (end..bytes.len())
+                .find(|&i| bytes[i] != b' ')
+                .filter(|&i| is_word_byte(bytes, i));
+            if let Some(word) = word {
+                bytes[start - 1] = b' ';
+                bytes[word - 1] = b'"';
+                continue;
+            }
+        }
+        // `R␣␣"` → `R"␣␣`: the mirror case, a closer stranded behind the blank.
+        if bytes.get(end) == Some(&b'"') && !is_word_byte(bytes, end + 1) {
+            let after_word = (0..start)
+                .rev()
+                .find(|&i| bytes[i] != b' ')
+                .filter(|&i| is_word_byte(bytes, i))
+                .map(|i| i + 1);
+            if let Some(after_word) = after_word {
+                bytes[end] = b' ';
+                bytes[after_word] = b'"';
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -470,6 +550,54 @@ mod tests {
         // " — " → space + 3 blanked em-dash bytes + space = 5 spaces.
         let out = range.extract_text(text);
         assert_eq!(out, "café     done");
+    }
+
+    fn range_excluding(text: &str, excluded: &str) -> ProseRange {
+        let start = text.find(excluded).unwrap();
+        ProseRange {
+            start_byte: 0,
+            end_byte: text.len(),
+            exclusions: vec![(start, start + excluded.len())],
+        }
+    }
+
+    #[test]
+    fn extract_text_reseats_opening_quote_stranded_by_a_blank() {
+        // Without the reseat the opener reads as a closer (it is followed by the
+        // blank), so engines report the real closing quote as unpaired.
+        let text = r##"He said "#{m} is fine"."##;
+        let out = range_excluding(text, "#{m}").extract_text(text);
+        assert_eq!(out, r#"He said      "is fine"."#);
+    }
+
+    #[test]
+    fn extract_text_reseats_closing_quote_stranded_by_a_blank() {
+        let text = r#"He said "it is #{m}"."#;
+        let out = range_excluding(text, "#{m}").extract_text(text);
+        assert_eq!(out, r#"He said "it is"     ."#);
+    }
+
+    #[test]
+    fn extract_text_leaves_quotes_that_still_hug_their_word() {
+        let text = r#"He said "fine #{m} here"."#;
+        let out = range_excluding(text, "#{m}").extract_text(text);
+        assert_eq!(out, r#"He said "fine      here"."#);
+    }
+
+    #[test]
+    fn extract_text_reseat_keeps_utf8_valid_around_multibyte_words() {
+        let text = r##"Il dit "#{m} café"."##;
+        let out = range_excluding(text, "#{m}").extract_text(text);
+        assert_eq!(out, r#"Il dit      "café"."#);
+        assert!(std::str::from_utf8(out.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn extract_text_reseat_does_not_cross_a_line_break() {
+        // A quote must not migrate onto the next line, so the scan stops at `\n`.
+        let text = "He said \"#{m}\nis fine\".";
+        let out = range_excluding(text, "#{m}").extract_text(text);
+        assert_eq!(out, "He said \"    \nis fine\".");
     }
 
     #[test]
