@@ -380,7 +380,7 @@ async fn main() -> Result<()> {
                 Some(checker::request::Payload::Initialize(req)) => {
                     let root_path = std::path::PathBuf::from(&req.workspace_root);
 
-                    let config = Config::load(&root_path).unwrap_or_else(|_| Config::default());
+                    let config = Config::load_or_warn(&root_path);
                     info!(
                         id = request_id,
                         harper = config.engines.harper.enabled,

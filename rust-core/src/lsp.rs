@@ -125,7 +125,7 @@ impl Backend {
 
     /// Initialise all state from the workspace root (config, dictionary, …).
     async fn init_workspace(&self, root: &Path) {
-        let config = Config::load(root).unwrap_or_default();
+        let config = Config::load_or_warn(root);
         info!(
             harper = config.engines.harper.enabled,
             languagetool = config.engines.languagetool.enabled,

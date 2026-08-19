@@ -471,6 +471,26 @@ fn default_exclude() -> Vec<String> {
 }
 
 impl Config {
+    /// Load configuration, warning and falling back to defaults if it cannot be read.
+    ///
+    /// `load` fails on a malformed `.languagecheck.yaml` — a bad indent, a typo'd enum — and
+    /// callers used to answer that with a bare `Config::default()`, so a rejected file was
+    /// indistinguishable from an absent one and the user's overrides silently did nothing.
+    /// A missing file is not an error and is not reported; an unreadable one is.
+    ///
+    /// Callers with no `tracing` subscriber installed (the CLI binary) must report to stderr
+    /// themselves rather than call this, or the warning goes nowhere.
+    #[must_use]
+    pub fn load_or_warn(workspace_root: &Path) -> Self {
+        Self::load(workspace_root).unwrap_or_else(|e| {
+            warn!(
+                root = %workspace_root.display(),
+                "Ignoring unreadable workspace config, using defaults: {e}"
+            );
+            Self::default()
+        })
+    }
+
     pub fn load(workspace_root: &Path) -> Result<Self> {
         // Prefer YAML, fall back to JSON for backward compatibility
         let yaml_path = workspace_root.join(".languagecheck.yaml");

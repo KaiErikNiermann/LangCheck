@@ -122,7 +122,12 @@ impl JsonDiagnostic {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     let current_dir = std::env::current_dir()?;
-    let config = Config::load(&current_dir).unwrap_or_else(|_| Config::default());
+    // stderr, not `warn!`: this binary installs no tracing subscriber, so a `warn!` here would
+    // be dropped and the silent fallback would move rather than go away.
+    let config = Config::load(&current_dir).unwrap_or_else(|e| {
+        eprintln!("lang-check: ignoring unreadable .languagecheck.yaml, using defaults: {e}");
+        Config::default()
+    });
 
     match cli.command {
         Commands::Check { path, lang, format } => {
@@ -514,8 +519,12 @@ fn list_rules(filter: Option<&str>, provider: Option<&str>, format: &OutputForma
 fn handle_config(action: ConfigAction) -> Result<()> {
     match action {
         ConfigAction::Show => {
-            let config =
-                Config::load(&std::env::current_dir()?).unwrap_or_else(|_| Config::default());
+            let config = Config::load(&std::env::current_dir()?).unwrap_or_else(|e| {
+                eprintln!(
+                    "lang-check: ignoring unreadable .languagecheck.yaml, using defaults: {e}"
+                );
+                Config::default()
+            });
             println!("{}", serde_yaml::to_string(&config)?);
         }
         ConfigAction::Init => {
