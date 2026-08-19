@@ -93,6 +93,38 @@ chore: update tree-sitter-markdown to 0.8.0
 - Keep functions focused; avoid over-abstraction
 - Write tests for bug fixes (regression tests) and new features
 
+### Pattern lint
+
+`just lint-patterns` runs semgrep over the tree with the rules in `.semgrep/`, plus a small set of
+upstream packs. It answers a question clippy and eslint cannot: *is this the second copy of
+something we already wrote?*
+
+```sh
+just lint-patterns                  # everything, including the upstream packs (needs network)
+just lint-patterns-local            # local rules only, offline
+just lint-patterns rust-core/src    # a subset
+```
+
+It is **advisory** — deliberately not part of `just check` — and it needs no install: semgrep runs
+through `uvx` at a pinned version.
+
+The rules encode repo facts, not general style:
+
+| Rule | What it protects |
+|---|---|
+| `use-safe-slice` | `text_util` owns char-boundary snapping — don't snap inline |
+| `unchecked-engine-offset-slice` | engine byte offsets are untrusted; slicing them raw panics |
+| `silent-config-load-fallback` | a rejected `.languagecheck.yaml` must not look like an absent one |
+| `no-println-in-library` | stdout belongs to the JSON-RPC framing; use `tracing` |
+| `use-logger-not-console` | `console.*` never reaches the output channel a user can open |
+| `localize-user-facing-message` | unlocalized strings stay English for de/es/fr users |
+| `use-shared-prose-skip-helpers` | `prose::shared` owns delimiter scanning |
+
+Each rule's message states the count it found when it was written, and `.semgrep/*.yml` records
+which conventions were **deliberately left out** and why. If a finding is wrong, suppress it at the
+line with a reason — `// nosemgrep: rule-id — why` — rather than deleting the rule; an unreasoned
+suppression is a hole, a reasoned one is a decision.
+
 ## Architecture Overview
 
 ```

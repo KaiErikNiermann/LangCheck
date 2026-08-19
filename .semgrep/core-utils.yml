@@ -1,0 +1,84 @@
+# Reuse the helpers this repo already has, instead of growing another private copy.
+#
+# Every rule here was written against duplication that EXISTS in the tree, and the count is
+# recorded in the rule's message. That matters: a pattern rule matching nothing is
+# indistinguishable from a clean codebase, so each rule has a documented answer it must find.
+# The one forward-only guard (`use-shared-prose-skip-helpers`) says so in its message rather
+# than pretending to a backlog it does not have.
+#
+# Scope note: clippy and eslint both run on this tree already. Nothing here duplicates them —
+# these are repo-specific reuse facts no general linter can know.
+rules:
+  - id: use-safe-slice
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      `text_util::safe_slice` already encapsulates "snap both ends to char boundaries, clamp to
+      len, slice". Six sites snap by hand instead — four in `hashing.rs`, two in `names.rs` —
+      and `names.rs` snaps only ONE end (`preceding_window` floors `lo` but slices to a
+      raw `start`), which is the exact panic `safe_slice` exists to prevent. If you genuinely need
+      a one-sided slice (`&text[..sb]`), add the helper to `text_util` rather than snapping
+      inline; the point is that this reasoning lives in one module.
+    paths:
+      exclude:
+        - "**/rust-core/src/text_util.rs"
+    pattern-either:
+      - pattern: $TEXT.floor_char_boundary(...)
+      - pattern: $TEXT.ceil_char_boundary(...)
+
+  - id: use-logger-not-console
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      Use the `Logger` from `logger.ts` (the `log` instance), not `console.*`. `extension.ts`
+      routes 100+ messages through it into the extension's output channel, which is what a user
+      can actually open and paste into a bug report; `console.*` goes to the Extension Host
+      devtools console that nobody has open. `client.ts` has 4 such calls, and they are on the
+      core-crashed and core-restarting paths — precisely the ones you need evidence for.
+    paths:
+      exclude:
+        - "**/extension/src/logger.ts"
+        - "**/extension/src/test/"
+    pattern-either:
+      - pattern: console.log(...)
+      - pattern: console.error(...)
+      - pattern: console.warn(...)
+      - pattern: console.debug(...)
+      - pattern: console.info(...)
+
+  - id: use-shared-prose-skip-helpers
+    languages: [rust]
+    severity: INFO
+    message: >-
+      `prose::shared` owns delimiter scanning — `skip_balanced_bytes` / `skip_balanced_chars`
+      (with escape handling) and `skip_command_args_bytes` / `skip_command_args_chars`. Hand-rolled
+      depth counting drifts from them on escapes and on nesting.
+      FORWARD GUARD, not a backlog: the tree currently has zero hand-rolled copies, which is why
+      this is INFO. It exists because adoption is uneven — forester.rs uses `shared::` 13 times
+      while org.rs, rst.rs, typst.rs and sweave.rs use it zero times, so the next extractor is
+      where a private copy would appear.
+    paths:
+      include:
+        - "**/rust-core/src/prose/"
+      exclude:
+        - "**/rust-core/src/prose/shared.rs"
+    # The signature of balanced-delimiter scanning is ONE variable that goes both up and down in
+    # the same loop. Matching a bare `$X += 1` instead flagged every loop counter in the tree —
+    # including the `$$...$$` math scanners in latex.rs, which count position, not nesting.
+    pattern-either:
+      - pattern: |
+          while $COND {
+              ...
+              $DEPTH += 1;
+              ...
+              $DEPTH -= 1;
+              ...
+          }
+      - pattern: |
+          while $COND {
+              ...
+              $DEPTH -= 1;
+              ...
+              $DEPTH += 1;
+              ...
+          }

@@ -1,0 +1,114 @@
+# Conventions this repo holds but no existing linter enforces.
+#
+# clippy runs with `pedantic` + `nursery` and eslint carries sonarjs/unicorn/security, so anything
+# either of them already catches is deliberately absent here. What is left is repo-specific: facts
+# about THIS codebase's boundaries that a general linter has no way to know.
+#
+# Each rule records the count it found when written. A rule that has never matched anything is a
+# rule nobody has validated.
+rules:
+  - id: unchecked-engine-offset-slice
+    languages: [rust]
+    severity: ERROR
+    message: >-
+      Byte offsets that came off a `Diagnostic` are ENGINE-REPORTED and are not trusted to land on
+      a UTF-8 char boundary — that is the whole reason `text_util::safe_slice` exists, and both
+      `suppression.rs` and `lsp.rs` route these same offsets through it. Slicing or splicing them
+      raw panics on any multi-byte document. `bin/language-check.rs` does exactly this twice in the
+      `fix` path (a `&text[start..end]` and a `text.replace_range(start..end, ..)`), so a mid-char
+      offset from any engine aborts the run rather than skipping one bad fix.
+      Use `safe_slice` to read; clamp with `floor_char_boundary`/`ceil_char_boundary` before any
+      `replace_range`.
+    patterns:
+      - pattern-either:
+          - pattern: $TEXT.replace_range($START..$END, ...)
+          - pattern: '&$TEXT[$START..$END]'
+          - pattern: '&$TEXT[$START..$END.min(...)]'
+      # Only where the bounds were bound from a diagnostic's byte fields. Written as `let`
+      # bindings inside one enclosing block — an expression-only pattern found nothing, because
+      # the binding and the slice are a dozen lines apart in the real site.
+      - pattern-inside: |
+          let $START = $D.start_byte as usize;
+          ...
+          let $END = $D.end_byte as usize;
+          ...
+
+  - id: no-println-in-library
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      Library code must report through `tracing` (`warn!`/`info!`/`debug!`), never `println!` /
+      `eprintln!`. This crate is consumed as an LSP server over stdio: anything written to stdout
+      corrupts the JSON-RPC framing outright, and stderr escapes the subscriber so it carries no
+      span, no level and no run context — it lands in the editor's raw stderr where the extension's
+      output channel cannot show it. Two sites do this today, `hashing.rs` (a failed ignore-store
+      persist, exactly the kind of thing you want a level on) and `prose/mod.rs` (an unsupported
+      `type:` directive).
+      `src/bin/` is excluded: a CLI printing its own results to stdout is the point.
+    paths:
+      include:
+        - "**/rust-core/src/"
+      exclude:
+        - "**/rust-core/src/bin/"
+    patterns:
+      - pattern-either:
+          - pattern: println!(...)
+          - pattern: eprintln!(...)
+          - pattern: print!(...)
+          - pattern: eprint!(...)
+      # Test modules print debug output on purpose; 6 current hits there are legitimate.
+      # Anchored on the module NAME, not on `#[cfg(test)]`: semgrep's Rust grammar does not
+      # bind the attribute to the item for `pattern-not-inside`, so the attribute form silently
+      # excluded nothing. Every test module in this crate is `mod tests`, checked.
+      - pattern-not-inside: |
+          mod tests { ... }
+
+  - id: localize-user-facing-message
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      Wrap user-visible strings in `vscode.l10n.t(...)`. `extension.ts` localizes 102 strings and
+      the repo ships de/es/fr bundles with a CI gate (`scripts/check-l10n-keys.sh`) that fails on
+      key drift — so an unlocalized string is not a style nit, it is a string that silently stays
+      English for every translated user. 7 sites still pass a bare literal, all in the server-
+      restart and LanguageTool-Docker commands.
+    paths:
+      exclude:
+        - "**/extension/src/test/"
+    patterns:
+      - pattern-either:
+          - pattern: vscode.window.showInformationMessage("...", ...)
+          - pattern: vscode.window.showWarningMessage("...", ...)
+          - pattern: vscode.window.showErrorMessage("...", ...)
+      - pattern-not: vscode.window.showInformationMessage(vscode.l10n.t(...), ...)
+      - pattern-not: vscode.window.showWarningMessage(vscode.l10n.t(...), ...)
+      - pattern-not: vscode.window.showErrorMessage(vscode.l10n.t(...), ...)
+
+  - id: silent-config-load-fallback
+    languages: [rust]
+    severity: ERROR
+    message: >-
+      Do not discard the error from a workspace loader. `Config::load` fails when
+      `.languagecheck.yaml` is malformed — a bad indent, a duplicated key, a typo'd enum — and
+      every one of the 4 production call sites answers that with `Config::default()` and no log
+      line. The user gets the default engine set, their rule overrides and excludes silently
+      ignored, and nothing anywhere says the file was rejected; the symptom is "my config does
+      nothing", which is indistinguishable from "the feature is broken".
+      Log it and then fall back: `unwrap_or_else(|e| { warn!("..: {e}"); Config::default() })`.
+      `Config::load` already warns on duplicate keys, so the precedent for saying something is
+      in the loader itself.
+    paths:
+      exclude:
+        - "**/rust-core/src/config.rs"
+    pattern-either:
+      - pattern: Config::load(...).unwrap_or_default()
+      - pattern: Config::load(...).unwrap_or_else(|$E| Config::default())
+      - pattern: Config::load(...).unwrap_or(Config::default())
+      - pattern: Config::load(...).ok()
+
+  # DELIBERATELY ABSENT: a rule banning `.unwrap()` outside tests.
+  #
+  # The obvious convention rule, and it does not earn its place here. Non-test `.unwrap()` scores 6,
+  # and they are things like `NonZeroUsize::new(128).unwrap()` on a literal — infallible by
+  # construction, and clippy's `unwrap_used` is available if that position ever changes. A rule
+  # whose every current hit is correct code teaches people to skim the linter.

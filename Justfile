@@ -160,6 +160,16 @@ test-wasm:
     cd plugins/wordiness-check && go test -v ./...
     cd rust-core && cargo test --test wasm_plugin
 
+# --- Pattern lint ---
+
+# Reuse + convention patterns (.semgrep/). Advisory: not part of `check` while the count comes down.
+lint-patterns *TARGETS:
+    ./scripts/lint-patterns.sh {{TARGETS}}
+
+# Pattern lint without the registry round-trip (offline, local rules only)
+lint-patterns-local:
+    PATTERNS_NO_REGISTRY=1 ./scripts/lint-patterns.sh
+
 # --- Combined ---
 
 # Run all checks (rust + TypeScript + Lua)
