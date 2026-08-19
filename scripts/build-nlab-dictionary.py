@@ -52,8 +52,8 @@ USER_AGENT = "langcheck-nlab-dictionary/1.0 (+https://github.com/KaiErikNiermann
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CACHE = REPO_ROOT / ".cache" / "nlab-dictionary"
-DEFAULT_OUT = REPO_ROOT / "rust-core" / "dictionaries" / "bundled" / "mathematics.txt"
 BUNDLED_DIR = REPO_ROOT / "rust-core" / "dictionaries" / "bundled"
+DEFAULT_OUT = BUNDLED_DIR / "mathematics.txt"
 
 NLAB_REPO = "https://github.com/ncatlab/nlab-content.git"
 
@@ -180,10 +180,14 @@ def read_typos(path: Path) -> tuple[set[str], set[str]]:
 
 
 def read_bundled_words(bundled_dir: Path, exclude: Path) -> set[str]:
-    """Every word already shipped by a sibling bundled dictionary.
+    """Every word already shipped by a *sibling* bundled dictionary.
 
     Entries here would be pure duplication: `load_bundled` unions all the lists
     into one set, so a second copy can never change an answer.
+
+    `exclude` is the dictionary this script owns, identified by its canonical
+    location rather than by `--out`: pointing the output elsewhere must not make
+    the previous build subtract itself down to nothing.
     """
     words: set[str] = set()
     for path in sorted(bundled_dir.glob("*.txt")):
@@ -248,7 +252,7 @@ def build(cache_dir: Path, out_path: Path) -> int:
 
     misspellings, _corrections = read_typos(paths["typos-dict"])
     english_words = {normalise(word) for word in read_lines(paths["english-words"])}
-    already_bundled = read_bundled_words(BUNDLED_DIR, exclude=out_path)
+    already_bundled = read_bundled_words(BUNDLED_DIR, exclude=DEFAULT_OUT)
     print(
         f"\nLoaded {len(english_words):,} English words, {len(misspellings):,} "
         f"misspellings and {len(already_bundled):,} already-bundled words "
