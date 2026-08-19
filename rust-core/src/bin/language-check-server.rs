@@ -397,7 +397,7 @@ async fn main() -> Result<()> {
                         Ok(mut loaded_dict) => {
                             // Load bundled domain-specific dictionaries
                             if config.dictionaries.bundled {
-                                loaded_dict.load_bundled();
+                                loaded_dict.load_bundled_except(&config.dictionaries.disabled);
                             }
                             // Load user-configured additional wordlist files
                             for path_str in &config.dictionaries.paths {

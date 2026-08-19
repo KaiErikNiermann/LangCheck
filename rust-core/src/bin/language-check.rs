@@ -176,7 +176,7 @@ impl CliSuppression {
     fn load(workspace_root: &std::path::Path, config: &Config) -> Self {
         let mut dictionary = Dictionary::load(workspace_root).unwrap_or_default();
         if config.dictionaries.bundled {
-            dictionary.load_bundled();
+            dictionary.load_bundled_except(&config.dictionaries.disabled);
         }
         for path in &config.dictionaries.paths {
             if let Err(e) =

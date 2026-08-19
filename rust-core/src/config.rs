@@ -142,9 +142,14 @@ const fn default_debounce_ms() -> u64 {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DictionaryConfig {
     /// Whether to load the bundled domain-specific dictionaries (software terms,
-    /// TypeScript, companies, jargon). Default: true.
+    /// TypeScript, companies, jargon, mathematics). Default: true.
     #[serde(default = "default_true")]
     pub bundled: bool,
+    /// Names of individual bundled dictionaries to skip, e.g.
+    /// `["companies", "mathematics"]`. Every set loads by default; listing one
+    /// here turns off just that one. Ignored when `bundled` is false.
+    #[serde(default)]
+    pub disabled: Vec<String>,
     /// Paths to additional wordlist files (one word per line, `#` comments).
     /// Relative paths are resolved from the workspace root.
     #[serde(default)]
@@ -155,6 +160,7 @@ impl Default for DictionaryConfig {
     fn default() -> Self {
         Self {
             bundled: true,
+            disabled: Vec::new(),
             paths: Vec::new(),
         }
     }
@@ -620,6 +626,28 @@ mod tests {
         // A repeat under a *different* top-level section must not count.
         let yaml = "rules:\n  a.B:\n    severity: \"off\"\nengines:\n  harper: false\n";
         assert!(duplicate_rule_keys(yaml).is_empty());
+    }
+
+    #[test]
+    fn default_dictionaries_load_all_bundled_sets() {
+        let config = Config::default();
+        assert!(config.dictionaries.bundled);
+        assert!(config.dictionaries.disabled.is_empty());
+        assert!(config.dictionaries.paths.is_empty());
+    }
+
+    #[test]
+    fn dictionaries_disabled_from_yaml() {
+        let config: Config = serde_yaml::from_str(
+            r"
+dictionaries:
+  disabled: [companies, mathematics]
+",
+        )
+        .unwrap();
+        assert_eq!(config.dictionaries.disabled, ["companies", "mathematics"]);
+        // The master switch is untouched by listing individual sets.
+        assert!(config.dictionaries.bundled);
     }
 
     #[test]

@@ -51,6 +51,15 @@ struct LangCheckSettings {
     engines: Option<EngineSettings>,
     performance: Option<PerformanceSettings>,
     names: Option<NameSettings>,
+    dictionaries: Option<DictionarySettings>,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default)]
+struct DictionarySettings {
+    bundled: Option<bool>,
+    disabled: Option<Vec<String>>,
+    paths: Option<Vec<String>>,
 }
 
 #[derive(Debug, Default, serde::Deserialize)]
@@ -128,20 +137,7 @@ impl Backend {
         self.orchestrator.lock().await.update_config(config.clone());
         *self.config.lock().await = config.clone();
 
-        match Dictionary::load(root) {
-            Ok(mut dict) => {
-                if config.dictionaries.bundled {
-                    dict.load_bundled();
-                }
-                for p in &config.dictionaries.paths {
-                    if let Err(e) = dict.load_wordlist_file(Path::new(p), root) {
-                        warn!(path = p, "Could not load wordlist: {e}");
-                    }
-                }
-                *self.dictionary.lock().await = dict;
-            }
-            Err(e) => warn!("Could not load dictionary: {e}"),
-        }
+        self.reload_dictionary(root, &config).await;
 
         *self.name_filter.lock().await = config.names.enabled.then(|| {
             info!(
@@ -162,6 +158,27 @@ impl Backend {
     }
 
     /// Apply LSP settings on top of the workspace config.
+    /// Rebuild the dictionary from `config`, replacing whatever was loaded before.
+    ///
+    /// Shared by workspace init and `didChangeConfiguration` so a toggled set
+    /// takes effect without an editor restart, and so the two paths cannot drift.
+    async fn reload_dictionary(&self, root: &Path, config: &Config) {
+        match Dictionary::load(root) {
+            Ok(mut dict) => {
+                if config.dictionaries.bundled {
+                    dict.load_bundled_except(&config.dictionaries.disabled);
+                }
+                for p in &config.dictionaries.paths {
+                    if let Err(e) = dict.load_wordlist_file(Path::new(p), root) {
+                        warn!(path = p, "Could not load wordlist: {e}");
+                    }
+                }
+                *self.dictionary.lock().await = dict;
+            }
+            Err(e) => warn!("Could not load dictionary: {e}"),
+        }
+    }
+
     async fn apply_settings(&self, settings: &LangCheckSettings) {
         let mut config = self.config.lock().await;
         if let Some(ref eng) = settings.engines {
@@ -192,6 +209,17 @@ impl Backend {
                 config.names.aggressiveness = v;
             }
         }
+        if let Some(ref dicts) = settings.dictionaries {
+            if let Some(v) = dicts.bundled {
+                config.dictionaries.bundled = v;
+            }
+            if let Some(ref v) = dicts.disabled {
+                config.dictionaries.disabled.clone_from(v);
+            }
+            if let Some(ref v) = dicts.paths {
+                config.dictionaries.paths.clone_from(v);
+            }
+        }
         if let Some(ref perf) = settings.performance {
             if let Some(v) = perf.high_performance_mode {
                 config.performance.high_performance_mode = v;
@@ -211,6 +239,11 @@ impl Backend {
                 &updated.engines.spell_language,
             )
         });
+        if settings.dictionaries.is_some()
+            && let Some(root) = self.workspace_root.lock().await.clone()
+        {
+            self.reload_dictionary(&root, &updated).await;
+        }
         self.orchestrator.lock().await.update_config(updated);
         info!("LSP: config updated via didChangeConfiguration");
     }

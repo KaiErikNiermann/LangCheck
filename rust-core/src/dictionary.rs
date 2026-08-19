@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use tracing::{debug, warn};
 
 /// Manages custom dictionaries for the language checker.
 /// Words in the dictionary are excluded from spelling diagnostics.
@@ -53,7 +54,34 @@ impl Dictionary {
     /// These contain domain-specific technical terms from open-source wordlists.
     /// Bundled words are kept separate and never persisted to the user's dictionary file.
     pub fn load_bundled(&mut self) {
-        for words_str in bundled::ALL {
+        self.load_bundled_except(&[]);
+    }
+
+    /// Load every bundled dictionary whose name is not listed in `disabled`.
+    ///
+    /// Names match those in `bundled::ALL` and the section headings of
+    /// `dictionaries/THIRD_PARTY_NOTICES.md`, case-insensitively. An unrecognised
+    /// name is warned about rather than rejected: a config that silently does
+    /// nothing is harder to diagnose than one that says so.
+    pub fn load_bundled_except(&mut self, disabled: &[String]) {
+        for name in disabled {
+            if !bundled::ALL
+                .iter()
+                .any(|(known, _)| known.eq_ignore_ascii_case(name))
+            {
+                warn!(
+                    name,
+                    known = ?bundled::NAMES,
+                    "Unknown bundled dictionary in dictionaries.disabled; ignoring"
+                );
+            }
+        }
+
+        for (name, words_str) in bundled::ALL {
+            if disabled.iter().any(|d| d.eq_ignore_ascii_case(name)) {
+                debug!(name, "Skipping bundled dictionary");
+                continue;
+            }
             parse_wordlist_into(words_str, &mut self.bundled_words);
         }
     }
@@ -211,8 +239,24 @@ pub mod bundled {
     /// License: none formally stated; free use granted in exchange for attribution.
     pub const MATHEMATICS: &str = include_str!("../dictionaries/bundled/mathematics.txt");
 
-    /// All bundled wordlists for convenient iteration.
-    pub const ALL: &[&str] = &[SOFTWARE_TERMS, TYPESCRIPT, COMPANIES, JARGON, MATHEMATICS];
+    /// All bundled wordlists, keyed by the name users write in
+    /// `dictionaries.disabled` to turn one off.
+    pub const ALL: &[(&str, &str)] = &[
+        ("software-terms", SOFTWARE_TERMS),
+        ("typescript", TYPESCRIPT),
+        ("companies", COMPANIES),
+        ("jargon", JARGON),
+        ("mathematics", MATHEMATICS),
+    ];
+
+    /// Just the names from [`ALL`], for diagnostics.
+    pub const NAMES: &[&str] = &[
+        "software-terms",
+        "typescript",
+        "companies",
+        "jargon",
+        "mathematics",
+    ];
 }
 
 #[cfg(test)]
@@ -341,6 +385,45 @@ mod tests {
         // Harvested with diacritics intact, and matched case-insensitively.
         assert!(dict.contains("étale"), "mathematics should include étale");
         assert!(dict.contains("Grothendieck"), "lookup is case-insensitive");
+    }
+
+    #[test]
+    fn disabling_a_bundled_set_drops_only_that_set() {
+        let mut dict = Dictionary::new();
+        dict.load_bundled_except(&["mathematics".to_string()]);
+
+        assert!(!dict.contains("presheaf"), "mathematics should be skipped");
+        assert!(dict.contains("kubernetes"), "software-terms should remain");
+        assert!(dict.contains("instanceof"), "typescript should remain");
+    }
+
+    #[test]
+    fn disabled_set_names_are_case_insensitive() {
+        let mut dict = Dictionary::new();
+        dict.load_bundled_except(&["Mathematics".to_string()]);
+
+        assert!(!dict.contains("presheaf"));
+    }
+
+    #[test]
+    fn unknown_disabled_set_name_is_tolerated() {
+        // A typo'd entry must not take the other dictionaries down with it.
+        let mut dict = Dictionary::new();
+        dict.load_bundled_except(&["mathmatics".to_string()]);
+
+        assert!(
+            dict.contains("presheaf"),
+            "nothing should have been skipped"
+        );
+        assert!(dict.contains("kubernetes"));
+    }
+
+    #[test]
+    fn every_bundled_set_has_a_name() {
+        assert_eq!(bundled::ALL.len(), bundled::NAMES.len());
+        for ((name, _), listed) in bundled::ALL.iter().zip(bundled::NAMES) {
+            assert_eq!(name, listed);
+        }
     }
 
     #[test]
