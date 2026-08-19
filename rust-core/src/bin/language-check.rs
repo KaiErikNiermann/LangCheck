@@ -15,6 +15,7 @@ use lang_check::dictionary::Dictionary;
 use lang_check::names::NameFilter;
 use lang_check::sls::SchemaRegistry;
 use lang_check::suppression::{SuppressionContext, retain_visible};
+use lang_check::text_util::snap_range;
 use lang_check::{checker::Diagnostic, config, orchestrator, prose, rules};
 use orchestrator::Orchestrator;
 use serde::Serialize;
@@ -433,15 +434,26 @@ async fn fix_file(
             continue;
         }
 
+        // Engine-reported offsets are not trusted to sit on a char boundary — `suppression.rs`
+        // and `lsp.rs` route the same values through `safe_slice` for exactly this reason. Here
+        // the offsets also drive a `replace_range`, which panics on a split char, so a single
+        // mid-char offset from any engine would abort the whole `fix` run rather than skip one
+        // bad suggestion. Snap first, and skip if snapping moved the span.
+        let (lo, hi) = snap_range(&text, start, end);
+        if lo != start || hi != end {
+            skipped += 1;
+            continue;
+        }
+
         // Validate replacement doesn't alter the text in unexpected ways
         // (e.g. replacing across a boundary that now spans multiple words)
-        let original = &text[start..end.min(text.len())];
+        let original = &text[lo..hi];
         let replacement = &d.suggestions[0];
         if original == replacement {
             continue;
         }
 
-        text.replace_range(start..end, replacement);
+        text.replace_range(lo..hi, replacement);
         total_fixes += 1;
     }
 
