@@ -282,6 +282,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const binaryPath = resolveBinaryPath(channel);
         log.info('Starting core', { binary: binaryPath, channel: channel ?? 'stable' });
         client = new LanguageClient(binaryPath);
+        client.setLogger(log);
         if (traceLogger) client.setTraceLogger(traceLogger);
         client.onRestart(() => initializeClient());
         client.onFailure(reason => reportCoreFailure(reason, binaryPath));
@@ -803,7 +804,9 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand('language-check.toggleInlayHints', () => {
         inlayHintsEnabled = !inlayHintsEnabled;
         inlayHintEmitter.fire();
-        vscode.window.showInformationMessage(`Language Check inlay hints ${inlayHintsEnabled ? 'enabled' : 'disabled'}`);
+        vscode.window.showInformationMessage(inlayHintsEnabled
+            ? vscode.l10n.t('Language Check inlay hints enabled')
+            : vscode.l10n.t('Language Check inlay hints disabled'));
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.toggleCheckTrigger', async () => {
@@ -869,19 +872,19 @@ export async function activate(context: vscode.ExtensionContext) {
         pushInspectorEvent('info', 'restartServer', 'Restarting language server');
         startClient();
         initializeClient();
-        vscode.window.showInformationMessage('Language Check server restarted');
+        vscode.window.showInformationMessage(vscode.l10n.t('Language Check server restarted'));
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.restartLTDocker', async () => {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders || workspaceFolders.length === 0) {
-            vscode.window.showErrorMessage('No workspace folder open');
+            vscode.window.showErrorMessage(vscode.l10n.t('No workspace folder open'));
             return;
         }
         const rootPath = workspaceFolders[0]!.uri.fsPath;
         const composePath = path.join(rootPath, 'docker-compose.yml');
         if (!fs.existsSync(composePath)) {
-            vscode.window.showErrorMessage('No docker-compose.yml found in workspace root');
+            vscode.window.showErrorMessage(vscode.l10n.t('No docker-compose.yml found in workspace root'));
             return;
         }
 
@@ -910,7 +913,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     progress.report({ message: `Waiting for LanguageTool to be ready…` });
                     const ready = await pollLTReady(15_000);
                     if (ready) {
-                        vscode.window.showInformationMessage('LanguageTool Docker restarted successfully');
+                        vscode.window.showInformationMessage(vscode.l10n.t('LanguageTool Docker restarted successfully'));
                         // Re-check active document to refresh health
                         const editor = vscode.window.activeTextEditor;
                         if (editor) {
@@ -919,7 +922,7 @@ export async function activate(context: vscode.ExtensionContext) {
                         return;
                     }
                     if (attempt === MAX_ATTEMPTS) {
-                        vscode.window.showErrorMessage('LanguageTool Docker started but not responding after 15s');
+                        vscode.window.showErrorMessage(vscode.l10n.t('LanguageTool Docker started but not responding after 15s'));
                     }
                 }
             },

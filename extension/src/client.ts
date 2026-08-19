@@ -1,6 +1,7 @@
 import * as cp from 'child_process';
 import { languagecheck } from './proto/checker';
 import type { TraceLogger } from './trace';
+import type { Logger } from './logger';
 
 const REQUEST_TIMEOUT_MS = 120_000;
 const MAX_RESTART_ATTEMPTS = 3;
@@ -20,6 +21,7 @@ export class LanguageClient {
     private stopped = false;
     private onRestartCallbacks: Array<() => void> = [];
     private trace: TraceLogger | null = null;
+    private log: Logger | null = null;
     /** Set once the client stops retrying. While non-null the core is known to
      *  be unreachable, so requests fail immediately instead of waiting out
      *  REQUEST_TIMEOUT_MS against a process that can never answer. */
@@ -31,6 +33,15 @@ export class LanguageClient {
     /** Attach a trace logger for debugging protobuf traffic. */
     public setTraceLogger(logger: TraceLogger): void {
         this.trace = logger;
+    }
+
+    /** Attach the extension's output-channel logger.
+     *
+     *  Optional, mirroring `setTraceLogger`, so tests can construct a client with no VS Code
+     *  window. In the extension it is always set — the messages below are the core-crashed and
+     *  core-restarting paths, which are the ones a user is asked to paste into a bug report. */
+    public setLogger(logger: Logger): void {
+        this.log = logger;
     }
 
     /** Register a callback that fires after the client auto-restarts. */
@@ -76,13 +87,13 @@ export class LanguageClient {
         });
 
         this.process.on('error', (err) => {
-            console.error('Failed to start language-check core:', err);
+            this.log?.error('Failed to start core', { binary: this.binaryPath, err: String(err) });
             this.trace?.logEvent(`Process error: ${err.message}`);
             this.attemptRestart(err.message);
         });
 
         this.process.on('exit', (code) => {
-            console.log(`language-check core exited with code ${code}`);
+            this.log?.warn('Core process exited', { code });
             this.trace?.logEvent(`Process exited with code ${code}`);
             if (!this.stopped) {
                 this.rejectAllPending('Process exited unexpectedly');
@@ -111,7 +122,7 @@ export class LanguageClient {
         }
 
         this.restartAttempts++;
-        console.log(`Restarting language-check core (attempt ${this.restartAttempts}/${MAX_RESTART_ATTEMPTS})...`);
+        this.log?.info('Restarting core', { attempt: this.restartAttempts, max: MAX_RESTART_ATTEMPTS });
 
         setTimeout(() => {
             if (this.stopped) return;
@@ -143,7 +154,7 @@ export class LanguageClient {
         this.detach(this.process);
         this.process = null;
 
-        console.error(reason);
+        this.log?.error('Core unavailable', { reason });
         this.trace?.logEvent(`Core unavailable: ${reason}`);
         this.rejectAllPending(reason);
 
