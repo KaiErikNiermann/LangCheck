@@ -62,6 +62,7 @@ NLAB_REPO = "https://github.com/ncatlab/nlab-content.git"
 PEOPLE_PATTERN = re.compile(r"^\s*category:\s*people\s*$", re.MULTILINE | re.IGNORECASE)
 POSSESSIVE_PATTERN = re.compile(r"['’]s\b")
 TOKEN_PATTERN = re.compile(r"[^\W\d_]+", re.UNICODE)
+COMPOUND_PATTERN = re.compile(r"[^\W\d_]+(?:[-\u2010\u2011][^\W\d_]+)+", re.UNICODE)
 
 # Titles use ` -- ` to disambiguate sibling pages ("String field theory -- history").
 # Everything after it is administrative, not vocabulary.
@@ -200,9 +201,16 @@ def normalise(token: str) -> str:
     return unicodedata.normalize("NFC", token).lower()
 
 
-def page_title_frequencies(checkout: Path) -> tuple[collections.Counter[str], int, int]:
-    """Count how often each token appears across non-people nLab page titles."""
+def page_title_frequencies(
+    checkout: Path,
+) -> tuple[collections.Counter[str], set[str], int, int]:
+    """Count how often each token appears across non-people nLab page titles.
+
+    Also returns the tokens that occur as part of a hyphenated compound, which
+    are treated differently by `build` — see the re-admission step there.
+    """
     frequencies: collections.Counter[str] = collections.Counter()
+    compound_parts: set[str] = set()
     pages = skipped = 0
     for name_path in checkout.glob("pages/**/name"):
         body_path = name_path.with_name("content.md")
@@ -219,7 +227,9 @@ def page_title_frequencies(checkout: Path) -> tuple[collections.Counter[str], in
         title = title.split(QUALIFIER_SEPARATOR)[0]
         title = POSSESSIVE_PATTERN.sub("", normalise(title))
         frequencies.update(TOKEN_PATTERN.findall(title))
-    return frequencies, pages, skipped
+        for compound in COMPOUND_PATTERN.findall(title):
+            compound_parts.update(TOKEN_PATTERN.findall(compound))
+    return frequencies, compound_parts, pages, skipped
 
 
 def is_plausible_term(token: str, frequency: int) -> bool:
@@ -245,7 +255,7 @@ def build(cache_dir: Path, out_path: Path) -> int:
         "for subtraction."
     )
 
-    frequencies, pages, people = page_title_frequencies(checkout)
+    frequencies, compound_parts, pages, people = page_title_frequencies(checkout)
     print(f"\nRead {pages:,} page titles ({people:,} people pages skipped)")
     print(f"Raw tokens: {len(frequencies):,}")
 
@@ -271,6 +281,18 @@ def build(cache_dir: Path, out_path: Path) -> int:
     after_english = after_typos - english_words
     print(f"  after English-word subtraction: {len(after_english):,} "
           f"(-{len(after_typos) - len(after_english):,})")
+
+    # `Dictionary::contains` reconstructs a hyphenated compound only when *every*
+    # part is present, so dropping `mills` as ordinary English would leave
+    # `Yang-Mills` unmatched whenever an engine reports the whole span. Re-admit
+    # the English words that occur inside a harvested compound — and only those.
+    # They are inert on their own (no checker flags `mills`), so the usual
+    # objection to shipping common words does not apply.
+    readmitted = {token for token in compound_parts & english_words
+                  if is_plausible_term(token, frequencies[token])
+                  and token not in misspellings}
+    after_english |= readmitted
+    print(f"  re-admitted as compound parts : {len(after_english):,} (+{len(readmitted):,})")
 
     final = after_english - already_bundled
     print(f"  after already-bundled subtraction: {len(final):,} "

@@ -103,10 +103,41 @@ impl Dictionary {
 
     /// Check if a word is in the dictionary (case-insensitive).
     /// Checks both user words and bundled/external wordlists.
+    ///
+    /// A hyphenated compound also matches when every one of its parts is known
+    /// on its own, so `Chern-Simons` resolves from `chern` and `simons`. The
+    /// word handed to us is whatever span the engine reported, and the engines
+    /// disagree about whether a compound is one token or two — matching both
+    /// shapes here is the only place that can be correct for either.
     #[must_use]
     pub fn contains(&self, word: &str) -> bool {
         let lower = word.to_lowercase();
-        self.user_words.contains(&lower) || self.bundled_words.contains(&lower)
+        if self.contains_exact(&lower) {
+            return true;
+        }
+        Self::hyphen_parts(&lower).is_some_and(|mut parts| parts.all(|p| self.contains_exact(p)))
+    }
+
+    /// Look a single already-lowercased token up in both sets.
+    fn contains_exact(&self, lower: &str) -> bool {
+        self.user_words.contains(lower) || self.bundled_words.contains(lower)
+    }
+
+    /// Split a hyphenated compound into its parts, or `None` if it is not one.
+    ///
+    /// Requires at least two parts and rejects empty ones, so a stray `-`, a
+    /// trailing `chern-`, or an em-dash range never degenerates into "every part
+    /// is known" over a single token or nothing at all.
+    fn hyphen_parts(lower: &str) -> Option<impl Iterator<Item = &str>> {
+        const HYPHENS: [char; 3] = ['-', '\u{2010}', '\u{2011}'];
+        if !lower.contains(HYPHENS) {
+            return None;
+        }
+        let mut parts = lower.split(HYPHENS);
+        if parts.clone().count() < 2 || parts.any(str::is_empty) {
+            return None;
+        }
+        Some(lower.split(HYPHENS))
     }
 
     /// Return all words in the dictionary (user + bundled).
@@ -175,6 +206,7 @@ pub mod bundled {
     pub const JARGON: &str = include_str!("../dictionaries/bundled/jargon.txt");
 
     /// Mathematics, category theory, type theory, and mathematical physics terms.
+    ///
     /// Source: nLab page titles, harvested by `scripts/build-nlab-dictionary.py`.
     /// License: none formally stated; free use granted in exchange for attribution.
     pub const MATHEMATICS: &str = include_str!("../dictionaries/bundled/mathematics.txt");
@@ -297,12 +329,65 @@ mod tests {
         let mut dict = Dictionary::new();
         dict.load_bundled();
 
-        for term in ["monoidal", "presheaf", "colimit", "endofunctor", "cobordism"] {
+        for term in [
+            "monoidal",
+            "presheaf",
+            "colimit",
+            "endofunctor",
+            "cobordism",
+        ] {
             assert!(dict.contains(term), "mathematics should include {term}");
         }
         // Harvested with diacritics intact, and matched case-insensitively.
         assert!(dict.contains("étale"), "mathematics should include étale");
         assert!(dict.contains("Grothendieck"), "lookup is case-insensitive");
+    }
+
+    #[test]
+    fn hyphenated_compound_matches_when_all_parts_known() {
+        let mut dict = Dictionary::new();
+        dict.load_bundled();
+
+        assert!(dict.contains("Chern-Simons"));
+        assert!(dict.contains("Yang-Mills"));
+        assert!(dict.contains("Seiberg-Witten"));
+        // Unicode hyphen (U+2010) and non-breaking hyphen (U+2011) too.
+        assert!(dict.contains("Chern\u{2010}Simons"));
+        assert!(dict.contains("Chern\u{2011}Simons"));
+    }
+
+    #[test]
+    fn hyphenated_compound_rejected_when_a_part_is_unknown() {
+        let mut dict = Dictionary::new();
+        dict.user_words.insert("chern".to_string());
+
+        assert!(!dict.contains("chern-simmmons"));
+        assert!(!dict.contains("cherm-chern"));
+    }
+
+    #[test]
+    fn hyphen_split_rejects_empty_parts() {
+        let mut dict = Dictionary::new();
+        dict.user_words.insert("chern".to_string());
+
+        // A trailing, leading, or doubled hyphen leaves an empty part, which must
+        // not collapse into "every part is known".
+        for input in ["chern-", "-chern", "chern--chern", "-", "--"] {
+            assert!(!dict.contains(input), "{input} must not match");
+        }
+    }
+
+    #[test]
+    fn hyphen_split_only_accepts_words_the_lists_already_carry() {
+        // The compound rule widens what the word lists cover; it never invents
+        // vocabulary. Both halves must be present independently, so an ordinary
+        // hyphenated typo stays flagged.
+        let mut dict = Dictionary::new();
+        dict.user_words.insert("chern".to_string());
+        dict.user_words.insert("simons".to_string());
+
+        assert!(dict.contains("chern-simons"));
+        assert!(!dict.contains("well-known"));
     }
 
     #[test]
@@ -313,8 +398,17 @@ mod tests {
         // These appear in nLab `[[!redirects]]` aliases, which exist precisely so
         // that misspelled links keep resolving. Harvesting them would suppress
         // real typos, so the build script reads page titles only.
-        for typo in ["alebraic", "cohomlogy", "basises", "automorpism", "geoemtric"] {
-            assert!(!dict.contains(typo), "{typo} must not be an accepted spelling");
+        for typo in [
+            "alebraic",
+            "cohomlogy",
+            "basises",
+            "automorpism",
+            "geoemtric",
+        ] {
+            assert!(
+                !dict.contains(typo),
+                "{typo} must not be an accepted spelling"
+            );
         }
     }
 
