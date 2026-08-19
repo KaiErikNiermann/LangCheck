@@ -174,8 +174,13 @@ pub mod bundled {
     ///          autoware-spell-check-dict (Apache-2.0).
     pub const JARGON: &str = include_str!("../dictionaries/bundled/jargon.txt");
 
+    /// Mathematics, category theory, type theory, and mathematical physics terms.
+    /// Source: nLab page titles, harvested by `scripts/build-nlab-dictionary.py`.
+    /// License: none formally stated; free use granted in exchange for attribution.
+    pub const MATHEMATICS: &str = include_str!("../dictionaries/bundled/mathematics.txt");
+
     /// All bundled wordlists for convenient iteration.
-    pub const ALL: &[&str] = &[SOFTWARE_TERMS, TYPESCRIPT, COMPANIES, JARGON];
+    pub const ALL: &[&str] = &[SOFTWARE_TERMS, TYPESCRIPT, COMPANIES, JARGON, MATHEMATICS];
 }
 
 #[cfg(test)]
@@ -285,6 +290,32 @@ mod tests {
             "typescript should include instanceof"
         );
         assert!(dict.contains("stdout"), "jargon should include stdout");
+    }
+
+    #[test]
+    fn mathematics_dictionary_loads() {
+        let mut dict = Dictionary::new();
+        dict.load_bundled();
+
+        for term in ["monoidal", "presheaf", "colimit", "endofunctor", "cobordism"] {
+            assert!(dict.contains(term), "mathematics should include {term}");
+        }
+        // Harvested with diacritics intact, and matched case-insensitively.
+        assert!(dict.contains("étale"), "mathematics should include étale");
+        assert!(dict.contains("Grothendieck"), "lookup is case-insensitive");
+    }
+
+    #[test]
+    fn mathematics_dictionary_excludes_nlab_misspellings() {
+        let mut dict = Dictionary::new();
+        dict.load_bundled();
+
+        // These appear in nLab `[[!redirects]]` aliases, which exist precisely so
+        // that misspelled links keep resolving. Harvesting them would suppress
+        // real typos, so the build script reads page titles only.
+        for typo in ["alebraic", "cohomlogy", "basises", "automorpism", "geoemtric"] {
+            assert!(!dict.contains(typo), "{typo} must not be an accepted spelling");
+        }
     }
 
     #[test]

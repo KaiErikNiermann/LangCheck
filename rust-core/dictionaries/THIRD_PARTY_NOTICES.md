@@ -58,6 +58,45 @@ Aggregated from three sources:
 - License: Apache-2.0
 - Attribution: Tier IV and contributors
 
+## mathematics.txt
+
+Mathematics, category theory, type theory, and mathematical physics vocabulary,
+harvested from nLab wiki page titles by `scripts/build-nlab-dictionary.py`.
+
+### ncatlab/nlab-content
+
+The nLab states no formal license. Its usage terms, quoted verbatim from
+<https://ncatlab.org/nlab/show/HomePage>:
+
+> Using and distributing content obtained from the nLab is free and encouraged if
+> you acknowledge the source, as usual in academia. (There is currently no
+> consensus on a more formal license statement, but if it matters check if
+> relevant individual contributors state such on their nLab homepages.)
+
+This file is that acknowledgement. Only page *titles* were read — the individual
+words of them, lowercased and sorted. No page body, prose, formula, or diagram
+from the nLab appears here or anywhere else in this project. Pages tagged
+`category: people` are skipped entirely, so contributor names are not harvested.
+
+- Repository: https://github.com/ncatlab/nlab-content
+- License: none stated; see the quoted grant above
+- Attribution: the nLab and its contributors
+- Source files: `pages/**/name` (page titles only; `content.md` is read solely to
+  detect the `category: people` tag and is not otherwise harvested)
+
+### dwyl/english-words (subtractive use only)
+
+Used to **remove** entries, not to add them. No content from this project appears
+in the shipped dictionary. Ordinary English words are subtracted because they are
+dead weight — a spell checker never flags them, so the entry can never help —
+while remaining a liability, since it can still fire on a misspelling that
+coincides with one. This removes roughly 3,500 of the harvested tokens.
+
+- Repository: https://github.com/dwyl/english-words
+- License: The Unlicense (public domain dedication)
+- Attribution: dwyl and contributors
+- Source file: `words_alpha.txt`
+
 ## names/names.fst, names/names.txt
 
 Human given names and surnames used by the opt-in name-detection filter. Built by
@@ -80,9 +119,10 @@ Human given names and surnames used by the opt-in name-detection filter. Built b
 
 ### crate-ci/typos (subtractive use only)
 
-Used to **remove** entries, not to add them. No content from this project appears
-in the shipped gazetteer. Both columns of `words.csv` are subtracted, for
-different reasons:
+Used by both `scripts/build-name-gazetteer.py` and `scripts/build-nlab-dictionary.py`
+to **remove** entries, not to add them. No content from this project appears in the
+shipped gazetteer or in `mathematics.txt`. Both columns of `words.csv` are
+subtracted, for different reasons:
 
 - The misspelling column removes ~485 crowdsourced "names" that are actually
   common English misspellings (`thier`, `balck`, `alway`, `autor`, `aray`).
@@ -100,7 +140,7 @@ different reasons:
 
 ---
 
-## The Unlicense (applicable to NameDatabases)
+## The Unlicense (applicable to NameDatabases, english-words)
 
 ```
 This is free and unencumbered software released into the public domain.
