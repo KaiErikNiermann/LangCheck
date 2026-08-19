@@ -143,7 +143,7 @@ impl Dictionary {
         if self.contains_exact(&lower) {
             return true;
         }
-        Self::hyphen_parts(&lower).is_some_and(|mut parts| parts.all(|p| self.contains_exact(p)))
+        self.is_known_compound(&lower)
     }
 
     /// Look a single already-lowercased token up in both sets.
@@ -151,21 +151,18 @@ impl Dictionary {
         self.user_words.contains(lower) || self.bundled_words.contains(lower)
     }
 
-    /// Split a hyphenated compound into its parts, or `None` if it is not one.
+    /// Whether `lower` is a hyphenated compound whose every part is known.
     ///
-    /// Requires at least two parts and rejects empty ones, so a stray `-`, a
-    /// trailing `chern-`, or an em-dash range never degenerates into "every part
-    /// is known" over a single token or nothing at all.
-    fn hyphen_parts(lower: &str) -> Option<impl Iterator<Item = &str>> {
+    /// A present hyphen always yields at least two parts, so the only shapes to
+    /// reject are the ones with an empty part — a bare `-`, a trailing `chern-`,
+    /// or a doubled `--` — which would otherwise decide "every part is known"
+    /// over a single token, or over nothing at all.
+    fn is_known_compound(&self, lower: &str) -> bool {
         const HYPHENS: [char; 3] = ['-', '\u{2010}', '\u{2011}'];
-        if !lower.contains(HYPHENS) {
-            return None;
-        }
-        let mut parts = lower.split(HYPHENS);
-        if parts.clone().count() < 2 || parts.any(str::is_empty) {
-            return None;
-        }
-        Some(lower.split(HYPHENS))
+        lower.contains(HYPHENS)
+            && lower
+                .split(HYPHENS)
+                .all(|part| !part.is_empty() && self.contains_exact(part))
     }
 
     /// Return all words in the dictionary (user + bundled).
