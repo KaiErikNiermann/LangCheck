@@ -157,10 +157,14 @@ auto_fix:
 
 ### dictionaries
 
-| Field     | Type       | Default | Description                                              |
-|-----------|------------|---------|----------------------------------------------------------|
-| `bundled` | `bool`     | `true`  | Load bundled domain-specific dictionaries                |
-| `paths`   | `string[]` | `[]`    | Paths to additional wordlist files (one word per line)   |
+| Field      | Type       | Default | Description                                              |
+|------------|------------|---------|----------------------------------------------------------|
+| `bundled`  | `bool`     | `true`  | Load bundled domain-specific dictionaries                |
+| `disabled` | `string[]` | `[]`    | Names of individual bundled dictionaries to skip         |
+| `paths`    | `string[]` | `[]`    | Paths to additional wordlist files (one word per line)   |
+
+Bundled wordlist names, all loaded unless listed in `disabled`: `software-terms`,
+`typescript`, `companies`, `jargon`, `mathematics`.
 
 ### languages.extensions
 
@@ -252,6 +256,7 @@ The checking pipeline has four stages:
 | `languageCheck.check.trigger`                 | `string`   | `"onChange"` | When to check: `onChange` (with debounce) or `onSave`    |
 | `languageCheck.performance.highPerformanceMode`| `bool`    | `false`      | Low-resource mode: Harper only, simplified SpeedFix UI   |
 | `languageCheck.dictionaries.bundled`          | `bool`     | `true`       | Load bundled domain-specific dictionaries                |
+| `languageCheck.dictionaries.disabled`         | `string[]` | `[]`         | Bundled dictionaries to skip by name                     |
 | `languageCheck.dictionaries.paths`            | `string[]` | `[]`         | Paths to additional wordlist files                       |
 
 ### Activation

@@ -11,6 +11,7 @@ Complete reference for `.languagecheck.yaml`.
 | `exclude`     | `string[]`                  | `["node_modules/**", ".git/**"]` | Glob patterns to skip |
 | `auto_fix`    | [`AutoFixRule[]`](#auto-fix)| `[]`                  | Custom find/replace rules     |
 | `performance` | [`PerformanceConfig`](#performance)| See below     | Performance tuning            |
+| `dictionaries`| [`DictionaryConfig`](#dictionaries)| See below     | Bundled and custom wordlists   |
 | `languages`   | [`LanguageConfig`](#languages)     | See below     | Per-language settings          |
 
 ## Engines
@@ -87,6 +88,61 @@ languages:
       - prooftree
       - mycustomenv
 ```
+
+## Dictionaries
+
+Words listed in a dictionary are never reported as spelling mistakes. Five
+domain wordlists ship with the checker and all of them load by default.
+
+| Field      | Type       | Default | Description                                          |
+|------------|------------|---------|------------------------------------------------------|
+| `bundled`  | `bool`     | `true`  | Load the bundled domain wordlists                    |
+| `disabled` | `string[]` | `[]`    | Names of individual bundled wordlists to skip        |
+| `paths`    | `string[]` | `[]`    | Extra wordlist files, one word per line, `#` comments |
+
+```yaml
+dictionaries:
+  disabled: [companies]
+  paths:
+    - .languagecheck/project-terms.txt
+```
+
+### Bundled wordlists
+
+These are the names accepted by `disabled`:
+
+| Name              | Contents                                                          |
+|-------------------|-------------------------------------------------------------------|
+| `software-terms`  | Development tools, acronyms, and compound technical terms         |
+| `typescript`      | TypeScript and JavaScript keywords, builtins, and API names       |
+| `companies`       | Well-known company and brand names                                |
+| `jargon`          | Computing jargon, hardware terms, and domain vocabulary           |
+| `mathematics`     | Mathematics, category theory, type theory, and mathematical physics |
+
+Set `bundled: false` to switch all five off at once; `disabled` turns off only the
+ones you name and is ignored when `bundled` is false. An unrecognised name is
+warned about in the server log and otherwise ignored, so a typo here never takes
+the other wordlists down with it.
+
+See `rust-core/dictionaries/THIRD_PARTY_NOTICES.md` for each list's source and
+licensing.
+
+### Hyphenated words
+
+A hyphenated compound is accepted when every one of its parts is known
+individually, so `Chern-Simons` resolves from `chern` and `simons`. This matters
+because engines disagree about what they report: Harper flags the parts of a
+compound separately, while LanguageTool flags the whole span. Requiring *all*
+parts to be known keeps genuine typos visible — `Chern-Simmmons` and
+`well-knownn` are still reported.
+
+The same rule applies to words you add yourself and to any file listed in
+`paths`, not just the bundled wordlists.
+
+### Your own words
+
+*Add to dictionary* in the editor writes to `.languagecheck/dictionary.txt` in the
+workspace. That file is yours; the bundled wordlists are never written back to it.
 
 ## Names
 

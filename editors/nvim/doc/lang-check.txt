@@ -89,6 +89,12 @@ Configure via `vim.g.lang_check` or by passing options to `setup()`:
           performance = {
             high_performance_mode = false,
           },
+          dictionaries = {
+            -- All bundled wordlists load by default. Skip individual ones by
+            -- name: software-terms, typescript, companies, jargon, mathematics.
+            disabled = { "companies" },
+            paths = { ".languagecheck/project-terms.txt" },
+          },
         },
       },
     })

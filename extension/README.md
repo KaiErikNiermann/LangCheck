@@ -55,6 +55,7 @@ Or run `Language Check: Config Init` from the command palette to generate a defa
 | `languageCheck.core.channel` | `stable` | Core binary release channel (stable/canary/dev) |
 | `languageCheck.core.binaryPath` | — | Path to a custom core binary |
 | `languageCheck.dictionaries.bundled` | `true` | Use bundled dictionaries |
+| `languageCheck.dictionaries.disabled` | `[]` | Bundled dictionaries to skip by name |
 | `languageCheck.dictionaries.paths` | `[]` | Additional dictionary file paths |
 | `languageCheck.performance.highPerformanceMode` | `false` | Optimize for large files |
 | `languageCheck.workspace.indexOnOpen` | `false` | Index workspace files on open |

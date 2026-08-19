@@ -109,6 +109,23 @@ performance:
   max_file_size: 1048576        # Skip files larger than 1MB (0 = unlimited)
 ```
 
+## Dictionaries
+
+Five domain wordlists ship with the checker — `software-terms`, `typescript`,
+`companies`, `jargon` and `mathematics` — and all of them load by default. Turn
+off the ones you do not want by name:
+
+```yaml
+dictionaries:
+  disabled: [companies]           # keep the rest
+  paths:
+    - .languagecheck/project-terms.txt
+```
+
+Set `bundled: false` to switch all five off at once. See
+[Configuration Schema](../reference/config-schema.md) for the full field
+reference and how hyphenated words are matched.
+
 ## Full Example
 
 Here's a `.languagecheck.yaml` putting it all together:
@@ -149,4 +166,9 @@ auto_fix:
 performance:
   high_performance_mode: false
   debounce_ms: 300
+
+dictionaries:
+  disabled: [companies]
+  paths:
+    - .languagecheck/project-terms.txt
 ```
