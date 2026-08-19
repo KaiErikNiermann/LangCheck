@@ -7,11 +7,28 @@ cd "$(git rev-parse --show-toplevel)/extension"
 
 errors=0
 
+# A file that does not parse has no keys, so every key-set comparison below trivially passes.
+# `bundle.l10n.de.json` sat broken for exactly that reason: a German closing quote written as an
+# ASCII `"` ended the JSON string, jq failed, the `2>/dev/null || true` swallowed it, and the gate
+# reported "in sync" about a file VS Code could not load at all. Parse first, and say so.
+check_parses() {
+    local f="$1"
+    if ! jq -e . "$f" >/dev/null 2>&1; then
+        echo "ERROR: $f is not valid JSON:"
+        jq . "$f" 2>&1 | sed 's/^/  /' | head -3
+        errors=1
+        return 1
+    fi
+}
+
 check_pair() {
     local base="$1" translation="$2"
 
-    missing=$(jq -r --argjson base "$(jq -S 'keys' "$base")" 'keys | . as $t | $base - $t | .[]' "$translation" 2>/dev/null || true)
-    extra=$(jq -r --argjson base "$(jq -S 'keys' "$base")" 'keys | . as $t | $t - $base | .[]' "$translation" 2>/dev/null || true)
+    check_parses "$base" || return 0
+    check_parses "$translation" || return 0
+
+    missing=$(jq -r --argjson base "$(jq -S 'keys' "$base")" 'keys | . as $t | $base - $t | .[]' "$translation")
+    extra=$(jq -r --argjson base "$(jq -S 'keys' "$base")" 'keys | . as $t | $t - $base | .[]' "$translation")
 
     if [[ -n "$missing" ]]; then
         echo "ERROR: $translation is missing keys:"
