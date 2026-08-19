@@ -168,6 +168,21 @@
           "default": true,
           "description": "%config.dictionaries.bundled%"
         },
+        "languageCheck.dictionaries.disabled": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "software-terms",
+              "typescript",
+              "companies",
+              "jargon",
+              "mathematics"
+            ]
+          },
+          "default": [],
+          "description": "%config.dictionaries.disabled%"
+        },
         "languageCheck.dictionaries.paths": {
           "type": "array",
           "items": {

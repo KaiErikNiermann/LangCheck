@@ -26,6 +26,17 @@ message InitializeRequest {
   // detected as human names. Used as a fallback when .languagecheck.yaml doesn't
   // set names.enabled.
   optional bool detect_names = 4;
+  // VS Code global setting: whether to load the bundled domain-specific
+  // dictionaries. Used as a fallback when .languagecheck.yaml doesn't set
+  // dictionaries.bundled.
+  optional bool dictionaries_bundled = 5;
+  // VS Code global setting: names of individual bundled dictionaries to skip.
+  // Used as a fallback when .languagecheck.yaml doesn't set
+  // dictionaries.disabled.
+  repeated string dictionaries_disabled = 6;
+  // VS Code global setting: additional wordlist files to load. Used as a
+  // fallback when .languagecheck.yaml doesn't set dictionaries.paths.
+  repeated string dictionaries_paths = 7;
 }
 
 message IgnoreRequest {

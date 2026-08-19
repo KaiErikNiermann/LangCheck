@@ -239,11 +239,17 @@ export async function activate(context: vscode.ExtensionContext) {
             const indexOnOpen = wsConfig.get<boolean>('workspace.indexOnOpen', false);
             const dbPath = wsConfig.get<string>('workspace.dbPath', '') || null;
             const detectNames = wsConfig.get<boolean>('names.enabled', false);
-            log.debug('Sending Initialize request', { workspaceRoot: root, indexOnOpen, dbPath, detectNames });
+            const dictionariesBundled = wsConfig.get<boolean>('dictionaries.bundled', true);
+            const dictionariesDisabled = wsConfig.get<string[]>('dictionaries.disabled', []);
+            const dictionariesPaths = wsConfig.get<string[]>('dictionaries.paths', []);
+            log.debug('Sending Initialize request', { workspaceRoot: root, indexOnOpen, dbPath, detectNames, dictionariesBundled, dictionariesDisabled, dictionariesPaths });
             pushInspectorEvent('info', 'initialize', `Initializing (indexOnOpen=${indexOnOpen}, detectNames=${detectNames})`);
             const t0 = performance.now();
             await client.sendRequest({
-                initialize: { workspaceRoot: root, indexOnOpen, dbPath, detectNames }
+                initialize: {
+                    workspaceRoot: root, indexOnOpen, dbPath, detectNames,
+                    dictionariesBundled, dictionariesDisabled, dictionariesPaths
+                }
             });
             pushInspectorEvent('info', 'initialize', 'Server initialized', { durationMs: performance.now() - t0 });
             log.debug('Initialize response received');

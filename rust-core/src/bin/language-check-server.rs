@@ -392,15 +392,28 @@ async fn main() -> Result<()> {
                     orchestrator_arc.lock().await.update_config(config.clone());
                     *config_arc.lock().await = config.clone();
 
+                    // The VS Code globals combine with the workspace config rather than
+                    // overriding it. `bundled` defaults to true on both sides, so we
+                    // cannot tell "unset" from "explicitly on" and take the restrictive
+                    // reading: either side may switch the bundled lists off. The two
+                    // lists simply union, so neither source silently drops the other's
+                    // entries.
+                    let load_bundled =
+                        config.dictionaries.bundled && req.dictionaries_bundled.unwrap_or(true);
+                    let mut disabled_sets = config.dictionaries.disabled.clone();
+                    disabled_sets.extend(req.dictionaries_disabled.iter().cloned());
+                    let mut wordlist_paths = config.dictionaries.paths.clone();
+                    wordlist_paths.extend(req.dictionaries_paths.iter().cloned());
+
                     // Load persisted ignore store and dictionary from workspace
                     match Dictionary::load(&root_path) {
                         Ok(mut loaded_dict) => {
                             // Load bundled domain-specific dictionaries
-                            if config.dictionaries.bundled {
-                                loaded_dict.load_bundled_except(&config.dictionaries.disabled);
+                            if load_bundled {
+                                loaded_dict.load_bundled_except(&disabled_sets);
                             }
                             // Load user-configured additional wordlist files
-                            for path_str in &config.dictionaries.paths {
+                            for path_str in &wordlist_paths {
                                 let path = std::path::Path::new(path_str);
                                 if let Err(e) = loaded_dict.load_wordlist_file(path, &root_path) {
                                     warn!(path = path_str, "Could not load wordlist: {e}");
@@ -408,8 +421,9 @@ async fn main() -> Result<()> {
                             }
                             info!(
                                 words = loaded_dict.len(),
-                                bundled = config.dictionaries.bundled,
-                                extra_paths = config.dictionaries.paths.len(),
+                                bundled = load_bundled,
+                                disabled = ?disabled_sets,
+                                extra_paths = wordlist_paths.len(),
                                 "Dictionary loaded"
                             );
                             *dictionary_arc.lock().await = loaded_dict;
