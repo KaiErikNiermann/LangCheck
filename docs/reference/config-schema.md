@@ -71,6 +71,7 @@ Complete reference for `.languagecheck.yaml`.
 | `extensions`| `map<string, string[]>`               | `{}`    | Additional file extensions per language ID |
 | `latex`     | [`LaTeXConfig`](#languages-latex)     | See below | LaTeX-specific settings            |
 
+(languages-latex)=
 ### `languages.latex`
 
 | Field               | Type       | Default | Description                                     |

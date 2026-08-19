@@ -64,6 +64,7 @@ tinylang-spec
 
 reference/cli
 reference/config-schema
+reference/directives
 reference/publishing
 reference/troubleshooting
 ```

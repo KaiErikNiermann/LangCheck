@@ -123,8 +123,8 @@ dictionaries:
 ```
 
 Set `bundled: false` to switch all five off at once. See
-[Configuration Schema](../reference/config-schema.md) for the full field
-reference and how hyphenated words are matched.
+[Configuration Schema](../reference/config-schema.md#dictionaries) for the full
+field reference and how hyphenated words are matched.
 
 ## Full Example
 

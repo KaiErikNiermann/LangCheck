@@ -18,6 +18,10 @@ myst_enable_extensions = [
     "fieldlist",
     "tasklist",
 ]
+# Generate anchors for h1-h3 so the in-page `](#section)` links used throughout
+# the reference tables resolve. Without this MyST emits no heading ids and every
+# such link is a build warning that renders as a dead link.
+myst_heading_anchors = 3
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", ".venv", "README.md"]
