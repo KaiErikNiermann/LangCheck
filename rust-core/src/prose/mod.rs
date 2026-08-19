@@ -12,6 +12,7 @@ mod typst;
 use anyhow::{Result, anyhow};
 use std::ops::Range;
 use std::path::Path;
+use tracing::warn;
 use tree_sitter::{Language, Parser};
 
 use crate::checker::Diagnostic;
@@ -133,7 +134,10 @@ fn apply_type_overrides(
         let canonical = crate::languages::resolve_language_id(doc_type);
 
         if !crate::languages::SUPPORTED_LANGUAGE_IDS.contains(&canonical) {
-            eprintln!("lang-check: `type:{doc_type}` is not a supported language; skipping region");
+            warn!(
+                doc_type,
+                "`type:` directive names an unsupported language; skipping region"
+            );
             continue;
         }
 

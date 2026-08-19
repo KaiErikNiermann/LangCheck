@@ -5,6 +5,9 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use tracing::warn;
+
+use crate::text_util::{safe_prefix, safe_slice, safe_suffix};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiagnosticFingerprint {
@@ -19,10 +22,9 @@ impl DiagnosticFingerprint {
         let mut message_hasher = DefaultHasher::new();
         message.hash(&mut message_hasher);
 
-        // Extract context: up to 20 chars before and after, snapped to char boundaries
-        let start = text.floor_char_boundary(start_byte.saturating_sub(20));
-        let end = text.ceil_char_boundary((end_byte + 20).min(text.len()));
-        let context = &text[start..end];
+        // Extract context: up to 20 bytes before and after. `safe_slice` owns the boundary
+        // snapping and the length clamp.
+        let context = safe_slice(text, start_byte.saturating_sub(20), end_byte + 20);
 
         let mut context_hasher = DefaultHasher::new();
         context.hash(&mut context_hasher);
@@ -39,8 +41,7 @@ impl DiagnosticFingerprint {
     }
 
     fn extract_word_anchor(text: &str, start_byte: usize, end_byte: usize) -> String {
-        let sb = text.floor_char_boundary(start_byte.min(text.len()));
-        let before: String = text[..sb]
+        let before: String = safe_prefix(text, start_byte)
             .split_whitespace()
             .rev()
             .take(3)
@@ -49,8 +50,7 @@ impl DiagnosticFingerprint {
             .rev()
             .collect::<Vec<_>>()
             .join(" ");
-        let eb = text.ceil_char_boundary(end_byte.min(text.len()));
-        let after: String = text[eb..]
+        let after: String = safe_suffix(text, end_byte)
             .split_whitespace()
             .take(3)
             .collect::<Vec<_>>()
@@ -113,7 +113,7 @@ impl IgnoreStore {
         self.ignored_fingerprints
             .insert(fingerprint.combined_hash());
         if let Err(e) = self.persist() {
-            eprintln!("Warning: failed to persist ignore store: {e}");
+            warn!("Failed to persist ignore store: {e}");
         }
     }
 
