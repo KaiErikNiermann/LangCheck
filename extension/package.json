@@ -329,12 +329,12 @@
     "@types/node": "^26.2.0",
     "@types/vscode": "^1.110.0",
     "esbuild": "^0.28.2",
-    "eslint": "^10.8.1",
+    "eslint": "^10.9.0",
     "protobufjs-cli": "^2.6.2",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.67.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "pnpm": {
     "overrides": {
