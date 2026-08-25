@@ -80,7 +80,7 @@ fn preprocess(text: &str) -> String {
 }
 
 /// Find the index of the next newline (or end-of-slice) starting from `start`.
-fn memchr_newline(bytes: &[u8], start: usize) -> usize {
+const fn memchr_newline(bytes: &[u8], start: usize) -> usize {
     let mut j = start;
     while j < bytes.len() && bytes[j] != b'\n' {
         j += 1;

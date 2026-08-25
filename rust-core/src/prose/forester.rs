@@ -170,7 +170,7 @@ fn strip_inline_commands_in_range(
 ///   neighbouring real word);
 /// - the pronoun `I` (`#{I}`, the imaginary unit / identity), which triggers
 ///   `PERS_PRONOUN_AGREEMENT` / `NON3PRS_VERB`.
-fn single_letter_kept_as_prose(trimmed: &str) -> bool {
+const fn single_letter_kept_as_prose(trimmed: &str) -> bool {
     matches!(trimmed.as_bytes(), [b] if b.is_ascii_uppercase() && *b != b'I')
 }
 
