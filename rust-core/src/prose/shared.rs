@@ -106,7 +106,7 @@ fn is_bridgeable_gap(gap: &str, strip_noise: fn(&str) -> String) -> bool {
 /// Returns position just past the closing delimiter.
 /// `escape`: optional escape byte (e.g. `Some(b'\\')`) — when encountered,
 /// the next byte is unconditionally consumed.
-pub fn skip_balanced_bytes(
+pub const fn skip_balanced_bytes(
     bytes: &[u8],
     mut i: usize,
     open: u8,
@@ -134,7 +134,7 @@ pub fn skip_balanced_bytes(
 
 /// Skip balanced delimiters on chars. `i` is just past the opening delimiter.
 /// Returns position just past the closing delimiter.
-pub fn skip_balanced_chars(chars: &[char], mut i: usize, open: char, close: char) -> usize {
+pub const fn skip_balanced_chars(chars: &[char], mut i: usize, open: char, close: char) -> usize {
     let mut depth: u32 = 1;
     while i < chars.len() && depth > 0 {
         if chars[i] == open {
