@@ -197,7 +197,10 @@ export async function activate(context: vscode.ExtensionContext) {
             if (selection === vscode.l10n.t('Open Walkthrough')) {
                 vscode.commands.executeCommand(
                     'workbench.action.openWalkthrough',
-                    'KaiErikNiermann.extension#language-check.welcome',
+                    // Derive the id from the running extension rather than hardcoding
+                    // publisher.name — the literal was wrong (`.extension`) and would
+                    // break again under a different registry namespace.
+                    `${context.extension.id}#language-check.welcome`,
                     false
                 );
             }
