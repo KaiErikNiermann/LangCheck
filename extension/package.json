@@ -18,7 +18,7 @@
   ],
   "icon": "icon.png",
   "engines": {
-    "vscode": "^1.110.0"
+    "vscode": "^1.85.0"
   },
   "activationEvents": [
     "onLanguage:markdown",
@@ -327,7 +327,7 @@
     "@eslint/js": "^10.0.1",
     "@types/long": "^5.0.0",
     "@types/node": "^26.2.0",
-    "@types/vscode": "^1.110.0",
+    "@types/vscode": "~1.85.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.9.0",
     "protobufjs-cli": "^2.6.2",
