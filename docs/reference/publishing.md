@@ -17,6 +17,44 @@ cargo publish
 - Add `categories` and `keywords` for discoverability
 - Verify `README.md` is included via `readme` field
 
+## Open VSX (VSCodium)
+
+VSCodium, Code — OSS and other non-Microsoft builds cannot query the Microsoft
+marketplace; they read [Open VSX](https://open-vsx.org). The release workflow publishes
+the same VSIX to both registries, so no separate build is needed — the artifact is
+platform-independent and the core binary is fetched at first activation.
+
+**One-time maintainer setup:**
+
+1. Sign in at [open-vsx.org](https://open-vsx.org) with the GitHub account that owns the
+   repository, then create an access token under *Settings → Access Tokens*.
+2. Create the publisher namespace (it must exist before the first publish):
+
+   ```bash
+   npx ovsx create-namespace KaiErikNiermann -p "$OVSX_PAT"
+   ```
+
+3. Add the token as the `OVSX_PAT` repository secret in GitHub
+   (*Settings → Secrets and variables → Actions*).
+
+Optionally, claim namespace ownership by opening an issue on
+[EclipseFdn/open-vsx.org](https://github.com/EclipseFdn/open-vsx.org/issues) — this
+removes the "unverified publisher" notice. Publishing works without it.
+
+**Per release:** nothing. The `publish-vsix` job pushes to Open VSX whenever `OVSX_PAT`
+is set, and emits a workflow warning when it is not. To publish by hand:
+
+```bash
+export OVSX_PAT=...
+just publish-vsix
+```
+
+**Note on `engines.vscode`:** VSCodium lags upstream VS Code by days to weeks, and Open
+VSX serves the newest VSIX the client's version allows. Keep `extension/package.json`'s
+`engines.vscode` at the oldest API level the code actually compiles against (verify by
+pinning `@types/vscode` to the same version and running `pnpm typecheck`) rather than at
+the current VS Code release, or fresh versions become uninstallable on VSCodium.
+
 ## Homebrew (macOS/Linux)
 
 ### Formula
