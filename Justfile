@@ -106,25 +106,37 @@ docs-lang lang:
 
 # --- Local install ---
 
-# Build the latest local core + extension and install into VS Code for live
-# testing. Unlike dev-mode (F5), this installs a real production extension, so
-# it must be pointed at the locally-built core via `languageCheck.core.binaryPath`
+# Build the latest local core + extension and install into VS Code (or VSCodium,
+# whichever CLI is on PATH — override with EDITOR_CLI=codium) for live testing.
+# Unlike dev-mode (F5), this installs a real production extension, so it must be
+# pointed at the locally-built core via `languageCheck.core.binaryPath`
 # — otherwise it downloads the latest *released* binary instead of your build.
 install-local: build-rust-release build-ts
     #!/usr/bin/env bash
     set -euo pipefail
     bin="$(pwd)/rust-core/target/release/language-check-server"
+    editor="${EDITOR_CLI:-}"
+    if [ -z "$editor" ]; then
+      for candidate in code codium code-oss vscodium; do
+        if command -v "$candidate" >/dev/null 2>&1; then editor="$candidate"; break; fi
+      done
+    fi
+    if [ -z "$editor" ]; then
+      echo "No editor CLI found (tried code, codium, code-oss, vscodium)." >&2
+      echo "Set EDITOR_CLI to the command for your editor and re-run." >&2
+      exit 1
+    fi
     cd extension
     npx @vscode/vsce package --no-dependencies
     vsix=$(ls -t *.vsix | head -1)
-    code --install-extension "$vsix" --force
+    "$editor" --install-extension "$vsix" --force
     echo
-    echo "Installed $vsix"
+    echo "Installed $vsix into $editor"
     echo
     echo "┌─ Live local testing ────────────────────────────────────────────────"
     echo "│ This is a PRODUCTION install. To run it against the core you just"
-    echo "│ built (instead of the latest released binary), set in VS Code"
-    echo "│ user settings.json:"
+    echo "│ built (instead of the latest released binary), set in your"
+    echo "│ editor's user settings.json:"
     echo "│"
     echo "│   \"languageCheck.core.binaryPath\": \"$bin\""
     echo "│"
@@ -242,7 +254,7 @@ _release version:
     git tag "v$version"
     git push origin "v$version"
     gh release create "v$version" --title "v$version" --notes ""
-    echo "Release v$version created — GitHub Actions will build, publish to crates.io, VS Code Marketplace, and Homebrew"
+    echo "Release v$version created — GitHub Actions will build, publish to crates.io, VS Code Marketplace, Open VSX, and Homebrew"
 
 # Internal: update version in all project files
 _sync-versions version:
@@ -293,9 +305,21 @@ publish-crate:
 publish-vsix-dry:
     cd extension && npx @vscode/vsce ls --no-dependencies
 
-# Build, package, and publish VSIX to VS Code Marketplace
+# Build, package, and publish VSIX to the VS Code Marketplace and Open VSX.
+# Open VSX is what VSCodium and other non-Microsoft builds read; it needs
+# OVSX_PAT and a one-time `npx ovsx create-namespace KaiErikNiermann -p $OVSX_PAT`.
 publish-vsix: build-ts
-    cd extension && npx @vscode/vsce package --no-dependencies && npx @vscode/vsce publish --packagePath *.vsix
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd extension
+    npx @vscode/vsce package --no-dependencies
+    vsix=$(ls -t *.vsix | head -1)
+    npx @vscode/vsce publish --packagePath "$vsix"
+    if [ -n "${OVSX_PAT:-}" ]; then
+      npx ovsx publish "$vsix" -p "$OVSX_PAT"
+    else
+      echo "OVSX_PAT unset — skipping Open VSX; VSCodium users will not see this version." >&2
+    fi
 
 # Run all dry-run checks for publishing
 release-dry: publish-crate-dry publish-vsix-dry

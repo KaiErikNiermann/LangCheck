@@ -368,6 +368,11 @@ jobs:
     name: Publish VS Code Extension
     runs-on: ubuntu-latest
     needs: create-release
+    # Job-level so the Open VSX step can gate on it: a step's own `env:` block is
+    # not visible to that step's `if:`, so the previous step-level guard made the
+    # Codium/Open VSX publish skip unconditionally.
+    env:
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
     steps:
       - name: Download VSIX artifact
         uses: actions/download-artifact@v8
@@ -380,11 +385,16 @@ jobs:
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
-      - name: Publish to Open VSX (optional)
+      # Open VSX is the registry VSCodium and other non-Microsoft builds read.
+      # Namespace `KaiErikNiermann` must exist there before the first publish:
+      #   npx ovsx create-namespace KaiErikNiermann -p "$OVSX_PAT"
+      - name: Publish to Open VSX
         if: env.OVSX_PAT != ''
         run: npx ovsx publish vsix/*.vsix -p "$OVSX_PAT"
-        env:
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
+      - name: Warn when Open VSX publish was skipped
+        if: env.OVSX_PAT == ''
+        run: echo "::warning::OVSX_PAT is unset — this release was not published to Open VSX, so VSCodium users will not see it."
 
   update-homebrew:
     name: Update Homebrew Tap
