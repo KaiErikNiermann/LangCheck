@@ -2924,7 +2924,7 @@ dependencies = [
  "is-macro",
  "itertools 0.14.0",
  "levenshtein_automata",
- "lru 0.18.2",
+ "lru 0.18.3",
  "ordered-float 5.3.0",
  "paste",
  "pulldown-cmark",
@@ -3519,7 +3519,7 @@ dependencies = [
  "harper-core",
  "indicatif",
  "insta",
- "lru 0.18.2",
+ "lru 0.18.3",
  "prost",
  "prost-build",
  "redb",
@@ -3683,9 +3683,9 @@ dependencies = [
 
 [[package]]
 name = "lru"
-version = "0.18.2"
+version = "0.18.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d2f2f9b4ba7e6b24d95e7e899329d35be83bcded72c8540cdd5368932d1d90a"
+checksum = "0d317b4b9eb398e6acce275758ec6125535505e7a146fb1a9b8bda2451b0ff4c"
 dependencies = [
  "hashbrown 0.17.0",
 ]
@@ -6182,9 +6182,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.26.12"
+version = "0.26.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83c567a8e18ae93f20982c90370b16fd24023aeaf52f6052b96957ab253a0fec"
+checksum = "17ebdd3a5a7e28a1890b876fdbd0c3c0fe0a6336cffaa104f11b9f720c9daa29"
 dependencies = [
  "cc",
  "regex",
