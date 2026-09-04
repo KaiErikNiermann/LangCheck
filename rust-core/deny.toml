@@ -29,6 +29,7 @@ ignore = [
     "RUSTSEC-2026-0096",
     "RUSTSEC-2026-0114",
     "RUSTSEC-2026-0222",
+    "RUSTSEC-2026-0269",
     # im-rc and its bitmaps/sized-chunks deps unmaintained — transitive via
     # extism -> wasmtime -> wasm-compose, no upgrade path
     "RUSTSEC-2026-0247",
