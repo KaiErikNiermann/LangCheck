@@ -136,3 +136,41 @@ fn generate_markdown(paragraphs: usize) -> String {
     }
     text
 }
+
+// ── Dictionary and morphology benchmarks ─────────────────────────────
+
+#[divan::bench]
+fn dictionary_load_bundled() {
+    let mut dict = lang_check::dictionary::Dictionary::new();
+    dict.load_bundled();
+    divan::black_box(dict.len());
+}
+
+/// The cost paid once per workspace load when inflections are on.
+#[divan::bench]
+fn dictionary_derive_inflections(bencher: divan::Bencher) {
+    bencher
+        .with_inputs(|| {
+            let mut dict = lang_check::dictionary::Dictionary::new();
+            dict.load_bundled();
+            dict
+        })
+        .bench_local_refs(|dict| {
+            dict.derive_inflections();
+            divan::black_box(dict.derived_len())
+        });
+}
+
+/// The common case: a token that is simply misspelled and decomposes into nothing.
+#[divan::bench]
+fn morphology_reject_typo(bencher: divan::Bencher) {
+    let analyzer = lang_check::morphology::AffixAnalyzer::new("en-US");
+    bencher.bench_local(|| divan::black_box(analyzer.analyze("recieve", None)));
+}
+
+/// The worst case: a prefix and a suffix, both peeled, before the root is found.
+#[divan::bench]
+fn morphology_accept_derived(bencher: divan::Bencher) {
+    let analyzer = lang_check::morphology::AffixAnalyzer::new("en-US");
+    bencher.bench_local(|| divan::black_box(analyzer.analyze("subadditivity", None)));
+}
