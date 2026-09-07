@@ -126,6 +126,29 @@ Set `bundled: false` to switch all five off at once. See
 [Configuration Schema](../reference/config-schema.md#dictionaries) for the full
 field reference and how hyphenated words are matched.
 
+## Morphology
+
+One dictionary entry covers the words built on it, so you do not have to add
+`algebra`, `algebras`, `subalgebra` and `algebraicity` separately. This is on by
+default:
+
+```yaml
+morphology:
+  enabled: true                 # accept prefixed and derived forms
+  inflections: true             # accept plurals and regular verb forms
+```
+
+Prefixed and derived forms are recognised by taking the flagged word apart and
+requiring what is left to be a real word — `subalgebra` yes, `subxyzzy` no.
+Inflections are generated instead, because the spelling rules only work
+forwards: `occur` plus `-ed` is `occurred`, and a checker that stripped `-ed`
+from `occured` would quietly accept a typo.
+
+Misspellings stay visible because the engine's own correction overrides the
+analysis: if it can suggest something one edit away from what you typed, you
+still get a squiggle. See
+[Configuration Schema](../reference/config-schema.md#morphology).
+
 ## Full Example
 
 Here's a `.languagecheck.yaml` putting it all together:
