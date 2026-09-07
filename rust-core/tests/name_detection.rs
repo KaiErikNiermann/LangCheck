@@ -14,6 +14,9 @@
 //! path-gated and skipped when absent, so CI stays green without them and nothing
 //! private is ever committed.
 
+mod common;
+
+use common::TYPO_CORPUS;
 use lang_check::names::{Aggressiveness, NameFilter, NameQuery};
 
 /// Locate `token` in `text` and evaluate it.
@@ -36,41 +39,6 @@ fn verdict(filter: &NameFilter, token: &str, text: &str, suggestions: &[&str]) -
 fn english() -> NameFilter {
     NameFilter::new(Aggressiveness::Balanced, "en-US")
 }
-
-/// Real misspellings with the corrections an engine actually proposes, written the way a
-/// person types them: lowercase, mid-sentence, in ordinary prose.
-const TYPO_CORPUS: &[(&str, &[&str])] = &[
-    ("recieve", &["receive", "relieve"]),
-    ("seperate", &["separate"]),
-    ("definately", &["definitely"]),
-    ("occured", &["occurred"]),
-    ("adress", &["address", "dress"]),
-    ("begining", &["beginning"]),
-    ("enviroment", &["environment"]),
-    ("succesful", &["successful"]),
-    ("neccessary", &["necessary"]),
-    ("similiar", &["similar"]),
-    ("tommorow", &["tomorrow"]),
-    ("untill", &["until"]),
-    ("goverment", &["government"]),
-    ("completly", &["completely"]),
-    ("independant", &["independent"]),
-    ("reccomend", &["recommend"]),
-    ("thier", &["their", "there"]),
-    ("alot", &["a lot", "allot"]),
-    ("wich", &["which", "witch"]),
-    ("teh", &["the"]),
-    ("acheive", &["achieve"]),
-    ("beleive", &["believe"]),
-    ("calender", &["calendar"]),
-    ("cemetary", &["cemetery"]),
-    ("collegue", &["colleague"]),
-    ("concious", &["conscious"]),
-    ("existance", &["existence"]),
-    ("foriegn", &["foreign"]),
-    ("gaurd", &["guard"]),
-    ("harrass", &["harass"]),
-];
 
 /// Surnames as they appear in academic prose, with realistic engine suggestions.
 const NAME_CORPUS: &[(&str, &[&str])] = &[
