@@ -249,15 +249,26 @@ async fn check_path(
         )
         .await?;
     } else {
+        // One glob per extension rather than a single `*.{md,markdown}` alternation: the
+        // `glob` crate implements `*`, `**` and `[...]` but not brace expansion, so a
+        // braced pattern is matched literally and every directory run silently found
+        // nothing. Sorted and deduplicated so the output order is stable and a file that
+        // two extensions both claim is checked once.
         let exts = lang_check::languages::extensions_for_language(&lang, &config);
-        let pattern = if exts.is_empty() {
-            format!("**/*.{lang}")
+        let root = path.to_string_lossy();
+        let patterns: Vec<String> = if exts.is_empty() {
+            vec![format!("{root}/**/*.{lang}")]
         } else {
-            format!("**/*.{{{}}}", exts.join(","))
+            exts.iter()
+                .map(|ext| format!("{root}/**/*.{ext}"))
+                .collect()
         };
-        let files: Vec<_> = glob::glob(&format!("{}/{}", path.to_string_lossy(), pattern))?
-            .flatten()
-            .collect();
+        let mut files: Vec<PathBuf> = Vec::new();
+        for pattern in &patterns {
+            files.extend(glob::glob(pattern)?.flatten());
+        }
+        files.sort_unstable();
+        files.dedup();
 
         let pb = if files.len() > 1 && matches!(format, OutputFormat::Pretty) {
             let bar = ProgressBar::new(files.len() as u64);
