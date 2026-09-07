@@ -12,12 +12,15 @@
 //! - `unified_id` must already be populated (only [`crate::orchestrator::Orchestrator`]
 //!   does that), since the spelling check keys on it.
 
+use tracing::debug;
+
 use crate::checker::Diagnostic;
 use crate::dictionary::Dictionary;
 use crate::hashing::{DiagnosticFingerprint, IgnoreStore};
+use crate::morphology::AffixAnalyzer;
 use crate::names::{NameFilter, NameQuery, NameVerdict};
 use crate::prose::is_spelling_category;
-use crate::text_util::safe_slice;
+use crate::text_util::{min_suggestion_distance, safe_slice};
 
 /// The suppression sources available at a given call site.
 ///
@@ -27,6 +30,7 @@ use crate::text_util::safe_slice;
 pub struct SuppressionContext<'a> {
     pub ignore: Option<&'a IgnoreStore>,
     pub dictionary: Option<&'a Dictionary>,
+    pub morphology: Option<&'a AffixAnalyzer>,
     pub names: Option<&'a NameFilter>,
 }
 
@@ -36,6 +40,7 @@ impl<'a> SuppressionContext<'a> {
         Self {
             ignore: None,
             dictionary: None,
+            morphology: None,
             names: None,
         }
     }
@@ -49,6 +54,12 @@ impl<'a> SuppressionContext<'a> {
     #[must_use]
     pub const fn with_dictionary(mut self, dictionary: &'a Dictionary) -> Self {
         self.dictionary = Some(dictionary);
+        self
+    }
+
+    #[must_use]
+    pub const fn with_morphology(mut self, morphology: &'a AffixAnalyzer) -> Self {
+        self.morphology = Some(morphology);
         self
     }
 
@@ -100,6 +111,10 @@ fn classify(diagnostic: &Diagnostic, text: &str, ctx: &SuppressionContext<'_>) -
         return Outcome::Drop;
     }
 
+    if is_known_derivation(word, diagnostic, ctx) {
+        return Outcome::Drop;
+    }
+
     let Some(filter) = ctx.names else {
         return Outcome::Keep;
     };
@@ -115,6 +130,32 @@ fn classify(diagnostic: &Diagnostic, text: &str, ctx: &SuppressionContext<'_>) -
     } else {
         Outcome::Keep
     }
+}
+
+/// Whether the token is an affixed form of known material, and not a typo.
+///
+/// Decomposition alone is not enough. Measured over single-edit misspellings of common
+/// English words it accepts about 1% of them — `untill` as `un` + `till`, `intergrate`
+/// as `inter` + `grate` — and every one of those has its correction sitting in the
+/// engine's own suggestion list one edit away. A token that close to a real word is a
+/// slip, whatever else it also parses as, so the suggestions veto the analysis.
+///
+/// No suggestions at all is the opposite evidence: the engine could think of nothing
+/// this might have been, which is what a genuinely novel coinage looks like.
+fn is_known_derivation(word: &str, diagnostic: &Diagnostic, ctx: &SuppressionContext<'_>) -> bool {
+    let Some(analyzer) = ctx.morphology else {
+        return false;
+    };
+    if min_suggestion_distance(word, &diagnostic.suggestions).is_some_and(|d| d <= 1) {
+        return false;
+    }
+    let Some(analysis) = analyzer.analyze(word, ctx.dictionary) else {
+        return false;
+    };
+    // Suppression is otherwise silent, and a feature that hides squiggles without
+    // saying why cannot be debugged from a bug report.
+    debug!(word, decomposition = %analysis.describe(), "Suppressed as an affixed form");
+    true
 }
 
 /// Whether `diagnostic` should be dropped before reaching the user.
@@ -176,6 +217,72 @@ mod tests {
             unified_id: "spelling.typo".to_string(),
             confidence: 1.0,
         }
+    }
+
+    /// A spelling diagnostic carrying the corrections an engine would actually offer.
+    fn with_suggestions(start: u32, end: u32, suggestions: &[&str]) -> Diagnostic {
+        Diagnostic {
+            suggestions: suggestions.iter().map(|s| (*s).to_string()).collect(),
+            ..spelling_diagnostic(start, end)
+        }
+    }
+
+    #[test]
+    fn an_affixed_form_of_a_known_word_is_suppressed() {
+        let text = "every subalgebra here";
+        let analyzer = AffixAnalyzer::new("en-US");
+        let ctx = SuppressionContext::new().with_morphology(&analyzer);
+        assert!(should_suppress(&spelling_diagnostic(6, 16), text, &ctx));
+    }
+
+    #[test]
+    fn morphology_is_inert_until_it_is_supplied() {
+        let text = "every subalgebra here";
+        assert!(!should_suppress(
+            &spelling_diagnostic(6, 16),
+            text,
+            &SuppressionContext::new()
+        ));
+    }
+
+    #[test]
+    fn a_close_suggestion_vetoes_the_decomposition() {
+        // `untill` parses as un + till, and `till` really is a word. The engine's own
+        // correction, one edit away, is what says otherwise.
+        let text = "wait untill then";
+        let analyzer = AffixAnalyzer::new("en-US");
+        let ctx = SuppressionContext::new().with_morphology(&analyzer);
+        assert!(!should_suppress(
+            &with_suggestions(5, 11, &["until"]),
+            text,
+            &ctx
+        ));
+        // Without that evidence the same token is accepted, which is exactly why the
+        // guard is not optional.
+        assert!(should_suppress(&spelling_diagnostic(5, 11), text, &ctx));
+    }
+
+    #[test]
+    fn a_distant_suggestion_does_not_veto() {
+        // Engines answer novel coinages with something, but not something close.
+        let text = "the subadditivity holds";
+        let analyzer = AffixAnalyzer::new("en-US");
+        let ctx = SuppressionContext::new().with_morphology(&analyzer);
+        assert!(should_suppress(
+            &with_suggestions(4, 17, &["subjectivity"]),
+            text,
+            &ctx
+        ));
+    }
+
+    #[test]
+    fn morphology_does_not_touch_non_spelling_diagnostics() {
+        let text = "every subalgebra here";
+        let analyzer = AffixAnalyzer::new("en-US");
+        let ctx = SuppressionContext::new().with_morphology(&analyzer);
+        let mut d = spelling_diagnostic(6, 16);
+        d.unified_id = "grammar.agreement".to_string();
+        assert!(!should_suppress(&d, text, &ctx));
     }
 
     #[test]
