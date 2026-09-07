@@ -1,0 +1,49 @@
+{
+  "//": "Affix classes used to generate the regular inflections of dictionary words.",
+  "//schema": "harper-core's rune attribute list; parsed by MutableDictionary::from_rune_files.",
+  "//source": "The three replacement tables are taken from harper-core's annotations.json (Apache-2.0). They encode English orthography -- y->ies after a consonant, e-deletion before -ing -- which is the part that stripping cannot reconstruct and the reason inflection is generated here rather than analysed.",
+  "//omissions": "No prefix classes. Prefixation is unbounded and is recognised at lookup time instead; putting 50 prefixes here would cross-multiply the expansion into millions of entries. No comparative, superlative or possessive: they add forms nobody flags.",
+  "affixes": {
+    "S": {
+      "#": "-(i)(e)s plural / third-person singular",
+      "kind": "suffix",
+      "cross_product": true,
+      "replacements": [
+        { "remove": "y", "add": "ies", "condition": "[^aeiou]y" },
+        { "remove": "", "add": "s", "condition": "[aeiou]y" },
+        { "remove": "", "add": "es", "condition": "[sxzh]" },
+        { "remove": "", "add": "s", "condition": "[^sxzhy]" }
+      ],
+      "target": [],
+      "base_metadata": {},
+      "rename_ok": true
+    },
+    "d": {
+      "#": "-(e)d past",
+      "kind": "suffix",
+      "cross_product": true,
+      "replacements": [
+        { "remove": "", "add": "d", "condition": "e" },
+        { "remove": "y", "add": "ied", "condition": "[^aeiou]y" },
+        { "remove": "", "add": "ed", "condition": "[^ey]" },
+        { "remove": "", "add": "ed", "condition": "[aeiou]y" }
+      ],
+      "target": [],
+      "base_metadata": {},
+      "rename_ok": true
+    },
+    "G": {
+      "#": "-ing progressive",
+      "kind": "suffix",
+      "cross_product": true,
+      "replacements": [
+        { "remove": "e", "add": "ing", "condition": "e" },
+        { "remove": "", "add": "ing", "condition": "[^e]" }
+      ],
+      "target": [],
+      "base_metadata": {},
+      "rename_ok": true
+    }
+  },
+  "properties": {}
+}

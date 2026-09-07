@@ -387,5 +387,7 @@ fn is_known(word: &str, dictionary: Option<&Dictionary>) -> bool {
     dictionary.is_some_and(|d| d.contains(word)) || CURATED.contains_word_str(word)
 }
 
+pub mod inflection;
+
 #[cfg(test)]
 mod tests;

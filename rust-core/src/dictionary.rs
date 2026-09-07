@@ -3,6 +3,8 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tracing::{debug, warn};
 
+use crate::morphology::inflection;
+
 /// Manages custom dictionaries for the language checker.
 /// Words in the dictionary are excluded from spelling diagnostics.
 ///
@@ -11,6 +13,13 @@ use tracing::{debug, warn};
 pub struct Dictionary {
     user_words: HashSet<String>,
     bundled_words: HashSet<String>,
+    /// Regular inflections generated from the other two sets by
+    /// [`crate::morphology::inflection`].
+    ///
+    /// Third set rather than folded into `bundled_words` so that [`Self::persist`] is
+    /// correct by construction: it reads `user_words` alone, and no derived form can
+    /// ever reach the file that records what the user actually typed.
+    derived_words: HashSet<String>,
     workspace_path: Option<PathBuf>,
 }
 
@@ -26,6 +35,7 @@ impl Dictionary {
         Self {
             user_words: HashSet::new(),
             bundled_words: HashSet::new(),
+            derived_words: HashSet::new(),
             workspace_path: None,
         }
     }
@@ -121,12 +131,48 @@ impl Dictionary {
     }
 
     /// Add a word to the user dictionary and persist to disk.
+    ///
+    /// The word's regular inflections are derived at the same time, so adding `functor`
+    /// also accepts `functors` — that is the whole point of the feature, and a user who
+    /// has to add both has not been helped. Only the word itself is written to disk.
     pub fn add_word(&mut self, word: &str) -> Result<()> {
         let lower = word.to_lowercase();
-        if self.user_words.insert(lower) {
+        if self.user_words.insert(lower.clone()) {
+            // A failed expansion must not lose the word the user just added, so this is
+            // reported and stepped over rather than propagated.
+            match inflection::expand([lower.as_str()]) {
+                Ok(forms) => self.derived_words.extend(forms),
+                Err(error) => {
+                    warn!(word = %lower, %error, "Could not inflect added word; the exact form is still accepted");
+                }
+            }
             self.persist()?;
         }
         Ok(())
+    }
+
+    /// Generate the regular inflections of every word loaded so far.
+    ///
+    /// Call once, after every wordlist is in place: the expansion is a snapshot, and
+    /// words added later are inflected by [`Self::add_word`] instead.
+    pub fn derive_inflections(&mut self) {
+        let lemmas: Vec<&str> = self
+            .user_words
+            .iter()
+            .chain(self.bundled_words.iter())
+            .map(String::as_str)
+            .collect();
+        match inflection::expand(lemmas) {
+            Ok(forms) => {
+                debug!(
+                    lemmas = self.user_words.len() + self.bundled_words.len(),
+                    derived = forms.len(),
+                    "Generated dictionary inflections"
+                );
+                self.derived_words = forms;
+            }
+            Err(error) => warn!(%error, "Could not inflect the dictionary; exact matching only"),
+        }
     }
 
     /// Check if a word is in the dictionary (case-insensitive).
@@ -146,9 +192,11 @@ impl Dictionary {
         self.is_known_compound(&lower)
     }
 
-    /// Look a single already-lowercased token up in both sets.
+    /// Look a single already-lowercased token up in all three sets.
     fn contains_exact(&self, lower: &str) -> bool {
-        self.user_words.contains(lower) || self.bundled_words.contains(lower)
+        self.user_words.contains(lower)
+            || self.bundled_words.contains(lower)
+            || self.derived_words.contains(lower)
     }
 
     /// Whether `lower` is a hyphenated compound whose every part is known.
@@ -165,15 +213,21 @@ impl Dictionary {
                 .all(|part| !part.is_empty() && self.contains_exact(part))
     }
 
-    /// Return all words in the dictionary (user + bundled).
+    /// Return all words the user configured (user + bundled), excluding derived forms.
     pub fn words(&self) -> impl Iterator<Item = &String> {
         self.user_words.iter().chain(self.bundled_words.iter())
     }
 
-    /// Return the total number of words loaded (user + bundled).
+    /// Return the number of words loaded (user + bundled), excluding derived forms.
     #[must_use]
     pub fn len(&self) -> usize {
         self.user_words.len() + self.bundled_words.len()
+    }
+
+    /// How many inflected forms were generated from those words.
+    #[must_use]
+    pub fn derived_len(&self) -> usize {
+        self.derived_words.len()
     }
 
     /// Whether the dictionary is empty.
@@ -421,6 +475,47 @@ mod tests {
         for ((name, _), listed) in bundled::ALL.iter().zip(bundled::NAMES) {
             assert_eq!(name, listed);
         }
+    }
+
+    #[test]
+    fn derived_inflections_are_accepted() {
+        let mut dict = Dictionary::new();
+        dict.user_words.insert("functor".to_string());
+        assert!(!dict.contains("functors"));
+        dict.derive_inflections();
+        assert!(dict.contains("functors"));
+        assert!(dict.contains("Functors"), "and case-insensitively");
+    }
+
+    #[test]
+    fn derived_inflections_are_never_persisted() {
+        let dir = std::env::temp_dir().join("lang_check_test_derived_persist");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let mut dict = Dictionary::load(&dir).unwrap();
+        dict.add_word("functor").unwrap();
+        assert!(dict.contains("functors"), "the plural is accepted");
+
+        let written = std::fs::read_to_string(dir.join(".languagecheck/dictionary.txt")).unwrap();
+        assert_eq!(
+            written.trim(),
+            "functor",
+            "but only the typed word is recorded"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_bundled_word_inflects_too() {
+        let mut dict = Dictionary::new();
+        dict.load_bundled();
+        dict.derive_inflections();
+        // `mathematics.txt` carries `subalgebras` but not `subalgebra`; the reverse gap
+        // is what generation closes.
+        assert!(dict.contains("preorders"));
+        assert!(dict.derived_len() > 1000);
     }
 
     #[test]

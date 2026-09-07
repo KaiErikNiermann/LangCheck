@@ -181,6 +181,9 @@ impl Backend {
                         warn!(path = p, "Could not load wordlist: {e}");
                     }
                 }
+                if config.morphology.inflections {
+                    dict.derive_inflections();
+                }
                 *self.dictionary.lock().await = dict;
             }
             Err(e) => warn!("Could not load dictionary: {e}"),

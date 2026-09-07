@@ -438,6 +438,9 @@ async fn main() -> Result<()> {
                                 extra_paths = wordlist_paths.len(),
                                 "Dictionary loaded"
                             );
+                            if config.morphology.inflections {
+                                loaded_dict.derive_inflections();
+                            }
                             *dictionary_arc.lock().await = loaded_dict;
                         }
                         Err(e) => {

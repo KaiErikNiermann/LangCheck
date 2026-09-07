@@ -193,6 +193,9 @@ impl CliSuppression {
                 eprintln!("{} {e}", style("warning:").yellow());
             }
         }
+        if config.morphology.inflections {
+            dictionary.derive_inflections();
+        }
 
         let morphology = config
             .morphology

@@ -2,7 +2,7 @@
 
 The bundled dictionaries in this directory contain words aggregated from
 the open-source projects listed below. Each source is redistributed under
-its original license.
+its original license. The affix data in `affixes/` is listed at the end.
 
 ---
 
@@ -196,3 +196,25 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
+
+---
+
+## affixes/attributes.json
+
+The three affix classes (`S`, `d`, `G`) and their replacement tables — the
+`y`→`ies`, e-deletion and `[sxzh]`→`es` conditions — are taken from
+**Automattic/harper**'s `annotations.json`, which this project already depends
+on as `harper-core`.
+
+- Repository: https://github.com/Automattic/harper
+- License: Apache-2.0
+- Attribution: Automattic and the Harper contributors
+- Source file: `harper-core/annotations.json`
+
+Everything else in the file is ours: the class selection, the omission of every
+prefix and property class, and the comments explaining both.
+
+## affixes/prefixes.txt
+
+Written for this project. Not derived from any wordlist — the membership
+criteria and the rationale for each exclusion are in the file's own header.
