@@ -1,0 +1,67 @@
+# Productive English prefixes, used for morphological acceptance of words built on a
+# stem the dictionary already knows: `subalgebra` from `algebra`.
+#
+# Membership criteria — a prefix belongs here only if it is all three of:
+#   * productive     — it attaches to new stems without being listed anywhere;
+#   * transparent    — plain concatenation, no stem change (so no `im-`/`il-`/`ir-`,
+#                      whose form depends on the stem's first letter);
+#   * category-preserving — the result is the same part of speech as the stem.
+#
+# Deliberately absent: `di-` (too many accidental parses onto short stems) and the
+# assimilated allomorphs of `in-`. `con-`, `dis-`, `pro-`, `re-`, `un-`, `de-` and `in-`
+# are also affix classes inside harper's own dictionary, but only for the ~53k lemmas it
+# ships; they are repeated here so they reach our domain wordlists too.
+#
+# One entry per line, lowercase, no hyphen. The hyphenated spelling (`sub-algebra`) is
+# handled by the analyzer, not by a second entry.
+
+anti
+auto
+bi
+co
+counter
+cross
+de
+demi
+endo
+epi
+equi
+extra
+hetero
+homo
+hyper
+hypo
+in
+inter
+intra
+iso
+macro
+meso
+meta
+micro
+mid
+mini
+mis
+mono
+multi
+non
+over
+para
+poly
+post
+pre
+pro
+proto
+pseudo
+quasi
+re
+semi
+sub
+super
+supra
+trans
+tri
+ultra
+un
+under
+uni
