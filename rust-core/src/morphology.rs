@@ -50,6 +50,14 @@ pub const HYPHENS: [char; 3] = ['-', '\u{2010}', '\u{2011}'];
 /// against a typo corpus, three and four leak identically, so the shorter bound is free.
 const MIN_ROOT_CHARS: usize = 3;
 
+/// Shortest root when a derivational suffix was removed to reach it.
+///
+/// One more than [`MIN_ROOT_CHARS`], because a two-letter suffix landing on a
+/// three-letter word is a coincidence rather than a derivation: `noticable` peels to
+/// `notic`, then `-ic` peels to `not`, and the misspelling is silently accepted. Only
+/// prefixation reaches genuinely short roots — `subset`, `coset`, `submap`.
+const MIN_DERIVED_ROOT_CHARS: usize = 4;
+
 /// How many derivational suffixes may be peeled from one token.
 ///
 /// Two reaches `subadditivity` (`sub-` then `-ivity`) and `equisatisfiability`
@@ -189,9 +197,12 @@ const SUFFIX_RULES: &[SuffixRule] = &[
         suffix: "ise",
         restores: &["", "e"],
     },
+    // No `e` restoration for `-ic`: it reaches `note` from `notic`, which is how the
+    // misspelling `noticable` slips through as `notic`+`able` and then `not`+`ic`. The
+    // `y` restoration is the one that earns its place -- `historic` from `history`.
     SuffixRule {
         suffix: "ic",
-        restores: &["", "y", "e"],
+        restores: &["", "y"],
     },
     SuffixRule {
         suffix: "al",
@@ -341,7 +352,13 @@ fn strip_suffixes(
     // empty and `word` is the token itself, and a token that is already a word is not
     // an affixed form — it is one engine flagging what another engine's dictionary
     // contains, which is a different feature.
-    if !steps.is_empty() && is_known(word, dictionary) {
+    let stripped_a_suffix = steps.iter().any(|s| matches!(s, AffixStep::Suffix(_)));
+    let floor = if stripped_a_suffix {
+        MIN_DERIVED_ROOT_CHARS
+    } else {
+        MIN_ROOT_CHARS
+    };
+    if !steps.is_empty() && word.chars().count() >= floor && is_known(word, dictionary) {
         return Some(Analysis {
             root: word.to_string(),
             steps: steps.clone(),
@@ -366,7 +383,9 @@ fn strip_suffixes(
         steps.push(AffixStep::Suffix(rule.suffix));
         for restore in rule.restores {
             let candidate = format!("{stem}{restore}");
-            if candidate.len() < MIN_ROOT_CHARS {
+            if candidate.len() < MIN_ROOT_CHARS
+                || !restoration_is_wellformed(rule.suffix, &candidate)
+            {
                 continue;
             }
             if let Some(analysis) = strip_suffixes(&candidate, dictionary, steps) {
@@ -376,6 +395,18 @@ fn strip_suffixes(
         steps.pop();
     }
     None
+}
+
+/// Whether restoring that ending is orthographically possible for this suffix.
+///
+/// English keeps a stem's final `e` before `-able` when it follows a soft `c` or `g`
+/// (`noticeable`, `changeable`, `manageable`) and drops it otherwise (`movable`,
+/// `provable`). So a restored `e` that lands on `ce` or `ge` says the word should have
+/// kept it, which makes the token a misspelling — `noticable` — rather than a
+/// derivation. Without this the analyzer silences it whenever the engine happens to
+/// offer no correction.
+fn restoration_is_wellformed(suffix: &str, candidate: &str) -> bool {
+    suffix != "able" || !(candidate.ends_with("ce") || candidate.ends_with("ge"))
 }
 
 /// Whether `word` is a word either the workspace or harper already knows.

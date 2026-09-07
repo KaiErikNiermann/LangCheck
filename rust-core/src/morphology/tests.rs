@@ -93,6 +93,13 @@ fn ly_does_not_restore_a_bare_e() {
 }
 
 #[test]
+fn able_keeps_a_soft_e_where_english_does() {
+    // `movable` drops the e, `noticeable` keeps it, and `noticable` is a misspelling.
+    assert_eq!(root_of("movable").as_deref(), Some("move"));
+    assert!(english().analyze("noticable", None).is_none());
+}
+
+#[test]
 fn only_one_prefix_is_peeled() {
     // `recomend` reads as re + co + mend if two are allowed.
     assert!(english().analyze("recomend", None).is_none());
