@@ -1,4 +1,5 @@
-//! Small shared text utilities for byte-offset–safe string handling.
+//! Small shared text utilities: byte-offset–safe string handling, and the shared
+//! reading of an engine's `suggestions` list.
 
 /// Slice a `&str` at byte offsets, snapping each bound to the nearest char
 /// boundary so the operation never panics on multi-byte UTF-8.
@@ -43,9 +44,28 @@ pub fn snap_range(s: &str, start: usize, end: usize) -> (usize, usize) {
     )
 }
 
+/// Smallest edit distance between the token and any single-word suggestion.
+///
+/// Returns `None` when the engine offered nothing usable. Suggestions containing
+/// whitespace are ignored: `LanguageTool` answers `Abramsky` with `Abram sky`, a word-split
+/// proposal that is one edit away by character count but is not evidence that the token
+/// is a misspelling of a known word.
+///
+/// Shared by [`crate::names`] and [`crate::morphology`], which ask the same question of the
+/// same engine output: is there a known word this token is one slip away from?
+#[must_use]
+pub fn min_suggestion_distance(token: &str, suggestions: &[String]) -> Option<usize> {
+    let lowered = token.to_lowercase();
+    suggestions
+        .iter()
+        .filter(|s| !s.chars().any(char::is_whitespace))
+        .map(|s| strsim::damerau_levenshtein(&lowered, &s.to_lowercase()))
+        .min()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{safe_prefix, safe_slice, safe_suffix, snap_range};
+    use super::{min_suggestion_distance, safe_prefix, safe_slice, safe_suffix, snap_range};
 
     #[test]
     fn ascii_slice_is_exact() {
@@ -93,5 +113,18 @@ mod tests {
     fn prefix_and_suffix_partition_on_a_real_boundary() {
         let s = "Föö";
         assert_eq!(format!("{}{}", safe_prefix(s, 3), safe_suffix(s, 3)), s);
+    }
+
+    #[test]
+    fn word_split_suggestions_are_not_evidence_of_a_typo() {
+        let sugg = vec!["Abram sky".to_string()];
+        assert_eq!(min_suggestion_distance("Abramsky", &sugg), None);
+    }
+
+    #[test]
+    fn suggestion_distance_is_case_insensitive() {
+        let sugg = vec!["Hoar".to_string()];
+        assert_eq!(min_suggestion_distance("Hoare", &sugg), Some(1));
+        assert_eq!(min_suggestion_distance("recieve", &[]), None);
     }
 }

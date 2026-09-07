@@ -29,7 +29,7 @@ use fst::Set;
 use regex::Regex;
 use std::sync::LazyLock;
 
-use crate::text_util::safe_slice;
+use crate::text_util::{min_suggestion_distance, safe_slice};
 
 /// The compiled gazetteer, embedded at build time.
 ///
@@ -287,21 +287,6 @@ fn morphological_bases(lowered: &str) -> Vec<String> {
     }
 
     bases
-}
-
-/// Smallest edit distance between the token and any single-word suggestion.
-///
-/// Returns `None` when the engine offered nothing usable. Suggestions containing
-/// whitespace are ignored: `LanguageTool` answers `Abramsky` with `Abram sky`, a word-split
-/// proposal that is one edit away by character count but is not evidence that the token
-/// is a misspelling of a known word.
-fn min_suggestion_distance(token: &str, suggestions: &[String]) -> Option<usize> {
-    let lowered = token.to_lowercase();
-    suggestions
-        .iter()
-        .filter(|s| !s.chars().any(char::is_whitespace))
-        .map(|s| strsim::damerau_levenshtein(&lowered, &s.to_lowercase()))
-        .min()
 }
 
 /// How many times `token` appears in `text` as a whole word.
