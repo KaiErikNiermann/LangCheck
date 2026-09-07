@@ -24,6 +24,8 @@ pub struct Config {
     pub workspace: WorkspaceConfig,
     #[serde(default)]
     pub names: NameConfig,
+    #[serde(default)]
+    pub morphology: MorphologyConfig,
 }
 
 /// Opt-in suppression of spelling diagnostics on human names.
@@ -45,6 +47,37 @@ pub struct NameConfig {
     /// Default: `balanced`.
     #[serde(default)]
     pub aggressiveness: crate::names::Aggressiveness,
+}
+
+/// Acceptance of words built by affixation on material already known.
+///
+/// On by default, unlike [`NameConfig`]: a name verdict is a guess about a token, while
+/// a decomposition is a claim that can be checked — `subalgebra` is accepted only
+/// because `algebra` is a word. The failure mode both share is silently hiding a real
+/// misspelling, and here it is bounded by the engine's own suggestions.
+///
+/// ```yaml
+/// morphology:
+///   enabled: true       # accept prefixed and derived forms of known words
+///   inflections: true   # also accept the regular inflections of dictionary words
+/// ```
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MorphologyConfig {
+    /// Accept a flagged token that decomposes into a known root.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Generate the regular inflections of every dictionary word and accept those too.
+    #[serde(default = "default_true")]
+    pub inflections: bool,
+}
+
+impl Default for MorphologyConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            inflections: true,
+        }
+    }
 }
 
 /// Language extension aliasing configuration.
@@ -610,6 +643,7 @@ impl Default for Config {
             languages: LanguageConfig::default(),
             workspace: WorkspaceConfig::default(),
             names: NameConfig::default(),
+            morphology: MorphologyConfig::default(),
         }
     }
 }
@@ -646,6 +680,22 @@ mod tests {
         // A repeat under a *different* top-level section must not count.
         let yaml = "rules:\n  a.B:\n    severity: \"off\"\nengines:\n  harper: false\n";
         assert!(duplicate_rule_keys(yaml).is_empty());
+    }
+
+    #[test]
+    fn morphology_is_on_by_default() {
+        let config = Config::default();
+        assert!(config.morphology.enabled);
+        assert!(config.morphology.inflections);
+    }
+
+    #[test]
+    fn morphology_can_be_switched_off_from_yaml() {
+        let yaml = "morphology:\n  enabled: false\n";
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(!config.morphology.enabled);
+        // An unmentioned field keeps its default rather than falling to `false`.
+        assert!(config.morphology.inflections);
     }
 
     #[test]

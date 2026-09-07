@@ -18,6 +18,7 @@ use dictionary::Dictionary;
 use glob::glob;
 use hashing::{DiagnosticFingerprint, IgnoreStore};
 use insights::ProseInsights;
+use lang_check::morphology::AffixAnalyzer;
 use lang_check::names::NameFilter;
 use lang_check::sls::SchemaRegistry;
 use lang_check::suppression::{SuppressionContext, retain_visible};
@@ -42,6 +43,7 @@ struct IndexingContext {
     orchestrator: Arc<Mutex<Orchestrator>>,
     ignore_store: Arc<Mutex<IgnoreStore>>,
     dictionary: Arc<Mutex<Dictionary>>,
+    morphology: Arc<Mutex<Option<AffixAnalyzer>>>,
     name_filter: Arc<Mutex<Option<NameFilter>>>,
     schema_registry: Arc<Mutex<SchemaRegistry>>,
     workspace_index: Arc<Mutex<Option<WorkspaceIndex>>>,
@@ -57,6 +59,7 @@ async fn process_file_for_indexing(
         orchestrator,
         ignore_store: ignore_store_arc,
         dictionary: dictionary_arc,
+        morphology: morphology_arc,
         name_filter: name_filter_arc,
         schema_registry: schema_registry_arc,
         workspace_index: workspace_index_arc,
@@ -108,15 +111,20 @@ async fn process_file_for_indexing(
         range.adopt_diagnostics(&text, &mut diagnostics);
         let ignore_store_lock = ignore_store_arc.lock().await;
         let dictionary_lock = dictionary_arc.lock().await;
+        let morphology_lock = morphology_arc.lock().await;
         let name_filter_lock = name_filter_arc.lock().await;
         let mut ctx = SuppressionContext::new()
             .with_ignore(&ignore_store_lock)
             .with_dictionary(&dictionary_lock);
+        if let Some(analyzer) = morphology_lock.as_ref() {
+            ctx = ctx.with_morphology(analyzer);
+        }
         if let Some(filter) = name_filter_lock.as_ref() {
             ctx = ctx.with_names(filter);
         }
         retain_visible(&mut diagnostics, &text, &ctx);
         drop(name_filter_lock);
+        drop(morphology_lock);
         drop(dictionary_lock);
         drop(ignore_store_lock);
         all_diagnostics.extend(diagnostics);
@@ -175,6 +183,7 @@ async fn main() -> Result<()> {
     let config_arc: Arc<Mutex<Config>> = Arc::new(Mutex::new(Config::default()));
     let ignore_store_arc: Arc<Mutex<IgnoreStore>> = Arc::new(Mutex::new(IgnoreStore::new()));
     let dictionary_arc: Arc<Mutex<Dictionary>> = Arc::new(Mutex::new(Dictionary::new()));
+    let morphology_arc: Arc<Mutex<Option<AffixAnalyzer>>> = Arc::new(Mutex::new(None));
     let name_filter_arc: Arc<Mutex<Option<NameFilter>>> = Arc::new(Mutex::new(None));
     let schema_registry_arc: Arc<Mutex<SchemaRegistry>> =
         Arc::new(Mutex::new(SchemaRegistry::new()));
@@ -187,6 +196,7 @@ async fn main() -> Result<()> {
         let config_arc = config_arc.clone();
         let ignore_store_arc = ignore_store_arc.clone();
         let dictionary_arc = dictionary_arc.clone();
+        let morphology_arc = morphology_arc.clone();
         let name_filter_arc = name_filter_arc.clone();
         let schema_registry_arc = schema_registry_arc.clone();
         let workspace_index_arc = workspace_index_arc.clone();
@@ -255,6 +265,7 @@ async fn main() -> Result<()> {
                                     orchestrator: indexing_orchestrator.clone(),
                                     ignore_store: ignore_store_arc.clone(),
                                     dictionary: dictionary_arc.clone(),
+                                    morphology: morphology_arc.clone(),
                                     name_filter: name_filter_arc.clone(),
                                     schema_registry: schema_registry_arc.clone(),
                                     workspace_index: workspace_index_arc.clone(),
@@ -365,6 +376,7 @@ async fn main() -> Result<()> {
         let config_arc = config_arc.clone();
         let ignore_store_arc = ignore_store_arc.clone();
         let dictionary_arc = dictionary_arc.clone();
+        let morphology_arc = morphology_arc.clone();
         let name_filter_arc = name_filter_arc.clone();
         let schema_registry_arc = schema_registry_arc.clone();
         let workspace_index_arc = workspace_index_arc.clone();
@@ -434,6 +446,11 @@ async fn main() -> Result<()> {
                     }
                     // The VS Code global acts as a fallback when the workspace config
                     // doesn't set it, mirroring workspace.index_on_open.
+                    *morphology_arc.lock().await = config
+                        .morphology
+                        .enabled
+                        .then(|| AffixAnalyzer::new(&config.engines.spell_language));
+
                     let names_enabled = config.names.enabled || req.detect_names.unwrap_or(false);
                     *name_filter_arc.lock().await = names_enabled.then(|| {
                         info!(
@@ -567,6 +584,7 @@ async fn main() -> Result<()> {
 
                             let ignore_store = ignore_store_arc.lock().await;
                             let dict = dictionary_arc.lock().await;
+                            let morphology = morphology_arc.lock().await;
                             let name_filter = name_filter_arc.lock().await;
                             let batch = batch.unwrap_or_else(|e| {
                                 warn!(id = request_id, "CheckProse: batch failed: {e}");
@@ -578,6 +596,9 @@ async fn main() -> Result<()> {
                                 let mut ctx = SuppressionContext::new()
                                     .with_ignore(&ignore_store)
                                     .with_dictionary(&dict);
+                                if let Some(analyzer) = morphology.as_ref() {
+                                    ctx = ctx.with_morphology(analyzer);
+                                }
                                 if let Some(filter) = name_filter.as_ref() {
                                     ctx = ctx.with_names(filter);
                                 }
@@ -595,6 +616,7 @@ async fn main() -> Result<()> {
                                 all_diagnostics.extend(diagnostics);
                             }
                             drop(name_filter);
+                            drop(morphology);
                             drop(dict);
                             drop(ignore_store);
                             debug!(

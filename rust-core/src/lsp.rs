@@ -28,6 +28,7 @@ use crate::checker;
 use crate::config::Config;
 use crate::dictionary::Dictionary;
 use crate::hashing::{DiagnosticFingerprint, IgnoreStore};
+use crate::morphology::AffixAnalyzer;
 use crate::names::NameFilter;
 use crate::orchestrator::Orchestrator;
 use crate::prose;
@@ -101,6 +102,7 @@ pub struct Backend {
     orchestrator: Arc<Mutex<Orchestrator>>,
     config: Arc<Mutex<Config>>,
     dictionary: Arc<Mutex<Dictionary>>,
+    morphology: Arc<Mutex<Option<AffixAnalyzer>>>,
     name_filter: Arc<Mutex<Option<NameFilter>>>,
     ignore_store: Arc<Mutex<IgnoreStore>>,
     schema_registry: Arc<Mutex<SchemaRegistry>>,
@@ -115,6 +117,7 @@ impl Backend {
             orchestrator: Arc::new(Mutex::new(Orchestrator::new(Config::default()))),
             config: Arc::new(Mutex::new(Config::default())),
             dictionary: Arc::new(Mutex::new(Dictionary::new())),
+            morphology: Arc::new(Mutex::new(None)),
             name_filter: Arc::new(Mutex::new(None)),
             ignore_store: Arc::new(Mutex::new(IgnoreStore::new())),
             schema_registry: Arc::new(Mutex::new(SchemaRegistry::new())),
@@ -138,6 +141,11 @@ impl Backend {
         *self.config.lock().await = config.clone();
 
         self.reload_dictionary(root, &config).await;
+
+        *self.morphology.lock().await = config
+            .morphology
+            .enabled
+            .then(|| AffixAnalyzer::new(&config.engines.spell_language));
 
         *self.name_filter.lock().await = config.names.enabled.then(|| {
             info!(
@@ -233,6 +241,10 @@ impl Backend {
         }
         let updated = config.clone();
         drop(config);
+        *self.morphology.lock().await = updated
+            .morphology
+            .enabled
+            .then(|| AffixAnalyzer::new(&updated.engines.spell_language));
         *self.name_filter.lock().await = updated.names.enabled.then(|| {
             NameFilter::new(
                 updated.names.aggressiveness,
@@ -320,10 +332,14 @@ impl Backend {
             {
                 let ignore = self.ignore_store.lock().await;
                 let dict = self.dictionary.lock().await;
+                let morphology = self.morphology.lock().await;
                 let names = self.name_filter.lock().await;
                 let mut ctx = SuppressionContext::new()
                     .with_ignore(&ignore)
                     .with_dictionary(&dict);
+                if let Some(analyzer) = morphology.as_ref() {
+                    ctx = ctx.with_morphology(analyzer);
+                }
                 if let Some(filter) = names.as_ref() {
                     ctx = ctx.with_names(filter);
                 }

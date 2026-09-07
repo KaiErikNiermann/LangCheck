@@ -12,6 +12,7 @@ use config::Config;
 use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
 use lang_check::dictionary::Dictionary;
+use lang_check::morphology::AffixAnalyzer;
 use lang_check::names::NameFilter;
 use lang_check::sls::SchemaRegistry;
 use lang_check::suppression::{SuppressionContext, retain_visible};
@@ -170,6 +171,7 @@ async fn main() -> Result<()> {
 /// `SuppressionContext` is built in exactly one place.
 struct CliSuppression {
     dictionary: Dictionary,
+    morphology: Option<AffixAnalyzer>,
     names: Option<NameFilter>,
 }
 
@@ -192,16 +194,28 @@ impl CliSuppression {
             }
         }
 
+        let morphology = config
+            .morphology
+            .enabled
+            .then(|| AffixAnalyzer::new(&config.engines.spell_language));
+
         let names = config
             .names
             .enabled
             .then(|| NameFilter::new(config.names.aggressiveness, &config.engines.spell_language));
 
-        Self { dictionary, names }
+        Self {
+            dictionary,
+            morphology,
+            names,
+        }
     }
 
     const fn context(&self) -> SuppressionContext<'_> {
-        let ctx = SuppressionContext::new().with_dictionary(&self.dictionary);
+        let mut ctx = SuppressionContext::new().with_dictionary(&self.dictionary);
+        if let Some(analyzer) = &self.morphology {
+            ctx = ctx.with_morphology(analyzer);
+        }
         match &self.names {
             Some(filter) => ctx.with_names(filter),
             None => ctx,
