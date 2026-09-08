@@ -326,15 +326,15 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/long": "^5.0.0",
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.4.1",
     "@types/vscode": "~1.85.0",
     "esbuild": "^0.28.2",
-    "eslint": "^10.9.1",
+    "eslint": "^10.10.0",
     "protobufjs-cli": "^2.7.0",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.68.0",
-    "vitest": "^4.1.11"
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^5.0.0"
   },
   "pnpm": {
     "overrides": {
