@@ -27,7 +27,7 @@ pub fn extract(
 
     let mut ranges = Vec::new();
     while let Some(m) = matches.next() {
-        for capture in m.captures {
+        for capture in m.captures() {
             ranges.push(ProseRange {
                 start_byte: capture.node.start_byte(),
                 end_byte: capture.node.end_byte(),
