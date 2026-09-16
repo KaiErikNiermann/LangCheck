@@ -124,8 +124,17 @@ impl JsonDiagnostic {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     let current_dir = std::env::current_dir()?;
-    // stderr, not `warn!`: this binary installs no tracing subscriber, so a `warn!` here would
-    // be dropped and the silent fallback would move rather than go away.
+    // Config loading reports deprecated and unrecognised keys through `warn!`, which needs a
+    // subscriber to go anywhere. It writes to stderr, so `--format json` on stdout stays clean.
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn")),
+        )
+        .with_writer(std::io::stderr)
+        .with_target(false)
+        .without_time()
+        .init();
     let config = Config::load(&current_dir).unwrap_or_else(|e| {
         eprintln!("lang-check: ignoring unreadable .languagecheck.yaml, using defaults: {e}");
         Config::default()
