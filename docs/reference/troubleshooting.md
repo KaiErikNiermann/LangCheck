@@ -26,7 +26,7 @@
 
 **Solutions:**
 1. Start a local LanguageTool server: `docker compose up -d`
-2. Verify the URL in config: `engines.languagetool_url`
+2. Verify the URL in config: `engines.languagetool.url`
 3. Or disable LT: set `engines.languagetool: false`
 
 ### High memory usage

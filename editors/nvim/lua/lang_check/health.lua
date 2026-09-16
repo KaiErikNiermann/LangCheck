@@ -43,9 +43,12 @@ function M.check()
 
   -- LanguageTool reachability (if configured)
   if cfg_lines then
+    -- Both spellings: the nested `languagetool: { url: ... }` table and the
+    -- deprecated flat `languagetool_url:` key.
     local lt_url = nil
     for _, line in ipairs(cfg_lines) do
       local url = line:match("languagetool_url:%s*[\"']?([^\"'%s]+)")
+        or line:match("^%s+url:%s*[\"']?(https?://[^\"'%s]+)")
       if url then
         lt_url = url
         break

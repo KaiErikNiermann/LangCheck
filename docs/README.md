@@ -101,13 +101,29 @@ over JSON when both exist. When no config file is found, defaults are used.
 
 ### engines
 
-| Field              | Type                  | Default                  | Description                          |
-|--------------------|-----------------------|--------------------------|--------------------------------------|
-| `harper`           | `bool`                | `true`                   | Enable the Harper engine             |
-| `languagetool`     | `bool`                | `false`                  | Enable LanguageTool integration      |
-| `languagetool_url` | `string`              | `"http://localhost:8010"` | LanguageTool server URL             |
-| `external`         | `ExternalProvider[]`  | `[]`                     | External checker binaries            |
-| `wasm_plugins`     | `WasmPlugin[]`        | `[]`                     | WASM checker plugins (Extism)        |
+| Field            | Type                            | Default              | Description                          |
+|------------------|---------------------------------|----------------------|--------------------------------------|
+| `harper`         | `bool` or `HarperConfig`        | `true`               | Enable the Harper engine             |
+| `languagetool`   | `bool` or `LanguageToolConfig`  | `false`              | Enable LanguageTool integration      |
+| `vale`           | `bool` or `ValeConfig`          | `false`              | Enable Vale                          |
+| `proselint`      | `bool` or `ProselintConfig`     | `false`              | Enable proselint                     |
+| `spell_language` | `string`                        | `"en-US"`            | BCP-47 tag to check against          |
+| `external`       | `ExternalProvider[]`            | `[]`                 | External checker binaries            |
+| `wasm_plugins`   | `WasmPlugin[]`                  | `[]`                 | WASM checker plugins (Extism)        |
+
+Each engine takes either a bool shorthand or a nested table. The server URL lives
+**inside** the `languagetool` table:
+
+```yaml
+engines:
+  spell_language: fr
+  languagetool:
+    enabled: true
+    url: "http://10.0.10.3:8003"
+```
+
+The flat `languagetool_url` / `vale_config` keys are deprecated aliases for
+`languagetool.url` / `vale.config`; they still work but log a warning.
 
 ### rules
 

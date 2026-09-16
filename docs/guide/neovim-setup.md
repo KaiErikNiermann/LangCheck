@@ -109,6 +109,8 @@ require("lang_check").setup({
       engines = {
         harper = true,
         languagetool = false,
+        -- LSP settings use the flat key; a .languagecheck.yaml file uses
+        -- the nested `languagetool: { url: ... }` table.
         languagetool_url = "http://localhost:8010",
         vale = false,
         proselint = false,

@@ -78,8 +78,9 @@ If your `.vale.ini` is not in the workspace root, specify the path:
 
 ```yaml
 engines:
-  vale: true
-  vale_config: "config/.vale.ini"
+  vale:
+    enabled: true
+    config: "config/.vale.ini"
 ```
 
 When omitted, Vale uses its own config search logic (current directory

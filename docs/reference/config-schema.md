@@ -17,13 +17,48 @@ Complete reference for `.languagecheck.yaml`.
 
 ## Engines
 
-| Field              | Type                           | Default                 | Description              |
-|-------------------|---------------------------------|--------------------------|--------------------------|
-| `harper`          | `bool`                          | `true`                   | Enable Harper engine     |
-| `languagetool`    | `bool`                          | `true`                   | Enable LanguageTool      |
-| `languagetool_url`| `string`                        | `"http://localhost:8010"` | LT server URL           |
-| `external`        | [`ExternalProvider[]`](#external-providers) | `[]`    | External checker binaries|
-| `wasm_plugins`    | [`WasmPlugin[]`](#wasm-plugins) | `[]`                     | WASM checker plugins     |
+| Field            | Type                                        | Default   | Description                 |
+|------------------|---------------------------------------------|-----------|-----------------------------|
+| `harper`         | `bool` or `HarperConfig`                    | `true`    | Enable Harper engine        |
+| `languagetool`   | `bool` or `LanguageToolConfig`              | `false`   | Enable LanguageTool         |
+| `vale`           | `bool` or `ValeConfig`                      | `false`   | Enable Vale                 |
+| `proselint`      | `bool` or `ProselintConfig`                 | `false`   | Enable proselint            |
+| `spell_language` | `string`                                    | `"en-US"` | BCP-47 tag to check against |
+| `external`       | [`ExternalProvider[]`](#external-providers) | `[]`      | External checker binaries   |
+| `wasm_plugins`   | [`WasmPlugin[]`](#wasm-plugins)             | `[]`      | WASM checker plugins        |
+
+Every engine accepts either a bool shorthand (`languagetool: true`) or a nested
+table. Engine-specific settings — including the LanguageTool server URL — live
+inside that table:
+
+```yaml
+engines:
+  spell_language: fr
+  languagetool:
+    enabled: true
+    url: "http://10.0.10.3:8003"   # default: http://localhost:8010
+    level: "picky"
+```
+
+### LanguageToolConfig
+
+| Field                     | Type       | Default                     | Description                        |
+|---------------------------|------------|-----------------------------|------------------------------------|
+| `enabled`                 | `bool`     | `false`                     | Enable the engine                  |
+| `url`                     | `string`   | `"http://localhost:8010"`   | Server base URL (no `/v2/check`)   |
+| `level`                   | `string`   | `"default"`                 | `default` or `picky`               |
+| `mother_tongue`           | `string`   | unset                       | BCP-47 tag for false friends       |
+| `disabled_rules`          | `string[]` | `[]`                        | Rule IDs to switch off             |
+| `enabled_rules`           | `string[]` | `[]`                        | Extra rule IDs to switch on        |
+| `disabled_categories`     | `string[]` | `[]`                        | Category IDs to switch off         |
+| `enabled_categories`      | `string[]` | `[]`                        | Extra category IDs to switch on    |
+| `max_concurrent_requests` | `int`      | `8`                         | In-flight `/v2/check` requests     |
+
+```{deprecated} 0.5.1
+The flat `engines.languagetool_url` and `engines.vale_config` keys are aliases
+for `engines.languagetool.url` and `engines.vale.config`. They are still read,
+but they log a warning and will be removed in a future release.
+```
 
 ## External Providers
 

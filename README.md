@@ -128,8 +128,9 @@ Create a `.languagecheck.yaml` in your workspace root:
 ```yaml
 engines:
   harper: true
-  languagetool: true
-  languagetool_url: "http://localhost:8010"
+  languagetool:
+    enabled: true
+    url: "http://localhost:8010"   # your LanguageTool server
   external:
     - name: vale
       command: /usr/bin/vale

@@ -31,8 +31,9 @@ Create a `.languagecheck.yaml` in your workspace root for advanced settings:
 ```yaml
 engines:
   harper: true
-  languagetool: true
-  languagetool_url: "http://localhost:8010"
+  languagetool:
+    enabled: true
+    url: "http://localhost:8010"   # your LanguageTool server
 
 rules:
   spelling.typo:
