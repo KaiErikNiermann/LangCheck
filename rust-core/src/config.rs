@@ -215,27 +215,113 @@ pub struct AutoFixRule {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(from = "EngineConfigWire")]
 pub struct EngineConfig {
+    pub harper: HarperConfig,
+    pub languagetool: LanguageToolConfig,
+    pub vale: ValeConfig,
+    pub proselint: ProselintConfig,
+    /// External checker providers registered via config.
+    pub external: Vec<ExternalProvider>,
+    /// WASM checker plugins loaded via Extism.
+    pub wasm_plugins: Vec<WasmPlugin>,
+    /// BCP-47 natural language tag for spell/grammar checking (e.g. "en-US", "de-DE").
+    pub spell_language: String,
+}
+
+/// On-disk form of [`EngineConfig`], carrying the flat pre-nesting keys next to
+/// the nested ones.
+///
+/// `engines.languagetool_url` and `engines.vale_config` were folded into
+/// `engines.languagetool.url` and `engines.vale.config` when engine settings
+/// became nested structs. serde drops unknown keys without a word, so every
+/// config still written the flat way — including the one in our own README —
+/// silently fell back to the default `http://localhost:8010`, and the only
+/// symptom was a connection error naming a server the user never configured
+/// (issue #86). Both spellings are read here, and the flat one warns.
+#[derive(Deserialize)]
+struct EngineConfigWire {
     #[serde(
         default = "default_harper_config",
         deserialize_with = "deser_engine_or_bool"
     )]
-    pub harper: HarperConfig,
+    harper: HarperConfig,
     #[serde(default, deserialize_with = "deser_engine_or_bool")]
-    pub languagetool: LanguageToolConfig,
+    languagetool: LanguageToolConfig,
     #[serde(default, deserialize_with = "deser_engine_or_bool")]
-    pub vale: ValeConfig,
+    vale: ValeConfig,
     #[serde(default, deserialize_with = "deser_engine_or_bool")]
-    pub proselint: ProselintConfig,
-    /// External checker providers registered via config.
+    proselint: ProselintConfig,
     #[serde(default)]
-    pub external: Vec<ExternalProvider>,
-    /// WASM checker plugins loaded via Extism.
+    external: Vec<ExternalProvider>,
     #[serde(default)]
-    pub wasm_plugins: Vec<WasmPlugin>,
-    /// BCP-47 natural language tag for spell/grammar checking (e.g. "en-US", "de-DE").
+    wasm_plugins: Vec<WasmPlugin>,
     #[serde(default = "default_spell_language")]
-    pub spell_language: String,
+    spell_language: String,
+    /// Deprecated alias for `engines.languagetool.url`.
+    #[serde(default)]
+    languagetool_url: Option<String>,
+    /// Deprecated alias for `engines.vale.config`.
+    #[serde(default)]
+    vale_config: Option<String>,
+}
+
+impl From<EngineConfigWire> for EngineConfig {
+    fn from(wire: EngineConfigWire) -> Self {
+        let EngineConfigWire {
+            harper,
+            mut languagetool,
+            mut vale,
+            proselint,
+            external,
+            wasm_plugins,
+            spell_language,
+            languagetool_url,
+            vale_config,
+        } = wire;
+
+        // The nested key wins when both are present: it is the supported
+        // spelling, so a config carrying both is mid-migration.
+        if let Some(url) = languagetool_url {
+            if languagetool.url == default_lt_url() {
+                warn_deprecated_engine_key("engines.languagetool_url", "engines.languagetool.url");
+                languagetool.url = url;
+            } else {
+                warn_ignored_engine_key("engines.languagetool_url", "engines.languagetool.url");
+            }
+        }
+        if let Some(path) = vale_config {
+            if vale.config.is_none() {
+                warn_deprecated_engine_key("engines.vale_config", "engines.vale.config");
+                vale.config = Some(path);
+            } else {
+                warn_ignored_engine_key("engines.vale_config", "engines.vale.config");
+            }
+        }
+
+        Self {
+            harper,
+            languagetool,
+            vale,
+            proselint,
+            external,
+            wasm_plugins,
+            spell_language,
+        }
+    }
+}
+
+/// Report a flat pre-nesting key that was honoured but should be rewritten.
+fn warn_deprecated_engine_key(old: &str, new: &str) {
+    warn!(
+        "`{old}` is deprecated and will be removed in a future release; \
+         rename it to `{new}`. Honouring it for now."
+    );
+}
+
+/// Report a flat pre-nesting key that the nested key already overrode.
+fn warn_ignored_engine_key(old: &str, new: &str) {
+    warn!("`{old}` is ignored because `{new}` is also set; delete the deprecated key.");
 }
 
 /// Deserialize an engine config from either a bool shorthand or the full struct.
@@ -534,15 +620,19 @@ impl Config {
             let content = std::fs::read_to_string(yaml_path)?;
             warn_duplicate_rule_keys(&content);
             let config: Self = serde_yaml::from_str(&content)?;
+            warn_unknown_keys(&serde_yaml::from_str(&content)?);
             Ok(config)
         } else if yml_path.exists() {
             let content = std::fs::read_to_string(yml_path)?;
             warn_duplicate_rule_keys(&content);
             let config: Self = serde_yaml::from_str(&content)?;
+            warn_unknown_keys(&serde_yaml::from_str(&content)?);
             Ok(config)
         } else if json_path.exists() {
             let content = std::fs::read_to_string(json_path)?;
             let config: Self = serde_json::from_str(&content)?;
+            // YAML 1.2 is a superset of JSON, so one key scanner covers both formats.
+            warn_unknown_keys(&serde_yaml::from_str(&content)?);
             Ok(config)
         } else {
             Ok(Self::default())
@@ -617,6 +707,64 @@ fn duplicate_rule_keys(content: &str) -> Vec<String> {
     }
 
     duplicates
+}
+
+/// Top-level keys [`Config`] understands.
+const KNOWN_TOP_LEVEL_KEYS: &[&str] = &[
+    "engines",
+    "rules",
+    "exclude",
+    "auto_fix",
+    "performance",
+    "dictionaries",
+    "languages",
+    "workspace",
+    "names",
+    "morphology",
+];
+
+/// Keys [`EngineConfig`] understands, including the deprecated flat aliases.
+const KNOWN_ENGINE_KEYS: &[&str] = &[
+    "harper",
+    "languagetool",
+    "vale",
+    "proselint",
+    "external",
+    "wasm_plugins",
+    "spell_language",
+    "languagetool_url",
+    "vale_config",
+];
+
+/// Collect the keys of `value`'s `section` mapping that are not in `known`.
+fn unknown_keys(value: &serde_yaml::Value, known: &[&str]) -> Vec<String> {
+    let Some(map) = value.as_mapping() else {
+        return Vec::new();
+    };
+    map.keys()
+        .filter_map(serde_yaml::Value::as_str)
+        .filter(|k| !known.contains(k))
+        .map(ToString::to_string)
+        .collect()
+}
+
+/// Warn about config keys nothing reads.
+///
+/// serde ignores what it does not recognise, so a typo'd or renamed key is
+/// indistinguishable from an absent one: the setting simply never takes effect
+/// and the user is left debugging the default. Reporting them turns a silent
+/// no-op into a line in the log.
+fn warn_unknown_keys(value: &serde_yaml::Value) {
+    let unknown = unknown_keys(value, KNOWN_TOP_LEVEL_KEYS);
+    if !unknown.is_empty() {
+        warn!(keys = ?unknown, "Unknown keys in workspace config; they have no effect.");
+    }
+    if let Some(engines) = value.get("engines") {
+        let unknown = unknown_keys(engines, KNOWN_ENGINE_KEYS);
+        if !unknown.is_empty() {
+            warn!(keys = ?unknown, "Unknown keys under `engines:`; they have no effect.");
+        }
+    }
 }
 
 /// Log a warning if a raw YAML config contains duplicate rule keys.
@@ -1165,6 +1313,72 @@ engines:
             vec!["WHITESPACE_RULE"]
         );
         assert_eq!(config.engines.languagetool.max_concurrent_requests, 8);
+    }
+
+    /// Issue #86: the flat key our own docs advertised was dropped on the floor,
+    /// so a self-hosted server was checked against `localhost:8010` instead.
+    #[test]
+    fn legacy_flat_languagetool_url_is_honoured() {
+        let yaml = r#"
+engines:
+  spell_language: fr
+  proselint: false
+  vale: false
+  languagetool: true
+  languagetool_url: "http://10.0.10.3:8003"
+  harper: false
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.engines.languagetool.enabled);
+        assert_eq!(config.engines.languagetool.url, "http://10.0.10.3:8003");
+        assert_eq!(config.engines.spell_language, "fr");
+        assert!(!config.engines.harper.enabled);
+    }
+
+    #[test]
+    fn nested_languagetool_url_beats_the_legacy_key() {
+        let yaml = r#"
+engines:
+  languagetool:
+    enabled: true
+    url: "http://nested:9090"
+  languagetool_url: "http://flat:8003"
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.engines.languagetool.url, "http://nested:9090");
+    }
+
+    #[test]
+    fn legacy_flat_vale_config_is_honoured() {
+        let yaml = "engines:\n  vale: true\n  vale_config: \"config/.vale.ini\"\n";
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.engines.vale.enabled);
+        assert_eq!(
+            config.engines.vale.config.as_deref(),
+            Some("config/.vale.ini")
+        );
+    }
+
+    #[test]
+    fn unknown_keys_are_reported() {
+        let value: serde_yaml::Value =
+            serde_yaml::from_str("engines:\n  languagetol: true\n  harper: true\nrulez: {}\n")
+                .unwrap();
+        assert_eq!(unknown_keys(&value, KNOWN_TOP_LEVEL_KEYS), vec!["rulez"]);
+        assert_eq!(
+            unknown_keys(value.get("engines").unwrap(), KNOWN_ENGINE_KEYS),
+            vec!["languagetol"]
+        );
+    }
+
+    #[test]
+    fn recognised_keys_are_not_reported() {
+        let value: serde_yaml::Value = serde_yaml::from_str(
+            "engines:\n  languagetool_url: \"http://x:1\"\n  harper: true\nrules: {}\n",
+        )
+        .unwrap();
+        assert!(unknown_keys(&value, KNOWN_TOP_LEVEL_KEYS).is_empty());
+        assert!(unknown_keys(value.get("engines").unwrap(), KNOWN_ENGINE_KEYS).is_empty());
     }
 
     #[test]
