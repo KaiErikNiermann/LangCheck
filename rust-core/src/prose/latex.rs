@@ -132,7 +132,16 @@ pub(crate) fn extract(text: &str, root: Node, extras: &LatexExtras) -> Vec<Prose
     let doc_start = find_document_body_start(root, text);
 
     let mut word_ranges: Vec<(usize, usize)> = Vec::new();
-    collect_words(root, text, doc_start, false, extras, &mut word_ranges);
+    let mut skip_until = 0usize;
+    collect_words(
+        root,
+        text,
+        doc_start,
+        false,
+        extras,
+        &mut skip_until,
+        &mut word_ranges,
+    );
 
     shared::merge_ranges(
         &word_ranges,
@@ -178,12 +187,58 @@ fn find_document_body_start(root: Node, text: &str) -> usize {
 ///
 /// The `in_structural` flag propagates through the tree so that `word` nodes
 /// nested inside structural parents (at any depth) are skipped.
+/// Commands whose argument is delimited by a character chosen at the call site
+/// (`\verb|x|`, `\lstinline!x!`) instead of by braces.
+///
+/// The grammar does not model that argument, so it arrives as an ordinary
+/// `word` node next to the command and has to be cut out by byte offset.
+const VERBATIM_DELIMITED: &[&str] = &["verb", "lstinline", "mintinline"];
+
+/// End of the delimiter-delimited argument starting at `i`, just past a
+/// `\verb`-style command name.
+///
+/// The first character is the delimiter and the argument runs to its next
+/// occurrence; `\mintinline{rust}|x|` takes a brace group before it. Returns
+/// the byte just past the closing delimiter, or `None` when what follows is not
+/// a delimited argument after all.
+fn verbatim_argument_end(bytes: &[u8], mut i: usize) -> Option<usize> {
+    if bytes.get(i) == Some(&b'*') {
+        i += 1;
+    }
+    if bytes.get(i) == Some(&b'{') {
+        i = shared::skip_balanced_bytes(bytes, i + 1, b'{', b'}', Some(b'\\'));
+    }
+    let delimiter = *bytes.get(i)?;
+    // A letter or a space is the next word, not a delimiter.
+    if delimiter.is_ascii_alphanumeric() || delimiter.is_ascii_whitespace() {
+        return None;
+    }
+    let close = bytes[i + 1..].iter().position(|&b| b == delimiter)?;
+    Some(i + 1 + close + 1)
+}
+
+/// Whether `node` is a `\verb`-style command, and if so where its delimited
+/// argument ends.
+fn verbatim_command_end(node: Node, text: &str) -> Option<usize> {
+    let mut cursor = node.walk();
+    let name_node = node
+        .children(&mut cursor)
+        .find(|c| c.kind() == "command_name")?;
+    let raw = &text[name_node.byte_range()];
+    let name = raw.strip_prefix('\\').unwrap_or(raw).trim_end_matches('*');
+    if !VERBATIM_DELIMITED.contains(&name) {
+        return None;
+    }
+    verbatim_argument_end(text.as_bytes(), name_node.end_byte())
+}
+
 fn collect_words(
     node: Node,
     text: &str,
     doc_start: usize,
     in_structural: bool,
     extras: &LatexExtras,
+    skip_until: &mut usize,
     out: &mut Vec<(usize, usize)>,
 ) {
     if node.end_byte() <= doc_start {
@@ -201,6 +256,11 @@ fn collect_words(
     }
 
     if kind == "generic_command" && should_skip_generic_command(node, text, extras.skip_commands) {
+        // `\verb|code|` puts its argument outside the command node, so the words
+        // it covers have to be dropped by offset as the walk reaches them.
+        if let Some(end) = verbatim_command_end(node, text) {
+            *skip_until = (*skip_until).max(end);
+        }
         return;
     }
 
@@ -210,7 +270,7 @@ fn collect_words(
         if !structural {
             let start = node.start_byte();
             let end = node.end_byte();
-            if start >= doc_start && start < end {
+            if start >= doc_start && start < end && start >= *skip_until {
                 out.push((start, end));
             }
         }
@@ -219,7 +279,7 @@ fn collect_words(
 
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        collect_words(child, text, doc_start, structural, extras, out);
+        collect_words(child, text, doc_start, structural, extras, skip_until, out);
     }
 }
 
@@ -258,9 +318,13 @@ fn should_skip_generic_command(node: Node, text: &str, extra_skip_commands: &[St
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "command_name" {
-            // command_name text is e.g. `\thispagestyle` — strip leading `\`
+            // command_name text is e.g. `\thispagestyle` — strip leading `\`.
+            // A starred variant (`\verb*`) is the same command for this purpose.
             let raw = &text[child.start_byte()..child.end_byte()];
-            let name = raw.strip_prefix('\\').unwrap_or(raw);
+            let name = raw
+                .strip_prefix('\\')
+                .unwrap_or(raw)
+                .trim_end_matches('*');
             if SKIP_GENERIC_COMMANDS.contains(&name) {
                 return true;
             }
@@ -370,10 +434,17 @@ fn collect_gap_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, us
             while i < len && bytes[i].is_ascii_alphabetic() {
                 i += 1;
             }
-            if i < len && bytes[i] == b'*' {
-                i += 1;
+            let name = gap[start + 1..i].trim_end_matches('*');
+            if VERBATIM_DELIMITED.contains(&name)
+                && let Some(end) = verbatim_argument_end(bytes, i)
+            {
+                i = end;
+            } else {
+                if i < len && bytes[i] == b'*' {
+                    i += 1;
+                }
+                i = shared::skip_command_args_bytes(bytes, i, &[(b'{', b'}'), (b'[', b']')]);
             }
-            i = shared::skip_command_args_bytes(bytes, i, &[(b'{', b'}'), (b'[', b']')]);
             out.push((gap_offset + start, gap_offset + i));
         } else if i + 1 < len && bytes[i] == b'\\' {
             // escape sequence: \\ , \, , \; , etc.
@@ -456,6 +527,14 @@ fn strip_latex_noise(gap: &str) -> String {
             }
 
             i = j;
+            if VERBATIM_DELIMITED.contains(&cmd.as_str()) {
+                let rest: String = chars[i..].iter().collect();
+                if let Some(end) = verbatim_argument_end(rest.as_bytes(), 0) {
+                    i += rest[..end].chars().count();
+                    result.push(' ');
+                    continue;
+                }
+            }
             if i < chars.len() && chars[i] == '*' {
                 i += 1;
             }
@@ -578,6 +657,36 @@ Text after display math.
             "Should NOT extract display math, got: {extracted:?}"
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_latex_verbatim_delimited_arguments_excluded() -> Result<()> {
+        let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+
+        let text = "\
+\\begin{document}
+A paragraph with \\verb|verb_token| inline verbatim.
+
+And \\lstinline!lst_token! plus \\verb*|star_token| and
+\\mintinline{rust}|mint_token| too.
+\\end{document}
+";
+        let ranges = extractor.extract(text, "latex", &LatexExtras::default())?;
+        let prose: String = ranges.iter().map(|r| r.extract_text(text)).collect();
+
+        assert!(prose.contains("A paragraph with"), "{prose:?}");
+        assert!(prose.contains("inline verbatim"), "{prose:?}");
+        for token in [
+            "verb_token",
+            "lst_token",
+            "star_token",
+            "mint_token",
+            "rust",
+        ] {
+            assert!(!prose.contains(token), "{token} leaked into {prose:?}");
+        }
         Ok(())
     }
 
