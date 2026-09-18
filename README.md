@@ -91,14 +91,17 @@ cargo build --release
 lang-check/
 ├── rust-core/          Rust core binary (server + CLI)
 │   ├── src/
-│   │   ├── engines.rs      Harper, LanguageTool, External, WASM engines
+│   │   ├── engines/        Harper, LanguageTool, External, WASM engines
 │   │   ├── orchestrator.rs  Multi-engine coordinator
-│   │   ├── prose.rs         Tree-sitter prose extraction
+│   │   ├── prose/           Tree-sitter prose extraction, one module per language
+│   │   │   ├── gap.rs         What a language puts between two prose words
+│   │   │   └── shared.rs      Range merging and scanning helpers
+│   │   ├── grammars.rs      Bindings to the vendored tree-sitter grammars
 │   │   ├── rules.rs         Rule normalization
 │   │   ├── config.rs        YAML/JSON configuration loader
 │   │   ├── workspace.rs     redb-backed workspace indexing
 │   │   └── ...
-│   └── bin/
+│   └── src/bin/
 │       ├── language-check-server.rs   LSP + Protobuf stdio server
 │       └── language-check.rs          Standalone CLI
 ├── editors/nvim/       Neovim plugin (lang-check.nvim)

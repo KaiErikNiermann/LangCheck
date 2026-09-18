@@ -77,7 +77,7 @@ chore: update tree-sitter-markdown to 0.8.0
 - Edition 2024, strict clippy (pedantic + nursery)
 - Use `anyhow::Result` for fallible functions
 - Prefix rule IDs with the engine name: `harper.`, `languagetool.`, `external.<name>.`, `wasm.<name>.`
-- Keep engine implementations behind the `Engine` trait in `engines.rs`
+- Keep engine implementations behind the `Engine` trait in `engines/`
 - Configuration structs live in `config.rs` and derive `Serialize`/`Deserialize`
 
 ### TypeScript
@@ -137,7 +137,7 @@ suppression is a hole, a reasoned one is a decision.
 │  webview/ (Svelte)     │                         │  ├─ ExternalEngine  │
 │                        │                         │  └─ WasmEngine      │
 └────────────────────────┘                         │                     │
-                                                   │  prose.rs (tree-sitter)
+                                                   │  prose/ (tree-sitter)
                                                    │  rules.rs (normalizer)
                                                    │  workspace.rs (redb)
                                                    └─────────────────────┘
@@ -147,7 +147,7 @@ The extension spawns the core binary as a child process. They communicate via le
 
 ## Adding a New Engine
 
-1. Implement the `Engine` trait in `rust-core/src/engines.rs`
+1. Implement the `Engine` trait in `rust-core/src/engines/mod.rs`
 2. Add configuration fields to `EngineConfig` in `config.rs`
 3. Wire it into `initialize_engines()` in `orchestrator.rs`
 4. Add rule ID mappings to `data/` if applicable
@@ -155,11 +155,31 @@ The extension spawns the core binary as a child process. They communicate via le
 
 ## Adding a New Supported Language (File Type)
 
-1. Add the tree-sitter parser crate to `Cargo.toml`
-2. Add a prose extraction query in `prose.rs`
-3. Register the language ID in the extension's `supportedLanguages` array
-4. Update `activationEvents` in `package.json` if needed
-5. Add snapshot tests for prose extraction
+There are three routes, in increasing order of effort. Take the cheapest one
+that fits:
+
+1. **Map the extension onto a built-in language** -- config only, no code. A
+   `.mdx` file that is really Markdown needs nothing but a config entry.
+2. **Write a Simplified Language Schema** -- a YAML description of where prose
+   lives in the file, for a format with no tree-sitter grammar. See
+   [Adding Language Support via Config](docs/guide-config-language.md).
+3. **Write a prose extractor** -- a tree-sitter grammar plus a Rust module, for
+   a format that needs real AST awareness. See
+   [Adding Language Support via the Plugin Path](docs/guide-plugin-language.md),
+   which walks through it with TinyLang, the project's reference language.
+
+For route 3 the shape is: an AST walk that collects the nodes carrying prose,
+and one `gap::Syntax` function describing the markup that can appear between
+two of them. Both the "do these words join into one block" test and the
+exclusion zones the checker must not see are derived from that one function, so
+there is no second scanner to keep in step. `rust-core/src/prose/gap.rs`
+documents the contract and `rust-core/src/prose/tinylang.rs` is the worked
+example.
+
+Whichever route, add snapshot tests for the extraction and a bank of fragments
+to `rust-core/tests/prose_composition_fuzz.rs`, which shuffles prose and
+non-prose fragments into documents and checks that every prose fragment reaches
+the checker and no non-prose fragment does.
 
 ## Translating
 
