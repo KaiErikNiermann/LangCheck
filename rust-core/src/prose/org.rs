@@ -4,19 +4,26 @@ use super::ProseRange;
 
 /// Node types that should be skipped entirely (no prose inside).
 const SKIP_NODES: &[&str] = &[
-    "block",     // #+begin_src / #+begin_example etc.
     "drawer",    // :PROPERTIES: ... :END:
     "latex_env", // \begin{equation} ... \end{equation}
     "comment",   // # comment lines
-    "directive", // #+TITLE: etc. (metadata)
-    "fndef",     // footnote definitions
-    "table",     // org tables
 ];
+
+/// `#+begin_…` blocks whose contents are prose rather than code or data.
+const PROSE_BLOCKS: &[&str] = &["quote", "verse", "abstract"];
+
+/// `#+KEY:` directives whose value is rendered prose rather than a setting.
+///
+/// Compared case-insensitively — Org accepts `#+title:` and `#+TITLE:` alike.
+const PROSE_DIRECTIVES: &[&str] = &["TITLE", "SUBTITLE", "CAPTION", "DESCRIPTION"];
 
 /// Extract prose ranges from an Org mode AST.
 ///
-/// Walks the tree collecting `paragraph` and heading `item` nodes as prose.
-/// Skips code blocks, drawers, LaTeX environments, and other non-prose elements.
+/// Walks the tree collecting `paragraph` and heading `item` nodes as prose,
+/// plus the parts of a structured node that render as text: the contents of a
+/// quote or verse block, table cells, footnote definitions and the value of a
+/// `#+TITLE:`-style directive. Code blocks, drawers, LaTeX environments and
+/// comments are skipped.
 pub fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     let mut ranges = Vec::new();
     collect_prose(root, text, &mut ranges);
@@ -32,22 +39,47 @@ fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>) {
         return;
     }
 
-    // Paragraph nodes contain prose text
-    if kind == "paragraph" {
-        let start = node.start_byte();
-        let mut end = node.end_byte();
-        // Trim trailing newlines from the paragraph range
-        while end > start && text.as_bytes()[end - 1] == b'\n' {
-            end -= 1;
+    match kind {
+        // Paragraph nodes contain prose text
+        "paragraph" => {
+            push_trimmed(node, text, out);
+            return;
         }
-        if start < end {
-            out.push(ProseRange {
-                start_byte: start,
-                end_byte: end,
-                exclusions: Vec::new(),
-            });
+        // `#+begin_quote` and friends wrap prose; `#+begin_src` wraps code.
+        "block" => {
+            let name = child_of_kind(node, "expr").map(|n| &text[n.byte_range()]);
+            if name.is_some_and(|name| PROSE_BLOCKS.contains(&name))
+                && let Some(contents) = child_of_kind(node, "contents")
+            {
+                push_trimmed(contents, text, out);
+            }
+            return;
         }
-        return;
+        // `[fn:1] The footnote text.` — the label is not prose, the body is.
+        "fndef" => {
+            if let Some(description) = child_of_kind(node, "description") {
+                push_trimmed(description, text, out);
+            }
+            return;
+        }
+        // `#+TITLE: …` renders; `#+OPTIONS: …` does not.
+        "directive" => {
+            let key = child_of_kind(node, "expr").map(|n| text[n.byte_range()].to_uppercase());
+            if key.is_some_and(|key| PROSE_DIRECTIVES.contains(&key.as_str()))
+                && let Some(value) = child_of_kind(node, "value")
+            {
+                push_trimmed(value, text, out);
+            }
+            return;
+        }
+        // A table is a grid of cells, and each cell holds prose.
+        "cell" => {
+            if let Some(contents) = child_of_kind(node, "contents") {
+                push_trimmed(contents, text, out);
+            }
+            return;
+        }
+        _ => {}
     }
 
     // Heading item nodes contain the heading text
@@ -71,6 +103,28 @@ fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>) {
     for child in node.children(&mut cursor) {
         collect_prose(child, text, out);
     }
+}
+
+/// Emit `node` as a prose range with its trailing newlines trimmed off.
+fn push_trimmed(node: Node, text: &str, out: &mut Vec<ProseRange>) {
+    let start = node.start_byte();
+    let mut end = node.end_byte();
+    while end > start && text.as_bytes()[end - 1] == b'\n' {
+        end -= 1;
+    }
+    if start < end {
+        out.push(ProseRange {
+            start_byte: start,
+            end_byte: end,
+            exclusions: Vec::new(),
+        });
+    }
+}
+
+/// The first direct child of `node` with the given kind.
+fn child_of_kind<'t>(node: Node<'t>, kind: &str) -> Option<Node<'t>> {
+    let mut cursor = node.walk();
+    node.children(&mut cursor).find(|c| c.kind() == kind)
 }
 
 #[cfg(test)]
@@ -100,6 +154,59 @@ mod tests {
             "Paragraph should be extracted, got: {all_prose:?}"
         );
 
+        Ok(())
+    }
+
+    fn prose_of(text: &str) -> Result<String> {
+        let mut extractor = org_extractor()?;
+        let ranges = extractor.extract(text, "org", &LatexExtras::default())?;
+        Ok(ranges
+            .iter()
+            .map(|r| r.extract_text(text).into_owned())
+            .collect::<Vec<_>>()
+            .join("\n"))
+    }
+
+    #[test]
+    fn test_org_quote_block_extracted() -> Result<()> {
+        let text = "\
+#+begin_quote
+A quoted paragraph.
+#+end_quote
+
+#+begin_src rust
+fn code_here() {}
+#+end_src
+";
+        let prose = prose_of(text)?;
+        assert!(prose.contains("A quoted paragraph."), "{prose:?}");
+        assert!(!prose.contains("code_here"), "{prose:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn test_org_table_cells_extracted() -> Result<()> {
+        let prose = prose_of("| First cell | Second cell |\n")?;
+        assert!(prose.contains("First cell"), "{prose:?}");
+        assert!(prose.contains("Second cell"), "{prose:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn test_org_footnote_definition_extracted() -> Result<()> {
+        let prose = prose_of("[fn:1] The text of the footnote.\n")?;
+        assert!(prose.contains("The text of the footnote."), "{prose:?}");
+        assert!(!prose.contains("fn:1"), "{prose:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn test_org_prose_directives_extracted() -> Result<()> {
+        let text = "#+title: The document title\n#+options: toc:nil num:t\n";
+        let prose = prose_of(text)?;
+        assert!(prose.contains("The document title"), "{prose:?}");
+        assert!(!prose.contains("toc:nil"), "{prose:?}");
+        assert!(!prose.contains("#+"), "{prose:?}");
         Ok(())
     }
 

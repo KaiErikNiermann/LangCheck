@@ -463,10 +463,10 @@ Final paragraph after the equation.
         "Property drawer should not be in prose"
     );
 
-    // Tables should NOT be extracted
+    // Table cells hold prose and are extracted
     assert!(
-        !texts.iter().any(|t| t.contains("Cell 1")),
-        "Table content should not be in prose"
+        texts.iter().any(|t| t.contains("Cell 1")),
+        "Table cell content should be extracted, got: {texts:?}"
     );
 
     // Final paragraph should be extracted
