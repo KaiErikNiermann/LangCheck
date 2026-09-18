@@ -14,7 +14,9 @@ pub fn extract(
     lang_id: &str,
 ) -> Result<Vec<ProseRange>> {
     let query_str = match lang_id {
-        "markdown" => "(paragraph) @prose (atx_heading) @prose",
+        // A table cell holds prose like any other block; without it every
+        // table in the document goes unchecked.
+        "markdown" => "(paragraph) @prose (atx_heading) @prose (pipe_table_cell) @prose",
         "html" => "(text) @prose",
         _ => "(paragraph) @prose",
     };
