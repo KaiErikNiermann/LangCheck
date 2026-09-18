@@ -78,22 +78,10 @@ impl StyleRuleEngine {
         Ok(count)
     }
 
-    /// Load all `.yaml`/`.yml` files from a directory.
+    /// Load all `.yaml`/`.yml` files from a directory, returning how many rules
+    /// they held.
     pub fn load_dir(&mut self, dir: &Path) -> Result<usize> {
-        let mut total = 0;
-        if !dir.exists() {
-            return Ok(0);
-        }
-        for entry in std::fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            if let Some(ext) = path.extension().and_then(|e| e.to_str())
-                && (ext == "yaml" || ext == "yml")
-            {
-                total += self.load_file(&path)?;
-            }
-        }
-        Ok(total)
+        crate::fs_util::load_yaml_dir(dir, |path| self.load_file(path))
     }
 
     /// Number of loaded rules.

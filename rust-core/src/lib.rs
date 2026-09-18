@@ -19,6 +19,7 @@ pub mod document;
 pub mod engines;
 pub mod feedback;
 pub mod forester_ts;
+pub mod fs_util;
 pub mod hashing;
 pub mod ignore_rules;
 pub mod insights;

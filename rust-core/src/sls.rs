@@ -241,23 +241,13 @@ impl SchemaRegistry {
         self.load_yaml(&content)
     }
 
-    /// Load all `.yaml`/`.yml` schemas from a directory.
+    /// Load all `.yaml`/`.yml` schemas from a directory, returning how many
+    /// files were loaded.
     pub fn load_dir(&mut self, dir: &std::path::Path) -> Result<usize> {
-        let mut count = 0;
-        if !dir.exists() {
-            return Ok(0);
-        }
-        for entry in std::fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            if let Some(ext) = path.extension().and_then(|e| e.to_str())
-                && (ext == "yaml" || ext == "yml")
-            {
-                self.load_file(&path)?;
-                count += 1;
-            }
-        }
-        Ok(count)
+        crate::fs_util::load_yaml_dir(dir, |path| {
+            self.load_file(path)?;
+            Ok(1)
+        })
     }
 
     /// Load all workspace schemas from the default config directory.
