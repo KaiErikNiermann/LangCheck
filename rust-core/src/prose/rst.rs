@@ -1,6 +1,6 @@
 use tree_sitter::Node;
 
-use super::ProseRange;
+use super::{ProseRange, shared::child_of_kind};
 
 /// Directive types whose `content` block is not prose: code, data, or paths.
 ///
@@ -243,12 +243,6 @@ fn line_offsets(block: &str, base: usize) -> impl Iterator<Item = (usize, &str)>
         offset += line.len();
         (here, line.strip_suffix('\n').unwrap_or(line))
     })
-}
-
-/// The first direct child of `node` with the given kind.
-fn child_of_kind<'t>(node: Node<'t>, kind: &str) -> Option<Node<'t>> {
-    let mut cursor = node.walk();
-    node.children(&mut cursor).find(|c| c.kind() == kind)
 }
 
 /// Collect exclusion zones within a prose range (e.g. inline code literals).

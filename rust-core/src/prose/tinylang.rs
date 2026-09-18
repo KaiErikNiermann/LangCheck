@@ -36,14 +36,8 @@ pub fn extract(text: &str, root: Node) -> Vec<ProseRange> {
 
 /// Check whether a command node is structural (non-prose arguments).
 fn is_structural_command(node: Node, text: &str) -> bool {
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if child.kind() == "command_name" {
-            let name = &text[child.start_byte()..child.end_byte()];
-            return STRUCTURAL_COMMANDS.contains(&name);
-        }
-    }
-    false
+    shared::child_of_kind(node, "command_name")
+        .is_some_and(|name| STRUCTURAL_COMMANDS.contains(&&text[name.byte_range()]))
 }
 
 /// Recursively collect prose leaf nodes (`text`), skipping non-prose subtrees.

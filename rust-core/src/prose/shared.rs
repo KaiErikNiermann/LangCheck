@@ -6,6 +6,17 @@
 
 use super::ProseRange;
 
+/// The first direct child of `node` with the given kind.
+///
+/// Every extractor needs this to read one labelled part of a structured node --
+/// a directive's `type`, a block's name, a command's `command_name` -- and a
+/// private `for` loop per call site is how they drift.
+#[must_use]
+pub fn child_of_kind<'t>(node: tree_sitter::Node<'t>, kind: &str) -> Option<tree_sitter::Node<'t>> {
+    let mut cursor = node.walk();
+    node.children(&mut cursor).find(|c| c.kind() == kind)
+}
+
 /// Characters that are allowed in a bridgeable gap (after noise stripping).
 const fn is_bridge_char(c: char) -> bool {
     c.is_ascii_whitespace()

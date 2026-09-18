@@ -220,10 +220,7 @@ fn verbatim_argument_end(bytes: &[u8], mut i: usize) -> Option<usize> {
 /// Whether `node` is a `\verb`-style command, and if so where its delimited
 /// argument ends.
 fn verbatim_command_end(node: Node, text: &str) -> Option<usize> {
-    let mut cursor = node.walk();
-    let name_node = node
-        .children(&mut cursor)
-        .find(|c| c.kind() == "command_name")?;
+    let name_node = shared::child_of_kind(node, "command_name")?;
     let raw = &text[name_node.byte_range()];
     let name = raw.strip_prefix('\\').unwrap_or(raw).trim_end_matches('*');
     if !VERBATIM_DELIMITED.contains(&name) {
@@ -315,20 +312,14 @@ fn should_skip_generic_env(node: Node, text: &str, extra_skip_envs: &[String]) -
 
 /// Check if a `generic_command` node should be skipped based on its command name.
 fn should_skip_generic_command(node: Node, text: &str, extra_skip_commands: &[String]) -> bool {
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if child.kind() == "command_name" {
-            // command_name text is e.g. `\thispagestyle` — strip leading `\`.
-            // A starred variant (`\verb*`) is the same command for this purpose.
-            let raw = &text[child.start_byte()..child.end_byte()];
-            let name = raw.strip_prefix('\\').unwrap_or(raw).trim_end_matches('*');
-            if SKIP_GENERIC_COMMANDS.contains(&name) {
-                return true;
-            }
-            return extra_skip_commands.iter().any(|c| c == name);
-        }
-    }
-    false
+    let Some(name_node) = shared::child_of_kind(node, "command_name") else {
+        return false;
+    };
+    // command_name text is e.g. `\thispagestyle` — strip leading `\`. A starred
+    // variant (`\verb*`) is the same command for this purpose.
+    let raw = &text[name_node.byte_range()];
+    let name = raw.strip_prefix('\\').unwrap_or(raw).trim_end_matches('*');
+    SKIP_GENERIC_COMMANDS.contains(&name) || extra_skip_commands.iter().any(|c| c == name)
 }
 
 // ---------------------------------------------------------------------------

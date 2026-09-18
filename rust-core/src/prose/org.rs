@@ -1,6 +1,6 @@
 use tree_sitter::Node;
 
-use super::ProseRange;
+use super::{ProseRange, shared::child_of_kind};
 
 /// Node types that should be skipped entirely (no prose inside).
 const SKIP_NODES: &[&str] = &[
@@ -119,12 +119,6 @@ fn push_trimmed(node: Node, text: &str, out: &mut Vec<ProseRange>) {
             exclusions: Vec::new(),
         });
     }
-}
-
-/// The first direct child of `node` with the given kind.
-fn child_of_kind<'t>(node: Node<'t>, kind: &str) -> Option<Node<'t>> {
-    let mut cursor = node.walk();
-    node.children(&mut cursor).find(|c| c.kind() == kind)
 }
 
 #[cfg(test)]

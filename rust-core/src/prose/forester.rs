@@ -109,13 +109,7 @@ pub fn extract(text: &str, root: Node) -> Vec<ProseRange> {
 
 /// Get the command name string from a command node.
 fn get_command_name<'a>(node: Node, text: &'a str) -> Option<&'a str> {
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if child.kind() == "command_name" {
-            return Some(&text[child.start_byte()..child.end_byte()]);
-        }
-    }
-    None
+    shared::child_of_kind(node, "command_name").map(|name| &text[name.byte_range()])
 }
 
 /// Scan a text slice for `\command{...}` patterns and add skip regions for the
