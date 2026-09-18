@@ -147,3 +147,34 @@ rules:
       - pattern-either:
           - pattern: $EXT == "yaml"
           - pattern: $EXT == "yml"
+
+  - id: match-slice-not-index-guards
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      Match on the slice — `match bytes[i..] { [b'\\', b'[', ..] => … }` — instead of guarding
+      each index by hand. `i + 1 < len && bytes[i] == A && bytes[i + 1] == B` writes the bounds
+      check out once per branch, which is once per branch it can be dropped from, and it hides
+      what shape is actually being matched. Binding the result (`i = match …`) also obliges every
+      arm to yield the next index, so an arm cannot fall through without advancing — the loop
+      that never terminates is the bug this designs out.
+      The gap scanners in latex.rs, bibtex.rs, forester.rs, tinylang.rs and sweave.rs were all
+      written this way; run against the revision before they were converted this rule reports
+      20 findings across the five files, which is the answer it must keep finding if the shape
+      comes back. `shared::run_end` and `shared::scan_past` cover the character-run and
+      scan-to-terminator cases that are left.
+    paths:
+      exclude:
+        # `skip_balanced_*` are const fns, where a slice pattern with a guard does not compile.
+        - "**/rust-core/src/prose/shared.rs"
+    pattern-either:
+      - pattern: $I + 1 < $SEQ.len() && ... && $SEQ[$I + 1] == $B
+      - pattern: $SEQ[$I] == $A && $I + 1 < $SEQ.len() && ...
+      - pattern: $I + 2 < $SEQ.len() && ... && $SEQ[$I + 2] == $C
+      # The same guard hoisted into a loop header, with the indexing in the body.
+      - patterns:
+          - pattern-inside: |
+              while $I + $N < $SEQ.len() {
+                  ...
+              }
+          - pattern: $SEQ[$I + $N]
