@@ -82,3 +82,68 @@ rules:
               $DEPTH += 1;
               ...
           }
+
+  - id: use-shared-child-of-kind
+    languages: [rust]
+    severity: INFO
+    message: >-
+      `prose::shared::child_of_kind` reads one labelled child of a structured node — a
+      directive's `type`, a block's name, a `command_name`. Walking the children by hand for
+      the same answer is how the copies start: org.rs and rst.rs each grew a byte-identical
+      private `child_of_kind`, and latex.rs open-coded a third inside `verbatim_command_end`.
+      FORWARD GUARD: those three are now one shared helper, so this rule finds nothing today.
+      It exists because every new extractor needs the same lookup on its first structured node.
+    paths:
+      include:
+        - "**/rust-core/src/prose/"
+      exclude:
+        - "**/rust-core/src/prose/shared.rs"
+    pattern-either:
+      - pattern: $NODE.children(...).find(|$C| $C.kind() == $KIND)
+      - pattern: |
+          for $CHILD in $NODE.children(...) {
+              ...
+              if $CHILD.kind() == $KIND {
+                  ...
+                  return ...;
+              }
+              ...
+          }
+
+  - id: use-content-hash
+    languages: [rust]
+    severity: INFO
+    message: >-
+      `hashing::content_hash` owns "hash a file's text to a u64 for cache invalidation".
+      `cache.rs` and `workspace.rs` each had a byte-identical private `hash_content`, which is
+      a correctness question and not only a tidiness one: the two hashes are compared against
+      values the other side wrote, so they have to stay the same function.
+      FORWARD GUARD: both now call the shared helper, so this rule finds nothing today.
+    paths:
+      exclude:
+        - "**/rust-core/src/hashing.rs"
+    pattern: |
+      let mut $H = DefaultHasher::new();
+      $CONTENT.hash(&mut $H);
+      $H.finish()
+
+  - id: use-load-yaml-dir
+    languages: [rust]
+    severity: INFO
+    message: >-
+      `fs_util::load_yaml_dir` owns "read a config directory, take the `.yaml`/`.yml` files,
+      treat a missing directory as empty". `sls.rs` and `style_rules.rs` each had their own
+      copy of that loop, differing only in what they counted — and a missing-directory check
+      dropped from one of them turns "this project configures no schemas" into an error.
+      FORWARD GUARD: both now call the shared helper, so this rule finds nothing today.
+    paths:
+      exclude:
+        - "**/rust-core/src/fs_util.rs"
+    patterns:
+      - pattern-inside: |
+          for $ENTRY in std::fs::read_dir($DIR)? {
+              ...
+          }
+      - pattern-either:
+          - pattern: $EXT == "yaml"
+          - pattern: $EXT == "yml"
