@@ -4,7 +4,7 @@
 //! extractors. This module provides the common implementation, parameterized
 //! by language-specific noise stripping and exclusion collection callbacks.
 
-use super::ProseRange;
+use super::{ProseRange, gap};
 
 /// The first direct child of `node` with the given kind.
 ///
@@ -46,15 +46,10 @@ const fn is_bridge_char(c: char) -> bool {
 ///
 /// - `words`: byte ranges of text/leaf nodes collected by the language extractor
 /// - `text`: the full source text
-/// - `strip_noise`: language-specific function to remove markup noise from gap strings
-/// - `collect_exclusions`: language-specific function to find math/code regions in gaps
-///   that should be excluded from checking (called with the gap string and its byte offset)
-pub fn merge_ranges(
-    words: &[(usize, usize)],
-    text: &str,
-    strip_noise: fn(&str) -> String,
-    collect_exclusions: fn(&str, usize, &mut Vec<(usize, usize)>),
-) -> Vec<ProseRange> {
+/// - `syntax`: the language's gap syntax — see [`super::gap`]. Both questions a
+///   gap answers, "do these words bridge" and "what must the checker not see",
+///   are derived from it, so there is no second scanner to keep in step.
+pub fn merge_ranges(words: &[(usize, usize)], text: &str, syntax: gap::Syntax) -> Vec<ProseRange> {
     if words.is_empty() {
         return Vec::new();
     }
@@ -67,8 +62,8 @@ pub fn merge_ranges(
     for &(start, end) in &words[1..] {
         let gap = &text[chunk_end..start];
 
-        if is_bridgeable_gap(gap, strip_noise) {
-            collect_exclusions(gap, chunk_end, &mut exclusions);
+        if is_bridgeable_gap(gap, syntax) {
+            gap::exclusions(gap, chunk_end, syntax, &mut exclusions);
         } else {
             ranges.push(ProseRange {
                 start_byte: chunk_start,
@@ -91,14 +86,14 @@ pub fn merge_ranges(
 
 /// Check if a gap between two text ranges can be bridged into one prose chunk.
 ///
-/// Returns `false` for paragraph breaks (`\n\n`). After stripping language-specific
-/// noise, the remaining characters must all be whitespace or punctuation.
-fn is_bridgeable_gap(gap: &str, strip_noise: fn(&str) -> String) -> bool {
+/// Returns `false` for paragraph breaks (`\n\n`). After stripping the language's
+/// markup, the remaining characters must all be whitespace or punctuation.
+fn is_bridgeable_gap(gap: &str, syntax: gap::Syntax) -> bool {
     if gap.contains("\n\n") || gap.contains("\r\n\r\n") {
         return false;
     }
 
-    let stripped = strip_noise(gap);
+    let stripped = gap::strip(gap, syntax);
 
     // After stripping language-specific noise, a paragraph break may be
     // revealed (e.g. a comment on its own line: \n// comment\n → \n\n).
@@ -127,13 +122,31 @@ pub fn run_end<T: Copy>(items: &[T], mut i: usize, matches: impl Fn(T) -> bool) 
     i
 }
 
-/// End of the run from `i` up to and *including* the next `terminator`.
+/// End of the run from `from` up to and *including* the next `close`.
 ///
-/// An unterminated run ends at the end of `items`, which is what an unclosed
+/// An unterminated run ends at the end of `bytes`, which is what an unclosed
 /// `$…` or `` `… `` in a gap should do: consume the rest rather than nothing.
-pub fn scan_past<T: Copy + PartialEq>(items: &[T], i: usize, terminator: T) -> usize {
-    let end = run_end(items, i, |item| item != terminator);
-    if end < items.len() { end + 1 } else { end }
+/// The gap is already bounded, and over-excluding beats checking the inside of
+/// broken markup.
+///
+/// `escape` is the byte that hides the one after it (LaTeX's `\`), or `None`
+/// for a language without one. A closer that itself starts with the escape byte
+/// (`\]`, `\)`) cannot honour it, or the scan would skip its own terminator,
+/// so the escape is ignored in that case.
+pub fn close_at(bytes: &[u8], from: usize, close: &[u8], escape: Option<u8>) -> usize {
+    let escape = escape.filter(|&e| close.first() != Some(&e));
+    let mut i = from;
+    while i + close.len() <= bytes.len() {
+        if escape == Some(bytes[i]) {
+            i += 2;
+            continue;
+        }
+        if bytes[i..].starts_with(close) {
+            return i + close.len();
+        }
+        i += 1;
+    }
+    bytes.len()
 }
 
 // ---------------------------------------------------------------------------
@@ -170,21 +183,6 @@ pub const fn skip_balanced_bytes(
     i
 }
 
-/// Skip balanced delimiters on chars. `i` is just past the opening delimiter.
-/// Returns position just past the closing delimiter.
-pub const fn skip_balanced_chars(chars: &[char], mut i: usize, open: char, close: char) -> usize {
-    let mut depth: u32 = 1;
-    while i < chars.len() && depth > 0 {
-        if chars[i] == open {
-            depth += 1;
-        } else if chars[i] == close {
-            depth -= 1;
-        }
-        i += 1;
-    }
-    i
-}
-
 /// Skip consecutive bracketed argument groups on bytes.
 /// e.g. `{arg1}[opt]{arg2}` with `pairs = &[(b'{', b'}'), (b'[', b']')]`.
 /// `i` is the position of the first potential opening delimiter.
@@ -193,20 +191,6 @@ pub fn skip_command_args_bytes(bytes: &[u8], mut i: usize, pairs: &[(u8, u8)]) -
     while i < bytes.len() {
         if let Some(&(open, close)) = pairs.iter().find(|(o, _)| *o == bytes[i]) {
             i = skip_balanced_bytes(bytes, i + 1, open, close, None);
-        } else {
-            break;
-        }
-    }
-    i
-}
-
-/// Skip consecutive bracketed argument groups on chars.
-/// `i` is the position of the first potential opening delimiter.
-/// Returns position just past the last closing delimiter consumed.
-pub fn skip_command_args_chars(chars: &[char], mut i: usize, pairs: &[(char, char)]) -> usize {
-    while i < chars.len() {
-        if let Some(&(open, close)) = pairs.iter().find(|(o, _)| *o == chars[i]) {
-            i = skip_balanced_chars(chars, i + 1, open, close);
         } else {
             break;
         }
@@ -503,15 +487,11 @@ mod tests {
     }
 
     #[test]
-    fn test_skip_balanced_chars_simple() {
-        let chars: Vec<char> = "{hello}".chars().collect();
-        assert_eq!(skip_balanced_chars(&chars, 1, '{', '}'), 7);
-    }
-
-    #[test]
-    fn test_skip_balanced_chars_nested() {
-        let chars: Vec<char> = "{a{b}c}rest".chars().collect();
-        assert_eq!(skip_balanced_chars(&chars, 1, '{', '}'), 7);
+    fn test_skip_balanced_bytes_past_non_ascii() {
+        // The scanner counts bytes, so multi-byte text inside the braces must
+        // not shift where the closer is found.
+        let b = "{äöü}rest".as_bytes();
+        assert_eq!(skip_balanced_bytes(b, 1, b'{', b'}', None), 8);
     }
 
     #[test]
@@ -525,13 +505,6 @@ mod tests {
     fn test_skip_command_args_bytes_no_args() {
         let b = b"rest";
         assert_eq!(skip_command_args_bytes(b, 0, &[(b'{', b'}')]), 0);
-    }
-
-    #[test]
-    fn test_skip_command_args_chars_multi() {
-        let chars: Vec<char> = "{x}[y]{z}tail".chars().collect();
-        let end = skip_command_args_chars(&chars, 0, &[('{', '}'), ('[', ']')]);
-        assert_eq!(end, 9);
     }
 
     #[test]

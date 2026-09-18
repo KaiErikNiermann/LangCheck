@@ -1,6 +1,6 @@
 use tree_sitter::Node;
 
-use super::{ProseRange, shared};
+use super::{ProseRange, gap, shared};
 
 /// Commands whose arguments are not prose and are skipped entirely:
 /// identifiers/addresses (`\ref`, `\import`, …) or verbatim code
@@ -91,14 +91,7 @@ pub fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     let mut result: Vec<ProseRange> = scopes
         .iter()
         .filter(|s| !s.is_empty())
-        .flat_map(|scope| {
-            shared::merge_ranges(
-                scope,
-                text,
-                strip_forester_noise,
-                collect_forester_exclusions,
-            )
-        })
+        .flat_map(|scope| shared::merge_ranges(scope, text, forester_gap))
         .collect();
 
     shared::install_skip_exclusions(&mut result, &skips, text.as_bytes());
@@ -338,91 +331,53 @@ fn collect_prose_nodes(
     }
 }
 
-/// Strip Forester noise from a gap string: math, commands, escapes.
-/// Leaves whitespace, braces, and punctuation for bridge analysis.
-fn strip_forester_noise(gap: &str) -> String {
-    let mut result = String::new();
-    let chars: Vec<char> = gap.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        // Every arm yields the next index, so no arm can forget to advance.
-        i = match chars[i..] {
-            // Display math: ##{...}
-            ['#', '#', '{', ..] => {
-                result.push(' ');
-                shared::skip_balanced_chars(&chars, i + 3, '{', '}')
-            }
-            // Inline math: #{...}
-            ['#', '{', ..] => {
-                result.push(' ');
-                shared::skip_balanced_chars(&chars, i + 2, '{', '}')
-            }
-            // Command: \name followed by optional {}, [], () args
-            ['\\', first, ..] if first.is_ascii_alphanumeric() => {
-                let name_end = shared::run_end(&chars, i + 1, |c| {
-                    c.is_ascii_alphanumeric() || matches!(c, '-' | '/' | '?' | '*')
-                });
-                shared::skip_command_args_chars(
-                    &chars,
-                    name_end,
-                    &[('{', '}'), ('[', ']'), ('(', ')')],
-                )
-            }
-            // Escape: \X. A lone trailing `\` falls through to the catch-all.
-            ['\\', _, ..] => i + 2,
-            // Comment: % to end of line
-            ['%', ..] => shared::run_end(&chars, i, |c| c != '\n'),
-            _ => {
-                result.push(chars[i]);
-                i + 1
-            }
-        };
-    }
-    result
+/// Forester gap syntax: math, commands, escapes and comments.
+///
+/// Arm order is load-bearing — `##{` before `#{`, and `\name` before the bare
+/// escape `\X`, which needs two bytes and so lets a lone trailing backslash
+/// fall through as ordinary text.
+///
+/// Works on bytes: every Forester delimiter (`#`, `{`, `}`, `\`, `%`) is
+/// single-byte ASCII, so a byte offset that matches here is always a character
+/// boundary.
+fn forester_gap(b: &[u8], i: usize) -> Option<gap::Match> {
+    use gap::Token::{Elided, Separator};
+    Some(match b[i..] {
+        // Display math: ##{...}
+        [b'#', b'#', b'{', ..] => gap::Match::at(
+            Separator,
+            i,
+            shared::skip_balanced_bytes(b, i + 3, b'{', b'}', Some(b'\\')),
+        ),
+        // Inline math: #{...}
+        [b'#', b'{', ..] => gap::Match::at(
+            Separator,
+            i,
+            shared::skip_balanced_bytes(b, i + 2, b'{', b'}', Some(b'\\')),
+        ),
+        // Command with its arguments: \name{...}[...](...)
+        [b'\\', first, ..] if is_command_start(first) => {
+            gap::Match::at(Elided, i, skip_command_with_args(b, i))
+        }
+        // Escape: \X
+        [b'\\', _, ..] => gap::Match::at(Elided, i, i + 2),
+        // Comment: % to the end of the line.
+        [b'%', ..] => gap::Match::at(Elided, i, shared::run_end(b, i, |c| c != b'\n')),
+        _ => return None,
+    })
 }
 
-/// Collect exclusion regions from a gap string between prose text nodes.
-///
-/// Works on bytes directly — Forester markup delimiters (`#`, `{`, `}`, `\`,
-/// `%`) are all single-byte ASCII. Called by `merge_ranges` for each bridgeable
-/// gap so that commands, math, escapes, and comments become exclusions.
-fn collect_forester_exclusions(gap: &str, offset: usize, exclusions: &mut Vec<(usize, usize)>) {
-    let b = gap.as_bytes();
-    let mut i = 0;
-    while i < b.len() {
-        // Every arm yields the next index, so no arm can forget to advance.
-        let end = match b[i..] {
-            // Display math: ##{...}
-            [b'#', b'#', b'{', ..] => {
-                shared::skip_balanced_bytes(b, i + 3, b'{', b'}', Some(b'\\'))
-            }
-            // Inline math: #{...}
-            [b'#', b'{', ..] => shared::skip_balanced_bytes(b, i + 2, b'{', b'}', Some(b'\\')),
-            // Command with its arguments: \name{...}[...](...)
-            [b'\\', first, ..] if first.is_ascii_alphanumeric() => skip_command_with_args(b, i),
-            // Escape: \X. A lone trailing `\` has no second byte and falls
-            // through to the catch-all instead.
-            [b'\\', _, ..] => i + 2,
-            // Comment: % to the end of the line.
-            [b'%', ..] => shared::run_end(b, i, |c| c != b'\n'),
-            _ => {
-                i += 1;
-                continue;
-            }
-        };
-        exclusions.push((offset + i, offset + end));
-        i = end;
-    }
+/// Whether a byte can begin a Forester command name.
+const fn is_command_start(b: u8) -> bool {
+    b.is_ascii_alphanumeric()
 }
 
 /// Skip a `\name` command and its optional brace/bracket/paren arguments.
-fn skip_command_with_args(b: &[u8], mut i: usize) -> usize {
-    i += 1; // skip backslash
-    while i < b.len() && (b[i].is_ascii_alphanumeric() || matches!(b[i], b'-' | b'/' | b'?' | b'*'))
-    {
-        i += 1;
-    }
-    shared::skip_command_args_bytes(b, i, &[(b'{', b'}'), (b'[', b']'), (b'(', b')')])
+fn skip_command_with_args(b: &[u8], i: usize) -> usize {
+    let name_end = shared::run_end(b, i + 1, |c| {
+        c.is_ascii_alphanumeric() || matches!(c, b'-' | b'/' | b'?' | b'*')
+    });
+    shared::skip_command_args_bytes(b, name_end, &[(b'{', b'}'), (b'[', b']'), (b'(', b')')])
 }
 
 /// Scan raw text for `#{...}` and `##{...}` math regions using escape-aware

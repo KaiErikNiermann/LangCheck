@@ -1,6 +1,6 @@
 use tree_sitter::Node;
 
-use super::{ProseRange, shared};
+use super::{ProseRange, gap, shared};
 
 /// BibTeX fields whose values contain human-readable prose worth checking.
 const PROSE_FIELDS: &[&str] = &[
@@ -64,8 +64,7 @@ fn collect_entry_fields(entry: Node, text: &str, out: &mut Vec<ProseRange>) {
             continue;
         }
 
-        let mut merged =
-            shared::merge_ranges(&words, text, strip_bibtex_noise, collect_command_exclusions);
+        let mut merged = shared::merge_ranges(&words, text, bibtex_gap);
         out.append(&mut merged);
     }
 }
@@ -94,43 +93,19 @@ fn collect_words(node: Node, out: &mut Vec<(usize, usize)>) {
     }
 }
 
-/// Strip LaTeX command names (e.g. `\emph`) and braces from gaps between
-/// words so the gap is bridgeable. Replaces commands with a space to
-/// avoid creating false paragraph breaks.
-fn strip_bibtex_noise(gap: &str) -> String {
-    let mut result = String::new();
-    let chars: Vec<char> = gap.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        i = match chars[i..] {
-            // `\commandname` — replaced with a space so the gap stays bridgeable.
-            ['\\', first, ..] if first.is_ascii_alphabetic() => {
-                result.push(' ');
-                shared::run_end(&chars, i + 1, |c| c.is_ascii_alphabetic())
-            }
-            _ => {
-                result.push(chars[i]);
-                i + 1
-            }
-        };
-    }
-    result
-}
-
-/// Find LaTeX command names (`\emph`, `\textbf`, etc.) in gaps and record
-/// them as exclusion zones so the grammar checker doesn't see them.
-fn collect_command_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, usize)>) {
-    let bytes = gap.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        i = match bytes[i..] {
-            [b'\\', first, ..] if first.is_ascii_alphabetic() => {
-                let end = shared::run_end(bytes, i + 1, |b| b.is_ascii_alphabetic());
-                out.push((gap_offset + i, gap_offset + end));
-                end
-            }
-            _ => i + 1,
-        };
+/// BibTeX gap syntax: a LaTeX command name, and nothing else.
+///
+/// A value like `{The \emph{Great} Paper}` is prose with commands sprinkled
+/// through it. The command name separates the words around it rather than
+/// joining them, so `\emph{a} b` does not read as `ab`.
+fn bibtex_gap(bytes: &[u8], i: usize) -> Option<gap::Match> {
+    match bytes[i..] {
+        [b'\\', first, ..] if first.is_ascii_alphabetic() => Some(gap::Match::at(
+            gap::Token::Separator,
+            i,
+            shared::run_end(bytes, i + 1, |b| b.is_ascii_alphabetic()),
+        )),
+        _ => None,
     }
 }
 

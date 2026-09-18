@@ -1,6 +1,6 @@
 use tree_sitter::Node;
 
-use super::{ProseRange, shared};
+use super::{ProseRange, gap, shared};
 
 /// Commands whose arguments contain identifiers/metadata, not prose.
 const STRUCTURAL_COMMANDS: &[&str] = &[
@@ -26,12 +26,7 @@ const SKIP_KINDS: &[&str] = &[
 pub fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     let mut word_ranges: Vec<(usize, usize)> = Vec::new();
     collect_prose_nodes(root, text, false, &mut word_ranges);
-    shared::merge_ranges(
-        &word_ranges,
-        text,
-        strip_tinylang_noise,
-        collect_math_exclusions,
-    )
+    shared::merge_ranges(&word_ranges, text, tinylang_gap)
 }
 
 /// Check whether a command node is structural (non-prose arguments).
@@ -81,97 +76,52 @@ fn collect_prose_nodes(node: Node, text: &str, skip: bool, out: &mut Vec<(usize,
     }
 }
 
-/// Find math regions (`$...$` and `$$...$$`) in a gap and record them as exclusions.
-fn collect_math_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, usize)>) {
-    let bytes = gap.as_bytes();
-    let len = bytes.len();
-    let mut i = 0;
-    while i < len {
-        if bytes[i] != b'$' {
-            i += 1;
-            continue;
+/// `TinyLang` gap syntax: math, code spans, commands, comments and the inline
+/// emphasis markers.
+///
+/// Arm order is load-bearing — `$$` before `$`, and `//` before the bare
+/// markers.
+fn tinylang_gap(b: &[u8], i: usize) -> Option<gap::Match> {
+    use gap::Token::{Elided, Separator};
+    Some(match b[i..] {
+        // Display math: $$...$$
+        [b'$', b'$', ..] => gap::Match::at(Separator, i, shared::close_at(b, i + 2, b"$$", None)),
+        // Inline math: $...$ — a newline ends it, so an unpaired `$` in prose
+        // cannot swallow the rest of the gap.
+        [b'$', ..] => gap::Match::at(Separator, i, delimited_end(b, i + 1, b'$', |c| c == b'\n')),
+        // Code span: `...`
+        [b'`', ..] => gap::Match::at(Separator, i, shared::close_at(b, i + 1, b"`", None)),
+        // Command: @name{args}
+        [b'@', first, ..] if first.is_ascii_alphabetic() => {
+            let name_end = shared::run_end(b, i + 1, |c| {
+                c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_')
+            });
+            let end = if b.get(name_end) == Some(&b'{') {
+                shared::skip_balanced_bytes(b, name_end + 1, b'{', b'}', None)
+            } else {
+                name_end
+            };
+            gap::Match::at(Elided, i, end)
         }
-        let exc_start = i;
-        if i + 1 < len && bytes[i + 1] == b'$' {
-            // Display math: $$...$$
-            i += 2;
-            while i + 1 < len && !(bytes[i] == b'$' && bytes[i + 1] == b'$') {
-                i += 1;
-            }
-            if i + 1 < len {
-                i += 2;
-            }
-        } else {
-            // Inline math: $...$  (newline breaks the match)
-            i += 1;
-            while i < len && bytes[i] != b'$' && bytes[i] != b'\n' {
-                i += 1;
-            }
-            if i < len && bytes[i] == b'$' {
-                i += 1;
-            }
-        }
-        out.push((gap_offset + exc_start, gap_offset + i));
-    }
+        // Comment: // to the end of the line. Eliding it leaves the newlines on
+        // either side adjacent, so a comment on its own line reveals the
+        // paragraph break it was hiding.
+        [b'/', b'/', ..] => gap::Match::at(Elided, i, shared::run_end(b, i, |c| c != b'\n')),
+        // Emphasis and heading markers carry no text of their own.
+        [b'*' | b'_' | b'#', ..] => gap::Match::at(Elided, i, i + 1),
+        _ => return None,
+    })
 }
 
-/// Strip `TinyLang` noise from a gap string: math, commands, code spans, etc.
-fn strip_tinylang_noise(gap: &str) -> String {
-    let mut result = String::new();
-    let chars: Vec<char> = gap.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        // Every arm yields the next index, so no arm can forget to advance.
-        i = match chars[i..] {
-            // Display math: $$...$$
-            ['$', '$', ..] => {
-                result.push(' ');
-                let close = shared::run_end(&chars, i + 2, |c| c != '$');
-                // The closing `$$` needs both characters present; an unclosed
-                // run ends at the end of the gap.
-                if close + 1 < chars.len() {
-                    close + 2
-                } else {
-                    chars.len()
-                }
-            }
-            // Inline math: $...$
-            ['$', ..] => {
-                result.push(' ');
-                shared::scan_past(&chars, i + 1, '$')
-            }
-            // Code span: `...`
-            ['`', ..] => {
-                result.push(' ');
-                shared::scan_past(&chars, i + 1, '`')
-            }
-            // Command: @name{args}
-            ['@', first, ..] if first.is_ascii_alphabetic() => {
-                let name_end = shared::run_end(&chars, i + 1, |c| {
-                    c.is_ascii_alphanumeric() || c == '-' || c == '_'
-                });
-                if chars.get(name_end) == Some(&'{') {
-                    shared::skip_balanced_chars(&chars, name_end + 1, '{', '}')
-                } else {
-                    name_end
-                }
-            }
-            // Comment: // to end of line — replaced with a newline so that a
-            // comment on its own line reveals a paragraph break
-            // (\n + comment + \n -> \n\n).
-            ['/', '/', ..] => {
-                result.push('\n');
-                shared::run_end(&chars, i, |c| c != '\n')
-            }
-            // Bold, italic and heading markers carry no text of their own.
-            ['*' | '_' | '#', ..] => i + 1,
-            _ => {
-                result.push(chars[i]);
-                i + 1
-            }
-        };
+/// End of a run closed by `delimiter`, abandoned at the first byte matching
+/// `breaks` — a delimiter the run may not cross.
+fn delimited_end(b: &[u8], from: usize, delimiter: u8, breaks: impl Fn(u8) -> bool) -> usize {
+    let end = shared::run_end(b, from, |c| c != delimiter && !breaks(c));
+    if b.get(end) == Some(&delimiter) {
+        end + 1
+    } else {
+        end
     }
-    result
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 use tree_sitter::Node;
 
-use super::{ProseRange, shared};
+use super::{ProseRange, gap, shared};
 
 /// Built-in environment types that tree-sitter-latex recognises as dedicated
 /// node kinds (not `generic_environment`). Skip these entirely.
@@ -143,12 +143,7 @@ pub(crate) fn extract(text: &str, root: Node, extras: &LatexExtras) -> Vec<Prose
         &mut word_ranges,
     );
 
-    shared::merge_ranges(
-        &word_ranges,
-        text,
-        strip_latex_noise,
-        collect_gap_exclusions,
-    )
+    shared::merge_ranges(&word_ranges, text, latex_gap)
 }
 
 /// Check whether a node kind represents a structural (non-prose) container.
@@ -192,8 +187,8 @@ fn find_document_body_start(root: Node, text: &str) -> usize {
 ///
 /// The grammar does not model that argument, so it arrives as an ordinary
 /// `word` node next to the command and has to be cut out by byte offset.
-fn is_verbatim_delimited(name: &str) -> bool {
-    matches!(name, "verb" | "lstinline" | "mintinline")
+const fn is_verbatim_delimited(name: &[u8]) -> bool {
+    matches!(name, b"verb" | b"lstinline" | b"mintinline")
 }
 
 /// End of the delimiter-delimited argument starting at `i`.
@@ -225,7 +220,7 @@ fn verbatim_command_end(node: Node, text: &str) -> Option<usize> {
     let name_node = shared::child_of_kind(node, "command_name")?;
     let raw = &text[name_node.byte_range()];
     let name = raw.strip_prefix('\\').unwrap_or(raw).trim_end_matches('*');
-    if !is_verbatim_delimited(name) {
+    if !is_verbatim_delimited(name.as_bytes()) {
         return None;
     }
     verbatim_argument_end(text.as_bytes(), name_node.end_byte())
@@ -328,255 +323,107 @@ fn should_skip_generic_command(node: Node, text: &str, extra_skip_commands: &[St
 // Word-range merging with LaTeX-aware gap analysis
 // ---------------------------------------------------------------------------
 
-/// Walk a gap string and record every LaTeX noise region as an exclusion
-/// (document-level byte offsets).  This mirrors the logic in
-/// `strip_latex_noise` so that everything the gap-stripper removes is also
-/// blanked with spaces in the text the checker receives.
+/// LaTeX gap syntax: math, commands, escapes and bare braces.
 ///
-/// Covered: inline math (`$...$`), display math (`\[...\]`), inline math
-/// (`\(...\)`), command names with their arguments (`\textsc{...}`), and
-/// escape sequences (`\\`, `\,`, etc.).  Display math exclusions are
-/// extended to cover surrounding whitespace so that the grammar checker
-/// doesn't see false paragraph breaks.
-/// Skip inline math `$...$` starting at position `i` (on the `$`).
-/// Returns the new scan position (just past the closing `$`).
-fn skip_inline_math_exclusion(
-    bytes: &[u8],
-    i: usize,
-    gap_offset: usize,
-    out: &mut Vec<(usize, usize)>,
-) -> usize {
-    let mut j = i + 1;
-    while j < bytes.len() && bytes[j] != b'$' {
-        j += 1;
-    }
-    if j < bytes.len() {
-        j += 1; // closing $
-    }
-    out.push((gap_offset + i, gap_offset + j));
-    j
-}
-
-/// Skip display math `\[...\]` starting at position `i` (on the `\`).
-/// Absorbs surrounding whitespace into the exclusion so the checker doesn't
-/// see false paragraph breaks.
-fn skip_display_math_exclusion(
-    bytes: &[u8],
-    i: usize,
-    gap_offset: usize,
-    out: &mut Vec<(usize, usize)>,
-) -> usize {
-    let len = bytes.len();
-    let mut exc_start = i;
-    while exc_start > 0 && bytes[exc_start - 1].is_ascii_whitespace() {
-        exc_start -= 1;
-    }
-    let mut j = i + 2;
-    while j + 1 < len && !(bytes[j] == b'\\' && bytes[j + 1] == b']') {
-        j += 1;
-    }
-    if j + 1 < len {
-        j += 2;
-    }
-    let mut exc_end = j;
-    while exc_end < len && bytes[exc_end].is_ascii_whitespace() {
-        exc_end += 1;
-    }
-    out.push((gap_offset + exc_start, gap_offset + exc_end));
-    exc_end
-}
-
-/// Skip inline paren math `\(...\)` starting at position `i` (on the `\`).
-fn skip_inline_paren_math_exclusion(
-    bytes: &[u8],
-    i: usize,
-    gap_offset: usize,
-    out: &mut Vec<(usize, usize)>,
-) -> usize {
-    let mut j = i + 2;
-    let len = bytes.len();
-    while j + 1 < len && !(bytes[j] == b'\\' && bytes[j + 1] == b')') {
-        j += 1;
-    }
-    if j + 1 < len {
-        j += 2;
-    }
-    out.push((gap_offset + i, gap_offset + j));
-    j
-}
-
-fn collect_gap_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, usize)>) {
-    let bytes = gap.as_bytes();
-    let mut i = 0;
-
-    while i < bytes.len() {
-        // Every arm yields the next index, so no arm can forget to advance.
-        i = match bytes[i..] {
-            [b'$', ..] => skip_inline_math_exclusion(bytes, i, gap_offset, out),
-            [b'\\', b'[', ..] => skip_display_math_exclusion(bytes, i, gap_offset, out),
-            [b'\\', b'(', ..] => skip_inline_paren_math_exclusion(bytes, i, gap_offset, out),
-            // A command with its arguments: `\name*[...]{...}`, or `\verb|...|`.
-            [b'\\', first, ..] if first.is_ascii_alphabetic() => {
-                let end = command_end(gap, i);
-                out.push((gap_offset + i, gap_offset + end));
-                end
+/// Arm order is load-bearing — `\[` and `\(` before `\name`, and `\name`
+/// before the bare escape `\X`, which needs two bytes and so lets a lone
+/// trailing backslash fall through as ordinary text.
+fn latex_gap(b: &[u8], i: usize) -> Option<gap::Match> {
+    use gap::Token::{Barrier, Elided, Separator};
+    Some(match b[i..] {
+        // Inline math: $...$
+        [b'$', ..] => gap::Match::at(Separator, i, shared::close_at(b, i + 1, b"$", Some(b'\\'))),
+        // Display math: \[...\]. It takes the whitespace on either side into
+        // the exclusion as well, so blanking the formula does not leave a
+        // double space in the middle of the sentence.
+        [b'\\', b'[', ..] => {
+            let end = shared::close_at(b, i + 2, b"\\]", Some(b'\\'));
+            let padded = pad_whitespace(b, i, end);
+            gap::Match::new(Separator, padded.0, padded.1)
+        }
+        // Inline math: \(...\)
+        [b'\\', b'(', ..] => gap::Match::at(
+            Separator,
+            i,
+            shared::close_at(b, i + 2, b"\\)", Some(b'\\')),
+        ),
+        [b'\\', first, ..] if first.is_ascii_alphabetic() => {
+            let name_end = shared::run_end(b, i + 1, |c| c.is_ascii_alphabetic());
+            // A block command means the words on either side are in different
+            // paragraphs; its arguments are left for the scan to read as text,
+            // exactly as before.
+            if is_block_command(&b[i + 1..name_end]) {
+                gap::Match::at(Barrier, i, name_end)
+            } else {
+                gap::Match::at(
+                    Elided,
+                    i,
+                    command_args_end(b, &b[i + 1..name_end], name_end),
+                )
             }
-            // An escape sequence: `\\`, `\,`, `\;` … A lone trailing `\` has no
-            // second byte, so it falls to the catch-all instead, as before.
-            [b'\\', _, ..] => {
-                out.push((gap_offset + i, gap_offset + i + 2));
-                i + 2
-            }
-            // A bare brace.
-            [b'{' | b'}', ..] => {
-                out.push((gap_offset + i, gap_offset + i + 1));
-                i + 1
-            }
-            _ => i + 1,
-        };
-    }
+        }
+        // Escape sequence: \\, \, , \; …
+        [b'\\', _, ..] => gap::Match::at(Elided, i, i + 2),
+        // A bare brace.
+        [b'{' | b'}', ..] => gap::Match::at(Elided, i, i + 1),
+        _ => return None,
+    })
 }
 
-/// End of the command starting at `start` (its `\`), arguments included.
-fn command_end(gap: &str, start: usize) -> usize {
-    let bytes = gap.as_bytes();
-    let mut i = start + 1;
-    while i < bytes.len() && bytes[i].is_ascii_alphabetic() {
+/// End of what follows a command name: a `\verb`-style delimited argument, or
+/// the braced and bracketed arguments.
+fn command_args_end(b: &[u8], name: &[u8], name_end: usize) -> usize {
+    // The star of a starred variant belongs to neither the name nor the
+    // arguments, so it goes before either is read.
+    let mut i = name_end;
+    if b.get(i) == Some(&b'*') {
         i += 1;
     }
-    // The name is the alphabetic run, so a starred variant's star belongs to
-    // neither the name nor the arguments — consume it before either is read.
-    let name = &gap[start + 1..i];
-    if bytes.get(i) == Some(&b'*') {
-        i += 1;
-    }
-
     if is_verbatim_delimited(name)
-        && let Some(end) = verbatim_argument_end(bytes, i)
+        && let Some(end) = verbatim_argument_end(b, i)
     {
         return end;
     }
-    shared::skip_command_args_bytes(bytes, i, &[(b'{', b'}'), (b'[', b']')])
+    shared::skip_command_args_bytes(b, i, &[(b'{', b'}'), (b'[', b']')])
 }
 
-/// Strip LaTeX noise from a gap string: math (`$...$`, `\(...\)`, `\[...\]`)
-/// and command names (`\textbf`, `\ref`, etc.). Display math content is
-/// excluded from the prose text via `ProseRange.exclusions`, so stripping
-/// it here is safe. Leaves braces, whitespace, and punctuation intact for
-/// subsequent validation.
-fn strip_latex_noise(gap: &str) -> String {
-    let mut result = String::new();
-    let chars: Vec<char> = gap.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        // Every arm yields the next index, so no arm can forget to advance.
-        i = match chars[i..] {
-            // Inline math: $...$
-            ['$', ..] => {
-                result.push(' ');
-                shared::scan_past(&chars, i + 1, '$')
-            }
-            // Display math: \[...\] and \(...\). Replaced with a space to avoid
-            // creating false paragraph breaks (display math between newlines:
-            // \n\[...\]\n -> \n \n). The content is excluded via
-            // ProseRange.exclusions.
-            ['\\', '[', ..] => {
-                result.push(' ');
-                display_math_end(&chars, i + 2, ']')
-            }
-            ['\\', '(', ..] => {
-                result.push(' ');
-                display_math_end(&chars, i + 2, ')')
-            }
-            ['\\', first, ..] if first.is_ascii_alphabetic() => {
-                command_noise_end(&chars, i, &mut result)
-            }
-            // Escape: \X, or a lone trailing backslash.
-            ['\\', ..] => (i + 2).min(chars.len()),
-            _ => {
-                result.push(chars[i]);
-                i + 1
-            }
-        };
+/// Widen `start..end` over the whitespace on either side of it.
+fn pad_whitespace(b: &[u8], start: usize, end: usize) -> (usize, usize) {
+    let mut lo = start;
+    while lo > 0 && b[lo - 1].is_ascii_whitespace() {
+        lo -= 1;
     }
-    result
+    let hi = shared::run_end(b, end, |c| c.is_ascii_whitespace());
+    (lo, hi)
 }
 
 /// Whether a command is block-level layout rather than inline markup.
 ///
 /// These must NOT be bridged: leaving the `\` in the stripped gap fails the
 /// bridge check, which is what keeps the ranges on either side separate.
-fn is_block_command(name: &str) -> bool {
+const fn is_block_command(name: &[u8]) -> bool {
     matches!(
         name,
-        "begin"
-            | "end"
-            | "item"
-            | "par"
-            | "section"
-            | "subsection"
-            | "subsubsection"
-            | "paragraph"
-            | "chapter"
-            | "part"
-            | "hfill"
-            | "vfill"
-            | "newline"
-            | "linebreak"
-            | "noindent"
+        b"begin"
+            | b"end"
+            | b"item"
+            | b"par"
+            | b"section"
+            | b"subsection"
+            | b"subsubsection"
+            | b"paragraph"
+            | b"chapter"
+            | b"part"
+            | b"hfill"
+            | b"vfill"
+            | b"newline"
+            | b"linebreak"
+            | b"noindent"
     )
 }
 
 /// End of a `\[…\]` / `\(…\)` run: just past the closing `\]` or `\)`.
 ///
-/// An unclosed run stops one character short of the end, leaving that last
-/// character to be read as ordinary text on the next pass — so an unterminated
-/// `\[` cannot swallow the tail of the gap.
-fn display_math_end(chars: &[char], start: usize, close: char) -> usize {
-    chars[start..]
-        .windows(2)
-        .position(|pair| pair == ['\\', close])
-        .map_or_else(
-            || chars.len().saturating_sub(1).max(start),
-            |at| start + at + 2,
-        )
-}
-
-/// End of the command starting at `start` (its `\`), writing its replacement
-/// into `result`.
-fn command_noise_end(chars: &[char], start: usize, result: &mut String) -> usize {
-    let name_end = shared::run_end(chars, start + 1, |c| c.is_ascii_alphabetic());
-    let name: String = chars[start + 1..name_end].iter().collect();
-
-    if is_block_command(&name) {
-        result.push(chars[start]);
-        return start + 1;
-    }
-
-    // As in `command_end`: the star belongs to neither the name nor the
-    // arguments, so it goes before either is read.
-    let mut after = name_end;
-    if chars.get(after) == Some(&'*') {
-        after += 1;
-    }
-
-    if is_verbatim_delimited(&name)
-        && let Some(end) = verbatim_argument_end_chars(chars, after)
-    {
-        result.push(' ');
-        return end;
-    }
-    shared::skip_command_args_chars(chars, after, &[('{', '}'), ('[', ']')])
-}
-
-/// [`verbatim_argument_end`] in char indices, for the scanners that work on
-/// `&[char]` because the text around them can be non-ASCII.
-fn verbatim_argument_end_chars(chars: &[char], start: usize) -> Option<usize> {
-    let rest: String = chars[start..].iter().collect();
-    let end = verbatim_argument_end(rest.as_bytes(), 0)?;
-    Some(start + rest[..end].chars().count())
-}
-
 #[cfg(test)]
 mod tests {
     use super::LatexExtras;

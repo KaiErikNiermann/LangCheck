@@ -1,5 +1,6 @@
 mod bibtex;
 mod forester;
+pub mod gap;
 pub mod latex;
 mod org;
 mod query;
