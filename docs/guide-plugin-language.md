@@ -13,6 +13,9 @@ The plugin path gives a language first-class integration with lang-check:
 - **Math exclusion zones** -- inline and display math are recognized by the
   grammar and either skipped entirely or replaced with spaces (preserving byte
   offsets so diagnostics map back correctly).
+- **One description of the markup between words** -- what may appear in the gap
+  between two prose words is written once, as a `gap::Syntax` function, and both
+  the "do these words join up" test and the exclusion zones are derived from it.
 - **Code block / comment skipping** -- fenced code, inline code, and comments
   are pruned from the AST walk so they never reach the grammar checker.
 - **Structural command filtering** -- commands whose arguments are identifiers
@@ -233,45 +236,46 @@ This produces:
 Commit all generated files. They are vendored so that building the project
 does not require the tree-sitter CLI.
 
-### Step D: Create the Rust FFI binding
+### Step D: Declare the grammar binding
 
-Create `rust-core/src/tinylang_ts.rs`:
+All vendored grammars share one module, `rust-core/src/grammars.rs`. Add a line
+to the `vendored_grammars!` invocation there:
 
 ```rust
-use tree_sitter_language::LanguageFn;
-
-unsafe extern "C" {
-    fn tree_sitter_tinylang() -> *const ();
+vendored_grammars! {
+    BIBTEX => tree_sitter_bibtex,
+    FORESTER => tree_sitter_forester,
+    ORG => tree_sitter_org,
+    TINYLANG => tree_sitter_tinylang,
+    TYPST => tree_sitter_typst,
 }
-
-pub const LANGUAGE: LanguageFn =
-    unsafe { LanguageFn::from_raw(tree_sitter_tinylang) };
 ```
 
-The `tree_sitter_tinylang` symbol is provided by the compiled `parser.c`.
-The function name **must** follow the convention `tree_sitter_<grammar_name>`,
-where `<grammar_name>` matches the `name` field in `grammar.js`.
+The macro writes the `extern "C"` declaration and the `LanguageFn` that wraps
+it. The symbol name **must** follow the convention `tree_sitter_<grammar_name>`,
+where `<grammar_name>` matches the `name` field in `grammar.js` -- that is the
+symbol the compiled `parser.c` exports.
 
-Then register the module in `rust-core/src/lib.rs`:
-
-```rust
-pub mod tinylang_ts;
-```
+Nothing else is needed: there is no per-language module to create and no entry
+to add to `lib.rs`.
 
 ### Step E: Write the prose extractor module
 
-Create `rust-core/src/prose/tinylang.rs`. This module receives the parsed
-tree-sitter AST and returns a `Vec<ProseRange>` -- the byte ranges of prose
-text plus any exclusion zones within those ranges.
+Create `rust-core/src/prose/tinylang.rs`. The module answers two questions, and
+they are separate:
 
-The structure has three parts:
+1. **Which nodes carry prose?** An AST walk collects the byte ranges of the
+   text leaves, skipping subtrees that hold code, math or metadata.
+2. **What is in the space between two of them?** That space is a *gap*, and a
+   single function describes what markup can appear there.
 
-**1. Configuration constants** -- lists of node kinds and command names that
-control what gets skipped:
+**1. Configuration constants** -- node kinds and command names that control what
+the walk skips:
 
 ```rust
 use tree_sitter::Node;
-use super::ProseRange;
+
+use super::{ProseRange, gap, shared};
 
 /// Commands whose arguments contain identifiers/metadata, not prose.
 const STRUCTURAL_COMMANDS: &[&str] = &[
@@ -285,14 +289,14 @@ const SKIP_KINDS: &[&str] = &[
 ];
 ```
 
-**2. AST walk** -- a recursive function that collects `text` leaf node byte
-ranges, skipping non-prose subtrees:
+**2. AST walk** -- collect the `text` leaves, then hand the result to
+`shared::merge_ranges` along with the gap syntax from part 3:
 
 ```rust
-pub(crate) fn extract(text: &str, root: Node) -> Vec<ProseRange> {
+pub fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     let mut word_ranges: Vec<(usize, usize)> = Vec::new();
     collect_prose_nodes(root, text, false, &mut word_ranges);
-    merge_ranges(&word_ranges, text)
+    shared::merge_ranges(&word_ranges, text, tinylang_gap)
 }
 
 fn collect_prose_nodes(
@@ -333,56 +337,94 @@ fn collect_prose_nodes(
 }
 ```
 
-**3. Range merging** -- adjacent text nodes are merged into sentence-level
-chunks. Gaps between text nodes are analyzed: if a gap contains only
-whitespace and punctuation (after stripping language-specific noise like math
-and commands), the ranges merge. If a gap contains a paragraph break
-(`\n\n`), a new `ProseRange` starts.
-
-Math regions within bridgeable gaps are recorded as exclusion zones so the
-grammar checker sees spaces instead of math content:
+A "first labelled child" lookup -- a command's `command_name`, a directive's
+`type` -- is `shared::child_of_kind`, not a hand-written loop:
 
 ```rust
-fn merge_ranges(words: &[(usize, usize)], text: &str) -> Vec<ProseRange> {
-    if words.is_empty() {
-        return Vec::new();
-    }
-
-    let mut ranges = Vec::new();
-    let mut chunk_start = words[0].0;
-    let mut chunk_end = words[0].1;
-    let mut exclusions: Vec<(usize, usize)> = Vec::new();
-
-    for &(start, end) in &words[1..] {
-        let gap = &text[chunk_end..start];
-
-        if !is_bridgeable_gap(gap) {
-            ranges.push(ProseRange {
-                start_byte: chunk_start,
-                end_byte: chunk_end,
-                exclusions: std::mem::take(&mut exclusions),
-            });
-            chunk_start = start;
-        } else {
-            collect_math_exclusions(gap, chunk_end, &mut exclusions);
-        }
-        chunk_end = end;
-    }
-
-    ranges.push(ProseRange {
-        start_byte: chunk_start,
-        end_byte: chunk_end,
-        exclusions,
-    });
-    ranges
+fn is_structural_command(node: Node, text: &str) -> bool {
+    shared::child_of_kind(node, "command_name")
+        .is_some_and(|name| STRUCTURAL_COMMANDS.contains(&&text[name.byte_range()]))
 }
 ```
 
-The `is_bridgeable_gap` and `collect_math_exclusions` helper functions are
-language-specific. See `rust-core/src/prose/tinylang.rs` for the full
-implementation, including `strip_tinylang_noise` which removes math, commands,
-code spans, bold/italic markers, and comments from a gap before testing
-whether it is bridgeable.
+**3. Gap syntax** -- the one function a new language has to write.
+
+A gap is the source between two prose words, and it decides two things: whether
+those words belong to the same prose block, and which byte ranges the checker
+must not see. Both come from the same question -- *what token starts here?* --
+so the language answers it once, as a `gap::Syntax` function, and
+`gap::strip` and `gap::exclusions` derive the rest:
+
+```rust
+fn tinylang_gap(b: &[u8], i: usize) -> Option<gap::Match> {
+    use gap::Token::{Elided, Separator};
+    Some(match b[i..] {
+        // Display math: $$...$$
+        [b'$', b'$', ..] => gap::Match::at(Separator, i, shared::close_at(b, i + 2, b"$$", None)),
+        // Inline math: $...$ — a newline ends it, so an unpaired `$` in prose
+        // cannot swallow the rest of the gap.
+        [b'$', ..] => gap::Match::at(Separator, i, delimited_end(b, i + 1, b'$', |c| c == b'\n')),
+        // Code span: `...`
+        [b'`', ..] => gap::Match::at(Separator, i, shared::close_at(b, i + 1, b"`", None)),
+        // Command: @name{args}
+        [b'@', first, ..] if first.is_ascii_alphabetic() => {
+            let name_end = shared::run_end(b, i + 1, |c| {
+                c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_')
+            });
+            let end = if b.get(name_end) == Some(&b'{') {
+                shared::skip_balanced_bytes(b, name_end + 1, b'{', b'}', None)
+            } else {
+                name_end
+            };
+            gap::Match::at(Elided, i, end)
+        }
+        // Comment: // to the end of the line. Eliding it leaves the newlines on
+        // either side adjacent, so a comment on its own line reveals the
+        // paragraph break it was hiding.
+        [b'/', b'/', ..] => gap::Match::at(Elided, i, shared::run_end(b, i, |c| c != b'\n')),
+        // Emphasis and heading markers carry no text of their own.
+        [b'*' | b'_' | b'#', ..] => gap::Match::at(Elided, i, i + 1),
+        _ => return None,
+    })
+}
+```
+
+Points worth copying:
+
+- **Return `None` for ordinary text.** Anything the function does not recognize
+  is prose, and the scan advances one character.
+- **Match on `b[i..]`, not on indices.** The slice pattern carries the bounds
+  check, so there is no `i + 1 < len` to forget. `[b'/', b'/', ..]` needs two
+  bytes present; a lone trailing `/` falls through to `_` on its own.
+- **Order the arms longest-prefix first.** `$$` before `$`, `//` before a bare
+  marker. The first matching arm wins.
+- **`end` must be greater than `i`,** or the scan cannot make progress.
+- **Work on bytes.** Every delimiter above is single-byte ASCII, so a byte
+  offset that matches is always a character boundary, and non-ASCII prose passes
+  through untouched.
+
+The token kind says what the checker should see in that range:
+
+| Kind | Stripped to | Use for |
+| --- | --- | --- |
+| `Separator` | a space | math, verbatim, code spans -- markup that keeps the words on either side apart, so `a $x$ b` is not read as `ab` |
+| `Elided` | nothing | command names, escapes, comments -- markup that is invisible in the rendered document, so `@em{a}b` is read as `ab` |
+| `Barrier` | itself | block structure, where the two sides are different paragraphs and must not be joined at all |
+
+Every token also becomes an exclusion zone, blanked out of the text the checker
+receives so its bytes are never reported as a mistake. `gap::exclusions`
+guarantees those ranges come out sorted and disjoint, clamping a token that
+reaches back for the whitespace before it (LaTeX display math does this, so that
+blanking a formula does not leave a double space mid-sentence).
+
+Common helpers, so a scanner does not grow its own copy:
+
+| Need | Helper |
+| --- | --- |
+| Run of bytes matching a predicate | `shared::run_end(b, i, pred)` |
+| Run up to and including a closing delimiter | `shared::close_at(b, i, close, escape)` |
+| Balanced `{...}`, escape-aware | `shared::skip_balanced_bytes(b, i, open, close, escape)` |
+| A command's `{}` / `[]` arguments | `shared::skip_command_args_bytes(b, i, pairs)` |
 
 ### Step F: Wire into the dispatch (`prose/mod.rs`)
 
@@ -393,19 +435,19 @@ Register the new module and add a match arm in `ProseExtractor::extract`:
 mod tinylang;
 
 // In the extract() method:
-pub fn extract(&mut self, text: &str, lang_id: &str) -> Result<Vec<ProseRange>> {
-    let tree = self.parser.parse(text, None)
-        .ok_or_else(|| anyhow!("Failed to parse text"))?;
-    let root = tree.root_node();
-
-    match lang_id {
-        "latex" => Ok(latex::extract(text, root)),
-        "forester" => Ok(forester::extract(text, root)),
-        "tinylang" => Ok(tinylang::extract(text, root)),
-        lang => query::extract(text, root, &self.language, lang),
-    }
-}
+let ranges = match lang_id {
+    "latex" => latex::extract(text, root, latex_extras),
+    "sweave" => sweave::extract(text, root, latex_extras),
+    "forester" => forester::extract(text, root),
+    "tinylang" => tinylang::extract(text, root),
+    // ... one arm per dedicated extractor ...
+    lang => query::extract(text, root, &self.language, lang)?,
+};
 ```
+
+`extract` then runs `shared::merge_continuations` over whatever the arm
+returned, which rejoins a sentence that was split across a markup boundary. That
+happens for every language, so an extractor does not do it itself.
 
 Languages that do not have a dedicated extractor module fall through to the
 generic `query`-based extractor (the `lang` catch-all arm). The plugin path
@@ -445,43 +487,43 @@ const LANGUAGE_ID_ALIASES: &[(&str, &str)] = &[
 
 ### Step H: Update `build.rs`
 
-Add a `cc::Build` block to compile the vendored tree-sitter parser:
+`build.rs` compiles the vendored parsers in one loop. Add the grammar's name to
+the list:
 
 ```rust
-// Compile vendored tree-sitter-tinylang parser
-let dir = std::path::Path::new("tree-sitter-tinylang/src");
-cc::Build::new()
-    .include(dir)
-    .file(dir.join("parser.c"))
-    .file(dir.join("scanner.c"))  // omit if no external scanner
-    .warnings(false)
-    .compile("tree_sitter_tinylang");
+for name in ["forester", "tinylang", "org", "typst"] {
+    let dir = format!("tree-sitter-{name}/src");
+    // ... cc::Build over parser.c and scanner.c ...
+}
 ```
 
-The library name passed to `.compile()` must match what the linker expects for
-the `tree_sitter_tinylang` extern symbol declared in the FFI binding.
+A grammar with no external scanner gets its own block instead, as BibTeX does --
+the loop compiles `scanner.c` unconditionally.
 
-### Step I: Update CLI and server binaries
+The library name `cc` is given must match the `tree_sitter_<name>` symbol the
+binding in Step D declares, which is why both are keyed on the grammar name.
 
-Both `language-check` (CLI) and `language-check-server` contain a
-`resolve_ts_language` function that maps language IDs to tree-sitter
-`Language` values. Add an arm for your language in each:
+### Step I: Resolve the language ID to a grammar
 
-**`rust-core/src/bin/language-check.rs`**:
+`languages::resolve_ts_language` maps a canonical language ID to its tree-sitter
+`Language`. Both binaries and the LSP server go through it, so there is one arm
+to add, not one per binary:
 
 ```rust
-fn resolve_ts_language(lang: &str) -> tree_sitter::Language {
+pub fn resolve_ts_language(lang: &str) -> tree_sitter::Language {
     match lang {
         "html" => tree_sitter_html::LANGUAGE.into(),
-        "latex" => codebook_tree_sitter_latex::LANGUAGE.into(),
-        "forester" => rust_core::forester_ts::LANGUAGE.into(),
-        "tinylang" => rust_core::tinylang_ts::LANGUAGE.into(),
+        "latex" | "sweave" => codebook_tree_sitter_latex::LANGUAGE.into(),
+        "forester" => crate::grammars::FORESTER.into(),
+        "tinylang" => crate::grammars::TINYLANG.into(),
+        // ... one arm per grammar ...
         _ => tree_sitter_md::LANGUAGE.into(),
     }
 }
 ```
 
-**`rust-core/src/bin/language-check-server.rs`** -- identical match arm.
+An unknown ID falls back to Markdown rather than failing, so a misconfigured
+extension still gets sensible prose extraction.
 
 ### Step J: Update the VS Code extension
 
@@ -528,7 +570,7 @@ Typical test cases:
 ```rust
 #[test]
 fn test_tinylang_basic_extraction() -> Result<()> {
-    let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+    let language: tree_sitter::Language = crate::grammars::TINYLANG.into();
     let mut extractor = ProseExtractor::new(language)?;
     let text = "This is a simple sentence.\n";
     let ranges = extractor.extract(text, "tinylang")?;
@@ -540,7 +582,7 @@ fn test_tinylang_basic_extraction() -> Result<()> {
 
 #[test]
 fn test_tinylang_code_excluded() -> Result<()> {
-    let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+    let language: tree_sitter::Language = crate::grammars::TINYLANG.into();
     let mut extractor = ProseExtractor::new(language)?;
     let text = "Before code.\n\n~~~\nfn main() {}\n~~~\n\nAfter code.\n";
     let ranges = extractor.extract(text, "tinylang")?;
@@ -552,7 +594,7 @@ fn test_tinylang_code_excluded() -> Result<()> {
 
 #[test]
 fn test_tinylang_structural_commands_excluded() -> Result<()> {
-    let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+    let language: tree_sitter::Language = crate::grammars::TINYLANG.into();
     let mut extractor = ProseExtractor::new(language)?;
     let text = "@author{Jane Doe}\n@date{2025-01-01}\n\nSome prose text here.\n";
     let ranges = extractor.extract(text, "tinylang")?;
@@ -617,13 +659,10 @@ these files:
 | `rust-core/tree-sitter-<lang>/src/parser.c` | Generated -- `tree-sitter generate` |
 | `rust-core/tree-sitter-<lang>/src/*.json` | Generated -- grammar/node-types metadata |
 | `rust-core/tree-sitter-<lang>/src/tree_sitter/*.h` | Generated -- tree-sitter headers |
-| `rust-core/src/<lang>_ts.rs` | Create -- FFI binding |
-| `rust-core/src/lib.rs` | Edit -- add `pub mod <lang>_ts;` |
-| `rust-core/src/prose/<lang>.rs` | Create -- prose extractor |
+| `rust-core/src/grammars.rs` | Edit -- add a `vendored_grammars!` entry |
+| `rust-core/src/prose/<lang>.rs` | Create -- AST walk plus one `gap::Syntax` function |
 | `rust-core/src/prose/mod.rs` | Edit -- add `mod <lang>;` and match arm |
-| `rust-core/src/languages.rs` | Edit -- extension mapping + supported IDs |
-| `rust-core/build.rs` | Edit -- add `cc::Build` for the parser |
-| `rust-core/src/bin/language-check.rs` | Edit -- add `resolve_ts_language` arm |
-| `rust-core/src/bin/language-check-server.rs` | Edit -- add `resolve_ts_language` arm |
+| `rust-core/src/languages.rs` | Edit -- extension mapping, supported IDs, `resolve_ts_language` arm |
+| `rust-core/build.rs` | Edit -- add the grammar name to the compile loop |
 | `extension/package.json` | Edit -- add `onLanguage:<lang>` activation event |
 | `extension/src/extension.ts` | Edit -- add to `supportedLanguages` array |

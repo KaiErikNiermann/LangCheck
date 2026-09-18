@@ -20,7 +20,9 @@ Language Check extracts prose from these file formats using tree-sitter parsers:
 
 ### Prose extraction details
 
-Each language has a custom prose extractor that understands which parts of a document contain human-readable text:
+Each language has a custom prose extractor that understands which parts of a document contain human-readable text.
+
+An extractor answers two questions. The first is which AST nodes carry prose, which is a walk over the tree. The second is what sits in the *gap* between two of those nodes — the markup that decides whether the words on either side belong to one prose block, and which bytes the checker must never see. A language describes its gap syntax once, as a single function that recognizes one token at a byte offset, and both answers are derived from it; see [Adding Language Support via the Plugin Path](../guide-plugin-language.md) for how to write one. Markdown and HTML take a different path entirely, selecting prose nodes with a tree-sitter query and no gap analysis at all.
 
 - **Markdown / HTML** — Uses tree-sitter query patterns to select prose nodes: paragraphs, headings and table cells in Markdown, text nodes in HTML. Fenced code blocks, front matter and `<script>`/`<style>` bodies are skipped. A Markdown block is handed to the checker whole, so inline code spans and link URLs are skipped by the engine's own Markdown parser rather than at extraction.
 - **LaTeX** — Tree-walks the AST collecting `word` nodes from `\begin{document}` onward. Skips preamble, math environments, verbatim/minted/algorithm blocks, and structural commands (`\ref`, `\label`, `\includegraphics`, etc.). The delimiter-delimited argument of `\verb|...|`, `\verb*|...|`, `\lstinline!...!` and `\mintinline{lang}|...|` is excluded too, although the grammar leaves it outside the command node. Display math (`\[...\]`) bridges into surrounding prose as an exclusion zone.
