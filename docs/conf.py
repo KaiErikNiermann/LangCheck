@@ -64,8 +64,22 @@ languages = [
 # Languages with enough translations to deploy (add codes as translations land)
 supported_languages = {"en"}
 
+# Project links shown in the sidebar brand row (see _templates/sidebar/brand.html)
+marketplace_url = (
+    "https://marketplace.visualstudio.com/items?itemName=KaiErikNiermann.language-check"
+)
+openvsx_url = "https://open-vsx.org/extension/KaiErikNiermann/language-check"
+crates_url = "https://crates.io/crates/lang-check"
+repo_url = "https://github.com/KaiErikNiermann/LangCheck"
+release_url = f"{repo_url}/releases/tag/v{release}"
+
 # Context for templates
 html_context = {
+    "release_url": release_url,
+    "marketplace_url": marketplace_url,
+    "crates_url": crates_url,
+    "repo_url": repo_url,
+    "openvsx_url": openvsx_url,
     "languages": languages,
     "current_language": language,
     "supported_languages": supported_languages,

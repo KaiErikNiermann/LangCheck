@@ -203,3 +203,104 @@ dl dd {
     opacity: 0.7;
     margin-top: 1.5em;
 }
+
+/* ── Sidebar brand (name + release/marketplace row) ──────────── */
+
+body {
+    --lc-brand-gap:          0.4rem;
+    --lc-brand-pad-block:    0.75rem;
+    --lc-meta-gap:           0.5rem;
+    --lc-meta-icon-size:     1rem;
+    --lc-dot-size:           3px;
+    --lc-dot-opacity:        0.4;
+    --lc-version-font-size:  0.7rem;
+    --lc-version-pad-inline: 0.38rem;
+    --lc-version-pad-block:  0.05rem;
+    --lc-version-radius:     4px;
+    --lc-version-text:       var(--color-brand-primary);
+    --lc-version-background: color-mix(in srgb, var(--color-brand-primary) 12%, transparent);
+    --lc-version-border:     color-mix(in srgb, var(--color-brand-primary) 32%, transparent);
+    --lc-version-background--hover: color-mix(in srgb, var(--color-brand-primary) 22%, transparent);
+    --lc-version-border--hover:     color-mix(in srgb, var(--color-brand-primary) 55%, transparent);
+    --lc-link-idle:          var(--color-foreground-secondary);
+    --lc-link-hover:         var(--color-brand-primary);
+}
+
+/* Furo stacks the brand in a column, so the anchor owns the separation between
+   its parts and the name gives up its own margin. The meta row lives outside
+   that anchor — it holds links of its own, and anchors cannot nest. */
+.sidebar-brand {
+    align-items: flex-start;
+    gap: var(--lc-brand-gap);
+    padding-block: var(--lc-brand-pad-block) 0;
+}
+
+.sidebar-brand-text {
+    margin-block: 0;
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+}
+
+.sidebar-brand-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lc-meta-gap);
+    padding-inline: var(--sidebar-item-spacing-horizontal);
+    padding-block: var(--lc-brand-gap) var(--lc-brand-pad-block);
+}
+
+.sidebar-brand-version {
+    display: inline-block;
+    text-decoration: none;
+    transition: background 120ms ease-in-out, border-color 120ms ease-in-out;
+    padding-inline: var(--lc-version-pad-inline);
+    padding-block: var(--lc-version-pad-block);
+    border: 1px solid var(--lc-version-border);
+    border-radius: var(--lc-version-radius);
+    background: var(--lc-version-background);
+    color: var(--lc-version-text);
+    font-family: var(--font-stack--monospace);
+    font-size: var(--lc-version-font-size);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.6;
+}
+
+.sidebar-brand-version:hover,
+.sidebar-brand-version:focus-visible {
+    background: var(--lc-version-background--hover);
+    border-color: var(--lc-version-border--hover);
+}
+
+.sidebar-brand-dot {
+    inline-size: var(--lc-dot-size);
+    block-size: var(--lc-dot-size);
+    border-radius: 50%;
+    background: var(--color-foreground-secondary);
+    opacity: var(--lc-dot-opacity);
+}
+
+.sidebar-brand-link {
+    display: inline-flex;
+    color: var(--lc-link-idle);
+    text-decoration: none;
+    transition: color 120ms ease-in-out;
+}
+
+.sidebar-brand-link:hover,
+.sidebar-brand-link:focus-visible {
+    color: var(--lc-link-hover);
+}
+
+.sidebar-brand-icon {
+    inline-size: var(--lc-meta-icon-size);
+    block-size: var(--lc-meta-icon-size);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sidebar-brand-link,
+    .sidebar-brand-version {
+        transition: none;
+    }
+}
