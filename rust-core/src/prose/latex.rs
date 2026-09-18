@@ -187,24 +187,26 @@ fn find_document_body_start(root: Node, text: &str) -> usize {
 ///
 /// The `in_structural` flag propagates through the tree so that `word` nodes
 /// nested inside structural parents (at any depth) are skipped.
-/// Commands whose argument is delimited by a character chosen at the call site
-/// (`\verb|x|`, `\lstinline!x!`) instead of by braces.
+/// Whether `name` is a command whose argument is delimited by a character
+/// chosen at the call site (`\verb|x|`, `\lstinline!x!`) instead of by braces.
 ///
 /// The grammar does not model that argument, so it arrives as an ordinary
 /// `word` node next to the command and has to be cut out by byte offset.
-const VERBATIM_DELIMITED: &[&str] = &["verb", "lstinline", "mintinline"];
+fn is_verbatim_delimited(name: &str) -> bool {
+    matches!(name, "verb" | "lstinline" | "mintinline")
+}
 
-/// End of the delimiter-delimited argument starting at `i`, just past a
-/// `\verb`-style command name.
+/// End of the delimiter-delimited argument starting at `i`.
+///
+/// `i` is the byte just past the command name *and past a starred variant's
+/// star* — every caller consumes the star before asking, because a non-verbatim
+/// command has to consume it either way.
 ///
 /// The first character is the delimiter and the argument runs to its next
 /// occurrence; `\mintinline{rust}|x|` takes a brace group before it. Returns
 /// the byte just past the closing delimiter, or `None` when what follows is not
 /// a delimited argument after all.
 fn verbatim_argument_end(bytes: &[u8], mut i: usize) -> Option<usize> {
-    if bytes.get(i) == Some(&b'*') {
-        i += 1;
-    }
     if bytes.get(i) == Some(&b'{') {
         i = shared::skip_balanced_bytes(bytes, i + 1, b'{', b'}', Some(b'\\'));
     }
@@ -223,7 +225,7 @@ fn verbatim_command_end(node: Node, text: &str) -> Option<usize> {
     let name_node = shared::child_of_kind(node, "command_name")?;
     let raw = &text[name_node.byte_range()];
     let name = raw.strip_prefix('\\').unwrap_or(raw).trim_end_matches('*');
-    if !VERBATIM_DELIMITED.contains(&name) {
+    if !is_verbatim_delimited(name) {
         return None;
     }
     verbatim_argument_end(text.as_bytes(), name_node.end_byte())
@@ -405,47 +407,56 @@ fn skip_inline_paren_math_exclusion(
 
 fn collect_gap_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize, usize)>) {
     let bytes = gap.as_bytes();
-    let len = bytes.len();
     let mut i = 0;
 
-    while i < len {
-        if bytes[i] == b'$' {
-            i = skip_inline_math_exclusion(bytes, i, gap_offset, out);
-        } else if i + 1 < len && bytes[i] == b'\\' && bytes[i + 1] == b'[' {
-            i = skip_display_math_exclusion(bytes, i, gap_offset, out);
-        } else if i + 1 < len && bytes[i] == b'\\' && bytes[i + 1] == b'(' {
-            i = skip_inline_paren_math_exclusion(bytes, i, gap_offset, out);
-        } else if i + 1 < len && bytes[i] == b'\\' && bytes[i + 1].is_ascii_alphabetic() {
-            // command: \name[...]{...}
-            let start = i;
-            i += 1;
-            while i < len && bytes[i].is_ascii_alphabetic() {
-                i += 1;
+    while i < bytes.len() {
+        // Every arm yields the next index, so no arm can forget to advance.
+        i = match bytes[i..] {
+            [b'$', ..] => skip_inline_math_exclusion(bytes, i, gap_offset, out),
+            [b'\\', b'[', ..] => skip_display_math_exclusion(bytes, i, gap_offset, out),
+            [b'\\', b'(', ..] => skip_inline_paren_math_exclusion(bytes, i, gap_offset, out),
+            // A command with its arguments: `\name*[...]{...}`, or `\verb|...|`.
+            [b'\\', first, ..] if first.is_ascii_alphabetic() => {
+                let end = command_end(gap, i);
+                out.push((gap_offset + i, gap_offset + end));
+                end
             }
-            let name = gap[start + 1..i].trim_end_matches('*');
-            if VERBATIM_DELIMITED.contains(&name)
-                && let Some(end) = verbatim_argument_end(bytes, i)
-            {
-                i = end;
-            } else {
-                if i < len && bytes[i] == b'*' {
-                    i += 1;
-                }
-                i = shared::skip_command_args_bytes(bytes, i, &[(b'{', b'}'), (b'[', b']')]);
+            // An escape sequence: `\\`, `\,`, `\;` … A lone trailing `\` has no
+            // second byte, so it falls to the catch-all instead, as before.
+            [b'\\', _, ..] => {
+                out.push((gap_offset + i, gap_offset + i + 2));
+                i + 2
             }
-            out.push((gap_offset + start, gap_offset + i));
-        } else if i + 1 < len && bytes[i] == b'\\' {
-            // escape sequence: \\ , \, , \; , etc.
-            out.push((gap_offset + i, gap_offset + i + 2));
-            i += 2;
-        } else if bytes[i] == b'{' || bytes[i] == b'}' {
-            // bare braces
-            out.push((gap_offset + i, gap_offset + i + 1));
-            i += 1;
-        } else {
-            i += 1;
-        }
+            // A bare brace.
+            [b'{' | b'}', ..] => {
+                out.push((gap_offset + i, gap_offset + i + 1));
+                i + 1
+            }
+            _ => i + 1,
+        };
     }
+}
+
+/// End of the command starting at `start` (its `\`), arguments included.
+fn command_end(gap: &str, start: usize) -> usize {
+    let bytes = gap.as_bytes();
+    let mut i = start + 1;
+    while i < bytes.len() && bytes[i].is_ascii_alphabetic() {
+        i += 1;
+    }
+    // The name is the alphabetic run, so a starred variant's star belongs to
+    // neither the name nor the arguments — consume it before either is read.
+    let name = &gap[start + 1..i];
+    if bytes.get(i) == Some(&b'*') {
+        i += 1;
+    }
+
+    if is_verbatim_delimited(name)
+        && let Some(end) = verbatim_argument_end(bytes, i)
+    {
+        return end;
+    }
+    shared::skip_command_args_bytes(bytes, i, &[(b'{', b'}'), (b'[', b']')])
 }
 
 /// Strip LaTeX noise from a gap string: math (`$...$`, `\(...\)`, `\[...\]`)
@@ -458,86 +469,112 @@ fn strip_latex_noise(gap: &str) -> String {
     let chars: Vec<char> = gap.chars().collect();
     let mut i = 0;
     while i < chars.len() {
-        if chars[i] == '$' {
-            i += 1;
-            while i < chars.len() && chars[i] != '$' {
-                i += 1;
+        // Every arm yields the next index, so no arm can forget to advance.
+        i = match chars[i..] {
+            // Inline math: $...$
+            ['$', ..] => {
+                result.push(' ');
+                shared::scan_past(&chars, i + 1, '$')
             }
-            i += 1;
-            result.push(' ');
-        } else if chars[i] == '\\'
-            && i + 1 < chars.len()
-            && (chars[i + 1] == '[' || chars[i + 1] == '(')
-        {
-            // Replace math with a space to avoid creating false paragraph
-            // breaks (display math between newlines: \n\[...\]\n → \n \n).
-            // Display math content is excluded via ProseRange.exclusions.
-            let close = if chars[i + 1] == '[' { ']' } else { ')' };
-            i += 2;
-            while i + 1 < chars.len() && !(chars[i] == '\\' && chars[i + 1] == close) {
-                i += 1;
+            // Display math: \[...\] and \(...\). Replaced with a space to avoid
+            // creating false paragraph breaks (display math between newlines:
+            // \n\[...\]\n -> \n \n). The content is excluded via
+            // ProseRange.exclusions.
+            ['\\', '[', ..] => {
+                result.push(' ');
+                display_math_end(&chars, i + 2, ']')
             }
-            if i + 1 < chars.len() {
-                i += 2;
+            ['\\', '(', ..] => {
+                result.push(' ');
+                display_math_end(&chars, i + 2, ')')
             }
-            result.push(' ');
-        } else if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1].is_ascii_alphabetic() {
-            let cmd_start = i + 1;
-            let mut j = cmd_start;
-            while j < chars.len() && chars[j].is_ascii_alphabetic() {
-                j += 1;
+            ['\\', first, ..] if first.is_ascii_alphabetic() => {
+                command_noise_end(&chars, i, &mut result)
             }
-            let cmd: String = chars[cmd_start..j].iter().collect();
-
-            // Block/layout commands should NOT be bridged — leave them to
-            // fail validation so adjacent ranges stay separate.
-            if matches!(
-                cmd.as_str(),
-                "begin"
-                    | "end"
-                    | "item"
-                    | "par"
-                    | "section"
-                    | "subsection"
-                    | "subsubsection"
-                    | "paragraph"
-                    | "chapter"
-                    | "part"
-                    | "hfill"
-                    | "vfill"
-                    | "newline"
-                    | "linebreak"
-                    | "noindent"
-            ) {
+            // Escape: \X, or a lone trailing backslash.
+            ['\\', ..] => (i + 2).min(chars.len()),
+            _ => {
                 result.push(chars[i]);
-                i += 1;
-                continue;
+                i + 1
             }
-
-            i = j;
-            if VERBATIM_DELIMITED.contains(&cmd.as_str()) {
-                let rest: String = chars[i..].iter().collect();
-                if let Some(end) = verbatim_argument_end(rest.as_bytes(), 0) {
-                    i += rest[..end].chars().count();
-                    result.push(' ');
-                    continue;
-                }
-            }
-            if i < chars.len() && chars[i] == '*' {
-                i += 1;
-            }
-            i = shared::skip_command_args_chars(&chars, i, &[('{', '}'), ('[', ']')]);
-        } else if chars[i] == '\\' {
-            i += 1;
-            if i < chars.len() {
-                i += 1;
-            }
-        } else {
-            result.push(chars[i]);
-            i += 1;
-        }
+        };
     }
     result
+}
+
+/// Whether a command is block-level layout rather than inline markup.
+///
+/// These must NOT be bridged: leaving the `\` in the stripped gap fails the
+/// bridge check, which is what keeps the ranges on either side separate.
+fn is_block_command(name: &str) -> bool {
+    matches!(
+        name,
+        "begin"
+            | "end"
+            | "item"
+            | "par"
+            | "section"
+            | "subsection"
+            | "subsubsection"
+            | "paragraph"
+            | "chapter"
+            | "part"
+            | "hfill"
+            | "vfill"
+            | "newline"
+            | "linebreak"
+            | "noindent"
+    )
+}
+
+/// End of a `\[…\]` / `\(…\)` run: just past the closing `\]` or `\)`.
+///
+/// An unclosed run stops one character short of the end, leaving that last
+/// character to be read as ordinary text on the next pass — so an unterminated
+/// `\[` cannot swallow the tail of the gap.
+fn display_math_end(chars: &[char], start: usize, close: char) -> usize {
+    chars[start..]
+        .windows(2)
+        .position(|pair| pair == ['\\', close])
+        .map_or_else(
+            || chars.len().saturating_sub(1).max(start),
+            |at| start + at + 2,
+        )
+}
+
+/// End of the command starting at `start` (its `\`), writing its replacement
+/// into `result`.
+fn command_noise_end(chars: &[char], start: usize, result: &mut String) -> usize {
+    let name_end = shared::run_end(chars, start + 1, |c| c.is_ascii_alphabetic());
+    let name: String = chars[start + 1..name_end].iter().collect();
+
+    if is_block_command(&name) {
+        result.push(chars[start]);
+        return start + 1;
+    }
+
+    // As in `command_end`: the star belongs to neither the name nor the
+    // arguments, so it goes before either is read.
+    let mut after = name_end;
+    if chars.get(after) == Some(&'*') {
+        after += 1;
+    }
+
+    if is_verbatim_delimited(&name)
+        && let Some(end) = verbatim_argument_end_chars(chars, after)
+    {
+        result.push(' ');
+        return end;
+    }
+    shared::skip_command_args_chars(chars, after, &[('{', '}'), ('[', ']')])
+}
+
+/// [`verbatim_argument_end`] in char indices, for the scanners that work on
+/// `&[char]` because the text around them can be non-ASCII.
+fn verbatim_argument_end_chars(chars: &[char], start: usize) -> Option<usize> {
+    let rest: String = chars[start..].iter().collect();
+    let end = verbatim_argument_end(rest.as_bytes(), 0)?;
+    Some(start + rest[..end].chars().count())
 }
 
 #[cfg(test)]
