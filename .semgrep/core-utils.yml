@@ -50,13 +50,13 @@ rules:
     languages: [rust]
     severity: INFO
     message: >-
-      `prose::shared` owns delimiter scanning — `skip_balanced_bytes` / `skip_balanced_chars`
-      (with escape handling) and `skip_command_args_bytes` / `skip_command_args_chars`. Hand-rolled
-      depth counting drifts from them on escapes and on nesting.
+      `prose::shared` owns delimiter scanning — `skip_balanced_bytes` (escape-aware) and
+      `skip_command_args_bytes`, plus `run_end` and `close_at` for the simpler runs.
+      Hand-rolled depth counting drifts from them on escapes and on nesting.
       FORWARD GUARD, not a backlog: the tree currently has zero hand-rolled copies, which is why
       this is INFO. It exists because adoption is uneven — forester.rs uses `shared::` 13 times
-      while org.rs, rst.rs, typst.rs and sweave.rs use it zero times, so the next extractor is
-      where a private copy would appear.
+      and latex.rs and tinylang.rs 7 each, while typst.rs uses it zero times and org.rs and
+      rst.rs once, so the next extractor is where a private copy would appear.
     paths:
       include:
         - "**/rust-core/src/prose/"
@@ -161,8 +161,8 @@ rules:
       The gap scanners in latex.rs, bibtex.rs, forester.rs, tinylang.rs and sweave.rs were all
       written this way; run against the revision before they were converted this rule reports
       20 findings across the five files, which is the answer it must keep finding if the shape
-      comes back. `shared::run_end` and `shared::scan_past` cover the character-run and
-      scan-to-terminator cases that are left.
+      comes back. `shared::run_end` and `shared::close_at` cover the character-run and
+      scan-to-closing-delimiter cases that are left.
     paths:
       exclude:
         # `skip_balanced_*` are const fns, where a slice pattern with a guard does not compile.
