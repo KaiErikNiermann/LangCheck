@@ -9,6 +9,18 @@ use tracing::warn;
 
 use crate::text_util::{safe_prefix, safe_slice, safe_suffix};
 
+/// Stable-within-a-run hash of a file's contents.
+///
+/// Used to decide whether a cached parse or a stored diagnostic set is still
+/// valid. `DefaultHasher` is not stable across Rust releases, so this is a
+/// same-process comparison only, never a value to persist and compare later.
+#[must_use]
+pub fn content_hash(content: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    content.hash(&mut hasher);
+    hasher.finish()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiagnosticFingerprint {
     pub message_hash: u64,

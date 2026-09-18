@@ -1,5 +1,3 @@
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 
@@ -37,7 +35,7 @@ impl ParseCache {
     /// cached or the content has changed since the last parse.
     #[must_use]
     pub fn get(&mut self, path: &Path, content: &str) -> Option<Vec<ProseRange>> {
-        let hash = Self::hash_content(content);
+        let hash = crate::hashing::content_hash(content);
         self.cache
             .get(path)
             .filter(|entry| entry.content_hash == hash)
@@ -47,7 +45,7 @@ impl ParseCache {
     /// Insert (or update) a cache entry for the given file.
     pub fn put(&mut self, path: PathBuf, content: &str, prose_ranges: Vec<ProseRange>) {
         let entry = ParseCacheEntry {
-            content_hash: Self::hash_content(content),
+            content_hash: crate::hashing::content_hash(content),
             prose_ranges,
         };
         self.cache.put(path, entry);
@@ -73,12 +71,6 @@ impl ParseCache {
     /// Clear all entries.
     pub fn clear(&mut self) {
         self.cache.clear();
-    }
-
-    fn hash_content(content: &str) -> u64 {
-        let mut hasher = DefaultHasher::new();
-        content.hash(&mut hasher);
-        hasher.finish()
     }
 }
 

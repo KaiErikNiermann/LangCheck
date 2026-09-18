@@ -59,7 +59,7 @@ impl WorkspaceIndex {
     /// Returns true if unchanged (cache hit), false if changed or new.
     #[must_use]
     pub fn is_file_unchanged(&self, file_path: &str, content: &str) -> bool {
-        let new_hash = Self::hash_content(content);
+        let new_hash = crate::hashing::content_hash(content);
         let Ok(read_txn) = self.db.begin_read() else {
             return false;
         };
@@ -75,7 +75,7 @@ impl WorkspaceIndex {
 
     /// Store the content hash for a file after indexing.
     pub fn update_file_hash(&self, file_path: &str, content: &str) -> Result<()> {
-        let hash = Self::hash_content(content);
+        let hash = crate::hashing::content_hash(content);
         let write_txn = self.db.begin_write()?;
         {
             let mut table = write_txn.open_table(FILE_HASHES_TABLE)?;
@@ -83,12 +83,6 @@ impl WorkspaceIndex {
         }
         write_txn.commit()?;
         Ok(())
-    }
-
-    fn hash_content(content: &str) -> u64 {
-        let mut hasher = DefaultHasher::new();
-        content.hash(&mut hasher);
-        hasher.finish()
     }
 
     pub fn update_diagnostics(&self, file_path: &str, diagnostics: &[Diagnostic]) -> Result<()> {
@@ -156,7 +150,12 @@ fn default_db_path(workspace_root: &Path) -> Result<PathBuf> {
         .canonicalize()
         .unwrap_or_else(|_| workspace_root.to_path_buf());
 
-    let mut hasher = DefaultHasher::new();
+    let mut hasher = DefaultHasher::new(); // nosemgrep: use-content-hash — hashes a PATH
+    // into a database filename, not a file's contents
+    // into a cache key, and the result is written to
+    // disk. `hashing::content_hash` is documented as
+    // same-process only, so pointing this at it would
+    // make the two uses look interchangeable.
     canonical.to_string_lossy().hash(&mut hasher);
     let hash = hasher.finish();
 
