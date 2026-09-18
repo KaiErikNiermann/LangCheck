@@ -72,6 +72,7 @@ serde = { version = "1.0", features = ["derive"] }
 tree-sitter-md = { version = "0.5", default-features = false }
 tree-sitter-html = "0.23"
 divan = "0.1"
+rand = { version = "0.9", features = ["small_rng"] }
 
 [[bench]]
 name = "benchmarks"
