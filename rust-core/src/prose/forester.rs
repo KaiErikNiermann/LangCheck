@@ -496,7 +496,7 @@ mod tests {
     use anyhow::Result;
 
     fn forester_extractor() -> Result<ProseExtractor> {
-        let language: tree_sitter::Language = crate::forester_ts::LANGUAGE.into();
+        let language: tree_sitter::Language = crate::grammars::FORESTER.into();
         ProseExtractor::new(language)
     }
 
@@ -1373,7 +1373,7 @@ which completes the proof.}}";
 
     /// Helper: parse `source` with tree-sitter and assert no ERROR or MISSING nodes.
     fn assert_no_errors(source: &str) {
-        let language: tree_sitter::Language = crate::forester_ts::LANGUAGE.into();
+        let language: tree_sitter::Language = crate::grammars::FORESTER.into();
         let mut parser = tree_sitter::Parser::new();
         parser.set_language(&language).unwrap();
         let tree = parser.parse(source, None).unwrap();

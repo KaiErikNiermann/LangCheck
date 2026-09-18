@@ -168,12 +168,12 @@ pub fn resolve_ts_language(lang: &str) -> tree_sitter::Language {
     match lang {
         "html" => tree_sitter_html::LANGUAGE.into(),
         "latex" | "sweave" => codebook_tree_sitter_latex::LANGUAGE.into(),
-        "forester" => crate::forester_ts::LANGUAGE.into(),
-        "tinylang" => crate::tinylang_ts::LANGUAGE.into(),
+        "forester" => crate::grammars::FORESTER.into(),
+        "tinylang" => crate::grammars::TINYLANG.into(),
         "rst" => tree_sitter_rst::LANGUAGE.into(),
-        "bibtex" => crate::bibtex_ts::LANGUAGE.into(),
-        "org" => crate::org_ts::LANGUAGE.into(),
-        "typst" => crate::typst_ts::LANGUAGE.into(),
+        "bibtex" => crate::grammars::BIBTEX.into(),
+        "org" => crate::grammars::ORG.into(),
+        "typst" => crate::grammars::TYPST.into(),
         _ => tree_sitter_md::LANGUAGE.into(),
     }
 }

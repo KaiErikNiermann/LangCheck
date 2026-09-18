@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_tinylang_basic_extraction() -> Result<()> {
-        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let language: tree_sitter::Language = crate::grammars::TINYLANG.into();
         let mut extractor = ProseExtractor::new(language)?;
         let text = "This is a simple sentence.\n";
         let ranges = extractor.extract(text, "tinylang", &LatexExtras::default())?;
@@ -211,7 +211,7 @@ mod tests {
 
     #[test]
     fn test_tinylang_code_excluded() -> Result<()> {
-        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let language: tree_sitter::Language = crate::grammars::TINYLANG.into();
         let mut extractor = ProseExtractor::new(language)?;
         let text = "Before code.\n\n~~~\nfn main() {}\n~~~\n\nAfter code.\n";
         let ranges = extractor.extract(text, "tinylang", &LatexExtras::default())?;
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn test_tinylang_structural_commands_excluded() -> Result<()> {
-        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let language: tree_sitter::Language = crate::grammars::TINYLANG.into();
         let mut extractor = ProseExtractor::new(language)?;
         let text = "@author{Jane Doe}\n@date{2025-01-01}\n\nSome prose text here.\n";
         let ranges = extractor.extract(text, "tinylang", &LatexExtras::default())?;
@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_tinylang_math_excluded() -> Result<()> {
-        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let language: tree_sitter::Language = crate::grammars::TINYLANG.into();
         let mut extractor = ProseExtractor::new(language)?;
         let text = "The formula $E = mc^2$ is famous.\n";
         let ranges = extractor.extract(text, "tinylang", &LatexExtras::default())?;
@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_tinylang_comment_excluded() -> Result<()> {
-        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let language: tree_sitter::Language = crate::grammars::TINYLANG.into();
         let mut extractor = ProseExtractor::new(language)?;
         let text = "Visible text.\n// This is a comment\nMore text.\n";
         let ranges = extractor.extract(text, "tinylang", &LatexExtras::default())?;
@@ -286,7 +286,7 @@ mod tests {
 
     #[test]
     fn test_tinylang_prose_command_included() -> Result<()> {
-        let language: tree_sitter::Language = crate::tinylang_ts::LANGUAGE.into();
+        let language: tree_sitter::Language = crate::grammars::TINYLANG.into();
         let mut extractor = ProseExtractor::new(language)?;
         let text = "@title{My Great Document}\n\nSome text.\n";
         let ranges = extractor.extract(text, "tinylang", &LatexExtras::default())?;

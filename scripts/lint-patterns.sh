@@ -52,8 +52,9 @@ unknown=0
 # checked against the real code, not waved away — the point of writing the reason down is that a
 # future reader can re-open the decision instead of re-deriving it.
 #
-#   unsafe-usage (7)     — 5 are `LanguageFn::from_raw(tree_sitter_*)` grammar bindings, which have
-#       no safe form; the tree-sitter C ABI is why the crate exists. The other 2 are
+#   unsafe-usage (7)     — 5 are `LanguageFn::from_raw(tree_sitter_*)` grammar bindings, all now
+#       expanded from the `vendored_grammars!` macro in `grammars.rs`; they have no safe form,
+#       the tree-sitter C ABI is why the crate exists. The other 2 are
 #       `prose/mod.rs` and `prose/sweave.rs` calling `str::as_bytes_mut` to blank exclusion ranges,
 #       each carrying a SAFETY comment stating the invariant (whole char-aligned ranges overwritten
 #       with ASCII 0x20, so UTF-8 validity is preserved).

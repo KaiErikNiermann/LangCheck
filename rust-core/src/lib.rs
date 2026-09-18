@@ -10,7 +10,6 @@ pub mod checker {
     include!(concat!(env!("OUT_DIR"), "/languagecheck.rs"));
 }
 
-pub mod bibtex_ts;
 pub mod cache;
 pub mod config;
 pub mod detection;
@@ -18,8 +17,8 @@ pub mod dictionary;
 pub mod document;
 pub mod engines;
 pub mod feedback;
-pub mod forester_ts;
 pub mod fs_util;
+pub mod grammars;
 pub mod hashing;
 pub mod ignore_rules;
 pub mod insights;
@@ -28,7 +27,6 @@ pub mod lsp;
 pub mod morphology;
 pub mod names;
 pub mod orchestrator;
-pub mod org_ts;
 pub mod prose;
 pub mod rules;
 pub mod scoping;
@@ -36,6 +34,4 @@ pub mod sls;
 pub mod style_rules;
 pub mod suppression;
 pub mod text_util;
-pub mod tinylang_ts;
-pub mod typst_ts;
 pub mod workspace;

@@ -25,7 +25,7 @@ fn extract_texts<'a>(
 /// Real-world math-heavy Forester document (modeled on actual lecture notes).
 #[test]
 fn forester_math_definition_document() -> Result<()> {
-    let lang: tree_sitter::Language = lang_check::forester_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::grammars::FORESTER.into();
     let mut ex = ProseExtractor::new(lang)?;
 
     let text = r"\date{2025-11-22}
@@ -102,7 +102,7 @@ fn forester_math_definition_document() -> Result<()> {
 /// Forester document with nested subtrees and list items.
 #[test]
 fn forester_nested_structure_with_lists() -> Result<()> {
-    let lang: tree_sitter::Language = lang_check::forester_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::grammars::FORESTER.into();
     let mut ex = ProseExtractor::new(lang)?;
 
     let text = r"\title{Operating Systems Concepts}
@@ -155,7 +155,7 @@ fn forester_nested_structure_with_lists() -> Result<()> {
 /// Forester with unknown macros, tex blocks, and verbatim.
 #[test]
 fn forester_macros_and_code_excluded() -> Result<()> {
-    let lang: tree_sitter::Language = lang_check::forester_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::grammars::FORESTER.into();
     let mut ex = ProseExtractor::new(lang)?;
 
     let text = r"\title{Quiz Solution}
@@ -321,7 +321,7 @@ fn latex_nested_environments() -> Result<()> {
 /// BibTeX with varied entry types and LaTeX markup in titles.
 #[test]
 fn bibtex_mixed_entries() -> Result<()> {
-    let lang: tree_sitter::Language = lang_check::bibtex_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::grammars::BIBTEX.into();
     let mut ex = ProseExtractor::new(lang)?;
 
     let text = r#"@article{knuth1984,
@@ -399,7 +399,7 @@ fn bibtex_mixed_entries() -> Result<()> {
 /// Org document with mixed content: headings, code, drawers, tables.
 #[test]
 fn org_mixed_content() -> Result<()> {
-    let lang: tree_sitter::Language = lang_check::org_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::grammars::ORG.into();
     let mut ex = ProseExtractor::new(lang)?;
 
     let text = "* Introduction
@@ -672,7 +672,7 @@ The tool works with the following formats:
 /// Typst document with headings, emphasis, lists, code, and math.
 #[test]
 fn typst_mixed_document() -> Result<()> {
-    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::grammars::TYPST.into();
     let mut ex = ProseExtractor::new(lang)?;
 
     let text = "\
@@ -801,7 +801,7 @@ See @conclusion for the final remarks.
 /// brackets must be checked while the call and its arguments stay out.
 #[test]
 fn typst_content_blocks_in_calls() -> Result<()> {
-    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::grammars::TYPST.into();
     let mut ex = ProseExtractor::new(lang)?;
 
     let text = "\
@@ -871,7 +871,7 @@ fn typst_content_blocks_in_calls() -> Result<()> {
 /// Typst with Unicode, CJK, and nested markup.
 #[test]
 fn typst_unicode_and_nested_markup() -> Result<()> {
-    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::grammars::TYPST.into();
     let mut ex = ProseExtractor::new(lang)?;
 
     let text = "\

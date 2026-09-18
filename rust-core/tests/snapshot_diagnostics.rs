@@ -365,7 +365,7 @@ fn insights_single_word() {
 
 #[test]
 fn prose_extraction_typst_basic() {
-    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::grammars::TYPST.into();
     let mut ext = ProseExtractor::new(lang).unwrap();
     let text = "\
 = Introduction
@@ -386,7 +386,7 @@ Another paragraph here.
 
 #[test]
 fn prose_extraction_typst_code_excluded() {
-    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::grammars::TYPST.into();
     let mut ext = ProseExtractor::new(lang).unwrap();
     let text = "\
 Some prose before code.
@@ -409,7 +409,7 @@ Use the `println` macro here.
 
 #[test]
 fn prose_extraction_typst_math_excluded() {
-    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::grammars::TYPST.into();
     let mut ext = ProseExtractor::new(lang).unwrap();
     let text = "\
 The formula $E = m c^2$ is famous.
@@ -428,7 +428,7 @@ After display math.
 
 #[test]
 fn prose_extraction_typst_mixed_content() {
-    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::grammars::TYPST.into();
     let mut ext = ProseExtractor::new(lang).unwrap();
     let text = "\
 #import \"template.typ\": *
@@ -466,7 +466,7 @@ See @conclusion for details.
 
 #[test]
 fn prose_extraction_typst_empty() {
-    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::grammars::TYPST.into();
     let mut ext = ProseExtractor::new(lang).unwrap();
     let ranges = ext.extract("", "typst", &LatexExtras::default()).unwrap();
     let extracted: Vec<&str> = ranges
@@ -478,7 +478,7 @@ fn prose_extraction_typst_empty() {
 
 #[test]
 fn prose_extraction_typst_code_only() {
-    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let lang: tree_sitter::Language = lang_check::grammars::TYPST.into();
     let mut ext = ProseExtractor::new(lang).unwrap();
     let text = "#set text(size: 12pt)\n#show heading: set text(blue)\n#let x = 1\n";
     let ranges = ext.extract(text, "typst", &LatexExtras::default()).unwrap();

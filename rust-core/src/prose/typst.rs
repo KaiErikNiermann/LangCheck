@@ -147,7 +147,7 @@ mod tests {
     use anyhow::Result;
 
     fn typst_extractor() -> Result<ProseExtractor> {
-        let language: tree_sitter::Language = crate::typst_ts::LANGUAGE.into();
+        let language: tree_sitter::Language = crate::grammars::TYPST.into();
         ProseExtractor::new(language)
     }
 

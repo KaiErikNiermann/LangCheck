@@ -128,7 +128,7 @@ mod tests {
     use anyhow::Result;
 
     fn org_extractor() -> Result<ProseExtractor> {
-        let language: tree_sitter::Language = crate::org_ts::LANGUAGE.into();
+        let language: tree_sitter::Language = crate::grammars::ORG.into();
         ProseExtractor::new(language)
     }
 
