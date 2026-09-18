@@ -10,6 +10,10 @@
 //! The markers are nonsense words, so a leak cannot be confused with ordinary
 //! vocabulary, and the seed is printed on failure to make a case reproducible.
 //!
+//! Each run also asserts the structural invariant the extractors are supposed
+//! to hold: a range's exclusions are in bounds, sorted, and disjoint. Nothing
+//! downstream states that contract, so it is worth pinning here.
+//!
 //! `ERROR`-free is the syntactic bar the test can enforce without shelling out
 //! to each language's real compiler. The Typst bank was additionally compiled
 //! with `typst` itself while it was written, so its fragments are semantically
@@ -100,6 +104,9 @@ const LATEX: &[Fragment] = &[
     code("% A comment naming %%"),
     code("\\label{sec:%%}"),
     code("A paragraph with \\verb|%%| inline verbatim."),
+    // Two display-math runs separated by one space, in one paragraph: the
+    // shape whose whitespace absorption used to emit overlapping exclusions.
+    code("A line with \\[%%\\] \\[y + 1\\] inside."),
     code("\\begin{figure}\n  \\includegraphics{%%.png}\n\\end{figure}"),
 ];
 
@@ -176,12 +183,42 @@ fn fuzz_language(lang_id: &str, bank: &'static [Fragment], iterations: u64) -> R
             "{lang_id} seed {seed}: composed document does not parse\n{doc}"
         );
 
-        let extracted: String = extractor
-            .extract(&doc, lang_id, &LatexExtras::default())?
+        let ranges = extractor.extract(&doc, lang_id, &LatexExtras::default())?;
+        let extracted: String = ranges
             .iter()
             .map(|range| range.extract_text(&doc).into_owned())
             .collect::<Vec<_>>()
             .join("\n");
+
+        for range in &ranges {
+            assert!(
+                range.start_byte <= range.end_byte && range.end_byte <= doc.len(),
+                "{lang_id} seed {seed}: range {}..{} is out of bounds for a {}-byte document",
+                range.start_byte,
+                range.end_byte,
+                doc.len()
+            );
+            let mut previous_end = range.start_byte;
+            for &(start, end) in &range.exclusions {
+                assert!(
+                    start <= end,
+                    "{lang_id} seed {seed}: exclusion {start}..{end} is inverted\n{doc}"
+                );
+                assert!(
+                    start >= previous_end,
+                    "{lang_id} seed {seed}: exclusion {start}..{end} overlaps or precedes the \
+                     one ending at {previous_end}; exclusions must be sorted and disjoint\n\
+                     --- document ---\n{doc}\n--- exclusions ---\n{:?}",
+                    range.exclusions
+                );
+                assert!(
+                    end <= range.end_byte,
+                    "{lang_id} seed {seed}: exclusion {start}..{end} runs past the range end {}\n{doc}",
+                    range.end_byte
+                );
+                previous_end = end;
+            }
+        }
 
         for (word, is_prose) in markers {
             assert_eq!(
