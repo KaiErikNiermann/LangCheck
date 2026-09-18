@@ -110,6 +110,33 @@ fn is_bridgeable_gap(gap: &str, strip_noise: fn(&str) -> String) -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// Linear scanning utilities
+// ---------------------------------------------------------------------------
+
+/// End of the run of items from `i` that satisfy `matches`.
+///
+/// Every gap scanner walks a command name, a delimiter run or a comment this
+/// way. Written out per site it is a `while` with a bounds check that is easy
+/// to drop; here the bound is stated once. Generic over the item type because
+/// the scanners work on `&[u8]` or `&[char]` depending on whether the markup
+/// they read can be non-ASCII.
+pub fn run_end<T: Copy>(items: &[T], mut i: usize, matches: impl Fn(T) -> bool) -> usize {
+    while i < items.len() && matches(items[i]) {
+        i += 1;
+    }
+    i
+}
+
+/// End of the run from `i` up to and *including* the next `terminator`.
+///
+/// An unterminated run ends at the end of `items`, which is what an unclosed
+/// `$…` or `` `… `` in a gap should do: consume the rest rather than nothing.
+pub fn scan_past<T: Copy + PartialEq>(items: &[T], i: usize, terminator: T) -> usize {
+    let end = run_end(items, i, |item| item != terminator);
+    if end < items.len() { end + 1 } else { end }
+}
+
+// ---------------------------------------------------------------------------
 // Balanced-delimiter utilities
 // ---------------------------------------------------------------------------
 
