@@ -258,9 +258,9 @@ impl ProseRange {
             // edge that is itself whitespace still means a real word separated by
             // space, not a word-fragment fused to skip content.
             let rel = if doc_start >= ee {
-                classify_gap(text, ee, doc_start, byte_before_is_whitespace(text, ee))
+                classify_gap(text, ee, doc_start, byte_before_separates(text, ee))
             } else {
-                classify_gap(text, doc_end, es, byte_at_is_whitespace(text, es))
+                classify_gap(text, doc_end, es, byte_at_separates(text, es))
             };
             best = best.max_severity(rel);
             if best == ExclusionAdjacency::Glued {
@@ -356,18 +356,18 @@ impl ExclusionAdjacency {
 /// a skip: an all-whitespace (non-empty) gap is
 /// [`ExclusionAdjacency::WhitespaceAdjacent`], anything else (a real word lies
 /// between) is [`ExclusionAdjacency::None`]. When the gap is empty the two touch
-/// directly, and `skip_edge_is_whitespace` (the skip's boundary char) decides:
-/// whitespace there means a real word separated by a swallowed space
+/// directly, and `skip_edge_separates` (the skip's boundary char) decides:
+/// a separator there means a real, whole word next to the cut
 /// ([`ExclusionAdjacency::WhitespaceAdjacent`]); otherwise the diagnostic is a
 /// word-fragment fused to skip content ([`ExclusionAdjacency::Glued`]).
 fn classify_gap(
     text: &str,
     lo: usize,
     hi: usize,
-    skip_edge_is_whitespace: bool,
+    skip_edge_separates: bool,
 ) -> ExclusionAdjacency {
     if lo == hi {
-        return if skip_edge_is_whitespace {
+        return if skip_edge_separates {
             ExclusionAdjacency::WhitespaceAdjacent
         } else {
             ExclusionAdjacency::Glued
@@ -379,18 +379,30 @@ fn classify_gap(
     }
 }
 
-/// Whether the character ending at byte `pos` (i.e. just before it) is whitespace.
-fn byte_before_is_whitespace(text: &str, pos: usize) -> bool {
-    text.get(..pos)
-        .and_then(|s| s.chars().next_back())
-        .is_some_and(char::is_whitespace)
+/// Whether a skip's boundary character guarantees the word beside it is whole.
+///
+/// Whitespace does: an exclusion that swallowed a space still leaves a real
+/// word on the other side. A square bracket does too, because it delimits a
+/// group rather than carrying text -- in `#emph[a word]` the exclusion is
+/// `" #emph["` and `a` touches its `[`, but `a` is a complete word, not the
+/// tail of a blanked one. Other characters do not: `$k$th` blanks to `   th`,
+/// where `th` really is a fragment fused to the formula.
+const fn separates_words(c: char) -> bool {
+    c.is_whitespace() || matches!(c, '[' | ']')
 }
 
-/// Whether the character starting at byte `pos` is whitespace.
-fn byte_at_is_whitespace(text: &str, pos: usize) -> bool {
+/// Whether the character ending at byte `pos` (i.e. just before it) separates words.
+fn byte_before_separates(text: &str, pos: usize) -> bool {
+    text.get(..pos)
+        .and_then(|s| s.chars().next_back())
+        .is_some_and(separates_words)
+}
+
+/// Whether the character starting at byte `pos` separates words.
+fn byte_at_separates(text: &str, pos: usize) -> bool {
     text.get(pos..)
         .and_then(|s| s.chars().next())
-        .is_some_and(char::is_whitespace)
+        .is_some_and(separates_words)
 }
 
 /// Whether a unified rule id denotes a spelling diagnostic (e.g. `spelling.typo`).
@@ -828,6 +840,42 @@ mod tests {
         assert!(range.suppresses_diagnostic(text, 7, 10, "typography.capitalization"));
         // ...but a genuine adjacent typo is kept.
         assert!(!range.suppresses_diagnostic(text, 7, 10, "spelling.typo"));
+    }
+
+    #[test]
+    fn test_content_bracket_edge_is_not_glued() {
+        // "a #emph[wrd] b" — the merged exclusion ` #emph[` is [1, 8), so the
+        // word "wrd" starts exactly where it ends. The skip's last char is `[`,
+        // a group delimiter, so "wrd" is a whole word and not a fragment.
+        let text = "a #emph[wrd] b";
+        let range = ProseRange {
+            start_byte: 0,
+            end_byte: text.len(),
+            exclusions: vec![(1, 8), (11, 13)],
+        };
+        assert_eq!(
+            range.exclusion_adjacency(text, 8, 11),
+            ExclusionAdjacency::WhitespaceAdjacent
+        );
+        // First and last word of the content block both keep their typos.
+        assert!(!range.suppresses_diagnostic(text, 8, 11, "spelling.typo"));
+    }
+
+    #[test]
+    fn test_math_delimiter_edge_is_still_glued() {
+        // The bracket exception must not reach `$`: blanking `$k$` out of
+        // "$k$th" leaves "th", which really is a fragment.
+        let text = "$k$th word";
+        let range = ProseRange {
+            start_byte: 0,
+            end_byte: text.len(),
+            exclusions: vec![(0, 3)],
+        };
+        assert_eq!(
+            range.exclusion_adjacency(text, 3, 5),
+            ExclusionAdjacency::Glued
+        );
+        assert!(range.suppresses_diagnostic(text, 3, 5, "spelling.typo"));
     }
 
     #[test]

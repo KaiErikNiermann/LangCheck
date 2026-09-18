@@ -794,6 +794,77 @@ See @conclusion for the final remarks.
     Ok(())
 }
 
+/// Typst document whose body lives inside layout calls (issue #87).
+///
+/// `#columns(2)[...]`, `#align(center)[...]` and `#figure(caption: [...])[...]`
+/// all parse as a `code` node wrapping a `content` block; the prose in those
+/// brackets must be checked while the call and its arguments stay out.
+#[test]
+fn typst_content_blocks_in_calls() -> Result<()> {
+    let lang: tree_sitter::Language = lang_check::typst_ts::LANGUAGE.into();
+    let mut ex = ProseExtractor::new(lang)?;
+
+    let text = "\
+#set page(header: [A running header.])
+
+#columns(2)[
+  The body of a two-column layout.
+]
+
+#align(center)[
+  A centred paragraph.
+]
+
+#figure(
+  image(\"diagram.png\", width: 80%),
+  caption: [The caption of the figure.],
+) <fig:diagram>
+
+#table(
+  columns: 2,
+  [First cell], [Second cell],
+)
+
+#link(\"https://example.com/a-path\")[The link label.]
+
+#box[Prose with `raw_token` inside.]
+";
+
+    let texts = extract_texts(&mut ex, text, "typst")?;
+    let all = texts.join("\n");
+
+    for expected in [
+        "A running header.",
+        "The body of a two-column layout.",
+        "A centred paragraph.",
+        "The caption of the figure.",
+        "First cell",
+        "Second cell",
+        "The link label.",
+        "Prose with",
+    ] {
+        assert!(all.contains(expected), "{expected:?} missing, got: {texts:?}");
+    }
+
+    for unexpected in [
+        "#columns",
+        "#align",
+        "#figure",
+        "diagram.png",
+        "80%",
+        "example.com",
+        "raw_token",
+        "fig:diagram",
+    ] {
+        assert!(
+            !all.contains(unexpected),
+            "{unexpected:?} leaked into prose, got: {texts:?}"
+        );
+    }
+
+    Ok(())
+}
+
 /// Typst with Unicode, CJK, and nested markup.
 #[test]
 fn typst_unicode_and_nested_markup() -> Result<()> {
