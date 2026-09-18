@@ -2,7 +2,13 @@ use tree_sitter::Node;
 
 use super::ProseRange;
 
-/// Node types that contain no prose and should be skipped entirely.
+/// Node types whose own text is never prose.
+///
+/// Skipping one does not skip the content blocks (`[...]`) nested inside it:
+/// `#columns(2)[...]`, `#align(center)[...]` and every other call that wraps
+/// markup parses as a `code` node, and the markup in those brackets is prose.
+/// See [`collect_nested_content`]; the kinds that are opaque all the way down
+/// are listed in [`OPAQUE_NODES`].
 const SKIP_NODES: &[&str] = &[
     "raw_blck",  // ```code blocks```
     "raw_span",  // `inline code`
@@ -21,6 +27,23 @@ const SKIP_NODES: &[&str] = &[
     "linebreak", // \  (trailing backslash)
 ];
 
+/// Skipped node types that hold no prose at any depth.
+///
+/// Unlike the rest of [`SKIP_NODES`], these are not searched for nested
+/// content blocks — a `[...]` inside raw text, a comment or a formula is part
+/// of that construct, not markup to check.
+const OPAQUE_NODES: &[&str] = &[
+    "raw_blck",
+    "raw_span",
+    "math",
+    "comment",
+    "label",
+    "ref",
+    "url",
+    "escape",
+    "linebreak",
+];
+
 /// Extract prose ranges from a Typst AST.
 ///
 /// Collects text from paragraphs, headings, and list items while
@@ -37,6 +60,9 @@ fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>) {
     let kind = node.kind();
 
     if SKIP_NODES.contains(&kind) {
+        if !OPAQUE_NODES.contains(&kind) {
+            collect_nested_content(node, text, out);
+        }
         return;
     }
 
@@ -78,6 +104,25 @@ fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         collect_prose(child, text, out);
+    }
+}
+
+/// Collect prose from content blocks nested inside a skipped code subtree.
+///
+/// A call such as `#figure(caption: [A caption.])[Body text.]` parses as
+/// `code -> call -> (ident, group, content)`, so the prose only becomes
+/// reachable by descending past the skipped `code` node. Everything that is
+/// not a content block — idents, numbers, strings, argument names — stays
+/// skipped, and [`OPAQUE_NODES`] subtrees are not descended into at all.
+fn collect_nested_content(node: Node, text: &str, out: &mut Vec<ProseRange>) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        let kind = child.kind();
+        if kind == "content" {
+            collect_prose(child, text, out);
+        } else if !OPAQUE_NODES.contains(&kind) {
+            collect_nested_content(child, text, out);
+        }
     }
 }
 
@@ -267,11 +312,73 @@ mod tests {
     }
 
     #[test]
-    fn function_call_excluded() -> Result<()> {
-        let text = "Some text #box[content] more text.\n";
+    fn function_call_content_extracted() -> Result<()> {
+        let text = "Some text #box[inner prose] more text.\n";
         let prose = extract_all_prose(text)?;
         assert!(prose.contains("Some text"), "got: {prose:?}");
+        assert!(prose.contains("inner prose"), "got: {prose:?}");
         assert!(prose.contains("more text"), "got: {prose:?}");
+        assert!(!prose.contains("box"), "got: {prose:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn block_call_content_extracted() -> Result<()> {
+        let text = "#columns(2)[\n  This is some text, and it is checked.\n]\n";
+        let prose = extract_all_prose(text)?;
+        assert!(
+            prose.contains("This is some text, and it is checked."),
+            "got: {prose:?}"
+        );
+        assert!(!prose.contains("columns"), "got: {prose:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn nested_call_content_extracted() -> Result<()> {
+        let text = "#align(center)[#emph[Deeply nested prose.]]\n";
+        let prose = extract_all_prose(text)?;
+        assert!(prose.contains("Deeply nested prose."), "got: {prose:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn named_argument_content_extracted() -> Result<()> {
+        let text = "#figure(caption: [A caption sentence.])[Body sentence.]\n";
+        let prose = extract_all_prose(text)?;
+        assert!(prose.contains("A caption sentence."), "got: {prose:?}");
+        assert!(prose.contains("Body sentence."), "got: {prose:?}");
+        assert!(!prose.contains("caption:"), "got: {prose:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn call_arguments_still_excluded() -> Result<()> {
+        let text = "#text(size: 9pt, fill: blue)[Styled prose.]\n";
+        let prose = extract_all_prose(text)?;
+        assert!(prose.contains("Styled prose."), "got: {prose:?}");
+        assert!(!prose.contains("9pt"), "got: {prose:?}");
+        assert!(!prose.contains("blue"), "got: {prose:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn raw_inside_content_excluded() -> Result<()> {
+        let text = "#box[Prose with `code_token` inside.]\n";
+        let prose = extract_all_prose(text)?;
+        assert!(prose.contains("Prose with"), "got: {prose:?}");
+        assert!(prose.contains("inside"), "got: {prose:?}");
+        assert!(!prose.contains("code_token"), "got: {prose:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn content_in_show_rule_extracted() -> Result<()> {
+        let text = "#show: template.with(title: [A rendered title.])\n\nBody prose.\n";
+        let prose = extract_all_prose(text)?;
+        assert!(prose.contains("A rendered title."), "got: {prose:?}");
+        assert!(prose.contains("Body prose."), "got: {prose:?}");
+        assert!(!prose.contains("template"), "got: {prose:?}");
         Ok(())
     }
 
