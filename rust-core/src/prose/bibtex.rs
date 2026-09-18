@@ -102,17 +102,17 @@ fn strip_bibtex_noise(gap: &str) -> String {
     let chars: Vec<char> = gap.chars().collect();
     let mut i = 0;
     while i < chars.len() {
-        if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1].is_ascii_alphabetic() {
-            // Skip \commandname, replace with space
-            i += 1;
-            while i < chars.len() && chars[i].is_ascii_alphabetic() {
-                i += 1;
+        i = match chars[i..] {
+            // `\commandname` — replaced with a space so the gap stays bridgeable.
+            ['\\', first, ..] if first.is_ascii_alphabetic() => {
+                result.push(' ');
+                shared::run_end(&chars, i + 1, |c| c.is_ascii_alphabetic())
             }
-            result.push(' ');
-        } else {
-            result.push(chars[i]);
-            i += 1;
-        }
+            _ => {
+                result.push(chars[i]);
+                i + 1
+            }
+        };
     }
     result
 }
@@ -123,16 +123,14 @@ fn collect_command_exclusions(gap: &str, gap_offset: usize, out: &mut Vec<(usize
     let bytes = gap.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'\\' && i + 1 < bytes.len() && bytes[i + 1].is_ascii_alphabetic() {
-            let start = i;
-            i += 1;
-            while i < bytes.len() && bytes[i].is_ascii_alphabetic() {
-                i += 1;
+        i = match bytes[i..] {
+            [b'\\', first, ..] if first.is_ascii_alphabetic() => {
+                let end = shared::run_end(bytes, i + 1, |b| b.is_ascii_alphabetic());
+                out.push((gap_offset + i, gap_offset + end));
+                end
             }
-            out.push((gap_offset + start, gap_offset + i));
-        } else {
-            i += 1;
-        }
+            _ => i + 1,
+        };
     }
 }
 

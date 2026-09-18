@@ -1,7 +1,7 @@
 use tree_sitter::Node;
 
-use super::ProseRange;
 use super::latex::{self, LatexExtras};
+use super::{ProseRange, shared};
 
 /// Preprocess Sweave text by replacing R code chunks with spaces.
 ///
@@ -25,7 +25,7 @@ fn preprocess(text: &str) -> String {
         let at_line_start = i == 0 || bytes[i - 1] == b'\n';
         if at_line_start && i + 1 < len && bytes[i] == b'<' && bytes[i + 1] == b'<' {
             // Scan forward to find `>>=` followed by optional whitespace then newline/EOF.
-            let line_end = memchr_newline(bytes, i);
+            let line_end = shared::run_end(bytes, i, |b| b != b'\n');
             let line = &bytes[i..line_end];
 
             if is_chunk_start(line) {
@@ -42,7 +42,7 @@ fn preprocess(text: &str) -> String {
                         // Unterminated chunk: blank to end of file
                         break;
                     }
-                    let next_line_end = memchr_newline(bytes, i);
+                    let next_line_end = shared::run_end(bytes, i, |b| b != b'\n');
                     let next_line = &bytes[i..next_line_end];
                     let is_end = is_chunk_end(next_line);
 
@@ -79,51 +79,28 @@ fn preprocess(text: &str) -> String {
     result
 }
 
-/// Find the index of the next newline (or end-of-slice) starting from `start`.
-const fn memchr_newline(bytes: &[u8], start: usize) -> usize {
-    let mut j = start;
-    while j < bytes.len() && bytes[j] != b'\n' {
-        j += 1;
-    }
-    j
-}
-
 /// Check if a line (without trailing newline) is a chunk start: `<<...>>=` with
 /// optional trailing whitespace.
 fn is_chunk_start(line: &[u8]) -> bool {
-    // Must start with `<<`
-    if line.len() < 4 || line[0] != b'<' || line[1] != b'<' {
+    let Some(header) = line.strip_prefix(b"<<") else {
         return false;
-    }
-    // Find `>>=`
-    let mut i = 2;
-    while i + 2 < line.len() {
-        if line[i] == b'>' && line[i + 1] == b'>' && line[i + 2] == b'=' {
-            // Rest after `>>=` must be only whitespace
-            let rest = &line[i + 3..];
-            return rest.iter().all(|&b| b == b' ' || b == b'\t' || b == b'\r');
-        }
-        i += 1;
-    }
-    // Check if `>>=` is at the very end
-    if line.len() >= 3 {
-        let tail = &line[line.len() - 3..];
-        if tail == b">>=" {
-            return true;
-        }
-    }
-    false
+    };
+    // `>>=` closes the header, and only whitespace may follow it.
+    header
+        .windows(3)
+        .position(|window| window == b">>=")
+        .is_some_and(|at| is_blank(&header[at + 3..]))
+}
+
+/// Whether every byte is horizontal whitespace — what may trail a chunk marker.
+fn is_blank(bytes: &[u8]) -> bool {
+    bytes.iter().all(|&b| matches!(b, b' ' | b'\t' | b'\r'))
 }
 
 /// Check if a line (without trailing newline) is a chunk end: `@` followed by
 /// only whitespace.
 fn is_chunk_end(line: &[u8]) -> bool {
-    if line.is_empty() || line[0] != b'@' {
-        return false;
-    }
-    line[1..]
-        .iter()
-        .all(|&b| b == b' ' || b == b'\t' || b == b'\r')
+    line.strip_prefix(b"@").is_some_and(is_blank)
 }
 
 /// Extract prose ranges from a Sweave (.Rnw) document.

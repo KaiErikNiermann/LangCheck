@@ -345,39 +345,38 @@ fn strip_forester_noise(gap: &str) -> String {
     let chars: Vec<char> = gap.chars().collect();
     let mut i = 0;
     while i < chars.len() {
-        // Display math: ##{...}
-        if chars[i] == '#' && i + 2 < chars.len() && chars[i + 1] == '#' && chars[i + 2] == '{' {
-            i = shared::skip_balanced_chars(&chars, i + 3, '{', '}');
-            result.push(' ');
-        // Inline math: #{...}
-        } else if chars[i] == '#' && i + 1 < chars.len() && chars[i + 1] == '{' {
-            i = shared::skip_balanced_chars(&chars, i + 2, '{', '}');
-            result.push(' ');
-        // Command: \name followed by optional {}, [], () args
-        } else if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1].is_ascii_alphanumeric() {
-            i += 1;
-            while i < chars.len()
-                && (chars[i].is_ascii_alphanumeric()
-                    || chars[i] == '-'
-                    || chars[i] == '/'
-                    || chars[i] == '?'
-                    || chars[i] == '*')
-            {
-                i += 1;
+        // Every arm yields the next index, so no arm can forget to advance.
+        i = match chars[i..] {
+            // Display math: ##{...}
+            ['#', '#', '{', ..] => {
+                result.push(' ');
+                shared::skip_balanced_chars(&chars, i + 3, '{', '}')
             }
-            i = shared::skip_command_args_chars(&chars, i, &[('{', '}'), ('[', ']'), ('(', ')')]);
-        // Escape: \X
-        } else if chars[i] == '\\' && i + 1 < chars.len() {
-            i += 2;
-        // Comment: % to end of line
-        } else if chars[i] == '%' {
-            while i < chars.len() && chars[i] != '\n' {
-                i += 1;
+            // Inline math: #{...}
+            ['#', '{', ..] => {
+                result.push(' ');
+                shared::skip_balanced_chars(&chars, i + 2, '{', '}')
             }
-        } else {
-            result.push(chars[i]);
-            i += 1;
-        }
+            // Command: \name followed by optional {}, [], () args
+            ['\\', first, ..] if first.is_ascii_alphanumeric() => {
+                let name_end = shared::run_end(&chars, i + 1, |c| {
+                    c.is_ascii_alphanumeric() || matches!(c, '-' | '/' | '?' | '*')
+                });
+                shared::skip_command_args_chars(
+                    &chars,
+                    name_end,
+                    &[('{', '}'), ('[', ']'), ('(', ')')],
+                )
+            }
+            // Escape: \X. A lone trailing `\` falls through to the catch-all.
+            ['\\', _, ..] => i + 2,
+            // Comment: % to end of line
+            ['%', ..] => shared::run_end(&chars, i, |c| c != '\n'),
+            _ => {
+                result.push(chars[i]);
+                i + 1
+            }
+        };
     }
     result
 }
@@ -389,30 +388,30 @@ fn strip_forester_noise(gap: &str) -> String {
 /// gap so that commands, math, escapes, and comments become exclusions.
 fn collect_forester_exclusions(gap: &str, offset: usize, exclusions: &mut Vec<(usize, usize)>) {
     let b = gap.as_bytes();
-    let len = b.len();
     let mut i = 0;
-    while i < len {
-        let start = i;
-        if b[i] == b'#' && i + 2 < len && b[i + 1] == b'#' && b[i + 2] == b'{' {
-            i = shared::skip_balanced_bytes(b, i + 3, b'{', b'}', Some(b'\\')); // display math
-            exclusions.push((offset + start, offset + i));
-        } else if b[i] == b'#' && i + 1 < len && b[i + 1] == b'{' {
-            i = shared::skip_balanced_bytes(b, i + 2, b'{', b'}', Some(b'\\')); // inline math
-            exclusions.push((offset + start, offset + i));
-        } else if b[i] == b'\\' && i + 1 < len && b[i + 1].is_ascii_alphanumeric() {
-            i = skip_command_with_args(b, i); // \name{...}[...](...)
-            exclusions.push((offset + start, offset + i));
-        } else if b[i] == b'\\' && i + 1 < len {
-            i += 2; // escape \X
-            exclusions.push((offset + start, offset + i));
-        } else if b[i] == b'%' {
-            while i < len && b[i] != b'\n' {
-                i += 1;
+    while i < b.len() {
+        // Every arm yields the next index, so no arm can forget to advance.
+        let end = match b[i..] {
+            // Display math: ##{...}
+            [b'#', b'#', b'{', ..] => {
+                shared::skip_balanced_bytes(b, i + 3, b'{', b'}', Some(b'\\'))
             }
-            exclusions.push((offset + start, offset + i));
-        } else {
-            i += 1;
-        }
+            // Inline math: #{...}
+            [b'#', b'{', ..] => shared::skip_balanced_bytes(b, i + 2, b'{', b'}', Some(b'\\')),
+            // Command with its arguments: \name{...}[...](...)
+            [b'\\', first, ..] if first.is_ascii_alphanumeric() => skip_command_with_args(b, i),
+            // Escape: \X. A lone trailing `\` has no second byte and falls
+            // through to the catch-all instead.
+            [b'\\', _, ..] => i + 2,
+            // Comment: % to the end of the line.
+            [b'%', ..] => shared::run_end(b, i, |c| c != b'\n'),
+            _ => {
+                i += 1;
+                continue;
+            }
+        };
+        exclusions.push((offset + i, offset + end));
+        i = end;
     }
 }
 

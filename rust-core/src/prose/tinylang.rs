@@ -121,68 +121,55 @@ fn strip_tinylang_noise(gap: &str) -> String {
     let chars: Vec<char> = gap.chars().collect();
     let mut i = 0;
     while i < chars.len() {
-        // Display math: $$...$$
-        if chars[i] == '$' && i + 1 < chars.len() && chars[i + 1] == '$' {
-            i += 2;
-            while i + 1 < chars.len() && !(chars[i] == '$' && chars[i + 1] == '$') {
-                i += 1;
+        // Every arm yields the next index, so no arm can forget to advance.
+        i = match chars[i..] {
+            // Display math: $$...$$
+            ['$', '$', ..] => {
+                result.push(' ');
+                let close = shared::run_end(&chars, i + 2, |c| c != '$');
+                // The closing `$$` needs both characters present; an unclosed
+                // run ends at the end of the gap.
+                if close + 1 < chars.len() {
+                    close + 2
+                } else {
+                    chars.len()
+                }
             }
-            if i + 1 < chars.len() {
-                i += 2;
+            // Inline math: $...$
+            ['$', ..] => {
+                result.push(' ');
+                shared::scan_past(&chars, i + 1, '$')
             }
-            result.push(' ');
-        // Inline math: $...$
-        } else if chars[i] == '$' {
-            i += 1;
-            while i < chars.len() && chars[i] != '$' {
-                i += 1;
+            // Code span: `...`
+            ['`', ..] => {
+                result.push(' ');
+                shared::scan_past(&chars, i + 1, '`')
             }
-            if i < chars.len() {
-                i += 1;
+            // Command: @name{args}
+            ['@', first, ..] if first.is_ascii_alphabetic() => {
+                let name_end = shared::run_end(&chars, i + 1, |c| {
+                    c.is_ascii_alphanumeric() || c == '-' || c == '_'
+                });
+                if chars.get(name_end) == Some(&'{') {
+                    shared::skip_balanced_chars(&chars, name_end + 1, '{', '}')
+                } else {
+                    name_end
+                }
             }
-            result.push(' ');
-        // Code span: `...`
-        } else if chars[i] == '`' {
-            i += 1;
-            while i < chars.len() && chars[i] != '`' {
-                i += 1;
+            // Comment: // to end of line — replaced with a newline so that a
+            // comment on its own line reveals a paragraph break
+            // (\n + comment + \n -> \n\n).
+            ['/', '/', ..] => {
+                result.push('\n');
+                shared::run_end(&chars, i, |c| c != '\n')
             }
-            if i < chars.len() {
-                i += 1;
+            // Bold, italic and heading markers carry no text of their own.
+            ['*' | '_' | '#', ..] => i + 1,
+            _ => {
+                result.push(chars[i]);
+                i + 1
             }
-            result.push(' ');
-        // Command: @name{args}
-        } else if chars[i] == '@' && i + 1 < chars.len() && chars[i + 1].is_ascii_alphabetic() {
-            i += 1;
-            while i < chars.len()
-                && (chars[i].is_ascii_alphanumeric() || chars[i] == '-' || chars[i] == '_')
-            {
-                i += 1;
-            }
-            // Skip command argument: {content}
-            if i < chars.len() && chars[i] == '{' {
-                i = shared::skip_balanced_chars(&chars, i + 1, '{', '}');
-            }
-        // Comment: // to end of line — replace with newline so that a comment
-        // on its own line reveals a paragraph break (\n + comment + \n → \n\n)
-        } else if chars[i] == '/' && i + 1 < chars.len() && chars[i + 1] == '/' {
-            result.push('\n');
-            while i < chars.len() && chars[i] != '\n' {
-                i += 1;
-            }
-        // Bold markers: *
-        } else if chars[i] == '*' {
-            i += 1;
-        // Italic markers: _
-        } else if chars[i] == '_' {
-            i += 1;
-        // Heading markers: # at start of line (after whitespace)
-        } else if chars[i] == '#' {
-            i += 1;
-        } else {
-            result.push(chars[i]);
-            i += 1;
-        }
+        };
     }
     result
 }
