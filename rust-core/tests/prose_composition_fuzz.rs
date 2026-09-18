@@ -9,6 +9,11 @@
 //!
 //! The markers are nonsense words, so a leak cannot be confused with ordinary
 //! vocabulary, and the seed is printed on failure to make a case reproducible.
+//!
+//! `ERROR`-free is the syntactic bar the test can enforce without shelling out
+//! to each language's real compiler. The Typst bank was additionally compiled
+//! with `typst` itself while it was written, so its fragments are semantically
+//! valid too, not merely parseable.
 
 use anyhow::Result;
 use lang_check::prose::{ProseExtractor, latex::LatexExtras};
@@ -54,14 +59,14 @@ const TYPST: &[Fragment] = &[
     prose("#link(\"https://example.com\")[A link label mentioning %% here.]"),
     code("```rust\nfn %%() {}\n```"),
     code("A paragraph with `%%` inline code."),
-    code("$ %% + 1 = 2 $"),
+    code("$ \"%%\" + 1 = 2 $"),
     code("// A comment naming %%"),
     code("#let %% = 1"),
     code("#import \"%%.typ\": *"),
     code("#set text(font: \"%%\")"),
     code("A paragraph with a link to https://example.com/%%/page."),
     code("#box[Prose around `%%` raw text inside a content block.]"),
-    code("#align(center)[A centred run around $%% + 1$ math.]"),
+    code("#align(center)[A centred run around $\"%%\" + 1$ math.]"),
     code("#show heading: set text(font: \"%%\")"),
     code("A paragraph followed by a label. <%%>"),
 ];
