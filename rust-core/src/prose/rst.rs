@@ -80,8 +80,7 @@ fn push_range(node: Node, out: &mut Vec<ProseRange>) {
 /// unless the type says otherwise, its content block.
 fn collect_directive(node: Node, text: &str, out: &mut Vec<ProseRange>) {
     let directive_type = child_of_kind(node, "type").map(|n| &text[n.byte_range()]);
-    let content_is_prose =
-        !directive_type.is_some_and(|name| NON_PROSE_CONTENT.contains(&name));
+    let content_is_prose = !directive_type.is_some_and(|name| NON_PROSE_CONTENT.contains(&name));
     let argument_is_prose = directive_type.is_some_and(|name| PROSE_ARGUMENT.contains(&name));
 
     let Some(body) = child_of_kind(node, "body") else {
@@ -434,7 +433,10 @@ mod tests {
 ";
         let prose = prose_of(text)?;
         assert!(prose.contains("Build it like this"), "{prose:?}");
-        assert!(prose.contains("Final paragraph of the warning."), "{prose:?}");
+        assert!(
+            prose.contains("Final paragraph of the warning."),
+            "{prose:?}"
+        );
         assert!(!prose.contains("cargo build"), "{prose:?}");
         assert!(!prose.contains("some_function"), "{prose:?}");
         assert!(!prose.contains("'result'"), "{prose:?}");
@@ -452,7 +454,8 @@ mod tests {
 
     #[test]
     fn test_rst_table_caption_extracted() -> Result<()> {
-        let text = ".. csv-table:: A table caption\n   :header: \"A\", \"B\"\n\n   \"one\", \"two\"\n";
+        let text =
+            ".. csv-table:: A table caption\n   :header: \"A\", \"B\"\n\n   \"one\", \"two\"\n";
         let prose = prose_of(text)?;
         assert!(prose.contains("A table caption"), "{prose:?}");
         assert!(!prose.contains("one"), "{prose:?}");

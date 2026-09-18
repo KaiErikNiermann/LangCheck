@@ -27,14 +27,20 @@ fn dump(node: tree_sitter::Node, src: &str, depth: usize) {
 
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
-    let lang_id = args.get(1).ok_or_else(|| anyhow!("usage: ast-dump <lang> <file>"))?;
-    let path = args.get(2).ok_or_else(|| anyhow!("usage: ast-dump <lang> <file>"))?;
+    let lang_id = args
+        .get(1)
+        .ok_or_else(|| anyhow!("usage: ast-dump <lang> <file>"))?;
+    let path = args
+        .get(2)
+        .ok_or_else(|| anyhow!("usage: ast-dump <lang> <file>"))?;
     let src = fs::read_to_string(path)?;
 
     let language = lang_check::languages::resolve_ts_language(lang_id);
     let mut parser = tree_sitter::Parser::new();
     parser.set_language(&language)?;
-    let tree = parser.parse(&src, None).ok_or_else(|| anyhow!("parse failed"))?;
+    let tree = parser
+        .parse(&src, None)
+        .ok_or_else(|| anyhow!("parse failed"))?;
     dump(tree.root_node(), &src, 0);
 
     println!("\n--- prose ---");

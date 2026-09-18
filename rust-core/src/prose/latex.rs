@@ -321,10 +321,7 @@ fn should_skip_generic_command(node: Node, text: &str, extra_skip_commands: &[St
             // command_name text is e.g. `\thispagestyle` — strip leading `\`.
             // A starred variant (`\verb*`) is the same command for this purpose.
             let raw = &text[child.start_byte()..child.end_byte()];
-            let name = raw
-                .strip_prefix('\\')
-                .unwrap_or(raw)
-                .trim_end_matches('*');
+            let name = raw.strip_prefix('\\').unwrap_or(raw).trim_end_matches('*');
             if SKIP_GENERIC_COMMANDS.contains(&name) {
                 return true;
             }

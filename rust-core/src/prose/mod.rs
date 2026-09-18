@@ -360,12 +360,7 @@ impl ExclusionAdjacency {
 /// a separator there means a real, whole word next to the cut
 /// ([`ExclusionAdjacency::WhitespaceAdjacent`]); otherwise the diagnostic is a
 /// word-fragment fused to skip content ([`ExclusionAdjacency::Glued`]).
-fn classify_gap(
-    text: &str,
-    lo: usize,
-    hi: usize,
-    skip_edge_separates: bool,
-) -> ExclusionAdjacency {
+fn classify_gap(text: &str, lo: usize, hi: usize, skip_edge_separates: bool) -> ExclusionAdjacency {
     if lo == hi {
         return if skip_edge_separates {
             ExclusionAdjacency::WhitespaceAdjacent

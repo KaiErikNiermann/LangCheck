@@ -120,7 +120,9 @@ const RST: &[Fragment] = &[
     code(".. code-block:: rust\n\n   fn %%() {}"),
     code(".. math::\n\n   x = %% + 1"),
     code(".. toctree::\n\n   guide/%%"),
-    code(".. note::\n\n   An admonition around a code block.\n\n   .. code-block:: rust\n\n      fn %%() {}"),
+    code(
+        ".. note::\n\n   An admonition around a code block.\n\n   .. code-block:: rust\n\n      fn %%() {}",
+    ),
     code(".. warning::\n\n   An admonition introducing a literal block::\n\n      %% --flag"),
 ];
 

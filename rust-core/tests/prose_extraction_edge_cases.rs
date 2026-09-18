@@ -843,7 +843,10 @@ fn typst_content_blocks_in_calls() -> Result<()> {
         "The link label.",
         "Prose with",
     ] {
-        assert!(all.contains(expected), "{expected:?} missing, got: {texts:?}");
+        assert!(
+            all.contains(expected),
+            "{expected:?} missing, got: {texts:?}"
+        );
     }
 
     for unexpected in [
