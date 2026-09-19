@@ -1,6 +1,7 @@
 use tree_sitter::Node;
 
 use super::ProseRange;
+use super::shared::child_of_kind;
 
 /// Node types whose own text is never prose.
 ///
@@ -155,11 +156,7 @@ fn collect_nested_content(node: Node, text: &str, out: &mut Vec<ProseRange>, lan
 /// declares it for the checker too, with no second annotation to keep in sync.
 /// Only `text` is read: `lang` means something else on `#set page` and friends.
 fn call_language(node: Node, text: &str) -> Option<String> {
-    let mut cursor = node.walk();
-    let head = node
-        .children(&mut cursor)
-        .find(|child| child.kind() == "call")?;
-    text_call_language(head, text)
+    text_call_language(child_of_kind(node, "call")?, text)
 }
 
 /// The tag named by `#set text(…)`, if `node` is that set rule.
@@ -167,22 +164,16 @@ fn call_language(node: Node, text: &str) -> Option<String> {
 /// `#set text(lang: "fr")` parses as `code -> set -> call`, so the rule is one
 /// level below the `code` node the walk hands over.
 fn set_rule_language(node: Node, text: &str) -> Option<String> {
-    let mut cursor = node.walk();
-    let set = node.children(&mut cursor).find(|c| c.kind() == "set")?;
-    let mut inner = set.walk();
-    let call = set.children(&mut inner).find(|c| c.kind() == "call")?;
-    text_call_language(call, text)
+    let set = child_of_kind(node, "set")?;
+    text_call_language(child_of_kind(set, "call")?, text)
 }
 
 /// Read `lang:` and `region:` off a `text(…)` call node.
 fn text_call_language(call: Node, text: &str) -> Option<String> {
-    let mut cursor = call.walk();
-    let ident = call.children(&mut cursor).find(|c| c.kind() == "ident")?;
-    if &text[ident.byte_range()] != "text" {
+    if &text[child_of_kind(call, "ident")?.byte_range()] != "text" {
         return None;
     }
-    let mut cursor = call.walk();
-    let group = call.children(&mut cursor).find(|c| c.kind() == "group")?;
+    let group = child_of_kind(call, "group")?;
     let lang = tagged_string(group, text, "lang")?;
     Some(
         tagged_string(group, text, "region")

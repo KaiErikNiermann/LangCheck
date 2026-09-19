@@ -178,3 +178,26 @@ rules:
                   ...
               }
           - pattern: $SEQ[$I + $N]
+
+  - id: suppress-directives-through-inline-directives
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      Call inline-directive suppression through `SuppressionContext::with_directives` and
+      `retain_visible`, not `IgnoreParser::should_ignore*` directly. Those two need the WHOLE
+      document and document-level diagnostic offsets, and the one call site that had neither
+      shipped: `Orchestrator::check_batch` ran them against a single extracted prose range,
+      where the comment carrying the directive has already been stripped and the offsets are
+      range-local. Every `lang-check-disable`, `disable-next-line` and `begin`/`end` region was
+      inert at runtime, in Markdown, LaTeX and Typst alike, while the `ignore_rules` unit tests
+      -- which pass the whole document, as the API wants -- stayed green. Against the commit
+      before the fix this rule finds the two calls that were the bug.
+    paths:
+      exclude:
+        - "**/rust-core/src/suppression.rs"
+        - "**/rust-core/src/ignore_rules.rs"
+    pattern-either:
+      - pattern: IgnoreParser::should_ignore(...)
+      - pattern: IgnoreParser::should_ignore_by_region(...)
+      - pattern: crate::ignore_rules::IgnoreParser::should_ignore(...)
+      - pattern: crate::ignore_rules::IgnoreParser::should_ignore_by_region(...)
