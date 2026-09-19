@@ -155,6 +155,13 @@ pub struct PerformanceConfig {
     /// Maximum file size in bytes to check (0 = unlimited).
     #[serde(default)]
     pub max_file_size: usize,
+    /// How many engine answers to keep, keyed by the prose that produced them.
+    ///
+    /// A keystroke re-checks the whole document although one prose range
+    /// changed, so the cache is what keeps a long file responsive. `0`
+    /// disables it and re-checks every range on every keystroke.
+    #[serde(default = "default_result_cache_entries")]
+    pub result_cache_entries: usize,
 }
 
 impl Default for PerformanceConfig {
@@ -163,12 +170,19 @@ impl Default for PerformanceConfig {
             high_performance_mode: false,
             debounce_ms: 300,
             max_file_size: 0,
+            result_cache_entries: default_result_cache_entries(),
         }
     }
 }
 
 const fn default_debounce_ms() -> u64 {
     300
+}
+
+/// Room for several long documents at once: a 36 kB file is around 110 prose
+/// ranges, so this holds roughly thirty of them per engine before evicting.
+const fn default_result_cache_entries() -> usize {
+    4096
 }
 
 /// Configuration for bundled and additional wordlist dictionaries.

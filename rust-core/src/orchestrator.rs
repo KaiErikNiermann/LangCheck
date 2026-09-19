@@ -1,3 +1,4 @@
+use crate::cache::ResultCache;
 use crate::checker::{Diagnostic, EngineHealth, Severity};
 use crate::config::Config;
 use crate::engines::{
@@ -8,7 +9,7 @@ use crate::rules::RuleNormalizer;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
-use tracing::warn;
+use tracing::{debug, warn};
 
 #[derive(Default)]
 struct EngineHealthTracker {
@@ -23,6 +24,7 @@ pub struct Orchestrator {
     normalizer: RuleNormalizer,
     config: Config,
     engine_health: HashMap<String, EngineHealthTracker>,
+    results: ResultCache,
 }
 
 impl Orchestrator {
@@ -31,6 +33,7 @@ impl Orchestrator {
         let mut orchestrator = Self {
             engines: Vec::new(),
             normalizer: RuleNormalizer::new(),
+            results: ResultCache::new(config.performance.result_cache_entries),
             config,
             engine_health: HashMap::new(),
         };
@@ -93,6 +96,9 @@ impl Orchestrator {
     }
 
     pub fn update_config(&mut self, config: Config) {
+        // Every cached answer was produced by the engines that are about to be
+        // rebuilt, under settings that may have just changed.
+        self.results = ResultCache::new(config.performance.result_cache_entries);
         self.config = config;
         self.initialize_engines();
         // Preserve health state across config changes — don't clear engine_health
@@ -175,13 +181,64 @@ impl Orchestrator {
             }
 
             engines_ran += 1;
-            let results = engine.check_many(batch, &spell_language).await;
+
+            // Serve what this engine has already answered for and ask only for
+            // the rest. On a keystroke that is one range out of a hundred.
+            let mut results: Vec<Option<Result<Vec<Diagnostic>>>> = Vec::with_capacity(batch.len());
+            let mut misses: Vec<String> = Vec::new();
+            let mut miss_slots: Vec<usize> = Vec::new();
+            for (slot, text) in batch.iter().enumerate() {
+                let cached = self.results.get(engine_name, &spell_language, text);
+                if cached.is_none() {
+                    miss_slots.push(slot);
+                    misses.push(text.clone());
+                }
+                results.push(cached.map(Ok));
+            }
+            let hits = batch.len() - misses.len();
+
+            let fresh = if misses.is_empty() {
+                Vec::new()
+            } else {
+                engine.check_many(&misses, &spell_language).await
+            };
+            for (&slot, result) in miss_slots.iter().zip(fresh) {
+                if let Ok(ref diagnostics) = result {
+                    self.results.put(
+                        engine_name,
+                        &spell_language,
+                        &batch[slot],
+                        diagnostics.clone(),
+                    );
+                }
+                results[slot] = Some(result);
+            }
+            let results: Vec<Result<Vec<Diagnostic>>> = results
+                .into_iter()
+                .map(|slot| slot.unwrap_or_else(|| Ok(Vec::new())))
+                .collect();
+
+            debug!(
+                engine = engine_name,
+                hits,
+                misses = miss_slots.len(),
+                "Result cache"
+            );
 
             // A batch is healthy if the engine answered at all: one bad text
             // among hundreds says nothing about reachability, whereas a down
             // server fails every one of them. A partial failure still costs the
             // user diagnostics on those texts, so say so rather than only
             // flipping health when everything breaks.
+            //
+            // A batch served entirely from cache says nothing either way, so it
+            // leaves health alone rather than reporting a server it never
+            // reached as reachable.
+            if misses.is_empty() {
+                adopt_results(&self.normalizer, &self.config, &mut per_text, results);
+                continue;
+            }
+
             let first_error = results.iter().find_map(|r| r.as_ref().err());
             let failed = results.iter().filter(|r| r.is_err()).count();
             if failed > 0 && failed < results.len() {
@@ -217,39 +274,7 @@ impl Orchestrator {
                 }
             }
 
-            for (slot, result) in per_text.iter_mut().zip(results) {
-                let Ok(mut diagnostics) = result else {
-                    continue;
-                };
-
-                // Normalize and filter based on config
-                for d in &mut diagnostics {
-                    let provider = if d.rule_id.starts_with("harper") {
-                        "harper"
-                    } else if d.rule_id.starts_with("vale.") {
-                        "vale"
-                    } else if d.rule_id.starts_with("proselint.") {
-                        "proselint"
-                    } else if d.rule_id.starts_with("wasm.") {
-                        "wasm"
-                    } else if d.rule_id.starts_with("external.") {
-                        "external"
-                    } else {
-                        "languagetool"
-                    };
-                    d.unified_id = self.normalizer.normalize(provider, &d.rule_id);
-
-                    // Apply rule severity overrides from config.
-                    if let Some(severity) =
-                        rule_override_severity(&self.config, &d.rule_id, &d.unified_id)
-                    {
-                        d.severity = severity;
-                    }
-                }
-
-                diagnostics.retain(|d| d.severity != -1);
-                slot.extend(diagnostics);
-            }
+            adopt_results(&self.normalizer, &self.config, &mut per_text, results);
         }
 
         for all_diagnostics in &mut per_text {
@@ -298,6 +323,49 @@ impl Orchestrator {
     }
 }
 
+/// Normalise each engine answer and fold it into the per-text results.
+///
+/// A free function because the caller holds `&mut self.engines` for the length
+/// of the engine loop, so a method on `self` would not borrow-check; it needs
+/// the normaliser and the config, which are disjoint fields.
+fn adopt_results(
+    normalizer: &RuleNormalizer,
+    config: &Config,
+    per_text: &mut [Vec<Diagnostic>],
+    results: Vec<Result<Vec<Diagnostic>>>,
+) {
+    for (slot, result) in per_text.iter_mut().zip(results) {
+        let Ok(mut diagnostics) = result else {
+            continue;
+        };
+
+        for d in &mut diagnostics {
+            let provider = if d.rule_id.starts_with("harper") {
+                "harper"
+            } else if d.rule_id.starts_with("vale.") {
+                "vale"
+            } else if d.rule_id.starts_with("proselint.") {
+                "proselint"
+            } else if d.rule_id.starts_with("wasm.") {
+                "wasm"
+            } else if d.rule_id.starts_with("external.") {
+                "external"
+            } else {
+                "languagetool"
+            };
+            d.unified_id = normalizer.normalize(provider, &d.rule_id);
+
+            // Apply rule severity overrides from config.
+            if let Some(severity) = rule_override_severity(config, &d.rule_id, &d.unified_id) {
+                d.severity = severity;
+            }
+        }
+
+        diagnostics.retain(|d| d.severity != -1);
+        slot.extend(diagnostics);
+    }
+}
+
 /// Resolve a configured severity override for a diagnostic.
 ///
 /// Overrides may be keyed by the **native** rule id shown on the diagnostic
@@ -323,6 +391,9 @@ fn rule_override_severity(config: &Config, rule_id: &str, unified_id: &str) -> O
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use super::*;
     use crate::config::RuleConfig;
 
@@ -402,6 +473,34 @@ mod tests {
         }
     }
 
+    /// Echoes each text and counts how many reached it, so a test can tell a
+    /// cache hit from a re-check.
+    #[derive(Default)]
+    struct CountingEngine {
+        seen: Arc<AtomicUsize>,
+    }
+
+    #[async_trait::async_trait]
+    impl Engine for CountingEngine {
+        fn name(&self) -> &'static str {
+            "external"
+        }
+
+        async fn check(&mut self, text: &str, _language_id: &str) -> Result<Vec<Diagnostic>> {
+            self.seen.fetch_add(1, Ordering::SeqCst);
+            Ok(vec![Diagnostic {
+                start_byte: 0,
+                end_byte: 0,
+                message: text.to_string(),
+                suggestions: Vec::new(),
+                rule_id: "external.echo".to_string(),
+                severity: Severity::Warning as i32,
+                unified_id: String::new(),
+                confidence: 1.0,
+            }])
+        }
+    }
+
     fn orchestrator_with_echo(config: Config) -> Orchestrator {
         let mut orchestrator = Orchestrator::new(config);
         orchestrator.engines = vec![Box::new(EchoEngine)];
@@ -462,5 +561,66 @@ mod tests {
         let health = orchestrator.engine_health_report();
         assert_eq!(health.len(), 1);
         assert_eq!(health[0].status, "ok");
+    }
+
+    /// `(orchestrator, how many texts have reached the engine)`
+    fn orchestrator_with_counter(cache_entries: usize) -> (Orchestrator, Arc<AtomicUsize>) {
+        let mut config = Config::default();
+        config.performance.result_cache_entries = cache_entries;
+        let seen = Arc::new(AtomicUsize::new(0));
+        let mut orchestrator = Orchestrator::new(config);
+        orchestrator.engines = vec![Box::new(CountingEngine {
+            seen: Arc::clone(&seen),
+        })];
+        (orchestrator, seen)
+    }
+
+    #[tokio::test]
+    async fn only_the_changed_text_goes_back_to_the_engine() {
+        let (mut orchestrator, seen) = orchestrator_with_counter(64);
+        let first = ["alpha".to_string(), "beta".to_string(), "gamma".to_string()];
+        orchestrator.check_batch(&first, "en-US").await.unwrap();
+        assert_eq!(seen.load(Ordering::SeqCst), 3);
+
+        // The edit a keystroke makes: one range differs, the rest are identical.
+        let second = [
+            "alpha".to_string(),
+            "beta!".to_string(),
+            "gamma".to_string(),
+        ];
+        let batch = orchestrator.check_batch(&second, "en-US").await.unwrap();
+        assert_eq!(seen.load(Ordering::SeqCst), 4);
+        assert_eq!(
+            messages(&batch),
+            vec![Some("alpha"), Some("beta!"), Some("gamma")]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_disabled_cache_rechecks_everything() {
+        let (mut orchestrator, seen) = orchestrator_with_counter(0);
+        let texts = ["alpha".to_string(), "beta".to_string()];
+        orchestrator.check_batch(&texts, "en-US").await.unwrap();
+        orchestrator.check_batch(&texts, "en-US").await.unwrap();
+        assert_eq!(seen.load(Ordering::SeqCst), 4);
+    }
+
+    #[tokio::test]
+    async fn a_config_change_drops_every_cached_answer() {
+        let (mut orchestrator, seen) = orchestrator_with_counter(64);
+        let texts = ["alpha".to_string()];
+        orchestrator.check_batch(&texts, "en-US").await.unwrap();
+
+        let mut config = Config::default();
+        config.performance.result_cache_entries = 64;
+        orchestrator.update_config(config);
+        // update_config rebuilds the engines from config, so put the counting
+        // one back before asking again.
+        orchestrator.engines = vec![Box::new(CountingEngine {
+            seen: Arc::clone(&seen),
+        })];
+
+        orchestrator.check_batch(&texts, "en-US").await.unwrap();
+        assert_eq!(seen.load(Ordering::SeqCst), 2);
     }
 }
