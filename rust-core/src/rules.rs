@@ -72,10 +72,17 @@ impl RuleNormalizer {
             return unified_id.clone();
         }
 
-        // Default to a generic category if no mapping exists
-        if native_id.contains("spell") {
+        // Default to a generic category if no mapping exists.
+        //
+        // Matched case-insensitively because engine rule ids are shouted:
+        // LanguageTool's French speller is FR_SPELLING_RULE and its German one
+        // GERMAN_SPELLER_RULE, and a case-sensitive `contains("spell")` put
+        // both in `style.unknown` -- where the user dictionary, the name filter
+        // and `lang-check-begin spelling.typo` stopped applying to them.
+        let lowered = native_id.to_ascii_lowercase();
+        if lowered.contains("spell") {
             "spelling.unknown".to_string()
-        } else if native_id.contains("grammar") {
+        } else if lowered.contains("grammar") {
             "grammar.unknown".to_string()
         } else {
             "style.unknown".to_string()

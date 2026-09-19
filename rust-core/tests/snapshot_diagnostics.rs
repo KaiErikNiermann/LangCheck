@@ -281,12 +281,27 @@ fn rule_normalization_all_harper() {
 fn rule_normalization_all_languagetool() {
     let normalizer = RuleNormalizer::new();
     let lt_rules = [
+        // The spelling rule each language actually reports, measured against
+        // LanguageTool 6.7. German and French do not use MORFOLOGIK, and an
+        // unmapped spelling rule falls to `style.unknown`, where the user
+        // dictionary, the name filter and `lang-check-begin spelling.typo`
+        // stop applying to it.
         "languagetool.MORFOLOGIK_RULE_EN_US",
         "languagetool.MORFOLOGIK_RULE_EN_GB",
+        "languagetool.GERMAN_SPELLER_RULE",
+        "languagetool.FR_SPELLING_RULE",
+        "languagetool.MORFOLOGIK_RULE_ES",
+        "languagetool.MORFOLOGIK_RULE_IT_IT",
+        "languagetool.MORFOLOGIK_RULE_NL_NL",
+        "languagetool.MORFOLOGIK_RULE_PT_BR",
+        "languagetool.MORFOLOGIK_RULE_PL_PL",
+        "languagetool.MORFOLOGIK_RULE_RU_RU",
+        "languagetool.MORFOLOGIK_RULE_UK_UA",
+        "languagetool.HUNSPELL_RULE",
+        "languagetool.HUNSPELL_RULE_AR",
+        // Superseded ids, kept mapped for servers older than 6.7.
         "languagetool.MORFOLOGIK_RULE_DE_DE",
         "languagetool.MORFOLOGIK_RULE_FR",
-        "languagetool.MORFOLOGIK_RULE_ES",
-        "languagetool.HUNSPELL_RULE",
         "languagetool.EN_A_VS_AN",
         "languagetool.AGREEMENT_SENT_START",
         "languagetool.PERS_PRONOUN_AGREEMENT",

@@ -1,17 +1,81 @@
 provider: languagetool
 mappings:
   # Spelling
-  - native_id: languagetool.MORFOLOGIK_RULE_EN_US
+  #
+  # Measured against LanguageTool 6.7 by sending a misspelling in each language
+  # and reading back the rule whose issueType is "misspelling". German and
+  # French do not use MORFOLOGIK, which is why guessing the id from the pattern
+  # gets those two wrong -- and an unmapped spelling rule lands in
+  # `style.unknown`, where the user dictionary, the name filter and
+  # `lang-check-begin spelling.typo` all stop applying to it.
+  - native_id: languagetool.MORFOLOGIK_RULE_EN_US  # English (US)
     unified_id: spelling.typo
-  - native_id: languagetool.MORFOLOGIK_RULE_EN_GB
+  - native_id: languagetool.MORFOLOGIK_RULE_EN_GB  # English (GB)
     unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_EN_AU  # English (AU)
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_EN_CA  # English (CA)
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_EN_NZ  # English (NZ)
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_EN_ZA  # English (ZA)
+    unified_id: spelling.typo
+  - native_id: languagetool.GERMAN_SPELLER_RULE  # German -- not MORFOLOGIK
+    unified_id: spelling.typo
+  - native_id: languagetool.FR_SPELLING_RULE  # French -- not MORFOLOGIK
+    unified_id: spelling.typo
+  # Kept for servers older than 6.7, which did emit these.
   - native_id: languagetool.MORFOLOGIK_RULE_DE_DE
     unified_id: spelling.typo
   - native_id: languagetool.MORFOLOGIK_RULE_FR
     unified_id: spelling.typo
-  - native_id: languagetool.MORFOLOGIK_RULE_ES
+  - native_id: languagetool.MORFOLOGIK_RULE_ES  # Spanish
     unified_id: spelling.typo
-  - native_id: languagetool.HUNSPELL_RULE
+  - native_id: languagetool.MORFOLOGIK_RULE_IT_IT  # Italian
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_NL_NL  # Dutch
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_PT  # Portuguese
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_PT_PT  # Portuguese (PT)
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_PT_BR  # Portuguese (BR)
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_PT_AO  # Portuguese (AO)
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_PT_MZ  # Portuguese (MZ)
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_PL_PL  # Polish
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_RU_RU  # Russian
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_UK_UA  # Ukrainian
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_BE_BY  # Belarusian
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_RO_RO  # Romanian
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_SK_SK  # Slovak
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_SL_SI  # Slovenian
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_EL_GR  # Greek
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_CA_ES  # Catalan
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_AST  # Asturian
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_GA_IE  # Irish
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_BR_FR  # Breton
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_TL  # Tagalog
+    unified_id: spelling.typo
+  - native_id: languagetool.MORFOLOGIK_RULE_CRH_UA  # Crimean Tatar
+    unified_id: spelling.typo
+  - native_id: languagetool.HUNSPELL_RULE  # Danish, Swedish, Esperanto, Galician, Khmer
+    unified_id: spelling.typo
+  - native_id: languagetool.HUNSPELL_RULE_AR  # Arabic
     unified_id: spelling.typo
 
   # Grammar: Articles

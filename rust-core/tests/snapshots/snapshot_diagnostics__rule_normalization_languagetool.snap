@@ -1,19 +1,36 @@
 ---
 source: tests/snapshot_diagnostics.rs
-assertion_line: 228
 expression: mapped
 ---
 - - languagetool.MORFOLOGIK_RULE_EN_US
   - spelling.typo
 - - languagetool.MORFOLOGIK_RULE_EN_GB
   - spelling.typo
-- - languagetool.MORFOLOGIK_RULE_DE_DE
+- - languagetool.GERMAN_SPELLER_RULE
   - spelling.typo
-- - languagetool.MORFOLOGIK_RULE_FR
+- - languagetool.FR_SPELLING_RULE
   - spelling.typo
 - - languagetool.MORFOLOGIK_RULE_ES
   - spelling.typo
+- - languagetool.MORFOLOGIK_RULE_IT_IT
+  - spelling.typo
+- - languagetool.MORFOLOGIK_RULE_NL_NL
+  - spelling.typo
+- - languagetool.MORFOLOGIK_RULE_PT_BR
+  - spelling.typo
+- - languagetool.MORFOLOGIK_RULE_PL_PL
+  - spelling.typo
+- - languagetool.MORFOLOGIK_RULE_RU_RU
+  - spelling.typo
+- - languagetool.MORFOLOGIK_RULE_UK_UA
+  - spelling.typo
 - - languagetool.HUNSPELL_RULE
+  - spelling.typo
+- - languagetool.HUNSPELL_RULE_AR
+  - spelling.typo
+- - languagetool.MORFOLOGIK_RULE_DE_DE
+  - spelling.typo
+- - languagetool.MORFOLOGIK_RULE_FR
   - spelling.typo
 - - languagetool.EN_A_VS_AN
   - grammar.article
