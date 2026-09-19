@@ -271,6 +271,37 @@ impl LanguageToolEngine {
     }
 }
 
+/// An engine that cannot check a language at all, as distinct from one that
+/// failed.
+///
+/// `LanguageTool` has no Hebrew, so a Hebrew passage in an otherwise French
+/// document answers HTTP 400 — which, read as a failure, marks a healthy
+/// server as down and tells the user in the status bar that `LanguageTool` is
+/// unreachable. It is neither a failure nor a clean check: the prose went
+/// unchecked and the user should be told which language nothing could read.
+#[derive(Debug)]
+pub struct UnsupportedLanguage {
+    pub engine: &'static str,
+    pub language: String,
+}
+
+impl std::fmt::Display for UnsupportedLanguage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} cannot check \"{}\"", self.engine, self.language)
+    }
+}
+
+impl std::error::Error for UnsupportedLanguage {}
+
+/// Whether this result is an engine declining a language rather than failing.
+#[must_use]
+pub fn is_unsupported_language<T>(result: &Result<T>) -> bool {
+    result
+        .as_ref()
+        .err()
+        .is_some_and(|e| e.downcast_ref::<UnsupportedLanguage>().is_some())
+}
+
 /// Prose ranges gathered into one `/v2/check`.
 ///
 /// `LanguageTool` costs roughly a flat 8 ms per request plus 20.6 us per byte,
@@ -383,6 +414,7 @@ async fn languagetool_request(
     url: &str,
     base_form: &[(&'static str, String)],
     text: &str,
+    language: &str,
 ) -> Result<Vec<Diagnostic>> {
     debug!(url = %url, text_len = text.len(), "LanguageTool request");
 
@@ -401,6 +433,15 @@ async fn languagetool_request(
             );
             if !status.is_success() {
                 let body = r.text().await.unwrap_or_default();
+                // A server that does not speak this language is not a broken
+                // server, and saying so keeps it out of the health report.
+                if body.contains("is not a language code known to LanguageTool") {
+                    debug!(language, "LanguageTool has no such language");
+                    return Err(anyhow::Error::new(UnsupportedLanguage {
+                        engine: "languagetool",
+                        language: language.to_string(),
+                    }));
+                }
                 warn!(
                     status = %status,
                     body = %body,
@@ -469,7 +510,14 @@ impl Engine for LanguageToolEngine {
 
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
         let url = format!("{}/v2/check", self.url);
-        languagetool_request(&self.client, &url, &self.base_form(language_id), text).await
+        languagetool_request(
+            &self.client,
+            &url,
+            &self.base_form(language_id),
+            text,
+            language_id,
+        )
+        .await
     }
 
     /// Pack the prose ranges into as few requests as the size limit allows,
@@ -498,6 +546,7 @@ impl Engine for LanguageToolEngine {
         let base_form = Arc::new(self.base_form(language_id));
         let permits = Arc::new(Semaphore::new(self.max_concurrent_requests.max(1)));
         let packs = Arc::new(packs);
+        let language: Arc<str> = Arc::from(language_id);
         let mut tasks = JoinSet::new();
 
         for pack_idx in 0..packs.len() {
@@ -506,12 +555,19 @@ impl Engine for LanguageToolEngine {
             let base_form = Arc::clone(&base_form);
             let permits = Arc::clone(&permits);
             let packs = Arc::clone(&packs);
+            let language = Arc::clone(&language);
             tasks.spawn(async move {
                 // The semaphore is never closed, so acquiring only fails if the
                 // runtime is shutting down — treat that as "no slot, run anyway".
                 let _permit = permits.acquire().await.ok();
-                let result =
-                    languagetool_request(&client, &url, &base_form, &packs[pack_idx].text).await;
+                let result = languagetool_request(
+                    &client,
+                    &url,
+                    &base_form,
+                    &packs[pack_idx].text,
+                    &language,
+                )
+                .await;
                 (pack_idx, result)
             });
         }
@@ -529,10 +585,21 @@ impl Engine for LanguageToolEngine {
                     }
                 }
                 // One failed request costs every range it carried, so each of
-                // them reports the failure rather than reading as clean.
+                // them reports the failure rather than reading as clean. The
+                // error is rebuilt rather than cloned, keeping the distinction
+                // between a failure and a language the engine cannot read.
                 Err(e) => {
+                    let unsupported = e
+                        .downcast_ref::<UnsupportedLanguage>()
+                        .map(|u| (u.engine, u.language.clone()));
                     for &(idx, _) in &pack.members {
-                        slots[idx] = Some(Err(anyhow::anyhow!("{e}")));
+                        slots[idx] = Some(Err(match &unsupported {
+                            Some((engine, language)) => anyhow::Error::new(UnsupportedLanguage {
+                                engine,
+                                language: language.clone(),
+                            }),
+                            None => anyhow::anyhow!("{e}"),
+                        }));
                     }
                 }
             }

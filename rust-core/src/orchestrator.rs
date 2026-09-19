@@ -3,7 +3,7 @@ use crate::checker::{Diagnostic, EngineHealth, Severity};
 use crate::config::Config;
 use crate::engines::{
     Engine, ExternalEngine, HarperEngine, LanguageToolEngine, ProselintEngine, ValeEngine,
-    WasmEngine, engine_supports_language,
+    WasmEngine, engine_supports_language, is_unsupported_language,
 };
 use crate::prose::ProseUnit;
 use crate::rules::RuleNormalizer;
@@ -210,8 +210,6 @@ impl Orchestrator {
                 continue;
             }
 
-            engines_ran += 1;
-
             // Serve what this engine has already answered for and ask only for
             // the rest. On a keystroke that is one range out of a hundred.
             let mut results: Vec<Option<Result<Vec<Diagnostic>>>> = Vec::with_capacity(batch.len());
@@ -247,6 +245,21 @@ impl Orchestrator {
                 .into_iter()
                 .map(|slot| slot.unwrap_or_else(|| Ok(Vec::new())))
                 .collect();
+
+            // An engine that has no dictionary for this language has not run,
+            // has not failed, and must not count towards either. LanguageTool
+            // answers 400 for a language it was never built with -- Hebrew, for
+            // one -- and reading that as a failure reports a healthy server as
+            // unreachable.
+            if !results.is_empty() && results.iter().all(is_unsupported_language) {
+                debug!(
+                    engine = engine_name,
+                    language = %spell_language,
+                    "Engine cannot check this language"
+                );
+                continue;
+            }
+            engines_ran += 1;
 
             debug!(
                 engine = engine_name,
@@ -308,14 +321,18 @@ impl Orchestrator {
         }
 
         for all_diagnostics in &mut per_text {
-            // Warn when no engines ran (e.g. non-English language with only Harper enabled)
+            // Say so when nothing could read this language, rather than
+            // leaving prose that was never checked looking clean. Covers both
+            // an engine that declines the language up front (Harper outside
+            // English) and one that declines it on the wire (LanguageTool
+            // without the language module).
             if engines_ran == 0 && all_diagnostics.is_empty() {
                 all_diagnostics.push(Diagnostic {
                     start_byte: 0,
                     end_byte: 0,
                     message: format!(
-                        "No active engine supports \"{spell_language}\". \
-                         Enable LanguageTool or add an external provider."
+                        "No enabled engine can check \"{spell_language}\", \
+                         so this passage went unchecked."
                     ),
                     suggestions: Vec::new(),
                     rule_id: "languagecheck.no-provider".to_string(),
@@ -652,5 +669,50 @@ mod tests {
 
         orchestrator.check_batch(&texts, "en-US").await.unwrap();
         assert_eq!(seen.load(Ordering::SeqCst), 2);
+    }
+
+    /// Declines every text, the way `LanguageTool` answers for a language it was
+    /// never built with.
+    struct DecliningEngine;
+
+    #[async_trait::async_trait]
+    impl Engine for DecliningEngine {
+        fn name(&self) -> &'static str {
+            "languagetool"
+        }
+
+        async fn check(&mut self, _text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
+            Err(anyhow::Error::new(crate::engines::UnsupportedLanguage {
+                engine: "languagetool",
+                language: language_id.to_string(),
+            }))
+        }
+    }
+
+    #[tokio::test]
+    async fn a_language_the_engine_cannot_read_is_reported_not_passed() {
+        let mut orchestrator = Orchestrator::new(Config::default());
+        orchestrator.engines = vec![Box::new(DecliningEngine)];
+        let texts = ["\u{5e9}\u{5dc}\u{5d5}\u{5dd} \u{5e2}\u{5d5}\u{5dc}\u{5dd}".to_string()];
+
+        let batch = orchestrator.check_batch(&texts, "he").await.unwrap();
+        assert_eq!(batch[0][0].unified_id, "languagecheck.no-provider");
+        assert!(batch[0][0].message.contains("he"));
+    }
+
+    #[tokio::test]
+    async fn declining_a_language_does_not_mark_the_engine_unhealthy() {
+        let mut orchestrator = Orchestrator::new(Config::default());
+        orchestrator.engines = vec![Box::new(DecliningEngine)];
+        orchestrator
+            .check_batch(&["shalom".to_string()], "he")
+            .await
+            .unwrap();
+
+        // A server that answers "I have no Hebrew" is a server that answered.
+        assert!(
+            orchestrator.engine_health_report().is_empty(),
+            "health should not record a language gap as a failure"
+        );
     }
 }
