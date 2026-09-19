@@ -85,6 +85,7 @@ fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>, lang: Option
             {
                 let gap = &text[last.end_byte..start];
                 if is_bridgeable(gap) {
+                    exclude_markup(text, last.end_byte, start, &mut last.exclusions);
                     last.end_byte = end;
                     return;
                 }
@@ -216,6 +217,37 @@ fn tagged_string<'a>(group: Node, text: &'a str, name: &str) -> Option<&'a str> 
         }
     }
     None
+}
+
+/// Characters that delimit inline markup and are not part of the prose.
+///
+/// Left in the checked text, `_réception_` reaches `LanguageTool` as one token
+/// and comes back as a French misspelling. Excluded, the emphasis is invisible
+/// to the engine and the sentence still reads as one sentence.
+///
+/// Quotes and apostrophes are deliberately absent. Typst parses `n'est` as two
+/// text nodes around a smart quote, so the apostrophe arrives here as a gap —
+/// and excluding it would hand the engine `n est`, breaking every French
+/// contraction in the document.
+const MARKUP_DELIMITERS: &[char] = &['*', '_', '`'];
+
+/// Record the markup delimiters inside a bridged gap as exclusions.
+///
+/// Per run rather than the whole gap, so the whitespace and quotes between the
+/// delimiters survive as the word boundaries they are.
+fn exclude_markup(text: &str, from: usize, to: usize, out: &mut Vec<(usize, usize)>) {
+    let mut run: Option<usize> = None;
+    for (offset, ch) in text[from..to].char_indices() {
+        let at = from + offset;
+        if MARKUP_DELIMITERS.contains(&ch) {
+            run.get_or_insert(at);
+        } else if let Some(start) = run.take() {
+            out.push((start, at));
+        }
+    }
+    if let Some(start) = run {
+        out.push((start, to));
+    }
 }
 
 /// Check if a gap between text nodes can be bridged.
