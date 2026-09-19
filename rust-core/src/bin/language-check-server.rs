@@ -21,7 +21,7 @@ use insights::ProseInsights;
 use lang_check::morphology::AffixAnalyzer;
 use lang_check::names::NameFilter;
 use lang_check::sls::SchemaRegistry;
-use lang_check::suppression::{SuppressionContext, retain_visible};
+use lang_check::suppression::{InlineDirectives, SuppressionContext, retain_visible};
 use lang_check::{checker, config, dictionary, hashing, insights, orchestrator, prose, workspace};
 use orchestrator::Orchestrator;
 use prost::Message;
@@ -107,6 +107,7 @@ async fn process_file_for_indexing(
         warn!(file = %file_path.display(), "Indexing batch failed: {e}");
         Vec::new()
     });
+    let directives = InlineDirectives::parse(&text);
     for (range, mut diagnostics) in ranges.iter().zip(batch) {
         range.adopt_diagnostics(&text, &mut diagnostics);
         let ignore_store_lock = ignore_store_arc.lock().await;
@@ -115,7 +116,8 @@ async fn process_file_for_indexing(
         let name_filter_lock = name_filter_arc.lock().await;
         let mut ctx = SuppressionContext::new()
             .with_ignore(&ignore_store_lock)
-            .with_dictionary(&dictionary_lock);
+            .with_dictionary(&dictionary_lock)
+            .with_directives(&directives);
         if let Some(analyzer) = morphology_lock.as_ref() {
             ctx = ctx.with_morphology(analyzer);
         }
@@ -585,6 +587,7 @@ async fn main() -> Result<()> {
                                 "CheckProse: engines done"
                             );
 
+                            let directives = InlineDirectives::parse(&req.text);
                             let ignore_store = ignore_store_arc.lock().await;
                             let dict = dictionary_arc.lock().await;
                             let morphology = morphology_arc.lock().await;
@@ -598,7 +601,8 @@ async fn main() -> Result<()> {
 
                                 let mut ctx = SuppressionContext::new()
                                     .with_ignore(&ignore_store)
-                                    .with_dictionary(&dict);
+                                    .with_dictionary(&dict)
+                                    .with_directives(&directives);
                                 if let Some(analyzer) = morphology.as_ref() {
                                     ctx = ctx.with_morphology(analyzer);
                                 }

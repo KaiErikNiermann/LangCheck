@@ -33,7 +33,7 @@ use crate::names::NameFilter;
 use crate::orchestrator::Orchestrator;
 use crate::prose;
 use crate::sls::SchemaRegistry;
-use crate::suppression::{SuppressionContext, retain_visible};
+use crate::suppression::{InlineDirectives, SuppressionContext, retain_visible};
 use crate::text_util::safe_slice;
 
 // ── LSP settings ────────────────────────────────────────────────────────────
@@ -319,6 +319,7 @@ impl Backend {
 
         let mut all_diagnostics: Vec<Diagnostic> = Vec::new();
 
+        let directives = InlineDirectives::parse(text);
         let prose_texts = crate::prose::range_texts(&ranges, text);
         let batch = {
             let mut orch = self.orchestrator.lock().await;
@@ -339,7 +340,8 @@ impl Backend {
                 let names = self.name_filter.lock().await;
                 let mut ctx = SuppressionContext::new()
                     .with_ignore(&ignore)
-                    .with_dictionary(&dict);
+                    .with_dictionary(&dict)
+                    .with_directives(&directives);
                 if let Some(analyzer) = morphology.as_ref() {
                     ctx = ctx.with_morphology(analyzer);
                 }

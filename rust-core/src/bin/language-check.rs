@@ -15,7 +15,7 @@ use lang_check::dictionary::Dictionary;
 use lang_check::morphology::AffixAnalyzer;
 use lang_check::names::NameFilter;
 use lang_check::sls::SchemaRegistry;
-use lang_check::suppression::{SuppressionContext, retain_visible};
+use lang_check::suppression::{InlineDirectives, SuppressionContext, retain_visible};
 use lang_check::text_util::snap_range;
 use lang_check::{checker::Diagnostic, config, orchestrator, prose, rules};
 use orchestrator::Orchestrator;
@@ -223,8 +223,10 @@ impl CliSuppression {
         }
     }
 
-    const fn context(&self) -> SuppressionContext<'_> {
-        let mut ctx = SuppressionContext::new().with_dictionary(&self.dictionary);
+    const fn context<'a>(&'a self, directives: &'a InlineDirectives) -> SuppressionContext<'a> {
+        let mut ctx = SuppressionContext::new()
+            .with_dictionary(&self.dictionary)
+            .with_directives(directives);
         if let Some(analyzer) = &self.morphology {
             ctx = ctx.with_morphology(analyzer);
         }
@@ -352,10 +354,11 @@ async fn check_file(
 
     let prose_texts = prose::range_texts(&ranges, &text);
     let batch = orchestrator.check_batch(&prose_texts, lang).await?;
+    let directives = InlineDirectives::parse(&text);
 
     for (range, mut diagnostics) in ranges.iter().zip(batch) {
         range.adopt_diagnostics(&text, &mut diagnostics);
-        retain_visible(&mut diagnostics, &text, &suppression.context());
+        retain_visible(&mut diagnostics, &text, &suppression.context(&directives));
 
         for d in diagnostics {
             found_issues += 1;
@@ -444,9 +447,10 @@ async fn fix_file(
         .check_batch(&prose_texts, lang)
         .await
         .unwrap_or_default();
+    let directives = InlineDirectives::parse(&text);
     for (range, mut diagnostics) in ranges.iter().zip(batch) {
         range.adopt_diagnostics(&text, &mut diagnostics);
-        retain_visible(&mut diagnostics, &text, &suppression.context());
+        retain_visible(&mut diagnostics, &text, &suppression.context(&directives));
         all_diagnostics.extend(diagnostics);
     }
 

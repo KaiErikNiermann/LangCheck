@@ -17,6 +17,7 @@ use tracing::debug;
 use crate::checker::Diagnostic;
 use crate::dictionary::Dictionary;
 use crate::hashing::{DiagnosticFingerprint, IgnoreStore};
+use crate::ignore_rules::{IgnoreParser, ResolvedDirectives};
 use crate::morphology::AffixAnalyzer;
 use crate::names::{NameFilter, NameQuery, NameVerdict};
 use crate::prose::is_spelling_category;
@@ -32,6 +33,45 @@ pub struct SuppressionContext<'a> {
     pub dictionary: Option<&'a Dictionary>,
     pub morphology: Option<&'a AffixAnalyzer>,
     pub names: Option<&'a NameFilter>,
+    pub directives: Option<&'a InlineDirectives>,
+}
+
+/// Inline `lang-check-*` directives resolved from a whole document.
+///
+/// Resolved once per document and shared by every diagnostic, because the
+/// directives live in comments that the prose extractors strip: a range of
+/// extracted prose never contains the `lang-check-begin` that governs it, and
+/// its offsets are range-local. Both only line up at the call sites that hold
+/// the document, which is where [`retain_visible`] runs.
+#[derive(Debug, Clone, Default)]
+pub struct InlineDirectives {
+    resolved: ResolvedDirectives,
+}
+
+impl InlineDirectives {
+    #[must_use]
+    pub fn parse(text: &str) -> Self {
+        let directives = IgnoreParser::parse_directives(text);
+        Self {
+            resolved: IgnoreParser::resolve_all(text, &directives),
+        }
+    }
+
+    /// Whether anything was found, so callers can skip the per-diagnostic work.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.resolved.ignore_ranges.is_empty() && self.resolved.regions.is_empty()
+    }
+
+    /// Whether `diagnostic` falls inside a suppressing directive.
+    ///
+    /// `text` is the document the directives were parsed from, and the
+    /// diagnostic's offsets must index into it.
+    #[must_use]
+    pub fn suppresses(&self, diagnostic: &Diagnostic, text: &str) -> bool {
+        IgnoreParser::should_ignore(diagnostic, &self.resolved.ignore_ranges)
+            || IgnoreParser::should_ignore_by_region(diagnostic, text, &self.resolved.regions)
+    }
 }
 
 impl<'a> SuppressionContext<'a> {
@@ -42,6 +82,7 @@ impl<'a> SuppressionContext<'a> {
             dictionary: None,
             morphology: None,
             names: None,
+            directives: None,
         }
     }
 
@@ -68,6 +109,12 @@ impl<'a> SuppressionContext<'a> {
         self.names = Some(names);
         self
     }
+
+    #[must_use]
+    pub const fn with_directives(mut self, directives: &'a InlineDirectives) -> Self {
+        self.directives = Some(directives);
+        self
+    }
 }
 
 /// What the suppression pass decided about one diagnostic.
@@ -83,6 +130,13 @@ enum Outcome {
 /// The single decision point. Both public entry points route through this so the four
 /// call sites cannot diverge again.
 fn classify(diagnostic: &Diagnostic, text: &str, ctx: &SuppressionContext<'_>) -> Outcome {
+    if let Some(directives) = ctx.directives
+        && !directives.is_empty()
+        && directives.suppresses(diagnostic, text)
+    {
+        return Outcome::Drop;
+    }
+
     if let Some(ignore) = ctx.ignore {
         let fingerprint = DiagnosticFingerprint::new(
             &diagnostic.message,

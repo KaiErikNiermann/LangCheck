@@ -4,7 +4,6 @@ use crate::engines::{
     Engine, ExternalEngine, HarperEngine, LanguageToolEngine, ProselintEngine, ValeEngine,
     WasmEngine, engine_supports_language,
 };
-use crate::ignore_rules::IgnoreParser;
 use crate::rules::RuleNormalizer;
 use anyhow::Result;
 use std::collections::HashMap;
@@ -253,7 +252,7 @@ impl Orchestrator {
             }
         }
 
-        for (text, all_diagnostics) in batch.iter().zip(&mut per_text) {
+        for all_diagnostics in &mut per_text {
             // Warn when no engines ran (e.g. non-English language with only Harper enabled)
             if engines_ran == 0 && all_diagnostics.is_empty() {
                 all_diagnostics.push(Diagnostic {
@@ -279,17 +278,6 @@ impl Orchestrator {
                     && a.end_byte == b.end_byte
                     && a.unified_id == b.unified_id
             });
-
-            // Filter out diagnostics suppressed by inline ignore directives
-            let directives = IgnoreParser::parse_directives(text);
-            let resolved = IgnoreParser::resolve_all(text, &directives);
-
-            if !resolved.ignore_ranges.is_empty() || !resolved.regions.is_empty() {
-                all_diagnostics.retain(|d| {
-                    !IgnoreParser::should_ignore(d, &resolved.ignore_ranges)
-                        && !IgnoreParser::should_ignore_by_region(d, text, &resolved.regions)
-                });
-            }
         }
 
         if subset.is_none() {
