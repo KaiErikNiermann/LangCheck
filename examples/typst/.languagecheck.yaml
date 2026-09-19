@@ -1,0 +1,29 @@
+# The configuration thesis.typ is written against.
+#
+# LanguageTool is the only engine that reads French, so a multilingual document
+# needs it; Harper stays on for the English sections, where it is instant and
+# needs no server. Start the server with `docker compose up -d` from the repo
+# root, or point `url` at your own.
+
+engines:
+  harper:
+    enabled: true
+    dialect: British
+  languagetool:
+    enabled: true
+    url: http://localhost:8010
+    # Prose ranges are packed into requests of at most this many bytes. Raise it
+    # for fewer, larger requests; 0 sends one request per range.
+    max_request_bytes: 4096
+    max_concurrent_requests: 8
+  # The language everything is checked in unless the document says otherwise.
+  # `#set text(lang: "fr")` in thesis.typ overrides it for most of the file.
+  spell_language: en-GB
+
+performance:
+  # Answers are kept per prose range, so a keystroke re-checks one paragraph
+  # instead of the whole document.
+  result_cache_entries: 4096
+
+dictionaries:
+  bundled: true

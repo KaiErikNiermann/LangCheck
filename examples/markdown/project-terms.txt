@@ -1,0 +1,3 @@
+# Words this project uses that no dictionary has. One per line; `#` comments.
+mdsvex
+nanobenchmark

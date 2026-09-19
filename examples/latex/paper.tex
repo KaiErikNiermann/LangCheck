@@ -1,0 +1,77 @@
+% A short paper exercising the LaTeX constructs the extractor has to separate
+% from prose. Every misspelling is deliberate; expected.md lists them.
+
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{hyperref}
+
+\title{On the Separation of Markup from Prose}
+\author{A. Reader}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  An abstract is prose and is checked. This sentence contains a deliberatly
+  wrong word so that the example has something to report. The title and the
+  author above are not checked: the whole preamble is skipped, so that a name
+  in \author{} is not reported as a misspelling every time.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+Body text is prose. A citation such as \cite{knuth1984} is not, and neither is
+the label above or the reference in Section~\ref{sec:intro}. A command whose
+argument is prose, such as \emph{emphasised text}, does not break the sentence
+around it.
+
+Inline mathematics, $a^2 + b^2 = c^2$, sits inside a sentence without splitting
+it. Display mathematics does not:
+\begin{equation}
+  \int_0^1 f(x)\,\mathrm{d}x = \sum_{i=1}^{n} a_i
+  \label{eq:sum}
+\end{equation}
+
+\subsection{Environments that hold no prose}
+
+% skip_environments in .languagecheck.yaml adds `algorithm` to the built-in set,
+% so nothing inside it is checked -- including the misspelling below.
+\begin{algorithm}
+  Compute the anser by iterating until convergence.
+\end{algorithm}
+
+\begin{lstlisting}[language=Python]
+# A comment in a listing: never checked.
+recieve = "misspelt on purpose"
+\end{lstlisting}
+
+\subsection{Turning the checker off}
+
+% lang-check-disable-next-line
+This line holds a deliberate mispelling and is not reported.
+
+% lang-check-begin spelling.typo
+Inside this region only spelling is silenced; every other rule still applies.
+Here is one more mispelling.
+% lang-check-end
+
+% A `lang:` directive routes a passage to another language. LaTeX has no
+% built-in language declaration the way Typst does, so the directive is how a
+% quotation in another language is marked.
+% lang-check-begin lang:fr
+Voici un paragraphe en français au milieu d'un article anglais, avec une
+fautte volontaire.
+% lang-check-end
+
+\section{Conclusion}
+
+A final sentence with a deliberatly wrong word, and a URL that is not prose:
+\url{https://example.org/paper}.
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}

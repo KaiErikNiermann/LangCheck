@@ -1,0 +1,24 @@
+---
+source: tests/examples_extraction.rs
+expression: render(&example)
+---
+syntax: markdown
+L5    en-GB    # Release notes
+L7    en-GB    Body text is prose and is checked. This paragraph contains a delibera...
+L10   en-GB    ## What is not prose
+L12   en-GB    Fenced code is never checked:
+L19   en-GB    Neither is `inline code`, a [link](https://example.org/release) targe...
+L24   en-GB    A block quote is prose. It is checked like any other paragraph, mispe...
+L27   en-GB    Column
+L27   en-GB    Meaning
+L29   en-GB    `id`
+L29   en-GB    Table cells are prose and are checked here.
+L30   en-GB    ## Words a dictionary will not have
+L32   en-GB    The bundled wordlists cover software vocabulary, and `project-terms.t...
+L36   en-GB    A person's name is not a misspelling either. The name filter keeps Ni...
+L39   en-GB    ## Turning the checker off
+L42   en-GB    This line holds a deliberate mispelling and is not reported.
+L45   en-GB    Inside this region only spelling is silenced; every other rule still ...
+L51   de-DE    Dieser Absatz steht auf Deutsch mitten in einem englischen Dokument u...
+L55   en-GB    ## Done
+L57   en-GB    A final sentence with a deliberatly wrong word.

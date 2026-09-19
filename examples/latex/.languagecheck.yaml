@@ -1,0 +1,30 @@
+# The configuration paper.tex is written against.
+#
+# LaTeX needs telling which environments hold prose and which hold something
+# else, because a \begin{...} that the extractor has never heard of is treated
+# as prose by default. Everything listed here is in addition to the built-in
+# set (verbatim, lstlisting, tikzpicture and the rest).
+
+engines:
+  harper:
+    enabled: true
+    dialect: American
+  languagetool:
+    enabled: false
+  spell_language: en-US
+
+languages:
+  latex:
+    # Environments whose body is not prose.
+    skip_environments:
+      - algorithm
+      - algorithmic
+      - circuitikz
+    # Commands whose argument is not prose. The command's own name is never
+    # checked; this is about what sits in the braces.
+    skip_commands:
+      - acro
+      - texttt
+
+dictionaries:
+  bundled: true

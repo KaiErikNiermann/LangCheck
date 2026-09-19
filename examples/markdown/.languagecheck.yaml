@@ -1,0 +1,33 @@
+# The configuration notes.md is written against.
+#
+# The smallest useful config: one offline engine, one language, the bundled
+# wordlists on. Harper needs no server, so a check here works with nothing
+# running.
+
+engines:
+  harper:
+    enabled: true
+    dialect: British
+  languagetool:
+    enabled: false
+  spell_language: en-GB
+
+# Rules you disagree with are turned off here rather than worked around in
+# the prose. The key is the unified id or the engine's own id; `off` drops the
+# diagnostic, and the other severities are error, warning, info and hint.
+rules:
+  typography.capitalization:
+    severity: "off"
+
+dictionaries:
+  bundled: true
+  # Wordlists of your own, relative to the workspace root. One word per line.
+  paths:
+    - project-terms.txt
+
+names:
+  # Suppress spelling reports on what looks like a person's name.
+  # `conservative` needs the most evidence before treating a word as a name;
+  # `aggressive` the least.
+  enabled: true
+  aggressiveness: balanced
