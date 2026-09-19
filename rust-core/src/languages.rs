@@ -178,6 +178,47 @@ pub fn resolve_ts_language(lang: &str) -> tree_sitter::Language {
     }
 }
 
+/// Primary subtags that `LanguageTool` accepts but cannot spell-check without
+/// a region, paired with the variant to assume when the document names none.
+///
+/// Measured against `LanguageTool` 6.7: `en` and `de` return zero matches for
+/// text full of misspellings, while their variants return them all. `fr`, `pt`
+/// and `nl` spell-check bare and are deliberately absent, so a document that
+/// says `fr` is checked as `fr` and not silently promoted to `fr-FR`.
+const AMBIGUOUS_SPELL_LANGUAGES: &[(&str, &str)] = &[("en", "en-US"), ("de", "de-DE")];
+
+/// Resolve a language a document declared into a tag the engines can use.
+///
+/// Typst writes `#set text(lang: "en")` for hyphenation and quotation marks,
+/// where a region is optional and usually left out, and `lang-check-begin
+/// lang:en` is written the same way. Passed through as-is, `LanguageTool`
+/// reports nothing at all for such a region — the language is accepted and
+/// every misspelling in it is missed.
+///
+/// `default_language` supplies the region when it agrees on the language, so a
+/// document set to `en-GB` keeps British spelling in a section that only says
+/// `en`.
+#[must_use]
+pub fn resolve_spell_language(declared: &str, default_language: &str) -> String {
+    if declared.contains('-') {
+        return declared.to_string();
+    }
+    let default_primary = default_language
+        .split('-')
+        .next()
+        .unwrap_or(default_language);
+    if default_primary.eq_ignore_ascii_case(declared) {
+        return default_language.to_string();
+    }
+    AMBIGUOUS_SPELL_LANGUAGES
+        .iter()
+        .find(|(primary, _)| primary.eq_ignore_ascii_case(declared))
+        .map_or_else(
+            || declared.to_string(),
+            |(_, variant)| (*variant).to_string(),
+        )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -408,5 +449,30 @@ languages:
             SUPPORTED_LANGUAGE_IDS.contains(&"org"),
             "org should be in SUPPORTED_LANGUAGE_IDS"
         );
+    }
+
+    #[test]
+    fn a_tag_with_a_region_is_left_alone() {
+        assert_eq!(resolve_spell_language("en-GB", "fr"), "en-GB");
+        assert_eq!(resolve_spell_language("de-CH", "en-US"), "de-CH");
+    }
+
+    #[test]
+    fn a_bare_tag_takes_the_region_the_document_already_uses() {
+        assert_eq!(resolve_spell_language("en", "en-GB"), "en-GB");
+        assert_eq!(resolve_spell_language("de", "de-AT"), "de-AT");
+    }
+
+    #[test]
+    fn a_bare_ambiguous_tag_gets_a_variant_languagetool_can_spell_check() {
+        // Bare "en" and "de" report nothing at all from LanguageTool 6.7.
+        assert_eq!(resolve_spell_language("en", "fr"), "en-US");
+        assert_eq!(resolve_spell_language("de", "fr"), "de-DE");
+    }
+
+    #[test]
+    fn a_bare_unambiguous_tag_stays_bare() {
+        assert_eq!(resolve_spell_language("fr", "en-US"), "fr");
+        assert_eq!(resolve_spell_language("nl", "en-US"), "nl");
     }
 }

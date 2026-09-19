@@ -352,8 +352,12 @@ async fn check_file(
     )?;
     let mut found_issues = 0;
 
-    let prose_texts = prose::range_texts(&ranges, &text);
-    let batch = orchestrator.check_batch(&prose_texts, lang).await?;
+    let units = prose::range_units(
+        &ranges,
+        &text,
+        &orchestrator.get_config().engines.spell_language,
+    );
+    let batch = orchestrator.check_units(&units).await?;
     let directives = InlineDirectives::parse(&text);
 
     for (range, mut diagnostics) in ranges.iter().zip(batch) {
@@ -442,11 +446,12 @@ async fn fix_file(
     let mut total_fixes = 0;
 
     let mut all_diagnostics = Vec::new();
-    let prose_texts = prose::range_texts(&ranges, &text);
-    let batch = orchestrator
-        .check_batch(&prose_texts, lang)
-        .await
-        .unwrap_or_default();
+    let units = prose::range_units(
+        &ranges,
+        &text,
+        &orchestrator.get_config().engines.spell_language,
+    );
+    let batch = orchestrator.check_units(&units).await.unwrap_or_default();
     let directives = InlineDirectives::parse(&text);
     for (range, mut diagnostics) in ranges.iter().zip(batch) {
         range.adopt_diagnostics(&text, &mut diagnostics);

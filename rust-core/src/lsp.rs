@@ -320,10 +320,11 @@ impl Backend {
         let mut all_diagnostics: Vec<Diagnostic> = Vec::new();
 
         let directives = InlineDirectives::parse(text);
-        let prose_texts = crate::prose::range_texts(&ranges, text);
         let batch = {
             let mut orch = self.orchestrator.lock().await;
-            orch.check_batch(&prose_texts, lang_id).await
+            let units =
+                crate::prose::range_units(&ranges, text, &orch.get_config().engines.spell_language);
+            orch.check_units(&units).await
         };
 
         let batch = batch.unwrap_or_else(|e| {

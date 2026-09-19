@@ -73,6 +73,7 @@ fn push_range(node: Node, out: &mut Vec<ProseRange>) {
         start_byte: node.start_byte(),
         end_byte: node.end_byte(),
         exclusions,
+        language: None,
     });
 }
 
@@ -170,6 +171,7 @@ fn collect_content(content: Node, text: &str, out: &mut Vec<ProseRange>) {
                     start_byte: offset + indent,
                     end_byte: offset + line.trim_end().len(),
                     exclusions: inline_literals(line.trim_end(), offset),
+                    language: None,
                 });
             }
             continue;
@@ -193,6 +195,7 @@ fn flush(paragraph: &mut Option<(usize, usize)>, text: &str, out: &mut Vec<Prose
             start_byte: start,
             end_byte: end,
             exclusions: inline_literals(&text[start..end], start),
+            language: None,
         });
     }
 }

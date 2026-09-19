@@ -51,17 +51,22 @@ const OPAQUE_NODES: &[&str] = &[
 /// non-prose elements. Inline markup (emphasis, strong) is bridged.
 pub fn extract(text: &str, root: Node) -> Vec<ProseRange> {
     let mut ranges = Vec::new();
-    collect_prose(root, text, &mut ranges);
+    collect_prose(root, text, &mut ranges, None);
     ranges
 }
 
 /// Recursively collect prose ranges from the AST.
-fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>) {
+///
+/// `lang` is the natural language in force here, from the nearest enclosing
+/// `#set text(lang: …)` or `#text(lang: …)[…]`. Typst scopes both lexically,
+/// so it is threaded down the walk and reset by each content block that
+/// declares its own.
+fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>, lang: Option<&str>) {
     let kind = node.kind();
 
     if SKIP_NODES.contains(&kind) {
         if !OPAQUE_NODES.contains(&kind) {
-            collect_nested_content(node, text, out);
+            collect_nested_content(node, text, out, lang);
         }
         return;
     }
@@ -73,7 +78,11 @@ fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>) {
         if start < end {
             // Try to merge with the previous range if they're on the same line
             // or adjacent (bridging through inline markup)
-            if let Some(last) = out.last_mut() {
+            // Only bridge into a range written in the same language, or the
+            // two halves would be checked as one under whichever came first.
+            if let Some(last) = out.last_mut()
+                && last.language.as_deref() == lang
+            {
                 let gap = &text[last.end_byte..start];
                 if is_bridgeable(gap) {
                     last.end_byte = end;
@@ -84,6 +93,7 @@ fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>) {
                 start_byte: start,
                 end_byte: end,
                 exclusions: Vec::new(),
+                language: lang.map(str::to_string),
             });
         }
         return;
@@ -94,16 +104,21 @@ fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             if child.kind() == "text" || child.kind() == "emph" || child.kind() == "strong" {
-                collect_prose(child, text, out);
+                collect_prose(child, text, out, lang);
             }
         }
         return;
     }
 
-    // Recurse into children for container nodes
+    // Recurse into children for container nodes. A `#set text(lang: …)` applies
+    // to its later siblings, so the walk carries it forward from where it sits.
+    let mut declared: Option<String> = None;
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        collect_prose(child, text, out);
+        if let Some(tag) = set_rule_language(child, text) {
+            declared = Some(tag);
+        }
+        collect_prose(child, text, out, declared.as_deref().or(lang));
     }
 }
 
@@ -114,16 +129,93 @@ fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>) {
 /// reachable by descending past the skipped `code` node. Everything that is
 /// not a content block — idents, numbers, strings, argument names — stays
 /// skipped, and [`OPAQUE_NODES`] subtrees are not descended into at all.
-fn collect_nested_content(node: Node, text: &str, out: &mut Vec<ProseRange>) {
+fn collect_nested_content(node: Node, text: &str, out: &mut Vec<ProseRange>, lang: Option<&str>) {
+    // `#text(lang: "en")[…]` parses as a `call` whose head is the `text` call
+    // and whose body is the sibling `content`, so the language is read off the
+    // node whose children are being walked.
+    let declared = call_language(node, text);
+    let scope = declared.as_deref().or(lang);
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         let kind = child.kind();
         if kind == "content" {
-            collect_prose(child, text, out);
+            collect_prose(child, text, out, scope);
         } else if !OPAQUE_NODES.contains(&kind) {
-            collect_nested_content(child, text, out);
+            collect_nested_content(child, text, out, scope);
         }
     }
+}
+
+/// The BCP-47 tag a `text(…)` call names, if it names one.
+///
+/// Typst spells the natural language `lang: "de"` with an optional
+/// `region: "CH"`, which is the same information as `de-CH` — so a document
+/// that already declares its language for hyphenation and quotation marks
+/// declares it for the checker too, with no second annotation to keep in sync.
+/// Only `text` is read: `lang` means something else on `#set page` and friends.
+fn call_language(node: Node, text: &str) -> Option<String> {
+    let mut cursor = node.walk();
+    let head = node
+        .children(&mut cursor)
+        .find(|child| child.kind() == "call")?;
+    text_call_language(head, text)
+}
+
+/// The tag named by `#set text(…)`, if `node` is that set rule.
+///
+/// `#set text(lang: "fr")` parses as `code -> set -> call`, so the rule is one
+/// level below the `code` node the walk hands over.
+fn set_rule_language(node: Node, text: &str) -> Option<String> {
+    let mut cursor = node.walk();
+    let set = node.children(&mut cursor).find(|c| c.kind() == "set")?;
+    let mut inner = set.walk();
+    let call = set.children(&mut inner).find(|c| c.kind() == "call")?;
+    text_call_language(call, text)
+}
+
+/// Read `lang:` and `region:` off a `text(…)` call node.
+fn text_call_language(call: Node, text: &str) -> Option<String> {
+    let mut cursor = call.walk();
+    let ident = call.children(&mut cursor).find(|c| c.kind() == "ident")?;
+    if &text[ident.byte_range()] != "text" {
+        return None;
+    }
+    let mut cursor = call.walk();
+    let group = call.children(&mut cursor).find(|c| c.kind() == "group")?;
+    let lang = tagged_string(group, text, "lang")?;
+    Some(
+        tagged_string(group, text, "region")
+            .map_or_else(|| lang.to_string(), |region| format!("{lang}-{region}")),
+    )
+}
+
+/// The string value of `name:` inside an argument `group`.
+fn tagged_string<'a>(group: Node, text: &'a str, name: &str) -> Option<&'a str> {
+    let mut cursor = group.walk();
+    for tagged in group.children(&mut cursor) {
+        if tagged.kind() != "tagged" {
+            continue;
+        }
+        let mut inner = tagged.walk();
+        let mut key = None;
+        let mut value = None;
+        for part in tagged.children(&mut inner) {
+            match part.kind() {
+                "ident" if key.is_none() => key = Some(part),
+                "string" if value.is_none() => value = Some(part),
+                _ => {}
+            }
+        }
+        if key.is_some_and(|k| &text[k.byte_range()] == name)
+            && let Some(value) = value
+        {
+            // The node spans the quotes; the value is what sits between them.
+            return text[value.byte_range()]
+                .strip_prefix('"')
+                .and_then(|v| v.strip_suffix('"'));
+        }
+    }
+    None
 }
 
 /// Check if a gap between text nodes can be bridged.
@@ -512,6 +604,68 @@ mod tests {
         let prose = extract_all_prose("We have $a$ and $b$ as variables.\n")?;
         assert!(prose.contains("We have"), "got: {prose:?}");
         assert!(prose.contains("as variables"), "got: {prose:?}");
+        Ok(())
+    }
+
+    /// `(prose, the language it was tagged with)` for every extracted range.
+    fn extract_with_languages(text: &str) -> Result<Vec<(String, Option<String>)>> {
+        let mut extractor = typst_extractor()?;
+        Ok(extractor
+            .extract(text, "typst", &LatexExtras::default())?
+            .iter()
+            .map(|r| (r.extract_text(text).into_owned(), r.language.clone()))
+            .collect())
+    }
+
+    #[test]
+    fn prose_without_a_declaration_carries_no_language() -> Result<()> {
+        let ranges = extract_with_languages("Just a paragraph.\n")?;
+        assert_eq!(ranges[0].1, None);
+        Ok(())
+    }
+
+    #[test]
+    fn a_text_call_scopes_its_language_to_its_content() -> Result<()> {
+        let ranges = extract_with_languages(
+            "Du texte en francais.\n\n#text(lang: \"en\")[An English aside.]\n\nEncore du francais.\n",
+        )?;
+        let tagged: Vec<_> = ranges.iter().map(|(_, lang)| lang.as_deref()).collect();
+        assert_eq!(tagged, vec![None, Some("en"), None]);
+        Ok(())
+    }
+
+    #[test]
+    fn a_set_rule_applies_to_the_rest_of_its_block() -> Result<()> {
+        let ranges = extract_with_languages(
+            "#set text(lang: \"fr\")\n\nDu texte en francais.\n\n             #[\n  #set text(lang: \"en\")\n  An English aside.\n]\n\nEncore du francais.\n",
+        )?;
+        let tagged: Vec<_> = ranges.iter().map(|(_, lang)| lang.as_deref()).collect();
+        // The set rule inside the block does not leak back out of it.
+        assert_eq!(tagged, vec![Some("fr"), Some("en"), Some("fr")]);
+        Ok(())
+    }
+
+    #[test]
+    fn a_region_argument_becomes_the_bcp_47_subtag() -> Result<()> {
+        let ranges =
+            extract_with_languages("#set text(lang: \"de\", region: \"CH\")\n\nEin Satz.\n")?;
+        assert_eq!(ranges[0].1.as_deref(), Some("de-CH"));
+        Ok(())
+    }
+
+    #[test]
+    fn lang_on_another_function_is_not_a_language_declaration() -> Result<()> {
+        // `lang` means something else outside `text`, so only `text` is read.
+        let ranges = extract_with_languages("#figure(lang: \"en\")[A caption.]\n")?;
+        assert_eq!(ranges[0].1, None);
+        Ok(())
+    }
+
+    #[test]
+    fn two_languages_on_one_line_are_not_bridged_into_one_range() -> Result<()> {
+        let ranges = extract_with_languages("Du francais #text(lang: \"en\")[and English] ici.\n")?;
+        let tagged: Vec<_> = ranges.iter().map(|(_, lang)| lang.as_deref()).collect();
+        assert_eq!(tagged, vec![None, Some("en"), None]);
         Ok(())
     }
 }

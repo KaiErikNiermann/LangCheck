@@ -189,6 +189,7 @@ mod tests {
             start_byte: 0,
             end_byte: 5,
             exclusions: vec![],
+            language: None,
         }];
         cache.put(PathBuf::from("foo.md"), "hello", ranges.clone());
         let result = cache.get(Path::new("foo.md"), "hello");
@@ -202,6 +203,7 @@ mod tests {
             start_byte: 0,
             end_byte: 5,
             exclusions: vec![],
+            language: None,
         }];
         cache.put(PathBuf::from("foo.md"), "hello", ranges);
         assert!(cache.get(Path::new("foo.md"), "hello world").is_none());
@@ -214,6 +216,7 @@ mod tests {
             start_byte: 0,
             end_byte: 1,
             exclusions: vec![],
+            language: None,
         }];
         cache.put(PathBuf::from("a.md"), "a", r.clone());
         cache.put(PathBuf::from("b.md"), "b", r.clone());
@@ -232,6 +235,7 @@ mod tests {
             start_byte: 0,
             end_byte: 1,
             exclusions: vec![],
+            language: None,
         }];
         cache.put(PathBuf::from("foo.md"), "x", r);
         cache.invalidate(Path::new("foo.md"));

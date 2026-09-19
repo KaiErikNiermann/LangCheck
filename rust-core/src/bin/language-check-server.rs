@@ -97,10 +97,10 @@ async fn process_file_for_indexing(
     let mut all_diagnostics = Vec::new();
 
     // Uses a dedicated indexing orchestrator — no contention with foreground
-    let prose_texts = prose::range_texts(&ranges, &text);
     let batch = {
         let mut orch = orchestrator.lock().await;
-        orch.check_batch(&prose_texts, &lang_id).await
+        let units = prose::range_units(&ranges, &text, &orch.get_config().engines.spell_language);
+        orch.check_units(&units).await
     };
 
     let batch = batch.unwrap_or_else(|e| {
@@ -573,12 +573,14 @@ async fn main() -> Result<()> {
 
                             // One batch, one lock: the engines decide internally
                             // how much of it to run concurrently.
-                            let prose_texts = prose::range_texts(&ranges, &req.text);
                             let batch = {
                                 let mut orchestrator = orchestrator_arc.lock().await;
-                                orchestrator
-                                    .check_batch(&prose_texts, &req.language_id)
-                                    .await
+                                let units = prose::range_units(
+                                    &ranges,
+                                    &req.text,
+                                    &orchestrator.get_config().engines.spell_language,
+                                );
+                                orchestrator.check_units(&units).await
                             };
                             debug!(
                                 id = request_id,

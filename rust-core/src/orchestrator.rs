@@ -5,6 +5,7 @@ use crate::engines::{
     Engine, ExternalEngine, HarperEngine, LanguageToolEngine, ProselintEngine, ValeEngine,
     WasmEngine, engine_supports_language,
 };
+use crate::prose::ProseUnit;
 use crate::rules::RuleNormalizer;
 use anyhow::Result;
 use std::collections::HashMap;
@@ -134,14 +135,43 @@ impl Orchestrator {
     }
 
     /// Check a single text. Thin wrapper over [`Self::check_batch`].
-    pub async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
+    pub async fn check(&mut self, text: &str, language: &str) -> Result<Vec<Diagnostic>> {
         let texts = [text.to_string()];
-        let mut batch = self.check_batch(&texts, language_id).await?;
+        let mut batch = self.check_batch(&texts, language).await?;
         Ok(batch.pop().unwrap_or_default())
     }
 
-    /// Check independent texts (typically one document's prose ranges) in one
-    /// pass, returning one diagnostic list per input, in order.
+    /// Check one document's prose, each range in the language it is written in.
+    ///
+    /// A document is not always in one language — a French thesis quoting
+    /// English, a German paper with an English abstract — and the engines have
+    /// to be told which, or `LanguageTool` reports every correctly spelled word
+    /// as a misspelling. Ranges are grouped by language and each group checked
+    /// on its own, so a group still batches.
+    pub async fn check_units(&mut self, units: &[ProseUnit]) -> Result<Vec<Vec<Diagnostic>>> {
+        // First-seen order, so a single-language document keeps its one batch
+        // and the common case is unchanged.
+        let mut groups: Vec<(&str, Vec<usize>)> = Vec::new();
+        for (idx, unit) in units.iter().enumerate() {
+            match groups.iter_mut().find(|(lang, _)| *lang == unit.language) {
+                Some((_, slots)) => slots.push(idx),
+                None => groups.push((&unit.language, vec![idx])),
+            }
+        }
+
+        let mut out: Vec<Vec<Diagnostic>> = vec![Vec::new(); units.len()];
+        for (language, slots) in groups {
+            let texts: Vec<String> = slots.iter().map(|&i| units[i].text.clone()).collect();
+            let checked = self.check_batch(&texts, language).await?;
+            for (&slot, diagnostics) in slots.iter().zip(checked) {
+                out[slot] = diagnostics;
+            }
+        }
+        Ok(out)
+    }
+
+    /// Check independent texts, all in `language`, returning one diagnostic
+    /// list per input, in order.
     ///
     /// Batching exists so latency-bound engines can overlap their work: checking
     /// range-by-range turns a page of prose into hundreds of serial round trips.
@@ -152,7 +182,7 @@ impl Orchestrator {
     pub async fn check_batch(
         &mut self,
         texts: &[String],
-        _language_id: &str,
+        language: &str,
     ) -> Result<Vec<Vec<Diagnostic>>> {
         // Texts over max_file_size are skipped, but keep their slot so the
         // caller's results still line up one-to-one with its inputs.
@@ -168,7 +198,7 @@ impl Orchestrator {
         });
         let batch: &[String] = subset.as_deref().unwrap_or(texts);
 
-        let spell_language = self.config.engines.spell_language.clone();
+        let spell_language = language.to_string();
         let mut per_text: Vec<Vec<Diagnostic>> = vec![Vec::new(); batch.len()];
         let mut engines_ran = 0u32;
 

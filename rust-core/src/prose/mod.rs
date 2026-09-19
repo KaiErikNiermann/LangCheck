@@ -103,7 +103,33 @@ pub fn extract_with_fallback(
         ranges = apply_type_overrides(text, ranges, &type_regions, latex_extras)?;
     }
 
+    apply_language_overrides(&mut ranges, &resolved.regions);
     Ok(ranges)
+}
+
+/// Stamp `lang-check-begin lang:xx` regions onto the ranges they cover.
+///
+/// A directive is an instruction to the checker and beats what the markup says,
+/// which is how a `#set text(lang: "de")` meant for hyphenation gets overridden
+/// for one quoted passage without touching the typesetting. Innermost wins, so
+/// a nested region overrides the one around it.
+fn apply_language_overrides(ranges: &mut [ProseRange], regions: &[DirectiveRegion]) {
+    let with_language: Vec<&DirectiveRegion> = regions
+        .iter()
+        .filter(|region| region.options.language.is_some())
+        .collect();
+    if with_language.is_empty() {
+        return;
+    }
+    for range in ranges {
+        let innermost = with_language
+            .iter()
+            .filter(|region| region.byte_range.contains(&range.start_byte))
+            .min_by_key(|region| region.byte_range.end - region.byte_range.start);
+        if let Some(region) = innermost {
+            range.language.clone_from(&region.options.language);
+        }
+    }
 }
 
 /// Re-extract prose for regions tagged with `type:FORMAT`.
@@ -172,6 +198,11 @@ pub struct ProseRange {
     /// excluded from grammar checking (e.g. display math). These regions are
     /// replaced with spaces when extracting text, preserving byte offsets.
     pub exclusions: Vec<(usize, usize)>,
+    /// The natural language this prose is written in, as a BCP-47 tag, when the
+    /// document says so — a `lang-check-begin lang:` directive, or the format's
+    /// own declaration such as Typst's `#set text(lang: "fr")`. `None` means the
+    /// configured `spell_language` applies.
+    pub language: Option<String>,
 }
 
 impl ProseRange {
@@ -316,6 +347,35 @@ pub fn range_texts(ranges: &[ProseRange], text: &str) -> Vec<String> {
     ranges
         .iter()
         .map(|r| r.extract_text(text).into_owned())
+        .collect()
+}
+
+/// One prose range's text, with the natural language to check it in.
+///
+/// The two travel together because a document can hold more than one language
+/// and the engines have to be told which: Harper has no French, and
+/// `LanguageTool` asked for the wrong language reports every correctly spelled
+/// word as a misspelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProseUnit {
+    pub text: String,
+    /// A BCP-47 tag, resolved: the range's own language when the document
+    /// declares one, and `default_language` otherwise.
+    pub language: String,
+}
+
+/// The prose ranges as checkable units, each carrying its resolved language.
+#[must_use]
+pub fn range_units(ranges: &[ProseRange], text: &str, default_language: &str) -> Vec<ProseUnit> {
+    ranges
+        .iter()
+        .map(|r| ProseUnit {
+            text: r.extract_text(text).into_owned(),
+            language: r.language.as_ref().map_or_else(
+                || default_language.to_string(),
+                |declared| crate::languages::resolve_spell_language(declared, default_language),
+            ),
+        })
         .collect()
 }
 
@@ -536,6 +596,7 @@ mod tests {
             start_byte: 0,
             end_byte: text.len(),
             exclusions: Vec::new(),
+            language: None,
         };
         let out = range.extract_text(text);
         assert!(matches!(out, std::borrow::Cow::Borrowed(_)));
@@ -551,6 +612,7 @@ mod tests {
             start_byte: 0,
             end_byte: text.len(),
             exclusions: vec![(x, x + 1)],
+            language: None,
         };
         let out = range.extract_text(text);
         assert_eq!(out, "café   tea");
@@ -567,6 +629,7 @@ mod tests {
             start_byte: 0,
             end_byte: text.len(),
             exclusions: vec![(dash_start, dash_end)],
+            language: None,
         };
         let out = range.extract_text(text);
         assert_eq!(out, "a   b");
@@ -582,6 +645,7 @@ mod tests {
             start_byte: start,
             end_byte: text.len(),
             exclusions: vec![(dash, dash + '—'.len_utf8())],
+            language: None,
         };
         // " — " → space + 3 blanked em-dash bytes + space = 5 spaces.
         let out = range.extract_text(text);
@@ -594,6 +658,7 @@ mod tests {
             start_byte: 0,
             end_byte: text.len(),
             exclusions: vec![(start, start + excluded.len())],
+            language: None,
         }
     }
 
@@ -649,6 +714,7 @@ mod tests {
             start_byte: start,
             end_byte: text.len(),
             exclusions: Vec::new(),
+            language: None,
         };
         // "two" is at range-local 4..7.
         let mut diagnostics = vec![diagnostic(4, 7, "spelling.typo")];
@@ -670,6 +736,7 @@ mod tests {
             start_byte: 0,
             end_byte: text.len(),
             exclusions: vec![(4, 7)],
+            language: None,
         };
         // Overlapping the skip, and a non-spelling diagnostic beside it.
         let mut diagnostics = vec![
@@ -689,11 +756,13 @@ mod tests {
                 start_byte: 0,
                 end_byte: 5,
                 exclusions: Vec::new(),
+                language: None,
             },
             ProseRange {
                 start_byte: 6,
                 end_byte: text.len(),
                 exclusions: vec![(6, 10)],
+                language: None,
             },
         ];
         let texts = range_texts(&ranges, text);
@@ -748,6 +817,7 @@ mod tests {
             start_byte: 100,
             end_byte: 300,
             exclusions: vec![(150, 200)],
+            language: None,
         };
 
         // Diagnostic entirely inside exclusion
@@ -768,6 +838,7 @@ mod tests {
             start_byte: 0,
             end_byte: text.len(),
             exclusions: vec![(2, 6)],
+            language: None,
         };
         // "is" at [7, 9): one space after the skip → whitespace-adjacent.
         assert_eq!(
@@ -794,6 +865,7 @@ mod tests {
             start_byte: 0,
             end_byte: text.len(),
             exclusions: vec![(0, 4)],
+            language: None,
         };
         assert_eq!(
             range.exclusion_adjacency(text, 4, 6),
@@ -812,6 +884,7 @@ mod tests {
             start_byte: 0,
             end_byte: text.len(),
             exclusions: vec![(3, 6)],
+            language: None,
         };
         assert_eq!(
             range.exclusion_adjacency(text, 0, 3),
@@ -831,6 +904,7 @@ mod tests {
             start_byte: 0,
             end_byte: text.len(),
             exclusions: vec![(2, 6)],
+            language: None,
         };
         // Grammar/typography noise flanking the cut is suppressed...
         assert!(range.suppresses_diagnostic(text, 7, 10, "typography.capitalization"));
@@ -848,6 +922,7 @@ mod tests {
             start_byte: 0,
             end_byte: text.len(),
             exclusions: vec![(1, 8), (11, 13)],
+            language: None,
         };
         assert_eq!(
             range.exclusion_adjacency(text, 8, 11),
@@ -866,6 +941,7 @@ mod tests {
             start_byte: 0,
             end_byte: text.len(),
             exclusions: vec![(0, 3)],
+            language: None,
         };
         assert_eq!(
             range.exclusion_adjacency(text, 3, 5),
@@ -883,6 +959,7 @@ mod tests {
             start_byte: 0,
             end_byte: text.len(),
             exclusions: vec![(0, 4)],
+            language: None,
         };
         assert!(range.suppresses_diagnostic(text, 4, 6, "spelling.typo"));
         // A real word with text between it and the skip is untouched.
@@ -1023,6 +1100,7 @@ Last paragraph after.";
             start_byte: 0,
             end_byte: 20,
             exclusions: vec![(5, 10)],
+            language: None,
         };
         // "text } rest" after blanking exclusion [5,10) -> "text      rest"
         // but if original is "text #{x+y} rest", after blanking the #{x+y}

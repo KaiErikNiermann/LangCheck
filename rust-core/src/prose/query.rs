@@ -34,6 +34,7 @@ pub fn extract(
                 start_byte: capture.node.start_byte(),
                 end_byte: capture.node.end_byte(),
                 exclusions: vec![],
+                language: None,
             });
         }
     }

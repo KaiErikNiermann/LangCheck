@@ -233,6 +233,7 @@ mod tests {
             start_byte: 12, // "The cat sat on the mat. The dog ran home.\n"
             end_byte: 54,
             exclusions: vec![],
+            language: None,
         }];
         let from_ranges = ProseInsights::analyze_ranges(doc, &ranges);
         let prose_only = ProseInsights::analyze(&doc[12..54]);
