@@ -423,12 +423,17 @@ pub struct LanguageToolConfig {
     pub enabled_categories: Vec<String>,
     /// How many `/v2/check` requests may be in flight at once.
     ///
-    /// A document is checked one prose range at a time, so a page of prose is
-    /// hundreds of small requests; issuing them serially makes the round-trip
-    /// latency, not `LanguageTool` itself, the bottleneck. Lower this when
-    /// pointing at a shared or rate-limited server; `1` restores serial checking.
+    /// Lower this when pointing at a shared or rate-limited server; `1`
+    /// restores serial checking.
     #[serde(default = "default_lt_max_concurrent_requests")]
     pub max_concurrent_requests: usize,
+    /// How much prose to put in one `/v2/check`, in bytes.
+    ///
+    /// Prose ranges are packed up to this size before being sent. A range that
+    /// exceeds it on its own still gets a request of its own; `0` disables
+    /// packing and restores one request per range.
+    #[serde(default = "default_lt_max_request_bytes")]
+    pub max_request_bytes: usize,
 }
 
 impl Default for LanguageToolConfig {
@@ -443,6 +448,7 @@ impl Default for LanguageToolConfig {
             disabled_categories: Vec::new(),
             enabled_categories: Vec::new(),
             max_concurrent_requests: default_lt_max_concurrent_requests(),
+            max_request_bytes: default_lt_max_request_bytes(),
         }
     }
 }
@@ -455,6 +461,16 @@ fn default_lt_level() -> String {
 /// swamping a shared one — measured saturation point is around 8.
 const fn default_lt_max_concurrent_requests() -> usize {
     8
+}
+
+/// Measured against a local `LanguageTool` 6.x, a `/v2/check` costs about
+/// 8 ms flat plus 20.6 us per byte. Per prose range that flat cost dominates —
+/// a 36 kB Typst document is 109 ranges of median 156 bytes, so 872 ms of the
+/// wall clock is request overhead alone. Packing to 4 kB leaves overhead under
+/// a tenth of the request and keeps each one short enough that the concurrency
+/// window stays full; 8 kB and above buys little and delays the first result.
+const fn default_lt_max_request_bytes() -> usize {
+    4096
 }
 
 impl EngineToggle for LanguageToolConfig {

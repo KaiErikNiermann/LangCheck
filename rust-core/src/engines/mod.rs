@@ -193,6 +193,7 @@ pub struct LanguageToolEngine {
     disabled_categories: Vec<String>,
     enabled_categories: Vec<String>,
     max_concurrent_requests: usize,
+    max_request_bytes: usize,
     client: reqwest::Client,
 }
 
@@ -239,6 +240,7 @@ impl LanguageToolEngine {
             disabled_categories: config.disabled_categories.clone(),
             enabled_categories: config.enabled_categories.clone(),
             max_concurrent_requests: config.max_concurrent_requests.max(1),
+            max_request_bytes: config.max_request_bytes,
             client,
         }
     }
@@ -267,6 +269,107 @@ impl LanguageToolEngine {
         }
         form
     }
+}
+
+/// Prose ranges gathered into one `/v2/check`.
+///
+/// `LanguageTool` costs roughly a flat 8 ms per request plus 20.6 us per byte,
+/// so a document sent one prose range at a time pays the flat cost a hundred
+/// times over for 35 kB of text. Ranges are joined by a blank line, which is
+/// what separates them in the document anyway, and each one's diagnostics are
+/// handed back to it by offset.
+struct Pack {
+    text: String,
+    /// `(index into the caller's texts, byte offset of that text in `text`)`,
+    /// ascending by offset.
+    members: Vec<(usize, usize)>,
+}
+
+/// The blank line between two packed ranges.
+///
+/// Two newlines, so `LanguageTool` treats the members as separate paragraphs
+/// and no rule reaches across a join that does not exist in the document.
+const PACK_SEPARATOR: &str = "\n\n";
+
+impl Pack {
+    /// Split this pack's diagnostics back out per member, rebasing offsets.
+    ///
+    /// A diagnostic that starts inside a separator belongs to no member and is
+    /// dropped; one that runs past its member's end is clamped to it.
+    fn scatter(
+        &self,
+        texts: &[String],
+        diagnostics: Vec<Diagnostic>,
+    ) -> Vec<(usize, Vec<Diagnostic>)> {
+        let mut out: Vec<(usize, Vec<Diagnostic>)> = self
+            .members
+            .iter()
+            .map(|&(idx, _)| (idx, Vec::new()))
+            .collect();
+
+        for mut d in diagnostics {
+            let start = d.start_byte as usize;
+            // The last member whose offset is at or before the diagnostic.
+            let Some(slot) = self
+                .members
+                .partition_point(|&(_, offset)| offset <= start)
+                .checked_sub(1)
+            else {
+                continue;
+            };
+            let (idx, offset) = self.members[slot];
+            let end = offset + texts[idx].len();
+            if start >= end {
+                continue; // landed in the separator after this member
+            }
+            #[allow(clippy::cast_possible_truncation)]
+            {
+                d.start_byte = (start - offset) as u32;
+                d.end_byte = ((d.end_byte as usize).min(end) - offset) as u32;
+            }
+            out[slot].1.push(d);
+        }
+        out
+    }
+}
+
+/// Gather `texts` into requests of at most `limit` bytes, in order.
+///
+/// Empty texts take no room and are left out: they have no diagnostics to
+/// find, and the caller fills their slot without a request. A text longer than
+/// `limit` gets a pack of its own — splitting it would cut a sentence. A
+/// `limit` of zero means one text per pack.
+fn pack_texts(texts: &[String], limit: usize) -> Vec<Pack> {
+    let mut packs: Vec<Pack> = Vec::new();
+    let mut current: Option<Pack> = None;
+
+    for (idx, text) in texts.iter().enumerate() {
+        if text.is_empty() {
+            continue;
+        }
+        let fits = current
+            .as_ref()
+            .is_some_and(|pack| pack.text.len() + PACK_SEPARATOR.len() + text.len() <= limit);
+        if !fits && let Some(pack) = current.take() {
+            packs.push(pack);
+        }
+        match current {
+            Some(ref mut pack) => {
+                pack.members
+                    .push((idx, pack.text.len() + PACK_SEPARATOR.len()));
+                pack.text.push_str(PACK_SEPARATOR);
+                pack.text.push_str(text);
+            }
+            None => {
+                current = Some(Pack {
+                    text: text.clone(),
+                    members: vec![(idx, 0)],
+                });
+            }
+        }
+    }
+    packs.extend(current);
+    packs
 }
 
 /// One `POST /v2/check`.
@@ -369,58 +472,85 @@ impl Engine for LanguageToolEngine {
         languagetool_request(&self.client, &url, &self.base_form(language_id), text).await
     }
 
-    /// Overlap the per-range requests instead of paying the round trip serially.
+    /// Pack the prose ranges into as few requests as the size limit allows,
+    /// and overlap those.
     ///
-    /// A page of prose is hundreds of small ranges, so wall-clock is dominated
-    /// by request latency rather than by `LanguageTool`'s own work. Requests are
-    /// capped at `max_concurrent_requests` in flight so a shared server is not
-    /// swamped, and results are re-ordered to match `texts`.
+    /// Both halves matter, and the first more than the second. `LanguageTool`
+    /// charges about 8 ms per request before it reads a byte, so a document
+    /// sent one range at a time pays that flat cost once per range — for a
+    /// 36 kB Typst file, 109 times, which is most of the wall clock. Packing
+    /// to [`LanguageToolConfig::max_request_bytes`] cuts that to ten requests.
+    /// What remains is round-trip latency, and that is what the concurrency
+    /// limit hides; requests are capped at `max_concurrent_requests` in flight
+    /// so a shared server is not swamped.
     async fn check_many(
         &mut self,
         texts: &[String],
         language_id: &str,
     ) -> Vec<Result<Vec<Diagnostic>>> {
-        let limit = self.max_concurrent_requests.max(1);
-        if limit == 1 || texts.len() <= 1 {
-            let mut results = Vec::with_capacity(texts.len());
-            for text in texts {
-                results.push(self.check(text, language_id).await);
-            }
-            return results;
+        let mut slots: Vec<Option<Result<Vec<Diagnostic>>>> = texts.iter().map(|_| None).collect();
+        let packs = pack_texts(texts, self.max_request_bytes);
+        if packs.is_empty() {
+            return slots.into_iter().map(|_| Ok(Vec::new())).collect();
         }
 
         let url = Arc::new(format!("{}/v2/check", self.url));
         let base_form = Arc::new(self.base_form(language_id));
-        let permits = Arc::new(Semaphore::new(limit));
+        let permits = Arc::new(Semaphore::new(self.max_concurrent_requests.max(1)));
+        let packs = Arc::new(packs);
         let mut tasks = JoinSet::new();
 
-        for (idx, text) in texts.iter().enumerate() {
+        for pack_idx in 0..packs.len() {
             let client = self.client.clone();
             let url = Arc::clone(&url);
             let base_form = Arc::clone(&base_form);
             let permits = Arc::clone(&permits);
-            let text = text.clone();
+            let packs = Arc::clone(&packs);
             tasks.spawn(async move {
                 // The semaphore is never closed, so acquiring only fails if the
                 // runtime is shutting down — treat that as "no slot, run anyway".
                 let _permit = permits.acquire().await.ok();
-                (
-                    idx,
-                    languagetool_request(&client, &url, &base_form, &text).await,
-                )
+                let result =
+                    languagetool_request(&client, &url, &base_form, &packs[pack_idx].text).await;
+                (pack_idx, result)
             });
         }
 
-        let mut slots: Vec<Option<Result<Vec<Diagnostic>>>> = texts.iter().map(|_| None).collect();
         while let Some(joined) = tasks.join_next().await {
-            match joined {
-                Ok((idx, result)) => slots[idx] = Some(result),
-                Err(e) => warn!("LanguageTool batch task failed to join: {e}"),
+            let Ok((pack_idx, result)) = joined else {
+                warn!("LanguageTool batch task failed to join");
+                continue;
+            };
+            let pack = &packs[pack_idx];
+            match result {
+                Ok(diagnostics) => {
+                    for (idx, own) in pack.scatter(texts, diagnostics) {
+                        slots[idx] = Some(Ok(own));
+                    }
+                }
+                // One failed request costs every range it carried, so each of
+                // them reports the failure rather than reading as clean.
+                Err(e) => {
+                    for &(idx, _) in &pack.members {
+                        slots[idx] = Some(Err(anyhow::anyhow!("{e}")));
+                    }
+                }
             }
         }
+
+        // Empty texts were never packed, and a dropped task leaves a hole.
         slots
             .into_iter()
-            .map(|slot| slot.unwrap_or_else(|| Err(anyhow::anyhow!("LanguageTool task dropped"))))
+            .enumerate()
+            .map(|(idx, slot)| {
+                slot.unwrap_or_else(|| {
+                    if texts[idx].is_empty() {
+                        Ok(Vec::new())
+                    } else {
+                        Err(anyhow::anyhow!("LanguageTool task dropped"))
+                    }
+                })
+            })
             .collect()
     }
 }
@@ -899,5 +1029,94 @@ mod tests {
         assert_eq!(res.matches[0].offset, 10);
         assert_eq!(res.matches[0].length, 7);
         assert_eq!(res.matches[0].replacements[0].value, "sentence");
+    }
+
+    /// A diagnostic over `[start, end)` of whatever text it was found in.
+    fn span(start: u32, end: u32) -> Diagnostic {
+        Diagnostic {
+            start_byte: start,
+            end_byte: end,
+            message: String::new(),
+            suggestions: Vec::new(),
+            rule_id: "languagetool.TEST".to_string(),
+            severity: 2,
+            unified_id: String::new(),
+            confidence: 0.8,
+        }
+    }
+
+    fn strings(values: &[&str]) -> Vec<String> {
+        values.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    #[test]
+    fn packing_fills_a_request_up_to_the_limit() {
+        let texts = strings(&["aaaa", "bbbb", "cccc"]);
+        // Two members plus the separator is 10 bytes; a third would be 16.
+        let packs = pack_texts(&texts, 12);
+        assert_eq!(packs.len(), 2);
+        assert_eq!(packs[0].text, "aaaa\n\nbbbb");
+        assert_eq!(packs[0].members, vec![(0, 0), (1, 6)]);
+        assert_eq!(packs[1].text, "cccc");
+        assert_eq!(packs[1].members, vec![(2, 0)]);
+    }
+
+    #[test]
+    fn a_text_over_the_limit_gets_its_own_request() {
+        let texts = strings(&["short", "an altogether longer range", "tail"]);
+        let packs = pack_texts(&texts, 8);
+        assert_eq!(packs.len(), 3);
+        assert_eq!(packs[1].text, "an altogether longer range");
+        assert_eq!(packs[1].members, vec![(1, 0)]);
+    }
+
+    #[test]
+    fn a_zero_limit_sends_one_text_per_request() {
+        let texts = strings(&["one", "two", "three"]);
+        let packs = pack_texts(&texts, 0);
+        assert_eq!(packs.len(), 3);
+        assert!(packs.iter().all(|p| p.members.len() == 1));
+    }
+
+    #[test]
+    fn empty_texts_are_left_out_of_every_pack() {
+        let texts = strings(&["", "real prose", ""]);
+        let packs = pack_texts(&texts, 4096);
+        assert_eq!(packs.len(), 1);
+        assert_eq!(packs[0].members, vec![(1, 0)]);
+    }
+
+    #[test]
+    fn scatter_returns_each_diagnostic_to_its_own_range() {
+        let texts = strings(&["first text", "second text"]);
+        let packs = pack_texts(&texts, 4096);
+        // "first text\n\nsecond text": offsets 0 and 12.
+        let scattered = packs[0].scatter(&texts, vec![span(6, 10), span(12, 18)]);
+        assert_eq!(scattered[0].0, 0);
+        assert_eq!(scattered[0].1[0].start_byte, 6);
+        assert_eq!(scattered[0].1[0].end_byte, 10);
+        assert_eq!(scattered[1].0, 1);
+        assert_eq!(scattered[1].1[0].start_byte, 0);
+        assert_eq!(scattered[1].1[0].end_byte, 6);
+    }
+
+    #[test]
+    fn scatter_drops_a_diagnostic_that_starts_in_a_separator() {
+        let texts = strings(&["first text", "second text"]);
+        let packs = pack_texts(&texts, 4096);
+        let scattered = packs[0].scatter(&texts, vec![span(10, 12)]);
+        assert!(
+            scattered
+                .iter()
+                .all(|(_, diagnostics)| diagnostics.is_empty())
+        );
+    }
+
+    #[test]
+    fn scatter_clamps_a_diagnostic_that_runs_past_its_range() {
+        let texts = strings(&["first text", "second text"]);
+        let packs = pack_texts(&texts, 4096);
+        let scattered = packs[0].scatter(&texts, vec![span(6, 14)]);
+        assert_eq!(scattered[0].1[0].end_byte, 10);
     }
 }

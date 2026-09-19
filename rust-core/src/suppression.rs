@@ -59,7 +59,7 @@ impl InlineDirectives {
 
     /// Whether anything was found, so callers can skip the per-diagnostic work.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.resolved.ignore_ranges.is_empty() && self.resolved.regions.is_empty()
     }
 
