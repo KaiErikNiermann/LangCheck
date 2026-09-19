@@ -525,33 +525,41 @@ async fn main() -> Result<()> {
                         text_len = req.text.len(),
                         "CheckProse: starting extraction"
                     );
-                    let extraction = {
+                    let (extraction, spell_language) = {
                         let schema_registry = schema_registry_arc.lock().await;
                         let cfg = config_arc.lock().await;
                         let latex_extras = prose::latex::LatexExtras {
                             skip_envs: &cfg.languages.latex.skip_environments,
                             skip_commands: &cfg.languages.latex.skip_commands,
                         };
-                        prose::extract_with_fallback(
+                        let extraction = prose::extract_reporting_syntax(
                             &req.text,
                             canonical_lang,
                             file_path,
                             Some(&schema_registry),
                             &latex_extras,
-                        )
+                        );
+                        (extraction, cfg.engines.spell_language.clone())
                     };
 
                     match extraction {
-                        Ok(ranges) => {
+                        Ok(prose::Extraction { ranges, syntax }) => {
                             debug!(
                                 id = request_id,
                                 ranges = ranges.len(),
+                                syntax,
                                 "CheckProse: extraction complete, checking ranges"
                             );
+
+                            // Built before the check so the inspector reports the
+                            // language each range was actually sent in, not the
+                            // document default it might have fallen back to.
+                            let units = prose::range_units(&ranges, &req.text, &spell_language);
                             let mut extraction_info = ExtractionInfo {
                                 prose_ranges: ranges
                                     .iter()
-                                    .map(|r| ExtractionProseRange {
+                                    .zip(&units)
+                                    .map(|(r, unit)| ExtractionProseRange {
                                         start_byte: r.start_byte as u32,
                                         end_byte: r.end_byte as u32,
                                         exclusions: r
@@ -562,9 +570,11 @@ async fn main() -> Result<()> {
                                                 end_byte: e as u32,
                                             })
                                             .collect(),
+                                        language: unit.language.clone(),
                                     })
                                     .collect(),
                                 names: Vec::new(),
+                                syntax,
                             };
 
                             let mut all_diagnostics = Vec::new();
@@ -575,11 +585,6 @@ async fn main() -> Result<()> {
                             // how much of it to run concurrently.
                             let batch = {
                                 let mut orchestrator = orchestrator_arc.lock().await;
-                                let units = prose::range_units(
-                                    &ranges,
-                                    &req.text,
-                                    &orchestrator.get_config().engines.spell_language,
-                                );
                                 orchestrator.check_units(&units).await
                             };
                             debug!(

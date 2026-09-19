@@ -23,6 +23,8 @@
     text: string;
     cleanText: string;
     exclusions: Exclusion[];
+    /** BCP-47 tag this range was checked in, as the core resolved it. */
+    language: string;
   }
 
   interface LatencyStage {
@@ -85,6 +87,8 @@
   let activeTab: Tab = $state('extraction');
   let fileName: string = $state('');
   let languageId: string = $state('');
+  /** The grammar the core parsed with, which the editor's own id may contradict. */
+  let syntax: string = $state('');
   let selectedRangeIdx: number | null = $state(null);
   let extensionVersion: string = $state('');
   let copyFeedback: boolean = $state(false);
@@ -98,9 +102,13 @@
       const message = event.data;
       switch (message.type) {
         case 'setExtraction':
+          // One message, one check: the ranges, the grammar and each range's
+          // language are replaced together, so the panel cannot show a language
+          // from one check beside prose from another.
           proseRanges = message.payload.prose ?? [];
           fileName = message.payload.fileName ?? '';
           languageId = message.payload.languageId ?? '';
+          syntax = message.payload.syntax ?? '';
           selectedRangeIdx = null;
           break;
         case 'setNames':
@@ -484,7 +492,14 @@
       {#if proseRanges.length > 0}
         <div class="section-list">
           <div class="section-header">
-            <span class="section-title">{languageId} extraction</span>
+            <span class="section-title">
+              {syntax || languageId} extraction
+              {#if syntax && languageId && syntax !== languageId}
+                <span class="syntax-mismatch" title="The editor calls this file {languageId}; the core parsed it as {syntax}.">
+                  editor says {languageId}
+                </span>
+              {/if}
+            </span>
             <span class="section-count">{proseRanges.length} ranges</span>
           </div>
           {#each proseRanges as range, i}
@@ -501,7 +516,16 @@
                     <span class="exclusion-count-badge">{range.exclusions.length} excl.</span>
                   {/if}
                 </span>
-                <span class="prose-bytes">bytes {range.startByte}..{range.endByte}</span>
+                <span class="prose-meta">
+                  <span class="lang-badge" title="Parsed as {syntax || languageId}">{syntax || languageId}</span>
+                  {#if range.language}
+                    <span
+                      class="lang-badge natlang"
+                      title="Checked as {range.language}"
+                    >{range.language}</span>
+                  {/if}
+                  <span class="prose-bytes">bytes {range.startByte}..{range.endByte}</span>
+                </span>
               </div>
               <pre class="prose-text">{#each renderSegments(range) as seg}{#if seg.isExclusion}<span class="exc-highlight" style="background: {exclusionKindColor(seg.kind)}" title="{seg.kind}">{seg.text}</span>{:else}{seg.text}{/if}{/each}</pre>
               {#if range.exclusions.length > 0}
@@ -533,7 +557,13 @@
             <div class="clean-text-block">
               <div class="clean-text-header">
                 <span class="prose-label">Range {i + 1}</span>
-                <span class="prose-bytes">bytes {range.startByte}..{range.endByte}</span>
+                <span class="prose-meta">
+                  <span class="lang-badge" title="Parsed as {syntax || languageId}">{syntax || languageId}</span>
+                  {#if range.language}
+                    <span class="lang-badge natlang" title="Checked as {range.language}">{range.language}</span>
+                  {/if}
+                  <span class="prose-bytes">bytes {range.startByte}..{range.endByte}</span>
+                </span>
               </div>
               <pre class="prose-text clean-text">{range.cleanText}</pre>
             </div>
@@ -1045,6 +1075,46 @@
     font-size: 10px;
     font-family: var(--vscode-editor-font-family, monospace);
     opacity: 0.35;
+  }
+
+  /* The right-hand side of a prose card header: what the range was parsed as,
+     what it was checked as, and where it sits. Together they answer "is the
+     engine reading this the way I meant it". */
+  .prose-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .lang-badge {
+    --_badge-accent: var(--vscode-charts-blue, #4fa6d8);
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding-inline: 5px;
+    padding-block: 1px;
+    border-radius: 3px;
+    border: 1px solid color-mix(in srgb, var(--_badge-accent) 45%, transparent);
+    color: var(--_badge-accent);
+    white-space: nowrap;
+  }
+
+  /* The natural language, distinguished from the markup grammar beside it so
+     the pair reads at a glance rather than as two look-alike tags. */
+  .lang-badge.natlang {
+    --_badge-accent: var(--vscode-charts-green, #6cb26c);
+  }
+
+  .syntax-mismatch {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding-inline: 5px;
+    border-radius: 3px;
+    color: var(--vscode-editorWarning-foreground, #cca700);
+    border: 1px solid color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 45%, transparent);
   }
 
   .prose-text {

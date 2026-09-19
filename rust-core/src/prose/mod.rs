@@ -78,13 +78,39 @@ pub fn extract_with_fallback(
     schema_registry: Option<&SchemaRegistry>,
     latex_extras: &latex::LatexExtras,
 ) -> Result<Vec<ProseRange>> {
+    extract_reporting_syntax(text, lang_id, path, schema_registry, latex_extras)
+        .map(|extraction| extraction.ranges)
+}
+
+/// One document's prose, and the grammar it was read with.
+#[derive(Debug, Clone)]
+pub struct Extraction {
+    pub ranges: Vec<ProseRange>,
+    /// What the text was actually parsed as, for the inspector to show: the
+    /// canonical language id, or an SLS schema's name when one took over. The
+    /// editor's own language id is not always what the core used, and that gap
+    /// is exactly what a user checking the parse needs to see.
+    pub syntax: String,
+}
+
+/// [`extract_with_fallback`], also reporting which grammar was chosen.
+pub fn extract_reporting_syntax(
+    text: &str,
+    lang_id: &str,
+    path: Option<&Path>,
+    schema_registry: Option<&SchemaRegistry>,
+    latex_extras: &latex::LatexExtras,
+) -> Result<Extraction> {
     if let Some(ext) = path
         .and_then(|value| value.extension())
         .and_then(|value| value.to_str())
         && crate::languages::builtin_language_for_extension(ext).is_none()
         && let Some(schema) = schema_registry.and_then(|registry| registry.find_by_extension(ext))
     {
-        return Ok(schema.extract(text));
+        return Ok(Extraction {
+            ranges: schema.extract(text),
+            syntax: schema.name.clone(),
+        });
     }
 
     let canonical_lang = crate::languages::resolve_language_id(lang_id);
@@ -104,7 +130,10 @@ pub fn extract_with_fallback(
     }
 
     apply_language_overrides(&mut ranges, &resolved.regions);
-    Ok(ranges)
+    Ok(Extraction {
+        ranges,
+        syntax: canonical_lang.to_string(),
+    })
 }
 
 /// Stamp `lang-check-begin lang:xx` regions onto the ranges they cover.

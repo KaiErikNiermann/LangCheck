@@ -75,12 +75,21 @@ let lastCheckTimings: { name: string; durationMs: number }[] = [];
 let lastCheckInfo: InspectorCheckInfo | null = null;
 
 // Cached extraction data per document URI (from real Rust core response)
-const extractionCache = new Map<string, { prose: InspectorProseRange[]; languageId: string }>();
+const extractionCache = new Map<string, { prose: InspectorProseRange[]; languageId: string; syntax: string }>();
 /** Words the name filter silenced on the last check, per document. */
 const detectedNamesCache = new Map<string, InspectorNameSpan[]>();
 
 // Tracked spell_language from config (for status bar + change detection)
 let lastKnownSpellLanguage: string | undefined;
+/**
+ * The config file as last seen, so any edit to it triggers a re-check.
+ *
+ * Watching only `spell_language` left the rest of the file able to change
+ * behind the results: a new dictionary, a disabled rule or a different engine
+ * silently applied to the next document checked and not to the one on screen,
+ * and the inspector went on reporting what the previous config produced.
+ */
+let lastKnownConfigText: string | undefined;
 
 // Built-in LaTeX environments that the checker always skips (mirrors SKIP_GENERIC_ENVS in latex.rs)
 const BUILTIN_SKIP_ENVS = new Set([
@@ -387,6 +396,12 @@ export async function activate(context: vscode.ExtensionContext) {
         await initializeClient();
         diagnosticCollection.clear();
         diagnosticsMap.clear();
+        // The inspector reports which language each range was checked in. Under
+        // a new config that answer may have changed, and showing the old one is
+        // worse than showing none, so it goes until the re-check replaces it.
+        extractionCache.clear();
+        detectedNamesCache.clear();
+        await updateInspectorData();
         const editors = vscode.window.visibleTextEditors.filter(e =>
             supportedLanguages.includes(e.document.languageId)
         );
@@ -1829,7 +1844,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    // Watch .languagecheck config files for engine / spell_language changes
+    // Watch .languagecheck config files for any change that affects results
     const configWatcher = vscode.workspace.createFileSystemWatcher('**/.languagecheck.{yaml,yml,json}');
     const checkConfigChange = async () => {
         const folder = vscode.workspace.workspaceFolders?.[0];
@@ -1841,16 +1856,22 @@ export async function activate(context: vscode.ExtensionContext) {
 
                 const langMatch = raw.match(/spell_language:\s*(\S+)/);
                 const currentLang = langMatch?.[1] ?? 'en-US';
-                if (lastKnownSpellLanguage !== undefined && currentLang !== lastKnownSpellLanguage) {
-                    languageStatusBarItem.text = `$(book) ${currentLang}`;
-                    reinitializeAndRecheck();
-                }
+                languageStatusBarItem.text = `$(book) ${currentLang}`;
                 lastKnownSpellLanguage = currentLang;
+
+                // Any edit, not only the spell language: the rest of the file
+                // decides the result just as much, and what is on screen has to
+                // match the config that produced it.
+                const changed = lastKnownConfigText !== undefined && raw !== lastKnownConfigText;
+                lastKnownConfigText = raw;
 
                 userSkipEnvs = parseSkipEnvironments(raw);
                 userSkipCommands = parseSkipCommands(raw);
                 userProseEnvs = parseProseEnvironments(raw);
                 inlayHintEmitter.fire();
+                if (changed) {
+                    await reinitializeAndRecheck();
+                }
                 return;
             } catch { /* not found, try next */ }
         }
@@ -1870,6 +1891,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     const raw = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
                     const langMatch = raw.match(/spell_language:\s*(\S+)/);
                     lastKnownSpellLanguage = langMatch?.[1] ?? 'en-US';
+                    lastKnownConfigText = raw;
                     languageStatusBarItem.text = `$(book) ${lastKnownSpellLanguage}`;
                     userSkipEnvs = parseSkipEnvironments(raw);
                     userSkipCommands = parseSkipCommands(raw);
@@ -2088,7 +2110,13 @@ async function updateInspectorData() {
     const uri = document.uri.toString();
     const fileName = path.basename(document.uri.fsPath);
 
-    // Send real extraction data from cache
+    // Send real extraction data from cache.
+    //
+    // Everything here comes from one CheckProse response, so the syntax and the
+    // per-range language always describe the boxes shown beside them. When the
+    // cache has been dropped — a config change invalidates it — there is
+    // nothing to show until the re-check lands, which is the point: a language
+    // from the previous config is worse than an empty panel.
     const cached = extractionCache.get(uri);
     inspectorPanel.webview.postMessage({
         type: 'setExtraction',
@@ -2096,6 +2124,7 @@ async function updateInspectorData() {
             prose: cached?.prose ?? [],
             fileName,
             languageId: cached?.languageId ?? document.languageId,
+            syntax: cached?.syntax ?? '',
         },
     });
 
@@ -2570,12 +2599,20 @@ async function runCheck(
                     cleanText = chars.join('');
                 }
 
-                return { startByte, endByte, text: rawText, cleanText, exclusions };
+                return {
+                    startByte,
+                    endByte,
+                    text: rawText,
+                    cleanText,
+                    exclusions,
+                    language: pr.language ?? '',
+                };
             });
 
             extractionCache.set(document.uri.toString(), {
                 prose: inspectorRanges,
                 languageId: document.languageId,
+                syntax: response.checkProse.extraction?.syntax ?? '',
             });
 
             // Words the core silenced as names. Surfaced so the suppression is visible

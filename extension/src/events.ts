@@ -68,6 +68,13 @@ export interface InspectorProseRange {
     text: string;
     cleanText: string;
     exclusions: InspectorExclusion[];
+    /**
+     * The BCP-47 tag this range was checked in, as the core resolved it — the
+     * document's own `lang:` declaration where it makes one, the configured
+     * `spell_language` otherwise. Empty when the last check predates the core
+     * reporting it.
+     */
+    language: string;
 }
 
 export interface InspectorLatencyStage {
@@ -121,7 +128,17 @@ export interface InspectorEngineInfo {
 
 // Messages from extension → Inspector webview
 export type ExtensionToInspectorMessage =
-    | { type: 'setExtraction'; payload: { prose: InspectorProseRange[]; fileName: string; languageId: string } }
+    | {
+        type: 'setExtraction';
+        payload: {
+            prose: InspectorProseRange[];
+            fileName: string;
+            /** What the editor calls the file. */
+            languageId: string;
+            /** What the core actually parsed it as; may differ from languageId. */
+            syntax: string;
+        };
+    }
     | { type: 'setNames'; payload: { names: InspectorNameSpan[] } }
     | { type: 'setLatency'; payload: { stages: InspectorLatencyStage[] } }
     | { type: 'setDiagnosticSummary'; payload: InspectorDiagnosticSummary }
