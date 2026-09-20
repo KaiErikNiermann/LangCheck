@@ -99,15 +99,8 @@ impl Orchestrator {
 
             if self.config.engines.hunspell.enabled {
                 let hunspell = &self.config.engines.hunspell;
-                let mut registry = PackRegistry::new();
-                for dir in &hunspell.search_paths {
-                    registry = registry.with_search_path(dir);
-                }
-                for (language, path) in &hunspell.dictionary_paths {
-                    registry = registry.with_override(language, path);
-                }
                 self.engines.push(Box::new(HunspellEngine::new(
-                    registry,
+                    PackRegistry::for_hunspell(hunspell),
                     hunspell.languages.clone(),
                 )));
             }

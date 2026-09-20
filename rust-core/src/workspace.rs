@@ -26,7 +26,8 @@ const FILE_HASHES_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("fi
 /// severity. The dictionary and the ignored set, because both remove
 /// diagnostics after the engines produced them. Whether names are detected,
 /// for the same reason. The loaded SLS schemas, because a schema decides which
-/// lines of a document are prose at all. And the version of this program, because an upgrade
+/// lines of a document are prose at all. And the Hunspell packs on disk,
+/// because installing one is how a language stops being unreadable. And the version of this program, because an upgrade
 /// changes what the engines say without any of the above moving.
 ///
 /// `stable_hash` and not `content_hash`: this value is written to disk in one
@@ -41,14 +42,24 @@ pub fn check_fingerprint(
     schemas: u64,
 ) -> u64 {
     let config_repr = serde_json::to_string(config).unwrap_or_default();
+    // Installing a dictionary changes neither the document nor the config, so
+    // the packs have to be looked at directly or a language the user has just
+    // made readable goes on being reported as unreadable.
+    let packs = if config.engines.hunspell.enabled {
+        crate::packs::PackRegistry::for_hunspell(&config.engines.hunspell)
+            .fingerprint(&config.engines.hunspell.languages)
+    } else {
+        0
+    };
     crate::hashing::stable_hash(&format!(
-        "{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}",
+        "{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}",
         crate::hashing::stable_hash(text),
         crate::hashing::stable_hash(&config_repr),
         dictionary.fingerprint(),
         ignore_store.fingerprint(),
         names_enabled,
         schemas,
+        packs,
         env!("CARGO_PKG_VERSION"),
     ))
 }

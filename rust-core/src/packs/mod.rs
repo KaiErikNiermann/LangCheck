@@ -236,6 +236,87 @@ impl PackRegistry {
     /// and are often more specific than the tag asked for -- `he` is shipped
     /// as `he_IL` -- so an exact match is tried first, then the primary subtag
     /// alone, then any pack whose primary subtag agrees.
+    /// A registry built the way the Hunspell engine's is.
+    ///
+    /// Shared so the engine and the check cache cannot disagree about which
+    /// packs are in play -- the cache has to look at exactly what the engine
+    /// would find, or it will serve an answer from before a pack was there.
+    #[must_use]
+    pub fn for_hunspell(config: &crate::config::HunspellConfig) -> Self {
+        let mut registry = Self::new();
+        for dir in &config.search_paths {
+            registry = registry.with_search_path(dir);
+        }
+        for (language, path) in &config.dictionary_paths {
+            registry = registry.with_override(language, path);
+        }
+        registry
+    }
+
+    /// A value that changes when the packs available for `languages` do.
+    ///
+    /// Read by the check cache. Installing a dictionary changes neither the
+    /// document nor the config, so without this the stored result from before
+    /// the install still applied -- and a language the user had just made
+    /// readable went on being reported as unreadable until they edited
+    /// something.
+    ///
+    /// Size and modification time are in it as well as the path, so replacing
+    /// a pack in place counts as a change.
+    #[must_use]
+    pub fn fingerprint(&self, languages: &[String]) -> u64 {
+        let mut parts: Vec<String> = Vec::new();
+
+        let describe = |path: &Path| -> String {
+            std::fs::metadata(path).map_or_else(
+                |_| "missing".to_string(),
+                |meta| {
+                    let modified = meta
+                        .modified()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map_or(0, |d| d.as_secs());
+                    format!("{}:{modified}", meta.len())
+                },
+            )
+        };
+
+        if languages.is_empty() {
+            // Discovery mode: any pack in the managed directory may be used,
+            // so the directory's contents are what matters.
+            if let Some(dir) = managed_dir()
+                && let Ok(entries) = std::fs::read_dir(&dir)
+            {
+                let mut listed: Vec<String> = entries
+                    .flatten()
+                    .map(|entry| {
+                        format!(
+                            "{}={}",
+                            entry.file_name().to_string_lossy(),
+                            describe(&entry.path())
+                        )
+                    })
+                    .collect();
+                listed.sort_unstable();
+                parts.extend(listed);
+            }
+        } else {
+            for language in languages {
+                match self.resolve(language) {
+                    Ok(pack) => parts.push(format!(
+                        "{language}={}|{}|{}",
+                        pack.stem,
+                        describe(&pack.aff),
+                        describe(&pack.dic),
+                    )),
+                    Err(_) => parts.push(format!("{language}=none")),
+                }
+            }
+        }
+
+        crate::hashing::stable_hash(&parts.join("\x1e"))
+    }
+
     pub fn resolve(&self, language: &str) -> Result<ResolvedPack, PackError> {
         let tag = normalise_tag(language);
 
@@ -582,6 +663,59 @@ fn read_pack_file(path: &Path) -> Result<String, PackError> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn the_fingerprint_changes_when_a_pack_appears() {
+        // Installing a dictionary changes neither the document nor the
+        // config, so this is the only thing that can tell the check cache
+        // that a language has become readable.
+        let dir = std::env::temp_dir().join(format!("lc_packfp_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let registry = PackRegistry::new().with_only_search_paths(vec![dir.clone()]);
+        let asked = vec!["he".to_string()];
+
+        let before = registry.fingerprint(&asked);
+        std::fs::write(dir.join("he_IL.aff"), "SET UTF-8\n").unwrap();
+        std::fs::write(dir.join("he_IL.dic"), "1\nword\n").unwrap();
+        let after = registry.fingerprint(&asked);
+
+        assert_ne!(before, after, "a newly installed pack went unnoticed");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn the_fingerprint_is_stable_while_nothing_changes() {
+        // Otherwise every check would miss the cache and the whole stored
+        // result would be pointless.
+        let dir = std::env::temp_dir().join(format!("lc_packfp_stable_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("he_IL.aff"), "SET UTF-8\n").unwrap();
+        std::fs::write(dir.join("he_IL.dic"), "1\nword\n").unwrap();
+        let registry = PackRegistry::new().with_only_search_paths(vec![dir.clone()]);
+        let asked = vec!["he".to_string()];
+
+        assert_eq!(registry.fingerprint(&asked), registry.fingerprint(&asked));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn replacing_a_pack_in_place_counts_as_a_change() {
+        // The path is the same, so the path alone would say nothing changed.
+        let dir = std::env::temp_dir().join(format!("lc_packfp_replace_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("he_IL.aff"), "SET UTF-8\n").unwrap();
+        std::fs::write(dir.join("he_IL.dic"), "1\nword\n").unwrap();
+        let registry = PackRegistry::new().with_only_search_paths(vec![dir.clone()]);
+        let asked = vec!["he".to_string()];
+
+        let before = registry.fingerprint(&asked);
+        std::fs::write(dir.join("he_IL.dic"), "2\nword\nanother\n").unwrap();
+        assert_ne!(before, registry.fingerprint(&asked));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
     use super::*;
 
     /// A directory holding the named `.aff`/`.dic` stems, plus any lone files.
