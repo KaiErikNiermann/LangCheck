@@ -50,7 +50,6 @@ struct IndexingContext {
     config: Arc<Mutex<Config>>,
 }
 
-
 async fn process_file_for_indexing(
     file_path: PathBuf,
     ctx: IndexingContext,
@@ -534,8 +533,7 @@ async fn main() -> Result<()> {
                         let excluded = {
                             let cfg = config_arc.lock().await;
                             let root = workspace_root_arc.lock().await;
-                            root.as_ref()
-                                .is_some_and(|root| cfg.excludes(path, root))
+                            root.as_ref().is_some_and(|root| cfg.excludes(path, root))
                         };
                         if excluded {
                             debug!(id = request_id, file = ?path, "CheckProse: excluded by config");
@@ -654,74 +652,72 @@ async fn main() -> Result<()> {
                                 );
                                 all_diagnostics = stored;
                             } else {
-
-                            // One batch, one lock: the engines decide internally
-                            // how much of it to run concurrently.
-                            let batch = {
-                                let mut orchestrator = orchestrator_arc.lock().await;
-                                orchestrator
-                                    .check_units_in(
-                                        &units,
-                                        &lang_check::orchestrator::CheckContext::for_path(
-                                            file_path,
-                                        ),
-                                    )
-                                    .await
-                            };
-                            debug!(
-                                id = request_id,
-                                ranges = ranges.len(),
-                                elapsed_ms = check_start.elapsed().as_millis() as u64,
-                                "CheckProse: engines done"
-                            );
-
-                            let directives = InlineDirectives::parse(&req.text);
-                            let ignore_store = ignore_store_arc.lock().await;
-                            let dict = dictionary_arc.lock().await;
-                            let morphology = morphology_arc.lock().await;
-                            let name_filter = name_filter_arc.lock().await;
-                            let batch = batch.unwrap_or_else(|e| {
-                                warn!(id = request_id, "CheckProse: batch failed: {e}");
-                                Vec::new()
-                            });
-                            for (range, mut diagnostics) in ranges.iter().zip(batch) {
-                                range.adopt_diagnostics(&req.text, &mut diagnostics);
-
-                                let mut ctx = SuppressionContext::new()
-                                    .with_ignore(&ignore_store)
-                                    .with_dictionary(&dict)
-                                    .with_directives(&directives);
-                                if let Some(analyzer) = morphology.as_ref() {
-                                    ctx = ctx.with_morphology(analyzer);
-                                }
-                                if let Some(filter) = name_filter.as_ref() {
-                                    ctx = ctx.with_names(filter);
-                                }
-                                detected_names.extend(
-                                    retain_visible(&mut diagnostics, &req.text, &ctx)
-                                        .into_iter()
-                                        .map(|n| checker::NameSpan {
-                                            start_byte: n.start_byte,
-                                            end_byte: n.end_byte,
-                                            confidence: n.confidence,
-                                            signals: n.signals,
-                                        }),
+                                // One batch, one lock: the engines decide internally
+                                // how much of it to run concurrently.
+                                let batch = {
+                                    let mut orchestrator = orchestrator_arc.lock().await;
+                                    orchestrator
+                                        .check_units_in(
+                                            &units,
+                                            &lang_check::orchestrator::CheckContext::for_path(
+                                                file_path,
+                                            ),
+                                        )
+                                        .await
+                                };
+                                debug!(
+                                    id = request_id,
+                                    ranges = ranges.len(),
+                                    elapsed_ms = check_start.elapsed().as_millis() as u64,
+                                    "CheckProse: engines done"
                                 );
 
-                                all_diagnostics.extend(diagnostics);
-                            }
-                            drop(name_filter);
-                            drop(morphology);
-                            drop(dict);
-                            drop(ignore_store);
-                            debug!(
-                                id = request_id,
-                                elapsed_ms = check_start.elapsed().as_millis() as u64,
-                                ranges = ranges.len(),
-                                diagnostics = all_diagnostics.len(),
-                                "CheckProse complete"
-                            );
+                                let directives = InlineDirectives::parse(&req.text);
+                                let ignore_store = ignore_store_arc.lock().await;
+                                let dict = dictionary_arc.lock().await;
+                                let morphology = morphology_arc.lock().await;
+                                let name_filter = name_filter_arc.lock().await;
+                                let batch = batch.unwrap_or_else(|e| {
+                                    warn!(id = request_id, "CheckProse: batch failed: {e}");
+                                    Vec::new()
+                                });
+                                for (range, mut diagnostics) in ranges.iter().zip(batch) {
+                                    range.adopt_diagnostics(&req.text, &mut diagnostics);
 
+                                    let mut ctx = SuppressionContext::new()
+                                        .with_ignore(&ignore_store)
+                                        .with_dictionary(&dict)
+                                        .with_directives(&directives);
+                                    if let Some(analyzer) = morphology.as_ref() {
+                                        ctx = ctx.with_morphology(analyzer);
+                                    }
+                                    if let Some(filter) = name_filter.as_ref() {
+                                        ctx = ctx.with_names(filter);
+                                    }
+                                    detected_names.extend(
+                                        retain_visible(&mut diagnostics, &req.text, &ctx)
+                                            .into_iter()
+                                            .map(|n| checker::NameSpan {
+                                                start_byte: n.start_byte,
+                                                end_byte: n.end_byte,
+                                                confidence: n.confidence,
+                                                signals: n.signals,
+                                            }),
+                                    );
+
+                                    all_diagnostics.extend(diagnostics);
+                                }
+                                drop(name_filter);
+                                drop(morphology);
+                                drop(dict);
+                                drop(ignore_store);
+                                debug!(
+                                    id = request_id,
+                                    elapsed_ms = check_start.elapsed().as_millis() as u64,
+                                    ranges = ranges.len(),
+                                    diagnostics = all_diagnostics.len(),
+                                    "CheckProse complete"
+                                );
                             }
 
                             // An answer produced while an engine was failing is
@@ -771,8 +767,7 @@ async fn main() -> Result<()> {
                 }
                 Some(checker::request::Payload::GetMetadata(_)) => {
                     let cfg = config_arc.lock().await;
-                    let schema_extensions =
-                        schema_registry_arc.lock().await.fallback_extensions();
+                    let schema_extensions = schema_registry_arc.lock().await.fallback_extensions();
                     Some(response::Payload::GetMetadata(MetadataResponse {
                         schema_extensions,
                         name: "Rust Core".to_string(),

@@ -799,7 +799,8 @@ impl Config {
             // Only when it is written as a path. A bare name is looked up on
             // PATH, and turning `my-checker` into `<root>/my-checker` would
             // break the one form that has no reason to be workspace-relative.
-            if provider.command.contains(std::path::MAIN_SEPARATOR) || provider.command.contains('/')
+            if provider.command.contains(std::path::MAIN_SEPARATOR)
+                || provider.command.contains('/')
             {
                 provider.command = absolute(&provider.command);
             }
@@ -1319,7 +1320,10 @@ dictionaries:
 
         let config = Config::load(&dir).expect("config");
         let resolved = &config.engines.wasm_plugins[0].path;
-        assert!(Path::new(resolved).is_absolute(), "left relative: {resolved}");
+        assert!(
+            Path::new(resolved).is_absolute(),
+            "left relative: {resolved}"
+        );
         assert!(resolved.ends_with("plugins/p.wasm"), "{resolved}");
 
         std::fs::remove_dir_all(&dir).ok();
@@ -1338,7 +1342,10 @@ dictionaries:
 
         let config = Config::load(&dir).expect("config");
         let resolved = config.engines.proselint.config.expect("a config path");
-        assert!(Path::new(&resolved).is_absolute(), "left relative: {resolved}");
+        assert!(
+            Path::new(&resolved).is_absolute(),
+            "left relative: {resolved}"
+        );
         assert!(resolved.ends_with("proselint.json"), "{resolved}");
 
         std::fs::remove_dir_all(&dir).ok();

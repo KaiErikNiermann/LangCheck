@@ -1,8 +1,8 @@
 use crate::checker::Diagnostic;
-use serde::{Deserialize, Serialize};
 use crate::insights::ProseInsights;
 use anyhow::Result;
 use redb::{Database, ReadableDatabase, TableDefinition};
+use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
@@ -138,11 +138,9 @@ impl WorkspaceIndex {
         self.put_bytes(FILE_HASHES_TABLE, file_path, hash.to_le_bytes().as_slice())
     }
 
-
     pub fn update_insights(&self, file_path: &str, insights: &ProseInsights) -> Result<()> {
         self.put_cbor(INSIGHTS_TABLE, file_path, &insights)
     }
-
 
     pub fn get_insights(&self, file_path: &str) -> Result<Option<ProseInsights>> {
         self.get_cbor(INSIGHTS_TABLE, file_path)
@@ -318,8 +316,14 @@ mod tests {
         }];
         idx.store_check("f.md", 100, &diags).unwrap();
 
-        assert!(idx.cached_check("f.md", 100).is_some(), "the same inputs must hit");
-        assert!(idx.cached_check("f.md", 101).is_none(), "changed inputs must miss");
+        assert!(
+            idx.cached_check("f.md", 100).is_some(),
+            "the same inputs must hit"
+        );
+        assert!(
+            idx.cached_check("f.md", 101).is_none(),
+            "changed inputs must miss"
+        );
 
         cleanup(&dir);
     }

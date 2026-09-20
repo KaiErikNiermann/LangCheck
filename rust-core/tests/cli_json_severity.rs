@@ -55,9 +55,8 @@ fn severities(config: &str) -> Vec<String> {
 
 #[test]
 fn a_rule_set_to_error_is_reported_as_error() {
-    let reported = severities(
-        "engines:\n  harper: true\nrules:\n  spelling.typo:\n    severity: error\n",
-    );
+    let reported =
+        severities("engines:\n  harper: true\nrules:\n  spelling.typo:\n    severity: error\n");
     assert_eq!(
         reported,
         vec!["error"],

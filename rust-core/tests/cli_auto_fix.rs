@@ -77,7 +77,11 @@ fn a_rule_without_a_context_applies_anywhere() {
 fn a_context_rule_applies_only_where_its_context_appears() {
     let workspace = temp_workspace("lang_check_autofix_context");
     write(&workspace, ".languagecheck.yaml", CONFIG);
-    write(&workspace, "us.md", "American English: the colour is red.\n");
+    write(
+        &workspace,
+        "us.md",
+        "American English: the colour is red.\n",
+    );
     write(&workspace, "gb.md", "British English: the colour is red.\n");
 
     let us = fix(&workspace, "us.md");
