@@ -15,7 +15,10 @@ fn workspace(config: &str) -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().expect("temp dir");
     let packs = dir.path().join("packs");
     std::fs::create_dir_all(&packs).unwrap();
-    let config = config.replace("{PACKS}", packs.to_str().unwrap());
+    // Forward slashes even on Windows: a backslash inside a double-quoted
+    // YAML scalar is an escape sequence, so `C:\Users\...` arrives mangled and
+    // the pack is never found. Windows accepts either separator.
+    let config = config.replace("{PACKS}", &packs.to_string_lossy().replace('\\', "/"));
     std::fs::write(dir.path().join(".languagecheck.yaml"), config).unwrap();
     (dir, packs)
 }
