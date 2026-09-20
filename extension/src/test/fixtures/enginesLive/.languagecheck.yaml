@@ -1,0 +1,4 @@
+# Harper alone. The tests add a WASM plugin and a severity override to this
+# file while the editor is running, so the baseline has to be without them.
+engines:
+  harper: true

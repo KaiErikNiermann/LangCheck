@@ -92,6 +92,13 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 150_000 },
     },
     {
+        label: 'engines-live',
+        files: 'out/test/e2e/enginesLive.test.js',
+        workspaceFolder: './src/test/fixtures/enginesLive',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 150_000 },
+    },
+    {
         label: 'cache-phase1',
         files: 'out/test/e2e/cacheReusePhase1.test.js',
         workspaceFolder: './src/test/fixtures/cache',
