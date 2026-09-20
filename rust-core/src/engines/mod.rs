@@ -467,6 +467,34 @@ fn pack_texts(texts: &[String], limit: usize) -> Vec<Pack> {
 ///
 /// Free-standing rather than a method so a batch can drive many at once from
 /// cloned handles — `reqwest::Client` is an `Arc` internally, so the clones
+/// Whether `url` is something a request can be sent to, and what is wrong if not.
+///
+/// The message is the whole point: it names the setting, says what is wrong
+/// with the value, and gives one that works. `reqwest` says "builder error".
+fn usable_languagetool_url(url: &str) -> std::result::Result<(), String> {
+    if url.trim().is_empty() {
+        return Err(
+            "LanguageTool is enabled but engines.languagetool.url is empty. \
+             Set it to the server's address, for example http://localhost:8010, \
+             or set engines.languagetool.enabled to false."
+                .to_string(),
+        );
+    }
+    match reqwest::Url::parse(url) {
+        Ok(parsed) if parsed.scheme() == "http" || parsed.scheme() == "https" => Ok(()),
+        Ok(parsed) => Err(format!(
+            "engines.languagetool.url is \"{url}\", whose scheme is \"{}\". \
+             LanguageTool is reached over http or https, for example \
+             http://localhost:8010.",
+            parsed.scheme()
+        )),
+        Err(e) => Err(format!(
+            "engines.languagetool.url is \"{url}\", which is not a URL ({e}). \
+             It should look like http://localhost:8010."
+        )),
+    }
+}
+
 /// share one connection pool.
 #[allow(clippy::cast_possible_truncation)]
 async fn languagetool_request(
@@ -571,6 +599,11 @@ impl Engine for LanguageToolEngine {
     }
 
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
+        // Checked before the request, because reqwest reports a URL it
+        // cannot use as "builder error" and nothing else -- which reached the
+        // user as "LanguageTool connection error: builder error", naming
+        // neither the setting at fault nor what is wrong with it.
+        usable_languagetool_url(&self.url).map_err(|reason| anyhow::anyhow!("{reason}"))?;
         let url = format!("{}/v2/check", self.url);
         languagetool_request(
             &self.client,
@@ -604,6 +637,15 @@ impl Engine for LanguageToolEngine {
             return slots.into_iter().map(|_| Ok(Vec::new())).collect();
         }
 
+        // One answer per input, so a bad URL is reported for every text
+        // rather than short-circuiting the batch: each range still has to say
+        // why it went unchecked.
+        if let Err(reason) = usable_languagetool_url(&self.url) {
+            return texts
+                .iter()
+                .map(|_| Err(anyhow::anyhow!("{reason}")))
+                .collect();
+        }
         let url = Arc::new(format!("{}/v2/check", self.url));
         let base_form = Arc::new(self.base_form(language_id));
         let permits = Arc::new(Semaphore::new(self.max_concurrent_requests.max(1)));
@@ -997,6 +1039,35 @@ pub fn discover_wasm_plugins(plugin_dir: &std::path::Path) -> Vec<(String, PathB
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn an_empty_languagetool_url_says_which_setting_is_empty() {
+        // What the user saw instead was "LanguageTool connection error:
+        // builder error", which names neither the setting nor the problem.
+        let reason = usable_languagetool_url("").expect_err("an empty url is not usable");
+        assert!(reason.contains("engines.languagetool.url"), "{reason}");
+        assert!(reason.contains("http://localhost:8010"), "{reason}");
+    }
+
+    #[test]
+    fn a_url_with_the_wrong_scheme_says_so() {
+        let reason = usable_languagetool_url("ftp://example.org")
+            .expect_err("ftp is not a scheme LanguageTool is reached over");
+        assert!(reason.contains("ftp"), "{reason}");
+    }
+
+    #[test]
+    fn something_that_is_not_a_url_says_so() {
+        let reason =
+            usable_languagetool_url("localhost:8010").expect_err("no scheme, so not a url");
+        assert!(reason.contains("engines.languagetool.url"), "{reason}");
+    }
+
+    #[test]
+    fn an_ordinary_url_is_accepted() {
+        usable_languagetool_url("http://localhost:8010").expect("the documented value");
+        usable_languagetool_url("https://api.languagetool.org/v2").expect("a hosted one");
+    }
     use super::*;
 
     #[test]
