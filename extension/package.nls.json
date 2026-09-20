@@ -48,5 +48,6 @@
   "walkthrough.language.title": "Switch Language",
   "walkthrough.language.description": "Click the language indicator in the Status Bar (bottom right) to switch between English, German, French, and Spanish.\n\n[Select Language](command:language-check.selectLanguage)",
   "walkthrough.configure.title": "Configure Rules",
-  "walkthrough.configure.description": "Create a `.languagecheck.yaml` in your workspace root to disable rules, add auto-fix patterns, or configure engines. See the [documentation](https://github.com) for details."
+  "walkthrough.configure.description": "Create a `.languagecheck.yaml` in your workspace root to disable rules, add auto-fix patterns, or configure engines. See the [documentation](https://github.com) for details.",
+  "command.installPack": "Install a Hunspell dictionary pack"
 }

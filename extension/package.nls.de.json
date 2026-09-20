@@ -48,5 +48,6 @@
   "walkthrough.language.title": "Sprache wechseln",
   "walkthrough.language.description": "Klicken Sie auf die Sprachanzeige in der Statusleiste (unten rechts), um zwischen Englisch, Deutsch, Französisch und Spanisch zu wechseln.\n\n[Sprache auswählen](command:language-check.selectLanguage)",
   "walkthrough.configure.title": "Regeln konfigurieren",
-  "walkthrough.configure.description": "Erstellen Sie eine `.languagecheck.yaml` im Arbeitsbereich-Stammverzeichnis, um Regeln zu deaktivieren, automatische Korrekturen hinzuzufügen oder Engines zu konfigurieren. Weitere Details in der [Dokumentation](https://github.com)."
+  "walkthrough.configure.description": "Erstellen Sie eine `.languagecheck.yaml` im Arbeitsbereich-Stammverzeichnis, um Regeln zu deaktivieren, automatische Korrekturen hinzuzufügen oder Engines zu konfigurieren. Weitere Details in der [Dokumentation](https://github.com).",
+  "command.installPack": "Ein Hunspell-Wörterbuchpaket installieren"
 }

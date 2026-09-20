@@ -105,6 +105,11 @@
       {
         "command": "language-check.managePlugins",
         "title": "%command.managePlugins%"
+      },
+      {
+        "command": "language-check.installPack",
+        "title": "%command.installPack%",
+        "category": "Language Check"
       }
     ],
     "keybindings": [

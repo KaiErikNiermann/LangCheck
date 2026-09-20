@@ -48,5 +48,6 @@
   "walkthrough.language.title": "Cambiar idioma",
   "walkthrough.language.description": "Haga clic en el indicador de idioma en la barra de estado (esquina inferior derecha) para cambiar entre inglés, alemán, francés y español.\n\n[Seleccionar idioma](command:language-check.selectLanguage)",
   "walkthrough.configure.title": "Configurar reglas",
-  "walkthrough.configure.description": "Cree un archivo `.languagecheck.yaml` en la raíz de su espacio de trabajo para desactivar reglas, añadir patrones de corrección automática o configurar motores. Consulte la [documentación](https://github.com) para más detalles."
+  "walkthrough.configure.description": "Cree un archivo `.languagecheck.yaml` en la raíz de su espacio de trabajo para desactivar reglas, añadir patrones de corrección automática o configurar motores. Consulte la [documentación](https://github.com) para más detalles.",
+  "command.installPack": "Instalar un paquete de diccionario de Hunspell"
 }

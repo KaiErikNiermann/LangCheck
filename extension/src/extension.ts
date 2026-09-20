@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
-import { execSync } from 'child_process';
+import { execFile, execSync } from 'child_process';
 import { LanguageClient } from './client';
 import { languagecheck } from './proto/checker';
 import { TraceLogger } from './trace';
@@ -11,6 +11,14 @@ import { binaryExists, downloadBinary } from './downloader';
 import { formatSuggestionLabel, speedFixSuggestionLabel, displayOriginalText } from './inlayLabels';
 import type { LanguageCheckDiagnostic } from './api';
 import { DEFAULT_DEBOUNCE_MS, parseDebounceMs } from './configParsing';
+import {
+    declinePack,
+    forgetDecline,
+    isLanguageTag,
+    languageToolCovers,
+    shouldPrompt,
+    uncheckedLanguages,
+} from './packPrompt';
 import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth, InspectorEngineInfo, InspectorNameSpan } from './events';
 import { Logger } from './logger';
 
@@ -91,6 +99,20 @@ let lastKnownSpellLanguage: string | undefined;
  * and the inspector went on reporting what the previous config produced.
  */
 let lastKnownConfigText: string | undefined;
+/**
+ * Languages offered this session.
+ *
+ * Separate from the permanent decline list: dismissing the modal without
+ * choosing is not a refusal, so it is not remembered past the session, but it
+ * should not re-fire on the next keystroke either.
+ */
+const packsOfferedThisSession = new Set<string>();
+/** Set once on activation, so the pack code can reach global state. */
+let extensionContext: vscode.ExtensionContext | undefined;
+/** The core binary in use, which is where the CLI sits beside it. */
+let currentServerPath: string | undefined;
+/** Re-check after an install, without hoisting the whole closure out. */
+let reinitializeAndRecheckRef: (() => Promise<void>) | undefined;
 
 // Built-in LaTeX environments that the checker always skips (mirrors SKIP_GENERIC_ENVS in latex.rs)
 const BUILTIN_SKIP_ENVS = new Set([
@@ -190,6 +212,7 @@ function getDiagnosticWord(document: vscode.TextDocument, diagnostic: vscode.Dia
 }
 
 export async function activate(context: vscode.ExtensionContext) {
+    extensionContext = context;
     const isDev = context.extensionMode === vscode.ExtensionMode.Development;
     log = new Logger(isDev);
     context.subscriptions.push({ dispose: () => log.dispose() });
@@ -293,6 +316,7 @@ export async function activate(context: vscode.ExtensionContext) {
             client.stop();
         }
         const binaryPath = resolveBinaryPath(channel);
+        currentServerPath = binaryPath;
         log.info('Starting core', { binary: binaryPath, channel: channel ?? 'stable' });
         client = new LanguageClient(binaryPath);
         client.setLogger(log);
@@ -411,6 +435,10 @@ export async function activate(context: vscode.ExtensionContext) {
             checkDocument(editor.document);
         }
     };
+    // A config change rebuilds the client and clears the caches. It must not
+    // clear which packs the user refused: that is their standing answer, not
+    // state derived from the config.
+    reinitializeAndRecheckRef = reinitializeAndRecheck;
 
     /** Format an inlay hint label and apply-value for a diagnostic suggestion. */
     function formatInlayLabel(
@@ -647,6 +675,25 @@ export async function activate(context: vscode.ExtensionContext) {
                     const word = isSpellingRule(ruleId)
                         ? getDiagnosticWord(document, diag)
                         : null;
+
+                    // A language nothing could check. The modal is asked at
+                    // most once and never again after a refusal, so this is
+                    // where the offer stays reachable afterwards -- it costs
+                    // nothing until someone opens the lightbulb.
+                    if (ruleId === 'languagecheck.no-provider' && extDiag.packInstallable) {
+                        const tag = extDiag.language ?? '';
+                        const installAction = new vscode.CodeAction(
+                            vscode.l10n.t('Install the {0} dictionary', tag),
+                            vscode.CodeActionKind.QuickFix
+                        );
+                        installAction.command = {
+                            command: 'language-check.installPack',
+                            title: vscode.l10n.t('Install dictionary'),
+                            arguments: [tag],
+                        };
+                        installAction.diagnostics = [diag];
+                        singleChoice.push(installAction);
+                    }
 
                     // Add "Add to Dictionary" action for spelling rules
                     if (word !== null) {
@@ -1062,6 +1109,10 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage(
             vscode.l10n.t('Switched to {0} core', selected.label)
         );
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.installPack', async (language: string) => {
+        await installDictionaryPack(context, language);
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.addToDictionary', async (word: string) => {
@@ -1950,6 +2001,143 @@ export async function activate(context: vscode.ExtensionContext) {
     return api;
 }
 
+/**
+ * Offer to install a pack for any language the core could not check.
+ *
+ * Called after every check, so the guard conditions carry the weight: the
+ * language comes from the core rather than from parsing a message, it must be
+ * one a pack exists for, and it must not have been asked about this session or
+ * refused in any previous one.
+ */
+async function offerMissingPacks(diagnostics: readonly ExtendedDiagnostic[]): Promise<void> {
+    if (!extensionContext) return;
+    // globalState, not workspaceState: a refusal is about the user's opinion
+    // of a language, not about one folder, and it has to outlive a reload.
+    const memory = extensionContext.globalState;
+
+    for (const candidate of uncheckedLanguages(diagnostics)) {
+        if (!shouldPrompt(memory, packsOfferedThisSession, candidate)) continue;
+        // Recorded before awaiting, so a second check finishing while the
+        // modal is open cannot raise a second one.
+        packsOfferedThisSession.add(candidate.language.replace(/_/g, '-').toLowerCase());
+
+        // LanguageTool covers this language too, and covers it better --
+        // grammar and style, where Hunspell gives spelling alone. Offering
+        // only the narrower one would hide the choice from someone who would
+        // have picked the other.
+        const ltIsAnOption =
+            languageToolCovers(candidate.language) &&
+            !vscode.workspace.getConfiguration('languageCheck').get<boolean>('engines.languagetool', false);
+
+        const install = vscode.l10n.t('Install');
+        const setUpLT = vscode.l10n.t('Set up LanguageTool');
+        const notNow = vscode.l10n.t('Not now');
+        const never = vscode.l10n.t("Don't ask again");
+
+        const message = ltIsAnOption
+            ? vscode.l10n.t(
+                'Nothing installed can check {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.',
+                candidate.language
+            )
+            : vscode.l10n.t(
+                'Nothing installed can check {0}. Install the Hunspell dictionary for it?',
+                candidate.language
+            );
+
+        const choices = ltIsAnOption
+            ? [install, setUpLT, notNow, never]
+            : [install, notNow, never];
+        const choice = await vscode.window.showInformationMessage(message, ...choices);
+
+        if (choice === install) {
+            await installDictionaryPack(extensionContext, candidate.language);
+        } else if (choice === setUpLT) {
+            // The Docker path already exists and does the whole setup, so this
+            // hands over rather than reimplementing it.
+            await vscode.commands.executeCommand('language-check.restartLTDocker');
+        } else if (choice === never) {
+            await declinePack(memory, candidate.language);
+        }
+        // "Not now" and a dismissed modal are the same thing: nothing is
+        // remembered past this session, and the quick fix stays available.
+    }
+}
+
+/**
+ * Run the core's pack installer and re-check once it lands.
+ *
+ * Shells out to the CLI beside the server binary rather than adding an RPC:
+ * an install is a one-off that writes to disk and prints its own progress,
+ * which is what a command line is for.
+ */
+async function installDictionaryPack(
+    context: vscode.ExtensionContext,
+    language: string
+): Promise<void> {
+    if (!isLanguageTag(language)) {
+        log.warn('Refusing to install a pack for an implausible tag', { language });
+        return;
+    }
+    // Asking again means the user changed their mind, so the refusal goes.
+    await forgetDecline(context.globalState, language);
+
+    const cli = resolveCliPath();
+    if (!cli) {
+        void vscode.window.showErrorMessage(
+            vscode.l10n.t('Could not find the language-check binary to install the dictionary.')
+        );
+        return;
+    }
+
+    await vscode.window.withProgress(
+        {
+            location: vscode.ProgressLocation.Notification,
+            title: vscode.l10n.t('Installing the {0} dictionary…', language),
+            cancellable: false,
+        },
+        async () => {
+            const result = await runPackInstall(cli, language);
+            if (result.ok) {
+                void vscode.window.showInformationMessage(
+                    vscode.l10n.t('Installed the {0} dictionary.', language)
+                );
+                pushInspectorEvent('info', 'packs', `Installed ${language}`, {
+                    details: result.output.trim().split('\n').at(-1) ?? '',
+                });
+                await reinitializeAndRecheckRef?.();
+            } else {
+                // The core's message names the file and the reason; passing it
+                // through beats replacing it with something vaguer.
+                void vscode.window.showErrorMessage(
+                    vscode.l10n.t('Could not install the {0} dictionary: {1}', language, result.output.trim())
+                );
+                pushInspectorEvent('error', 'packs', `Install failed for ${language}`, {
+                    details: result.output.trim(),
+                });
+            }
+        }
+    );
+}
+
+/** `language-check`, beside whichever `language-check-server` is in use. */
+function resolveCliPath(): string | null {
+    const server = currentServerPath;
+    if (!server) return null;
+    const cli = path.join(path.dirname(server), process.platform === 'win32' ? 'language-check.exe' : 'language-check');
+    return fs.existsSync(cli) ? cli : null;
+}
+
+/** Run `packs install`, capturing whatever it said. */
+function runPackInstall(cli: string, language: string): Promise<{ ok: boolean; output: string }> {
+    return new Promise(resolve => {
+        // execFile, not a shell: the tag is validated above and still never
+        // reaches a command line where it could be anything but an argument.
+        execFile(cli, ['packs', 'install', language], { timeout: 300_000 }, (error, stdout, stderr) => {
+            resolve({ ok: !error, output: `${stdout}${stderr}` });
+        });
+    });
+}
+
 function severityToString(severity: number | null | undefined): 'error' | 'warning' | 'information' | 'hint' {
     switch (severity) {
         case 1: return 'error';
@@ -2314,6 +2502,16 @@ interface ExtendedDiagnostic extends vscode.Diagnostic {
     /** Original byte offsets from the core, needed for fingerprint matching. */
     coreStartByte?: number;
     coreEndByte?: number;
+    /**
+     * The natural language this diagnostic is about, set by the core for the
+     * ones that concern a language rather than a word.
+     *
+     * Read from the wire rather than recovered from the message: a tag parsed
+     * out of prose is exactly where a spurious install prompt would come from.
+     */
+    language?: string;
+    /** Whether a dictionary pack for `language` can be fetched. */
+    packInstallable?: boolean;
 }
 
 const diagnosticsMap = new Map<string, ExtendedDiagnostic[]>();
@@ -2527,6 +2725,10 @@ async function runCheck(
                 if (d.confidence !== null && d.confidence !== undefined) {
                     diagnostic.confidence = d.confidence;
                 }
+                if (d.language) {
+                    diagnostic.language = d.language;
+                }
+                diagnostic.packInstallable = d.packInstallable === true;
                 return diagnostic;
             });
             timings.push({ name: 'Map diagnostics', durationMs: performance.now() - t2 });
@@ -2554,6 +2756,7 @@ async function runCheck(
             timings.push({ name: 'Update UI', durationMs: performance.now() - t3 });
 
             updateInsightsStatusBar(vscode.window.activeTextEditor);
+            void offerMissingPacks(extendedDiagnostics);
 
             // Cache extraction data from real Rust core response
             const protoRanges = response.checkProse.extraction?.proseRanges ?? [];
