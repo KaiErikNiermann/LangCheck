@@ -398,6 +398,185 @@ fn complete_pair(
     })
 }
 
+/// Something wrong with a pack that does not stop it being used.
+///
+/// Separate from [`PackError`] because the two need opposite handling: an
+/// error means the language goes unchecked, a warning means it is checked and
+/// something about the pack is worth saying out loud.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackWarning {
+    pub path: PathBuf,
+    pub detail: String,
+}
+
+impl fmt::Display for PackWarning {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.path.display(), self.detail)
+    }
+}
+
+/// What validation found.
+#[derive(Debug, Clone)]
+pub struct PackReport {
+    pub pack: ResolvedPack,
+    /// Entries counted in the `.dic`, which is not always what it declares.
+    pub entries: usize,
+    pub warnings: Vec<PackWarning>,
+}
+
+/// How far the declared entry count may drift, in percent, before it is
+/// worth mentioning.
+///
+/// Real dictionaries disagree with their own header: Hspell's Hebrew declares
+/// 469,509 and carries 469,750, the Latin pack declares 129,290 and carries
+/// 129,285. Hunspell treats the number as a hint for sizing a table, so this
+/// cannot be an invariant -- enforcing it would reject both. A large gap still
+/// suggests a truncated download, which is the case worth catching.
+const COUNT_DRIFT_PERCENT: usize = 5;
+
+/// How many `.dic` entries to feed back through the loaded dictionary.
+///
+/// The parser accepting a file does not mean the affix rules survived it. A
+/// word taken from the dictionary's own list must be spelled correctly by the
+/// dictionary that contains it; if it is not, something is wrong that no
+/// amount of structural checking would have found.
+const SELFTEST_SAMPLE: usize = 64;
+
+/// Check a pack completely, before anything depends on it.
+///
+/// Run at install time rather than at first use, so a pack that downloads
+/// cleanly and then will not load fails while the user is looking at the
+/// install rather than three keystrokes into a paragraph.
+///
+/// # Errors
+///
+/// Returns [`PackError`] when the pack cannot be used at all: a path that is
+/// not a readable file, a `.dic` without its entry count, a file the parser
+/// rejects, or a dictionary that misspells its own entries.
+pub fn validate(pack: &ResolvedPack) -> Result<PackReport, PackError> {
+    let mut warnings = Vec::new();
+
+    let aff = read_pack_file(&pack.aff)?;
+    let dic = read_pack_file(&pack.dic)?;
+
+    // The .dic opens with its entry count. A file that does not is either not
+    // a dictionary or has lost its head.
+    let mut lines = dic.lines();
+    let header = lines
+        .next()
+        .unwrap_or_default()
+        .trim_start_matches('\u{feff}');
+    let declared: usize = header
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .parse()
+        .map_err(|_| PackError::Malformed {
+            path: pack.dic.clone(),
+            detail: format!(
+                "the first line should be the entry count, and reads {:?}",
+                header.chars().take(40).collect::<String>()
+            ),
+        })?;
+
+    let entries: Vec<&str> = lines.filter(|l| !l.trim().is_empty()).collect();
+    let counted = entries.len();
+    if declared > 0 {
+        // Integer ratio, so no cast has to be justified for counts that can
+        // reach the hundreds of thousands.
+        let gap = counted.abs_diff(declared);
+        if gap * 100 > declared * COUNT_DRIFT_PERCENT {
+            warnings.push(PackWarning {
+                path: pack.dic.clone(),
+                detail: format!(
+                    "declares {declared} entries and carries {counted}; \
+                     the file may be truncated"
+                ),
+            });
+        }
+    }
+
+    // Encoding is declared in the .aff. Without it Hunspell assumes Latin-1,
+    // which is wrong for every language this engine exists to serve.
+    if !aff.lines().any(|l| l.trim_start().starts_with("SET ")) {
+        warnings.push(PackWarning {
+            path: pack.aff.clone(),
+            detail: "no SET line, so the encoding is assumed rather than declared".to_string(),
+        });
+    }
+
+    let dictionary = spellbook::Dictionary::new(&aff, &dic).map_err(|e| PackError::Malformed {
+        path: pack.aff.clone(),
+        detail: e.to_string(),
+    })?;
+
+    // The dictionary must agree with itself.
+    let step = (counted / SELFTEST_SAMPLE).max(1);
+    let mut checked = 0usize;
+    let mut rejected = Vec::new();
+    for entry in entries.iter().step_by(step).take(SELFTEST_SAMPLE) {
+        // An entry is `word/FLAGS`, sometimes with a morphological field after
+        // a tab; only the stem is a word.
+        let word = entry.split(['/', '\t']).next().unwrap_or_default().trim();
+        if word.is_empty() || word.starts_with('#') {
+            continue;
+        }
+        checked += 1;
+        if !dictionary.check(word) {
+            rejected.push(word.to_string());
+        }
+    }
+    if checked > 0 && rejected.len() * 2 > checked {
+        return Err(PackError::Malformed {
+            path: pack.dic.clone(),
+            detail: format!(
+                "the dictionary rejects its own entries ({} of {checked} sampled, \
+                 including {:?}); the affix rules do not match the word list",
+                rejected.len(),
+                rejected.iter().take(3).collect::<Vec<_>>()
+            ),
+        });
+    }
+
+    Ok(PackReport {
+        pack: pack.clone(),
+        entries: counted,
+        warnings,
+    })
+}
+
+/// Read one half of a pack, saying which path failed and how.
+///
+/// Checked rather than assumed: a resolved path can still be a directory, a
+/// symlink to nothing, unreadable, or empty, and each of those produces a
+/// different unhelpful error further down if it is not caught here.
+fn read_pack_file(path: &Path) -> Result<String, PackError> {
+    let metadata = std::fs::metadata(path).map_err(|e| PackError::Unreadable {
+        path: path.to_path_buf(),
+        detail: e.to_string(),
+    })?;
+    if !metadata.is_file() {
+        return Err(PackError::Unreadable {
+            path: path.to_path_buf(),
+            detail: "not a regular file".to_string(),
+        });
+    }
+    if metadata.len() == 0 {
+        return Err(PackError::Unreadable {
+            path: path.to_path_buf(),
+            detail: "the file is empty".to_string(),
+        });
+    }
+    std::fs::read_to_string(path).map_err(|e| PackError::Unreadable {
+        path: path.to_path_buf(),
+        detail: if e.kind() == std::io::ErrorKind::InvalidData {
+            "not valid UTF-8; the pack may use a legacy encoding this build cannot read".to_string()
+        } else {
+            e.to_string()
+        },
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -572,5 +751,181 @@ mod tests {
         for tag in ["en-GB", "en_gb", "EN-gb", "en_GB"] {
             assert_eq!(registry(&dir).resolve(tag).unwrap().stem, "en_GB", "{tag}");
         }
+    }
+
+    // ── validation ─────────────────────────────────────────────────────────
+
+    /// A pack whose halves are written verbatim, so a test can break one.
+    fn raw_pack(aff: &str, dic: &str) -> (tempfile::TempDir, ResolvedPack) {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("xx.aff"), aff).unwrap();
+        std::fs::write(dir.path().join("xx.dic"), dic).unwrap();
+        let pack = ResolvedPack {
+            language: "xx".to_string(),
+            stem: "xx".to_string(),
+            aff: dir.path().join("xx.aff"),
+            dic: dir.path().join("xx.dic"),
+            source: PackSource::Managed,
+        };
+        (dir, pack)
+    }
+
+    const GOOD_AFF: &str = "SET UTF-8\n";
+    const GOOD_DIC: &str = "3\nalpha\nbeta\ngamma\n";
+
+    #[test]
+    fn a_sound_pack_validates_without_warnings() {
+        let (_dir, pack) = raw_pack(GOOD_AFF, GOOD_DIC);
+        let report = validate(&pack).expect("should validate");
+        assert_eq!(report.entries, 3);
+        assert_eq!(
+            report.warnings,
+            Vec::new(),
+            "a sound pack has nothing to report"
+        );
+    }
+
+    #[test]
+    fn a_dic_without_its_entry_count_is_malformed() {
+        // Not a dictionary, or one that lost its head to a bad download.
+        let (_dir, pack) = raw_pack(GOOD_AFF, "alpha\nbeta\n");
+        let err = validate(&pack).unwrap_err();
+        assert!(matches!(err, PackError::Malformed { .. }), "{err}");
+        assert!(err.to_string().contains("entry count"), "{err}");
+    }
+
+    #[test]
+    fn an_affix_file_the_parser_rejects_names_the_file() {
+        // The real defect: the 2013 Latin pack says SFK where SFX belongs, so
+        // its header promises 129 rows and the parser finds 2. Hunspell skips
+        // the unknown line; Nuspell and this do not.
+        let (_dir, pack) = raw_pack("SET UTF-8\nSFX k Y 129\nSFK k idis idos idis\n", GOOD_DIC);
+        let err = validate(&pack).unwrap_err();
+        assert!(matches!(err, PackError::Malformed { .. }), "{err}");
+        assert!(err.to_string().contains("xx.aff"), "{err}");
+    }
+
+    #[test]
+    fn a_truncated_dic_is_flagged_without_being_rejected() {
+        // Still usable, and the user should know a third of the words are gone.
+        let mut dic = String::from("300\n");
+        for i in 0..100 {
+            use std::fmt::Write as _;
+            let _ = writeln!(dic, "word{i}a");
+        }
+        let (_dir, pack) = raw_pack(GOOD_AFF, &dic);
+        let report = validate(&pack).expect("a short file is still a usable one");
+        assert_eq!(report.entries, 100);
+        assert_eq!(report.warnings.len(), 1, "{:?}", report.warnings);
+        assert!(
+            report.warnings[0].detail.contains("truncated"),
+            "{:?}",
+            report.warnings
+        );
+    }
+
+    #[test]
+    fn a_small_count_disagreement_is_not_worth_mentioning() {
+        // Every real dictionary disagrees with its own header a little.
+        let mut dic = String::from("100\n");
+        for i in 0..99 {
+            use std::fmt::Write as _;
+            let _ = writeln!(dic, "word{i}a");
+        }
+        let (_dir, pack) = raw_pack(GOOD_AFF, &dic);
+        assert_eq!(validate(&pack).unwrap().warnings, Vec::new());
+    }
+
+    #[test]
+    fn an_affix_file_with_no_declared_encoding_is_flagged() {
+        let (_dir, pack) = raw_pack("# no SET line here\n", GOOD_DIC);
+        let report = validate(&pack).expect("still usable");
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|w| w.detail.contains("encoding")),
+            "{:?}",
+            report.warnings
+        );
+    }
+
+    #[test]
+    fn an_empty_file_is_reported_as_such() {
+        let (_dir, pack) = raw_pack("", GOOD_DIC);
+        let err = validate(&pack).unwrap_err();
+        assert!(matches!(err, PackError::Unreadable { .. }), "{err}");
+        assert!(err.to_string().contains("empty"), "{err}");
+    }
+
+    #[test]
+    fn a_directory_where_a_file_belongs_is_reported_as_such() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("xx.aff")).unwrap();
+        std::fs::write(dir.path().join("xx.dic"), GOOD_DIC).unwrap();
+        let pack = ResolvedPack {
+            language: "xx".to_string(),
+            stem: "xx".to_string(),
+            aff: dir.path().join("xx.aff"),
+            dic: dir.path().join("xx.dic"),
+            source: PackSource::Managed,
+        };
+        let err = validate(&pack).unwrap_err();
+        assert!(err.to_string().contains("not a regular file"), "{err}");
+    }
+
+    #[test]
+    fn a_missing_file_is_reported_with_its_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let pack = ResolvedPack {
+            language: "xx".to_string(),
+            stem: "xx".to_string(),
+            aff: dir.path().join("gone.aff"),
+            dic: dir.path().join("gone.dic"),
+            source: PackSource::Managed,
+        };
+        let err = validate(&pack).unwrap_err();
+        assert!(matches!(err, PackError::Unreadable { .. }), "{err}");
+        assert!(err.to_string().contains("gone.aff"), "{err}");
+    }
+
+    #[test]
+    fn a_non_utf8_file_says_so_rather_than_failing_obscurely() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("xx.aff"),
+            [0x53, 0x45, 0x54, 0x20, 0xff, 0xfe],
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("xx.dic"), GOOD_DIC).unwrap();
+        let pack = ResolvedPack {
+            language: "xx".to_string(),
+            stem: "xx".to_string(),
+            aff: dir.path().join("xx.aff"),
+            dic: dir.path().join("xx.dic"),
+            source: PackSource::Managed,
+        };
+        let err = validate(&pack).unwrap_err();
+        assert!(err.to_string().contains("UTF-8"), "{err}");
+    }
+
+    #[test]
+    fn a_dictionary_that_rejects_its_own_entries_is_malformed() {
+        // Structure intact, parser happy, and the affix rules do not match the
+        // word list -- which no amount of shape checking would have caught.
+        let aff = "SET UTF-8\nFORBIDDENWORD X\n";
+        let dic = "3\nalpha/X\nbeta/X\ngamma/X\n";
+        let (_dir, pack) = raw_pack(aff, dic);
+        let err = validate(&pack).unwrap_err();
+        assert!(matches!(err, PackError::Malformed { .. }), "{err}");
+        assert!(err.to_string().contains("its own entries"), "{err}");
+    }
+
+    #[test]
+    fn a_byte_order_mark_does_not_hide_the_entry_count() {
+        // The Latin pack ships one; without stripping it the count fails to
+        // parse and a perfectly good dictionary reads as malformed.
+        let (_dir, pack) = raw_pack(GOOD_AFF, "\u{feff}3\nalpha\nbeta\ngamma\n");
+        assert_eq!(validate(&pack).expect("BOM is not corruption").entries, 3);
     }
 }
