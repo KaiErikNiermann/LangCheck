@@ -222,6 +222,8 @@ impl Orchestrator {
         // reaches the log leaves the prose looking checked and clean, which is
         // the worst of the three possible answers.
         let mut engine_failures: Vec<String> = Vec::new();
+        // Decided once: whether this language is one a pack can be fetched for.
+        let installable = crate::packs::catalogue::find(&spell_language).is_some();
 
         for engine in &mut self.engines {
             let engine_name = engine.name();
@@ -361,6 +363,11 @@ impl Orchestrator {
                     severity: Severity::Information as i32,
                     unified_id: "languagecheck.no-provider".to_string(),
                     confidence: 1.0,
+                    // Carried rather than left for the editor to recover from
+                    // the message: a tag parsed out of prose is exactly where a
+                    // spurious install prompt would come from.
+                    language: spell_language.clone(),
+                    pack_installable: installable,
                 });
             } else if !engine_failures.is_empty() && all_diagnostics.is_empty() {
                 // Every engine that took this on failed. Without this the
@@ -379,9 +386,12 @@ impl Orchestrator {
                     severity: Severity::Warning as i32,
                     unified_id: "languagecheck.engine-error".to_string(),
                     confidence: 1.0,
+                    language: spell_language.clone(),
+                    // A pack that is present and broken is not fixed by
+                    // fetching it again, so nothing is offered.
+                    pack_installable: false,
                 });
             }
-
             // Advanced deduplication: if two engines report the same unified rule at the same range,
             // prefer the one with higher severity or just keep one.
             all_diagnostics.sort_by_key(|d| (d.start_byte, d.end_byte, d.unified_id.clone()));
@@ -558,6 +568,8 @@ mod tests {
                 severity: Severity::Warning as i32,
                 unified_id: String::new(),
                 confidence: 1.0,
+                language: String::new(),
+                pack_installable: false,
             }])
         }
     }
@@ -586,6 +598,8 @@ mod tests {
                 severity: Severity::Warning as i32,
                 unified_id: String::new(),
                 confidence: 1.0,
+                language: String::new(),
+                pack_installable: false,
             }])
         }
     }

@@ -141,6 +141,16 @@ message Diagnostic {
   Severity severity = 6;
   string unified_id = 7;
   float confidence = 8;
+  // The natural language this diagnostic concerns, when it is about a
+  // language rather than about a word -- an unservable passage, a broken
+  // dictionary. Set so the editor can offer to install a pack without
+  // recovering the tag by parsing the message, which is where a false
+  // positive would come from. Empty on ordinary diagnostics.
+  string language = 9;
+  // Whether a dictionary pack for `language` can be fetched. False when the
+  // language has no published download, so the editor offers nothing it
+  // cannot deliver.
+  bool pack_installable = 10;
 }
 
 enum Severity {
