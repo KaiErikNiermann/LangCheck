@@ -120,6 +120,10 @@ message NameSpan {
 message ExtractionInfo {
   repeated ExtractionProseRange prose_ranges = 1;
   repeated NameSpan names = 2;
+  // The size a prose range is split at, in bytes, so the inspector can say
+  // whether a range is one the cache can work with. Zero when splitting is
+  // switched off, and a range over it is one that could not be divided.
+  uint32 max_range_bytes = 4;
   // The markup grammar the prose was extracted with -- the canonical language
   // id after alias resolution, e.g. "typst" or "latex", or the name of the SLS
   // schema when one took over. What the editor calls the file is not always

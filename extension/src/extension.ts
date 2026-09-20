@@ -76,7 +76,7 @@ let lastCheckTimings: { name: string; durationMs: number }[] = [];
 let lastCheckInfo: InspectorCheckInfo | null = null;
 
 // Cached extraction data per document URI (from real Rust core response)
-const extractionCache = new Map<string, { prose: InspectorProseRange[]; languageId: string; syntax: string }>();
+const extractionCache = new Map<string, { prose: InspectorProseRange[]; languageId: string; syntax: string; maxRangeBytes: number }>();
 /** Words the name filter silenced on the last check, per document. */
 const detectedNamesCache = new Map<string, InspectorNameSpan[]>();
 
@@ -2128,6 +2128,7 @@ async function updateInspectorData() {
             fileName,
             languageId: cached?.languageId ?? document.languageId,
             syntax: cached?.syntax ?? '',
+            maxRangeBytes: cached?.maxRangeBytes ?? 0,
         },
     });
 
@@ -2616,6 +2617,7 @@ async function runCheck(
                 prose: inspectorRanges,
                 languageId: document.languageId,
                 syntax: response.checkProse.extraction?.syntax ?? '',
+                maxRangeBytes: (response.checkProse.extraction?.maxRangeBytes as number) ?? 0,
             });
 
             // Words the core silenced as names. Surfaced so the suppression is visible

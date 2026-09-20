@@ -137,6 +137,13 @@ export type ExtensionToInspectorMessage =
             languageId: string;
             /** What the core actually parsed it as; may differ from languageId. */
             syntax: string;
+            /**
+             * The size prose ranges are split at, in bytes. A range over it is
+             * one the splitter could not divide, which means one cache key
+             * covering all of it — worth showing rather than leaving silent.
+             * Zero when splitting is switched off.
+             */
+            maxRangeBytes: number;
         };
     }
     | { type: 'setNames'; payload: { names: InspectorNameSpan[] } }

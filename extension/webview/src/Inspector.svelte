@@ -89,6 +89,8 @@
   let languageId: string = $state('');
   /** The grammar the core parsed with, which the editor's own id may contradict. */
   let syntax: string = $state('');
+  /** The size ranges are split at; 0 means splitting is off. */
+  let maxRangeBytes: number = $state(0);
   let selectedRangeIdx: number | null = $state(null);
   let extensionVersion: string = $state('');
   let copyFeedback: boolean = $state(false);
@@ -96,6 +98,19 @@
   const REPORT_EVENT_CAP = 20;
 
   const vscode = (window as any).acquireVsCodeApi();
+
+  /**
+   * A range is one cache key and one engine request, so its size is what
+   * decides whether a keystroke re-checks a paragraph or the whole document.
+   * Anything past the split size is a range that could not be divided.
+   */
+  function rangeBytes(range: ProseRange): number {
+    return range.endByte - range.startByte;
+  }
+
+  function isOversized(range: ProseRange): boolean {
+    return maxRangeBytes > 0 && rangeBytes(range) > maxRangeBytes;
+  }
 
   onMount(() => {
     window.addEventListener('message', event => {
@@ -109,6 +124,7 @@
           fileName = message.payload.fileName ?? '';
           languageId = message.payload.languageId ?? '';
           syntax = message.payload.syntax ?? '';
+          maxRangeBytes = message.payload.maxRangeBytes ?? 0;
           selectedRangeIdx = null;
           break;
         case 'setNames':
@@ -523,6 +539,14 @@
                       class="lang-badge natlang"
                       title="Checked as {range.language}"
                     >{range.language}</span>
+                  {/if}
+                  {#if isOversized(range)}
+                    <span
+                      class="lang-badge oversized"
+                      title="This range is {rangeBytes(range)} bytes, past the {maxRangeBytes}-byte split size, so it could not be divided. It is one cache key: editing anywhere in it re-checks all of it."
+                    >{rangeBytes(range)} B</span>
+                  {:else}
+                    <span class="prose-bytes">{rangeBytes(range)} B</span>
                   {/if}
                   <span class="prose-bytes">bytes {range.startByte}..{range.endByte}</span>
                 </span>
@@ -1104,6 +1128,11 @@
      the pair reads at a glance rather than as two look-alike tags. */
   .lang-badge.natlang {
     --_badge-accent: var(--vscode-charts-green, #6cb26c);
+  }
+
+  /* A range the splitter could not divide: one cache key over all of it. */
+  .lang-badge.oversized {
+    --_badge-accent: var(--vscode-editorWarning-foreground, #cca700);
   }
 
   .syntax-mismatch {
