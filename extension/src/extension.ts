@@ -2034,13 +2034,17 @@ async function offerMissingPacks(diagnostics: readonly ExtendedDiagnostic[]): Pr
         const notNow = vscode.l10n.t('Not now');
         const never = vscode.l10n.t("Don't ask again");
 
+        // "None of your enabled checkers", not "nothing installed": a user
+        // whose only engine is their own external checker still has one, it
+        // just does not declare this language. Telling them they have
+        // nothing is both false and a reason to distrust the rest.
         const message = ltIsAnOption
             ? vscode.l10n.t(
-                'Nothing installed can check {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.',
+                'None of your enabled checkers read {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.',
                 candidate.language
             )
             : vscode.l10n.t(
-                'Nothing installed can check {0}. Install the Hunspell dictionary for it?',
+                'None of your enabled checkers read {0}. Install the Hunspell dictionary for it?',
                 candidate.language
             );
 

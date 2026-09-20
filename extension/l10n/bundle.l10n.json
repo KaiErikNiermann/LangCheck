@@ -89,11 +89,11 @@
   "Install": "Install",
   "Not now": "Not now",
   "Don't ask again": "Don't ask again",
-  "Nothing installed can check {0}. Install the Hunspell dictionary for it?": "Nothing installed can check {0}. Install the Hunspell dictionary for it?",
   "Installing the {0} dictionary…": "Installing the {0} dictionary…",
   "Installed the {0} dictionary.": "Installed the {0} dictionary.",
   "Could not find the language-check binary to install the dictionary.": "Could not find the language-check binary to install the dictionary.",
   "Could not install the {0} dictionary: {1}": "Could not install the {0} dictionary: {1}",
   "Set up LanguageTool": "Set up LanguageTool",
-  "Nothing installed can check {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.": "Nothing installed can check {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well."
+  "None of your enabled checkers read {0}. Install the Hunspell dictionary for it?": "None of your enabled checkers read {0}. Install the Hunspell dictionary for it?",
+  "None of your enabled checkers read {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.": "None of your enabled checkers read {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well."
 }

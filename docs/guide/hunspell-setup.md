@@ -38,8 +38,8 @@ the tidy one.
 
 ### In the editor
 
-Open a document declaring a language nothing can check and the extension
-offers to install it. Decline and it will not ask again — the offer stays
+Open a document declaring a language none of the enabled engines read and the
+extension offers to install it. Decline and it will not ask again — the offer stays
 available as a quick fix on the squiggle, under the lightbulb.
 
 ### From the command line
@@ -159,7 +159,7 @@ installed and working reports it, with suggestions:
 A pack that is missing reports the passage as unchecked instead:
 
 ```
-[2:1] languagecheck.no-provider: No enabled engine can check "he", so this passage went unchecked.
+[2:1] languagecheck.no-provider: No enabled engine reads "he", so this passage went unchecked.
 ```
 
 ## See also

@@ -113,7 +113,13 @@ format LibreOffice and Firefox already read. It checks spelling and nothing
 else, so where LanguageTool supports a language, prefer it.
 
 In VS Code the editor offers to install a dictionary when it meets a language
-nothing can check, and remembers a refusal.
+none of the enabled engines read, and remembers a refusal. An engine that
+declares the language answers for it, so a custom `engines.external` checker
+naming `languages: ["cy"]` covers Welsh and the offer never appears — but one
+that declares nothing at all still claims every language, and suppresses the
+offer for all of them. See
+[External providers](../advanced/providers.md) for what a provider should
+declare.
 
 ### Bare tags
 

@@ -89,11 +89,11 @@
   "Install": "Installieren",
   "Not now": "Jetzt nicht",
   "Don't ask again": "Nicht mehr fragen",
-  "Nothing installed can check {0}. Install the Hunspell dictionary for it?": "Für {0} ist keine Prüfung installiert. Das Hunspell-Wörterbuch dafür installieren?",
   "Installing the {0} dictionary…": "Wörterbuch für {0} wird installiert…",
   "Installed the {0} dictionary.": "Wörterbuch für {0} installiert.",
   "Could not find the language-check binary to install the dictionary.": "Die language-check-Binärdatei zum Installieren des Wörterbuchs wurde nicht gefunden.",
   "Could not install the {0} dictionary: {1}": "Das Wörterbuch für {0} konnte nicht installiert werden: {1}",
   "Set up LanguageTool": "LanguageTool einrichten",
-  "Nothing installed can check {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.": "Für {0} ist keine Prüfung installiert. Hunspell ergänzt die Rechtschreibung, LanguageTool zusätzlich Grammatik und Stil."
+  "None of your enabled checkers read {0}. Install the Hunspell dictionary for it?": "Keine Ihrer aktiven Prüfungen liest {0}. Das Hunspell-Wörterbuch dafür installieren?",
+  "None of your enabled checkers read {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.": "Keine Ihrer aktiven Prüfungen liest {0}. Hunspell ergänzt die Rechtschreibung, LanguageTool zusätzlich Grammatik und Stil."
 }

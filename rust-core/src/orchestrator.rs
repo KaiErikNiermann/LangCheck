@@ -417,7 +417,7 @@ impl Orchestrator {
                     start_byte: 0,
                     end_byte: 0,
                     message: format!(
-                        "No enabled engine can check \"{spell_language}\", \
+                        "No enabled engine reads \"{spell_language}\", \
                          so this passage went unchecked."
                     ),
                     suggestions: Vec::new(),
@@ -881,6 +881,25 @@ mod tests {
         }
     }
 
+    /// A custom checker that named the one language it speaks, the way an
+    /// `engines.external` entry with `languages: ["en"]` does.
+    struct CustomEnglishEngine;
+
+    #[async_trait::async_trait]
+    impl Engine for CustomEnglishEngine {
+        fn name(&self) -> &'static str {
+            "external"
+        }
+
+        fn supported_languages(&self) -> Vec<String> {
+            vec!["en".to_string()]
+        }
+
+        async fn check(&mut self, _text: &str, _language_id: &str) -> Result<Vec<Diagnostic>> {
+            Ok(Vec::new())
+        }
+    }
+
     /// Fails every text, the way an engine with a broken dictionary does.
     struct FailingEngine;
 
@@ -1094,6 +1113,43 @@ mod tests {
         let batch = orchestrator.check_batch(&texts, "he").await.unwrap();
         assert_eq!(batch[0][0].unified_id, "languagecheck.no-provider");
         assert!(batch[0][0].message.contains("he"));
+    }
+
+    #[tokio::test]
+    async fn a_custom_checker_that_speaks_the_language_stops_the_notice() {
+        // Someone whose only engine is their own checker, declaring `en`, is
+        // covered for English -- so the passage must not be reported as
+        // unchecked, and the editor must not offer them a dictionary for a
+        // language they already check. Returning nothing is a clean result,
+        // not an absent one.
+        let mut orchestrator = Orchestrator::new(Config::default());
+        orchestrator.engines = vec![Box::new(CustomEnglishEngine)];
+
+        let batch = orchestrator
+            .check_batch(&["alpha beta".to_string()], "en-US")
+            .await
+            .unwrap();
+        assert!(
+            batch[0].is_empty(),
+            "a checker that speaks the language answered for it: {:?}",
+            batch[0]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_custom_checker_only_covers_what_it_declared() {
+        // The same engine, asked for a language it did not name. It is still
+        // installed and still useful, which is why the notice says no *enabled
+        // engine reads this language* and not that nothing is installed.
+        let mut orchestrator = Orchestrator::new(Config::default());
+        orchestrator.engines = vec![Box::new(CustomEnglishEngine)];
+
+        let batch = orchestrator
+            .check_batch(&["\u{5e9}\u{5dc}\u{5d5}\u{5dd}".to_string()], "he")
+            .await
+            .unwrap();
+        assert_eq!(batch[0][0].unified_id, "languagecheck.no-provider");
+        assert_eq!(batch[0][0].language, "he");
     }
 
     #[tokio::test]
