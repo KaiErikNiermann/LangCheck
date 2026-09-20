@@ -485,8 +485,16 @@ fn classify_gap(text: &str, lo: usize, hi: usize, skip_edge_separates: bool) -> 
 /// `" #emph["` and `a` touches its `[`, but `a` is a complete word, not the
 /// tail of a blanked one. Other characters do not: `$k$th` blanks to `   th`,
 /// where `th` really is a fragment fused to the formula.
+///
+/// The inline-emphasis delimiters are the bracket case in another spelling.
+/// `_réception_` blanks to ` réception `, a whole word touching the skip on
+/// both sides, and without them here every emphasised word in a Markdown or
+/// Typst document is dropped as a fragment and never checked at all. The cost
+/// is `a**b**c`, where the delimiters really do sit inside a word and the
+/// halves are now offered to the speller; intra-word emphasis is rare enough
+/// to be the better trade against silently skipping every italic.
 const fn separates_words(c: char) -> bool {
-    c.is_whitespace() || matches!(c, '[' | ']')
+    c.is_whitespace() || matches!(c, '[' | ']' | '_' | '*' | '`')
 }
 
 /// Whether the character ending at byte `pos` (i.e. just before it) separates words.
