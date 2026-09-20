@@ -1,0 +1,15 @@
+# Keep debug info out of the linked image.
+#
+# Every test binary statically links the whole dependency graph, and with the
+# debug info copied into each one they came to roughly 750 MB apiece -- almost
+# all of it DWARF. There are twenty, so touching one line of the library
+# relinked around 15 GB: a one-line change cost seven minutes of build against
+# four seconds of test. Leaving the debug info in the .o files for the linker
+# to reference takes that to three seconds, and the debugger still works,
+# because nothing was discarded -- only moved.
+#
+# Set per target rather than in `[profile.dev]` because the accepted values
+# differ by platform and this project builds on Windows in CI, where the debug
+# format is PDB and this option does not mean the same thing.
+[target.'cfg(unix)']
+rustflags = ["-Csplit-debuginfo=unpacked"]
