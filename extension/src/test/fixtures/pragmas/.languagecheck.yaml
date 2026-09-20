@@ -1,0 +1,6 @@
+# Harper alone, which reads English and nothing else. That is what makes the
+# language override observable without a server running: a region declared as
+# French reaches no engine, and the core says so instead of checking it as
+# English.
+engines:
+  harper: true

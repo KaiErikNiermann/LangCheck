@@ -62,6 +62,22 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 120_000 },
     },
     {
+        label: 'pragmas',
+        files: 'out/test/e2e/pragmas.test.js',
+        workspaceFolder: './src/test/fixtures/pragmas',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 120_000 },
+    },
+    {
+        // A second window over the same workspace: the stored result from the
+        // run above is what may answer here.
+        label: 'pragmas-reload',
+        files: 'out/test/e2e/pragmasReload.test.js',
+        workspaceFolder: './src/test/fixtures/pragmas',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 120_000 },
+    },
+    {
         label: 'cache-phase1',
         files: 'out/test/e2e/cacheReusePhase1.test.js',
         workspaceFolder: './src/test/fixtures/cache',
