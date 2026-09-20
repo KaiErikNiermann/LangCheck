@@ -18,6 +18,7 @@ use tree_sitter::{Language, Parser};
 
 use crate::checker::Diagnostic;
 use crate::ignore_rules::{DirectiveRegion, IgnoreParser};
+use crate::scoping::{ScopeParser, ScopedRegion};
 
 use crate::sls::SchemaRegistry;
 
@@ -129,25 +130,35 @@ pub fn extract_reporting_syntax(
         ranges = apply_type_overrides(text, ranges, &type_regions, latex_extras)?;
     }
 
-    apply_language_overrides(&mut ranges, &resolved.regions);
+    apply_language_overrides(&mut ranges, &resolved.regions, &ScopeParser::parse(text));
     Ok(Extraction {
         ranges,
         syntax: canonical_lang.to_string(),
     })
 }
 
-/// Stamp `lang-check-begin lang:xx` regions onto the ranges they cover.
+/// Stamp the language a comment declares onto the ranges it covers.
+///
+/// Three sources, strongest first:
+///
+/// 1. `lang-check-begin lang:xx` … `lang-check-end`, innermost region winning;
+/// 2. a `lang: xx` scope marker, which runs until the next marker;
+/// 3. whatever the markup itself said, which the extractor already set — a
+///    Typst `#set text(lang: "de")`, for instance.
 ///
 /// A directive is an instruction to the checker and beats what the markup says,
 /// which is how a `#set text(lang: "de")` meant for hyphenation gets overridden
-/// for one quoted passage without touching the typesetting. Innermost wins, so
-/// a nested region overrides the one around it.
-fn apply_language_overrides(ranges: &mut [ProseRange], regions: &[DirectiveRegion]) {
+/// for one quoted passage without touching the typesetting.
+fn apply_language_overrides(
+    ranges: &mut [ProseRange],
+    regions: &[DirectiveRegion],
+    scopes: &[ScopedRegion],
+) {
     let with_language: Vec<&DirectiveRegion> = regions
         .iter()
         .filter(|region| region.options.language.is_some())
         .collect();
-    if with_language.is_empty() {
+    if with_language.is_empty() && scopes.is_empty() {
         return;
     }
     for range in ranges {
@@ -157,6 +168,8 @@ fn apply_language_overrides(ranges: &mut [ProseRange], regions: &[DirectiveRegio
             .min_by_key(|region| region.byte_range.end - region.byte_range.start);
         if let Some(region) = innermost {
             range.language.clone_from(&region.options.language);
+        } else if let Some(language) = ScopeParser::language_at(scopes, range.start_byte) {
+            range.language = Some(language.to_string());
         }
     }
 }
@@ -1140,5 +1153,45 @@ Last paragraph after.";
         assert!(!clean.contains('#'));
         assert!(!clean.contains('{'));
         assert!(!clean.contains('}'));
+    }
+
+    /// `(prose, resolved language)` for every range, through the whole
+    /// extraction path so the language sources are exercised in the order they
+    /// actually resolve.
+    fn languages_of(text: &str, lang_id: &str, default_language: &str) -> Vec<(String, String)> {
+        let ranges =
+            extract_with_fallback(text, lang_id, None, None, &latex::LatexExtras::default())
+                .expect("extraction");
+        range_units(&ranges, text, default_language)
+            .into_iter()
+            .map(|unit| (unit.text.trim().to_string(), unit.language))
+            .collect()
+    }
+
+    #[test]
+    fn a_scope_marker_runs_until_the_next_one() {
+        let text = "English here.\n\n<!-- lang: fr -->\n\nDu francais ici.\n\n                    <!-- lang: en-GB -->\n\nEnglish again.\n";
+        let tagged: Vec<String> = languages_of(text, "markdown", "en-US")
+            .into_iter()
+            .map(|(_, lang)| lang)
+            .collect();
+        assert_eq!(tagged, vec!["en-US", "fr", "en-GB"]);
+    }
+
+    #[test]
+    fn a_begin_directive_beats_a_scope_marker() {
+        let text = "<!-- lang: fr -->\n\nDu francais ici.\n\n                    <!-- lang-check-begin lang:de -->\nEin deutscher Satz.\n                    <!-- lang-check-end -->\n";
+        let languages = languages_of(text, "markdown", "en-US");
+        assert_eq!(languages[0].1, "fr");
+        assert_eq!(
+            languages[1].1, "de-DE",
+            "the directive wins, and `de` resolves to a variant"
+        );
+    }
+
+    #[test]
+    fn prose_before_the_first_marker_takes_the_configured_language() {
+        let text = "Before any marker.\n\n<!-- lang: fr -->\n\nApres.\n";
+        assert_eq!(languages_of(text, "markdown", "en-GB")[0].1, "en-GB");
     }
 }
