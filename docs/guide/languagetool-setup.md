@@ -266,9 +266,12 @@ Lower it when pointing at a shared or rate-limited server — the public
 
 ## Multi-Engine Mode
 
-When both Harper and LanguageTool are enabled, they run concurrently and
-their diagnostics overlay. Duplicate findings at the same text range are
-automatically deduplicated.
+When both Harper and LanguageTool are enabled, they run one after another and
+their diagnostics overlay. Findings that agree — the same rule over the same
+byte range — are merged into one report keeping the higher severity, with the
+suggestions interleaved so each engine's best guess comes before either
+engine's tail. The two tokenise independently, so a finding whose span differs
+even by a byte stays separate.
 
 ```yaml
 engines:

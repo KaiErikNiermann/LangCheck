@@ -58,7 +58,22 @@ Both bool shorthand (`harper: true`) and nested config (`harper: { enabled: true
 The inspector health tab in VS Code shows whether each engine's binary was detected and provides install instructions when missing.
 :::
 
-All enabled engines run concurrently and their diagnostics overlay. Engines that don't support the configured `spell_language` are automatically skipped (e.g. Harper only supports English). Duplicate diagnostics at the same range and rule are deduplicated.
+Enabled engines run one after another and their diagnostics overlay. (Each
+engine may work concurrently *inside* its own turn — LanguageTool overlaps its
+requests — but the engines themselves are sequential.)
+
+An engine is skipped when it does not handle the language being checked, or
+the markup the document is written in. Harper is English-only; an external
+provider or WASM plugin declares both through `languages` and `extensions`, and
+declaring neither means it takes everything. `spell_language` is the document
+*default* — a passage that declares its own language is checked in that one
+instead, and each language group goes only to the engines that claim it.
+
+When two engines report the same rule over the same byte range, the reports are
+merged into one: the highest severity wins, and the suggestions are taken
+round-robin, one from each engine in turn, so the top of the list is every
+engine's best guess before any engine's tail. Spans that differ even by a byte
+are left as separate diagnostics.
 
 ## Rule Overrides
 

@@ -19,8 +19,17 @@ engines:
     - name: another-tool
       command: /usr/bin/another-tool
       args: ["--format", "json"]
-      extensions: [md, rst]
+      extensions: [md, rst]     # markup it parses
+      languages: ["en", "de"]   # languages it checks
 ```
+
+`extensions` and `languages` are different questions, and a provider is skipped
+when either excludes the document. Leaving one out means "all of them".
+
+Declaring `languages` matters more than it looks: a provider that claims every
+language makes the checker believe the passage was checked, which suppresses
+the report saying nothing could read it — so a provider that only speaks
+English silently hides the fact that a Hebrew paragraph went unchecked.
 
 ## Protocol
 
@@ -30,10 +39,18 @@ The provider receives a JSON object on stdin:
 
 ```json
 {
-  "text": "The full document text to check.",
-  "language_id": "markdown"
+  "text": "The prose to check.",
+  "language_id": "en-US"
 }
 ```
+
+`language_id` is the **natural** language being checked as a BCP-47 tag, not
+the markup format — `en-US`, `de-DE`, `fr`. The document's markup is not sent;
+declare `extensions` if the provider needs to know it.
+
+`text` is one extracted prose range, not the whole file. A document is checked
+range by range, so a provider is invoked once per range and its byte offsets
+are relative to the text it was given.
 
 ### Response (stdout)
 
