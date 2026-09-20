@@ -454,14 +454,7 @@ impl Orchestrator {
                     pack_installable: false,
                 });
             }
-            // Advanced deduplication: if two engines report the same unified rule at the same range,
-            // prefer the one with higher severity or just keep one.
-            all_diagnostics.sort_by_key(|d| (d.start_byte, d.end_byte, d.unified_id.clone()));
-            all_diagnostics.dedup_by(|a, b| {
-                a.start_byte == b.start_byte
-                    && a.end_byte == b.end_byte
-                    && a.unified_id == b.unified_id
-            });
+            *all_diagnostics = merge_duplicates(std::mem::take(all_diagnostics));
         }
 
         if subset.is_none() {
@@ -480,6 +473,87 @@ impl Orchestrator {
             })
             .collect())
     }
+}
+
+/// How severe a severity is, which is not the order the numbers are in.
+///
+/// `SEVERITY_HINT` is 4 and the *least* severe of the four, so comparing the
+/// raw values makes a hint outrank an error.
+const fn severity_rank(severity: i32) -> u8 {
+    match severity {
+        3 => 3, // error
+        2 => 2, // warning
+        1 => 1, // information
+        _ => 0, // hint, and anything unrecognised
+    }
+}
+
+/// Fold diagnostics that several engines reported for the same thing into one.
+///
+/// Two engines agreeing is the common case for spelling -- Harper, Hunspell
+/// and `LanguageTool` all normalise a misspelling to `spelling.typo` -- and
+/// what used to happen was that the later ones were dropped outright. Dropping
+/// lost three things: the higher severity (`LanguageTool` calls a misspelling
+/// an error, Harper a warning, and Harper registers first, so the error went),
+/// every suggestion the loser had, and any severity override keyed on the
+/// loser's native rule id.
+///
+/// Identity is still the exact `(start, end, unified_id)` triple. Engines
+/// tokenise independently, so spans that differ by a byte are left as separate
+/// diagnostics rather than guessed at.
+fn merge_duplicates(diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
+    let mut merged: Vec<Diagnostic> = Vec::with_capacity(diagnostics.len());
+    // One list of suggestions per contributing engine, per surviving slot.
+    let mut contributions: Vec<Vec<Vec<String>>> = Vec::new();
+    let mut index: HashMap<(u32, u32, String), usize> = HashMap::new();
+
+    for mut diagnostic in diagnostics {
+        let key = (
+            diagnostic.start_byte,
+            diagnostic.end_byte,
+            diagnostic.unified_id.clone(),
+        );
+        let suggestions = std::mem::take(&mut diagnostic.suggestions);
+        if let Some(&slot) = index.get(&key) {
+            if severity_rank(diagnostic.severity) > severity_rank(merged[slot].severity) {
+                merged[slot].severity = diagnostic.severity;
+            }
+            contributions[slot].push(suggestions);
+        } else {
+            index.insert(key, merged.len());
+            merged.push(diagnostic);
+            contributions.push(vec![suggestions]);
+        }
+    }
+
+    for (slot, from_each_engine) in merged.iter_mut().zip(contributions) {
+        slot.suggestions = interleave_suggestions(&from_each_engine);
+    }
+    merged
+}
+
+/// Take one suggestion from each engine in turn, best first.
+///
+/// Concatenating instead would be worse than dropping: `LanguageTool` alone
+/// answers a French misspelling with eighty replacements, which would bury
+/// every other engine's first guess under one engine's tail -- and the tail is
+/// what fills a nine-slot `SpeedFix` panel or pushes "add to dictionary" off the
+/// bottom of the lightbulb. Round-robin puts each engine's best pick at the
+/// top and keeps each engine's own ranking within its own picks.
+fn interleave_suggestions(from_each_engine: &[Vec<String>]) -> Vec<String> {
+    let deepest = from_each_engine.iter().map(Vec::len).max().unwrap_or(0);
+    let mut out = Vec::new();
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for round in 0..deepest {
+        for engine in from_each_engine {
+            if let Some(suggestion) = engine.get(round)
+                && seen.insert(suggestion.as_str())
+            {
+                out.push(suggestion.clone());
+            }
+        }
+    }
+    out
 }
 
 /// Normalise each engine answer and fold it into the per-text results.
@@ -821,6 +895,153 @@ mod tests {
                 "he_IL.dic is not a dictionary this checker can read"
             ))
         }
+    }
+
+    /// A diagnostic over the same span, from a named engine.
+    fn at(span: (u32, u32), rule: &str, severity: i32, suggestions: &[&str]) -> Diagnostic {
+        Diagnostic {
+            start_byte: span.0,
+            end_byte: span.1,
+            message: format!("from {rule}"),
+            suggestions: suggestions.iter().map(|s| (*s).to_string()).collect(),
+            rule_id: rule.to_string(),
+            severity,
+            unified_id: "spelling.typo".to_string(),
+            confidence: 0.8,
+            language: String::new(),
+            pack_installable: false,
+        }
+    }
+
+    const ERROR: i32 = 3;
+    const WARNING: i32 = 2;
+    const HINT: i32 = 4;
+
+    #[test]
+    fn two_engines_reporting_the_same_thing_become_one() {
+        let merged = merge_duplicates(vec![
+            at((0, 5), "harper.Spelling", WARNING, &["definitely"]),
+            at((0, 5), "hunspell.spelling", WARNING, &["definitely"]),
+        ]);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(
+            merged[0].rule_id, "harper.Spelling",
+            "the first engine's report survives"
+        );
+    }
+
+    #[test]
+    fn the_merged_report_keeps_the_highest_severity() {
+        // LanguageTool calls a misspelling an error and Harper a warning, and
+        // Harper registers first. Dropping the later one dropped the error.
+        let merged = merge_duplicates(vec![
+            at((0, 5), "harper.Spelling", WARNING, &[]),
+            at((0, 5), "languagetool.MORFOLOGIK_RULE_EN_US", ERROR, &[]),
+        ]);
+        assert_eq!(merged[0].severity, ERROR);
+    }
+
+    #[test]
+    fn a_hint_does_not_outrank_an_error() {
+        // SEVERITY_HINT is 4 and the least severe of the four, so comparing
+        // the raw numbers gets this backwards.
+        let merged = merge_duplicates(vec![
+            at((0, 5), "a.rule", ERROR, &[]),
+            at((0, 5), "b.rule", HINT, &[]),
+        ]);
+        assert_eq!(merged[0].severity, ERROR);
+
+        let other_way = merge_duplicates(vec![
+            at((0, 5), "a.rule", HINT, &[]),
+            at((0, 5), "b.rule", ERROR, &[]),
+        ]);
+        assert_eq!(other_way[0].severity, ERROR);
+    }
+
+    #[test]
+    fn suggestions_are_taken_one_from_each_engine_in_turn() {
+        let merged = merge_duplicates(vec![
+            at((0, 5), "harper.Spelling", WARNING, &["h1", "h2", "h3"]),
+            at((0, 5), "hunspell.spelling", WARNING, &["u1", "u2"]),
+            at((0, 5), "languagetool.X", WARNING, &["l1"]),
+        ]);
+        assert_eq!(
+            merged[0].suggestions,
+            vec!["h1", "u1", "l1", "h2", "u2", "h3"],
+            "each engine's best pick comes before any engine's second"
+        );
+    }
+
+    #[test]
+    fn one_engines_long_tail_does_not_bury_the_others() {
+        // The case that makes a plain union worse than dropping: LanguageTool
+        // answers a French misspelling with dozens of replacements, and the
+        // SpeedFix panel only has nine slots.
+        let many: Vec<String> = (0..50).map(|i| format!("lt{i}")).collect();
+        let many_refs: Vec<&str> = many.iter().map(String::as_str).collect();
+        let merged = merge_duplicates(vec![
+            at((0, 5), "languagetool.X", WARNING, &many_refs),
+            at((0, 5), "hunspell.spelling", WARNING, &["u1"]),
+            at((0, 5), "harper.Spelling", WARNING, &["h1"]),
+        ]);
+        assert_eq!(
+            &merged[0].suggestions[..3],
+            &["lt0", "u1", "h1"],
+            "the first three slots are one per engine, not three from one"
+        );
+    }
+
+    #[test]
+    fn the_same_suggestion_from_two_engines_is_offered_once() {
+        let merged = merge_duplicates(vec![
+            at(
+                (0, 5),
+                "harper.Spelling",
+                WARNING,
+                &["definitely", "definite"],
+            ),
+            at(
+                (0, 5),
+                "hunspell.spelling",
+                WARNING,
+                &["definitely", "defiantly"],
+            ),
+        ]);
+        assert_eq!(
+            merged[0].suggestions,
+            vec!["definitely", "definite", "defiantly"]
+        );
+    }
+
+    #[test]
+    fn a_different_span_is_a_different_diagnostic() {
+        // Engines tokenise independently, so a span differing by one byte is
+        // left alone rather than guessed at.
+        let merged = merge_duplicates(vec![
+            at((0, 5), "harper.Spelling", WARNING, &[]),
+            at((0, 6), "hunspell.spelling", WARNING, &[]),
+        ]);
+        assert_eq!(merged.len(), 2);
+    }
+
+    #[test]
+    fn a_different_rule_at_the_same_span_is_a_different_diagnostic() {
+        let mut grammar = at((0, 5), "languagetool.X", WARNING, &[]);
+        grammar.unified_id = "grammar.agreement".to_string();
+        let merged = merge_duplicates(vec![at((0, 5), "harper.Spelling", WARNING, &[]), grammar]);
+        assert_eq!(merged.len(), 2);
+    }
+
+    #[test]
+    fn merging_preserves_the_order_diagnostics_arrived_in() {
+        let merged = merge_duplicates(vec![
+            at((10, 15), "a.rule", WARNING, &[]),
+            at((0, 5), "b.rule", WARNING, &[]),
+            at((10, 15), "c.rule", WARNING, &[]),
+        ]);
+        assert_eq!(merged.len(), 2);
+        assert_eq!(merged[0].start_byte, 10, "first seen stays first");
+        assert_eq!(merged[1].start_byte, 0);
     }
 
     #[tokio::test]

@@ -1065,6 +1065,8 @@ mod tests {
                 "-c".to_string(),
                 r#"cat > /dev/null; echo '[{"start_byte":0,"end_byte":4,"message":"test issue","suggestions":["fix"],"rule_id":"test.rule","severity":2}]'"#.to_string(),
             ],
+            Vec::new(),
+            Vec::new(),
         );
 
         let diagnostics = engine.check("some text", "markdown").await?;
@@ -1084,6 +1086,8 @@ mod tests {
             "nonexistent".to_string(),
             "/nonexistent/binary".to_string(),
             vec![],
+            Vec::new(),
+            Vec::new(),
         );
 
         // Should not error, just return empty
@@ -1099,6 +1103,8 @@ mod tests {
             "bad-json".to_string(),
             "echo".to_string(),
             vec!["not json".to_string()],
+            Vec::new(),
+            Vec::new(),
         );
 
         // Should not error, just return empty
@@ -1119,6 +1125,8 @@ mod tests {
         let result = WasmEngine::new(
             "missing".to_string(),
             PathBuf::from("/nonexistent/plugin.wasm"),
+            Vec::new(),
+            Vec::new(),
         );
         assert!(result.is_err());
     }
