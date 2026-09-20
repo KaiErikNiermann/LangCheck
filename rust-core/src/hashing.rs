@@ -21,6 +21,23 @@ pub fn content_hash(content: &str) -> u64 {
     hasher.finish()
 }
 
+/// A hash that means the same thing in a later process.
+///
+/// [`content_hash`] uses `DefaultHasher`, which is not stable across Rust
+/// releases and so cannot be written to disk and compared after an upgrade.
+/// Anything that outlives the process -- the stored result of a check, and the
+/// fingerprint deciding whether it still applies -- uses this instead. SHA-256
+/// truncated to 64 bits: the comparison is against a value this program wrote,
+/// not against an attacker, so the width is about collisions and nothing else.
+#[must_use]
+pub fn stable_hash(content: &str) -> u64 {
+    use sha2::Digest as _;
+    let digest = sha2::Sha256::digest(content.as_bytes());
+    let mut first_eight = [0u8; 8];
+    first_eight.copy_from_slice(&digest[..8]);
+    u64::from_le_bytes(first_eight)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiagnosticFingerprint {
     pub message_hash: u64,
@@ -102,6 +119,24 @@ impl IgnoreStore {
             ignored_fingerprints: HashSet::new(),
             persist_path: None,
         }
+    }
+
+    /// A value that changes whenever the set of ignored diagnostics does.
+    ///
+    /// Read by the check cache: a diagnostic the user has since ignored must
+    /// not come back from a stored result, so the stored result stops applying
+    /// when this changes. Sorted first, because a `HashSet` has no order and
+    /// the value has to be the same in the next process.
+    #[must_use]
+    pub fn fingerprint(&self) -> u64 {
+        let mut sorted: Vec<u64> = self.ignored_fingerprints.iter().copied().collect();
+        sorted.sort_unstable();
+        let joined = sorted
+            .iter()
+            .map(u64::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        stable_hash(&joined)
     }
 
     /// Load an `IgnoreStore` from a workspace root, reading `.languagecheck/ignores.json`.

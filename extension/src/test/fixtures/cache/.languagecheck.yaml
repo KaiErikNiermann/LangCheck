@@ -1,0 +1,4 @@
+# Harper alone: in-process, no network, so a difference in check time between
+# a cold run and a cached one is about the cache and not about a server.
+engines:
+  harper: true

@@ -81,6 +81,12 @@ message CheckResponse {
   repeated Diagnostic diagnostics = 1;
   ExtractionInfo extraction = 2;
   repeated EngineHealth engine_health = 3;
+  // True when the engines did not run because the stored result for this file
+  // still applied -- same text, same config, same dictionary, same ignored
+  // set, same version. Reported so the inspector can say where an answer came
+  // from, and so a test can assert reuse as a fact instead of inferring it
+  // from how long the check took.
+  bool served_from_cache = 4;
 }
 
 message EngineHealth {

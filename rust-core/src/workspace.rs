@@ -1,4 +1,5 @@
 use crate::checker::Diagnostic;
+use serde::{Deserialize, Serialize};
 use crate::insights::ProseInsights;
 use anyhow::Result;
 use redb::{Database, ReadableDatabase, TableDefinition};
@@ -13,6 +14,57 @@ type Table = TableDefinition<'static, &'static str, &'static [u8]>;
 const DIAGNOSTICS_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("diagnostics");
 const INSIGHTS_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("insights");
 const FILE_HASHES_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("file_hashes");
+
+/// What a check's answer depends on, as one value.
+///
+/// A stored result is served only when this still matches, so every input that
+/// can change the answer has to be in here. The document text, because an
+/// edited buffer must be re-checked -- VS Code restores unsaved buffers across
+/// a reload, so a cache keyed on the file path alone would answer a dirty
+/// buffer with diagnostics computed from the saved version: right words, wrong
+/// offsets. The config, because it decides which engines run and at what
+/// severity. The dictionary and the ignored set, because both remove
+/// diagnostics after the engines produced them. Whether names are detected,
+/// for the same reason. And the version of this program, because an upgrade
+/// changes what the engines say without any of the above moving.
+///
+/// `stable_hash` and not `content_hash`: this value is written to disk in one
+/// process and compared in another.
+#[must_use]
+pub fn check_fingerprint(
+    text: &str,
+    config: &crate::config::Config,
+    dictionary: &crate::dictionary::Dictionary,
+    ignore_store: &crate::hashing::IgnoreStore,
+    names_enabled: bool,
+) -> u64 {
+    let config_repr = serde_json::to_string(config).unwrap_or_default();
+    crate::hashing::stable_hash(&format!(
+        "{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}",
+        crate::hashing::stable_hash(text),
+        crate::hashing::stable_hash(&config_repr),
+        dictionary.fingerprint(),
+        ignore_store.fingerprint(),
+        names_enabled,
+        env!("CARGO_PKG_VERSION"),
+    ))
+}
+
+/// A check's result, with what it was computed from.
+///
+/// The fingerprint covers everything that can change the answer -- the
+/// document text, the config, the user dictionary, the ignored diagnostics,
+/// whether name detection is on, and the version of this program. A stored
+/// result is served only when the fingerprint still matches, so there is one
+/// decision to get right rather than one per input.
+///
+/// Storing the result without it was the previous state of things: every check
+/// wrote here and nothing ever read it back.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CachedCheck {
+    pub fingerprint: u64,
+    pub diagnostics: Vec<Diagnostic>,
+}
 
 pub struct WorkspaceIndex {
     db: Database,
@@ -83,20 +135,42 @@ impl WorkspaceIndex {
         self.put_bytes(FILE_HASHES_TABLE, file_path, hash.to_le_bytes().as_slice())
     }
 
-    pub fn update_diagnostics(&self, file_path: &str, diagnostics: &[Diagnostic]) -> Result<()> {
-        self.put_cbor(DIAGNOSTICS_TABLE, file_path, &diagnostics)
-    }
 
     pub fn update_insights(&self, file_path: &str, insights: &ProseInsights) -> Result<()> {
         self.put_cbor(INSIGHTS_TABLE, file_path, &insights)
     }
 
-    pub fn get_diagnostics(&self, file_path: &str) -> Result<Option<Vec<Diagnostic>>> {
-        self.get_cbor(DIAGNOSTICS_TABLE, file_path)
-    }
 
     pub fn get_insights(&self, file_path: &str) -> Result<Option<ProseInsights>> {
         self.get_cbor(INSIGHTS_TABLE, file_path)
+    }
+
+    /// The stored result for `file_path`, if it still applies.
+    ///
+    /// A fingerprint mismatch is a miss, and so is anything unreadable: an
+    /// index written by an older version holds a different shape, and failing
+    /// a check because of it would be worse than doing the work again.
+    #[must_use]
+    pub fn cached_check(&self, file_path: &str, fingerprint: u64) -> Option<Vec<Diagnostic>> {
+        let stored: CachedCheck = self.get_cbor(DIAGNOSTICS_TABLE, file_path).ok()??;
+        (stored.fingerprint == fingerprint).then_some(stored.diagnostics)
+    }
+
+    /// Record a check's result together with what produced it.
+    pub fn store_check(
+        &self,
+        file_path: &str,
+        fingerprint: u64,
+        diagnostics: &[Diagnostic],
+    ) -> Result<()> {
+        self.put_cbor(
+            DIAGNOSTICS_TABLE,
+            file_path,
+            &CachedCheck {
+                fingerprint,
+                diagnostics: diagnostics.to_vec(),
+            },
+        )
     }
 
     /// Write `bytes` under `key`, in a transaction of its own.
@@ -203,8 +277,8 @@ mod tests {
             pack_installable: false,
         }];
 
-        idx.update_diagnostics("test.md", &diags).unwrap();
-        let retrieved = idx.get_diagnostics("test.md").unwrap().unwrap();
+        idx.store_check("test.md", 7, &diags).unwrap();
+        let retrieved = idx.cached_check("test.md", 7).unwrap();
         assert_eq!(retrieved.len(), 1);
         assert_eq!(retrieved[0].message, "test error");
         assert_eq!(retrieved[0].start_byte, 0);
@@ -216,8 +290,34 @@ mod tests {
     #[test]
     fn diagnostics_missing_file_returns_none() {
         let (idx, dir) = temp_workspace("diag_none");
-        let result = idx.get_diagnostics("nonexistent.md").unwrap();
+        let result = idx.cached_check("nonexistent.md", 7);
         assert!(result.is_none());
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn a_stored_result_is_not_served_under_a_different_fingerprint() {
+        // The whole safety of the cache. A config change, an added dictionary
+        // word, an edited buffer -- each moves the fingerprint, and each must
+        // make the stored answer stop applying rather than come back stale.
+        let (idx, dir) = temp_workspace("fingerprint_guard");
+        let diags = vec![Diagnostic {
+            start_byte: 0,
+            end_byte: 4,
+            message: "stale".to_string(),
+            suggestions: Vec::new(),
+            rule_id: "spelling.typo".to_string(),
+            severity: 2,
+            unified_id: "spelling.typo".to_string(),
+            confidence: 0.8,
+            language: String::new(),
+            pack_installable: false,
+        }];
+        idx.store_check("f.md", 100, &diags).unwrap();
+
+        assert!(idx.cached_check("f.md", 100).is_some(), "the same inputs must hit");
+        assert!(idx.cached_check("f.md", 101).is_none(), "changed inputs must miss");
+
         cleanup(&dir);
     }
 
@@ -280,7 +380,7 @@ mod tests {
             message: "first".to_string(),
             ..Default::default()
         }];
-        idx.update_diagnostics("f.md", &diags1).unwrap();
+        idx.store_check("f.md", 1, &diags1).unwrap();
 
         let diags2 = vec![
             Diagnostic {
@@ -296,9 +396,9 @@ mod tests {
                 ..Default::default()
             },
         ];
-        idx.update_diagnostics("f.md", &diags2).unwrap();
+        idx.store_check("f.md", 2, &diags2).unwrap();
 
-        let retrieved = idx.get_diagnostics("f.md").unwrap().unwrap();
+        let retrieved = idx.cached_check("f.md", 2).unwrap();
         assert_eq!(retrieved.len(), 2);
         assert_eq!(retrieved[0].message, "second");
 

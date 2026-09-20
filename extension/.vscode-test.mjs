@@ -55,6 +55,22 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 90_000 },
     },
     {
+        label: 'cache-phase1',
+        files: 'out/test/e2e/cacheReusePhase1.test.js',
+        workspaceFolder: './src/test/fixtures/cache',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 120_000 },
+    },
+    {
+        // A second window over the same workspace. The core keys its index by
+        // the workspace root, so this one finds what the first one stored.
+        label: 'cache-phase2',
+        files: 'out/test/e2e/cacheReusePhase2.test.js',
+        workspaceFolder: './src/test/fixtures/cache',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 120_000 },
+    },
+    {
         label: 'decline-phase1',
         files: 'out/test/e2e/declinePhase1.test.js',
         workspaceFolder: './src/test/fixtures/packs',

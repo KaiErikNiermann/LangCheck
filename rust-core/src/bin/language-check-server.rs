@@ -50,6 +50,7 @@ struct IndexingContext {
     config: Arc<Mutex<Config>>,
 }
 
+
 async fn process_file_for_indexing(
     file_path: PathBuf,
     ctx: IndexingContext,
@@ -142,7 +143,19 @@ async fn process_file_for_indexing(
         && let Some(file_path_str) = file_path.to_str()
     {
         let insights = ProseInsights::analyze_ranges(&text, &ranges);
-        idx.update_diagnostics(file_path_str, &all_diagnostics)
+        let fingerprint = {
+            let cfg = config_arc.lock().await;
+            let dict = dictionary_arc.lock().await;
+            let ignores = ignore_store_arc.lock().await;
+            workspace::check_fingerprint(
+                &text,
+                &cfg,
+                &dict,
+                &ignores,
+                name_filter_arc.lock().await.is_some(),
+            )
+        };
+        idx.store_check(file_path_str, fingerprint, &all_diagnostics)
             .unwrap_or_else(|e| {
                 warn!(file = file_path_str, "Error updating diagnostics: {e}");
             });
@@ -591,6 +604,46 @@ async fn main() -> Result<()> {
                             let mut detected_names: Vec<checker::NameSpan> = Vec::new();
                             let check_start = std::time::Instant::now();
 
+                            // What this check depends on, computed once and used
+                            // both to look the answer up and to store it.
+                            let fingerprint = {
+                                let cfg = config_arc.lock().await;
+                                let dict = dictionary_arc.lock().await;
+                                let ignores = ignore_store_arc.lock().await;
+                                workspace::check_fingerprint(
+                                    &req.text,
+                                    &cfg,
+                                    &dict,
+                                    &ignores,
+                                    name_filter_arc.lock().await.is_some(),
+                                )
+                            };
+
+                            // The extraction above still ran, and has to: it is
+                            // a few milliseconds, the inspector reports it, and
+                            // the insights are computed from it. What a stored
+                            // result saves is the engines, which is where a
+                            // check's time actually goes -- for LanguageTool, a
+                            // network round trip per range.
+                            let cached = match req.file_path.as_deref() {
+                                Some(path) => workspace_index_arc
+                                    .lock()
+                                    .await
+                                    .as_ref()
+                                    .and_then(|idx| idx.cached_check(path, fingerprint)),
+                                None => None,
+                            };
+
+                            let served_from_cache = cached.is_some();
+                            if let Some(stored) = cached {
+                                debug!(
+                                    id = request_id,
+                                    diagnostics = stored.len(),
+                                    "CheckProse: served from the stored result"
+                                );
+                                all_diagnostics = stored;
+                            } else {
+
                             // One batch, one lock: the engines decide internally
                             // how much of it to run concurrently.
                             let batch = {
@@ -658,12 +711,14 @@ async fn main() -> Result<()> {
                                 "CheckProse complete"
                             );
 
+                            }
+
                             // Store diagnostics and insights in workspace index (non-fatal)
                             if let Some(idx) = &*workspace_index_arc.lock().await
                                 && let Some(file_path) = req.file_path.clone()
                             {
                                 let insights = ProseInsights::analyze_ranges(&req.text, &ranges);
-                                idx.update_diagnostics(&file_path, &all_diagnostics)
+                                idx.store_check(&file_path, fingerprint, &all_diagnostics)
                                     .unwrap_or_else(|e| {
                                         warn!(file = file_path, "Error updating diagnostics: {e}");
                                     });
@@ -677,6 +732,7 @@ async fn main() -> Result<()> {
 
                             extraction_info.names = detected_names;
                             Some(response::Payload::CheckProse(CheckResponse {
+                                served_from_cache,
                                 diagnostics: all_diagnostics,
                                 extraction: Some(extraction_info),
                                 engine_health,

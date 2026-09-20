@@ -219,6 +219,18 @@ impl Dictionary {
     }
 
     /// Return the number of words loaded (user + bundled), excluding derived forms.
+    /// A value that changes whenever the accepted words do.
+    ///
+    /// Read by the check cache. Adding a word to the dictionary must make the
+    /// misspelling it covers disappear, which cannot happen if a stored result
+    /// from before the addition is still served.
+    #[must_use]
+    pub fn fingerprint(&self) -> u64 {
+        let mut sorted: Vec<&str> = self.words().map(String::as_str).collect();
+        sorted.sort_unstable();
+        crate::hashing::stable_hash(&sorted.join("\u{1f}"))
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.user_words.len() + self.bundled_words.len()
