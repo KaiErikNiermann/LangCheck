@@ -129,7 +129,16 @@ let lastKnownSpellLanguage: string | undefined;
  * silently applied to the next document checked and not to the one on screen,
  * and the inspector went on reporting what the previous config produced.
  */
-let lastKnownConfigText: string | undefined;
+/**
+ * The config file's contents as the core last saw them.
+ *
+ * Three states, and the third is the one that needed spelling out: a string is
+ * the file's contents, `null` is "there is no config file", and `undefined` is
+ * "not looked yet". Without `null`, deleting the config was indistinguishable
+ * from never having read one, so the editor went on checking under a config
+ * that no longer existed.
+ */
+let lastKnownConfigText: string | null | undefined;
 /**
  * Languages offered this session.
  *
@@ -2051,9 +2060,27 @@ export async function activate(context: vscode.ExtensionContext) {
                 return;
             } catch { /* not found, try next */ }
         }
+
+        // No config file, under any of its names. Deleting one is a config
+        // change like any other -- the core falls back to its defaults, and
+        // the parsed settings this file fed have to go with it, or an inlay
+        // hint keeps skipping a LaTeX environment the config no longer names.
+        const hadOne = lastKnownConfigText !== undefined && lastKnownConfigText !== null;
+        lastKnownConfigText = null;
+        lastKnownSpellLanguage = 'en-US';
+        languageStatusBarItem.text = '$(book) en-US';
+        userSkipEnvs = new Set<string>();
+        userSkipCommands = new Set<string>();
+        userProseEnvs = new Set<string>();
+        debounceMs = DEFAULT_DEBOUNCE_MS;
+        inlayHintEmitter.fire();
+        if (hadOne) {
+            await reinitializeAndRecheck();
+        }
     };
     configWatcher.onDidChange(checkConfigChange);
     configWatcher.onDidCreate(checkConfigChange);
+    configWatcher.onDidDelete(checkConfigChange);
     context.subscriptions.push(configWatcher);
 
     // Eagerly read the initial config values so we can detect changes
