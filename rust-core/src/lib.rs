@@ -27,6 +27,7 @@ pub mod lsp;
 pub mod morphology;
 pub mod names;
 pub mod orchestrator;
+pub mod packs;
 pub mod prose;
 pub mod rules;
 pub mod scoping;
