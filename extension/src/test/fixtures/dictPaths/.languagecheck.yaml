@@ -1,0 +1,4 @@
+# No `dictionaries.paths` here on purpose. The wordlist beside this file is
+# what the tests add, so the baseline has to be the state without it.
+engines:
+  harper: true
