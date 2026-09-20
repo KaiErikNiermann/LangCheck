@@ -135,3 +135,26 @@ fn a_links_text_is_still_spell_checked() {
         vec!["deliberatly"]
     );
 }
+
+#[test]
+fn emphasis_before_punctuation_does_not_invent_a_whitespace_complaint() {
+    // Blanking a delimiter leaves a space where it was, so `_stressed_.`
+    // reaches the engine as ` stressed .` -- which LanguageTool answers with
+    // CONSECUTIVE_SPACES and COMMA_PARENTHESIS_WHITESPACE. Both land on the
+    // blanked span itself, so the exclusion-overlap rule drops them; this is
+    // the test that says so, because without it the emphasis fix would trade
+    // one false positive for two.
+    let dir = workspace();
+    for (name, lang) in [("punct.md", "markdown"), ("punct.typ", "typst")] {
+        let reported = misspellings(
+            &dir,
+            name,
+            "A _stressed_. And *another*, then the end.\n",
+            lang,
+        );
+        assert!(
+            reported.is_empty(),
+            "{lang} reported {reported:?} for emphasis before punctuation"
+        );
+    }
+}

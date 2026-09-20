@@ -11,7 +11,7 @@ L19   en-GB    Neither is , a link target, or the URL in an autolink such as . T
 L24   en-GB    A block quote is prose. It is checked like any other paragraph, mispe...
 L27   en-GB    Column
 L27   en-GB    Meaning
-L29   en-GB    `id`
+L29   en-GB    
 L29   en-GB    Table cells are prose and are checked here.
 L30   en-GB    ## Words a dictionary will not have
 L32   en-GB    The bundled wordlists cover software vocabulary, and adds the rest: m...

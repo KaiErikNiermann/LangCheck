@@ -102,7 +102,11 @@ const WRAPPED_PROSE: &[&str] = &["link_text", "image_description"];
 /// Offsets from the inline parse are relative to the run, so each is rebased to
 /// the document before being recorded.
 fn inline_markup(node: Node, text: &str, parser: &mut Parser, out: &mut Vec<(usize, usize)>) {
-    if node.kind() == "inline" {
+    // A paragraph and a heading each wrap their contents in an `inline` node.
+    // A table cell does not -- it holds the tokens directly -- so its own text
+    // is the run to parse, and without this a backtick or an emphasis
+    // delimiter inside a table reaches the engines exactly as it used to.
+    if matches!(node.kind(), "inline" | "pipe_table_cell") {
         let base = node.start_byte();
         let run = &text[node.byte_range()];
         let Some(tree) = parser.parse(run, None) else {
@@ -235,6 +239,51 @@ mod tests {
         assert_eq!(
             checked_text("Just a plain sentence.\n"),
             "Just a plain sentence."
+        );
+    }
+
+    #[test]
+    fn markup_inside_a_table_cell_is_excluded_too() {
+        // A table cell holds its tokens directly rather than wrapping them in
+        // an `inline` node, so it needs naming separately or it keeps its
+        // backticks -- which LanguageTool reports as a misplaced apostrophe.
+        let table = "| Col | Meaning |\n| --- | ------- |\n| `id` | A _cell_. |\n";
+        let checked = checked_text(table);
+        assert!(
+            !checked.contains('`') && !checked.contains('_'),
+            "markup survived into a table cell: {checked:?}"
+        );
+        assert!(
+            checked.contains("cell"),
+            "the cell's prose was lost: {checked:?}"
+        );
+        // `id` is a code span, so it goes the way a fenced block does. A table
+        // of identifiers is the common case for that, and they are not words.
+        assert!(!checked.contains("id"), "a code span survived: {checked:?}");
+    }
+
+    #[test]
+    fn a_fenced_block_and_its_info_string_never_reach_the_engine() {
+        let doc = "Before.\n\n```python title=\"config.yaml\"\nrecieve = 1\n```\n\nAfter.\n";
+        let checked = checked_text(doc);
+        assert!(
+            !checked.contains("recieve"),
+            "fence content leaked: {checked:?}"
+        );
+        assert!(
+            !checked.contains("config.yaml"),
+            "info string leaked: {checked:?}"
+        );
+        assert!(checked.contains("Before.") && checked.contains("After."));
+    }
+
+    #[test]
+    fn a_tables_delimiter_row_is_not_prose() {
+        let table = "| Col |\n| --- |\n| Yes |\n";
+        let checked = checked_text(table);
+        assert!(
+            !checked.contains("---"),
+            "delimiter row leaked: {checked:?}"
         );
     }
 }
