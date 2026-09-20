@@ -10,7 +10,10 @@ export default defineConfig({
         },
     },
     test: {
-        exclude: ['node_modules', 'out', 'webview'],
+        // src/test/e2e runs inside a real VS Code under @vscode/test-cli, with
+        // the genuine `vscode` API rather than the mock aliased above. Vitest
+        // cannot run those and should not try to collect them.
+        exclude: ['node_modules', 'out', 'webview', 'src/test/e2e/**'],
         include: ['src/**/*.test.ts'],
     },
 });
