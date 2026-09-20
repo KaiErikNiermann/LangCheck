@@ -37,6 +37,14 @@ let client: LanguageClient | null = null;
  * window. Nothing retried it, because the answer was not an error.
  */
 let coreInitialized = false;
+
+/**
+ * File extensions that only an SLS schema handles, as the core reports them.
+ *
+ * Asked for after each Initialize, because a schema added or edited while the
+ * editor is open changes the answer.
+ */
+let schemaExtensions = new Set<string>();
 let traceLogger: TraceLogger | null = null;
 let log: Logger;
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('language-check');
@@ -345,6 +353,21 @@ export async function activate(context: vscode.ExtensionContext) {
             pushInspectorEvent('info', 'initialize', 'Server initialized', { durationMs: performance.now() - t0 });
             log.debug('Initialize response received');
         }
+        // Which extensions the schemas claim, which only the core knows and
+        // which a schema edit changes.
+        if (client) {
+            try {
+                const metadata = await client.sendRequest({ getMetadata: {} });
+                schemaExtensions = new Set(
+                    (metadata.getMetadata?.schemaExtensions ?? []).map(e => e.toLowerCase()),
+                );
+                log.debug('Schema extensions', { extensions: [...schemaExtensions] });
+            } catch (err) {
+                // Not fatal: without it only the built-in languages are
+                // checked, which is what happened before this existed.
+                log.warn('Could not read core metadata', { err: String(err) });
+            }
+        }
         coreInitialized = true;
     };
 
@@ -422,7 +445,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // documents skipped here are picked up by `checkVisibleUnchecked` as
         // soon as Initialize returns.
         if (!client || !coreInitialized) return;
-        if (!supportedLanguages.includes(document.languageId)) return;
+        if (!isCheckable(document)) return;
         if (diagnosticsMap.has(document.uri.toString())) return;
         checkDocument(document);
     };
@@ -522,6 +545,22 @@ export async function activate(context: vscode.ExtensionContext) {
     // known VS Code language ID aliases that map to a canonical ID.
     const supportedLanguages = ['markdown', 'html', 'latex', 'forester', 'tinylang', 'rst', 'sweave', 'bibtex', 'org', 'typst', 'mdx', 'xhtml'];
 
+    /**
+     * Whether this extension should check a document.
+     *
+     * Two ways to qualify. VS Code's language id, for the formats there are
+     * grammars for -- and the file's extension, for the ones only an SLS
+     * schema handles. A schema language has no language id in VS Code, so
+     * checking the id alone made every schema unreachable from the editor
+     * however correct it was: the core would have used it, and was never
+     * asked.
+     */
+    const isCheckable = (document: vscode.TextDocument): boolean => {
+        if (supportedLanguages.includes(document.languageId)) return true;
+        const extension = path.extname(document.fileName).replace(/^\./, '').toLowerCase();
+        return extension.length > 0 && schemaExtensions.has(extension);
+    };
+
     /** Re-initialize the server, clear stale diagnostics, and recheck open documents. */
     const reinitializeAndRecheck = async () => {
         log.info('Reinitializing and rechecking');
@@ -534,9 +573,7 @@ export async function activate(context: vscode.ExtensionContext) {
         extractionCache.clear();
         detectedNamesCache.clear();
         await updateInspectorData();
-        const editors = vscode.window.visibleTextEditors.filter(e =>
-            supportedLanguages.includes(e.document.languageId)
-        );
+        const editors = vscode.window.visibleTextEditors.filter(e => isCheckable(e.document));
         log.debug('Rechecking visible editors', { count: editors.length });
         for (const editor of editors) {
             checkDocument(editor.document);
@@ -1947,7 +1984,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // VS Code fires onDidOpenTextDocument for background loads (search, git, etc.)
     // which would flood the server with hundreds of concurrent checks.
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((document) => {
-        if (!supportedLanguages.includes(document.languageId)) return;
+        if (!isCheckable(document)) return;
         const isVisible = vscode.window.visibleTextEditors.some(
             e => e.document.uri.toString() === document.uri.toString()
         );
@@ -1970,7 +2007,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // ── Check-on-change with debounce ──
     context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((event) => {
-        if (!supportedLanguages.includes(event.document.languageId)) return;
+        if (!isCheckable(event.document)) return;
         const trigger = checkTrigger();
         if (trigger !== 'onChange') return;
 
@@ -2107,12 +2144,32 @@ export async function activate(context: vscode.ExtensionContext) {
      */
     let dictionaryWatchers: vscode.FileSystemWatcher[] = [];
 
+    /**
+     * Where SLS schemas live, watched for the same reason as the wordlists.
+     *
+     * The core reads this directory once, at Initialize. Editing a schema did
+     * nothing until the next reload -- and a schema is a thing under active
+     * development, since writing one is an iterative business of running the
+     * checker and adjusting the patterns.
+     */
+    const SCHEMA_DIR_PATTERN = '.langcheck/schemas/**/*';
+
     const refreshDictionaryWatchers = async () => {
         for (const watcher of dictionaryWatchers) watcher.dispose();
         dictionaryWatchers = [];
 
         const folder = vscode.workspace.workspaceFolders?.[0];
         if (!folder) return;
+
+        const schemaWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(folder, SCHEMA_DIR_PATTERN),
+        );
+        const reloadSchemas = () => reinitializeAndRecheck();
+        schemaWatcher.onDidChange(reloadSchemas);
+        schemaWatcher.onDidCreate(reloadSchemas);
+        schemaWatcher.onDidDelete(reloadSchemas);
+        dictionaryWatchers.push(schemaWatcher);
+        context.subscriptions.push(schemaWatcher);
 
         const paths = new Set<string>([
             // The file `Add to dictionary` writes to. The core updates its own
