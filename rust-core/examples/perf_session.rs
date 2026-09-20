@@ -47,12 +47,14 @@ async fn main() -> anyhow::Result<()> {
             None,
             &prose::latex::LatexExtras::default(),
         )?;
+        let spell_language = orchestrator.get_config().engines.spell_language.clone();
         let _ = orchestrator
-            .check_batch(&prose::range_texts(&ranges, &base), "typst")
+            .check_units(&prose::range_units(&ranges, &base, &spell_language))
             .await;
 
         let mut total = 0.0f64;
         let mut diagnostics = 0usize;
+        let mut ranges_seen = 0usize;
         for e in 0..edits {
             let mut text = base.clone();
             text.insert_str(insert_at, &format!("word{e} "));
@@ -65,13 +67,14 @@ async fn main() -> anyhow::Result<()> {
                 &prose::latex::LatexExtras::default(),
             )?;
             let batch = orchestrator
-                .check_batch(&prose::range_texts(&ranges, &text), "typst")
+                .check_units(&prose::range_units(&ranges, &text, &spell_language))
                 .await?;
             total += t.elapsed().as_secs_f64() * 1000.0;
             diagnostics = batch.iter().map(Vec::len).sum();
+            ranges_seen = batch.len();
         }
         println!(
-            "{label:<22} {:>8.1} ms/edit   ({diagnostics} diagnostics)",
+            "{label:<22} {:>8.1} ms/edit   ({ranges_seen} ranges, {diagnostics} diagnostics)",
             total / edits as f64
         );
     }
