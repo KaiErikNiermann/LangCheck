@@ -55,6 +55,13 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 90_000 },
     },
     {
+        label: 'dictionaries',
+        files: 'out/test/e2e/dictionaries.test.js',
+        workspaceFolder: './src/test/fixtures/dictionaries',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 120_000 },
+    },
+    {
         label: 'cache-phase1',
         files: 'out/test/e2e/cacheReusePhase1.test.js',
         workspaceFolder: './src/test/fixtures/cache',

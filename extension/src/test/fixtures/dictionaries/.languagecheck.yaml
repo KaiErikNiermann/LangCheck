@@ -1,0 +1,4 @@
+# Harper alone. Every word the check does not report in this workspace is a
+# word something suppressed, and that something is what these tests are about.
+engines:
+  harper: true
