@@ -97,9 +97,20 @@ export async function downloadBinary(
     progress.report({ message: '(2/3) Downloading…' });
 
     // Download archive
-    await downloadFile(archiveAsset.browser_download_url, archivePath, (pct) => {
-        progress.report({ message: `(2/3) Downloading… ${pct}%` });
-    });
+    await downloadFile(
+        archiveAsset.browser_download_url,
+        archivePath,
+        (pct) => {
+            progress.report({ message: `(2/3) Downloading… ${pct}%` });
+        },
+        {
+            onRetry: (n, reason) => {
+                // Said out loud. A retry that looks like a stall is the same
+                // to the user as a stall.
+                progress.report({ message: `(2/3) Retrying after ${reason} (attempt ${n + 1})…` });
+            },
+        },
+    );
 
     // Extract the server binary from the tar.gz archive
     progress.report({ message: '(3/3) Extracting binary…' });
@@ -185,38 +196,154 @@ function collectJson<T>(res: NodeJS.ReadableStream & { statusCode?: number | und
 }
 
 /** Download a file from a URL to a local path. */
-function downloadFile(
+/** How many times a download is attempted before the user is told it failed. */
+const DOWNLOAD_ATTEMPTS = 3;
+
+/** How long a connection may stall before the attempt is abandoned. */
+const STALL_TIMEOUT_MS = 30_000;
+
+/** The `https.get` seam, so the failure paths can be tested without a network. */
+export type HttpGet = typeof https.get;
+
+export interface DownloadOptions {
+    attempts?: number;
+    timeoutMs?: number;
+    get?: HttpGet;
+    /** Called between attempts, so a caller can say what is happening. */
+    onRetry?: (attempt: number, reason: string) => void;
+}
+
+/**
+ * Download `url` to `destPath`, or throw saying why.
+ *
+ * The core binary is the whole extension, so a download that half-succeeds is
+ * the worst outcome available: nothing works and nothing says why. Three
+ * things make that impossible here.
+ *
+ * A short read is a failure. The previous version compared the byte count to
+ * nothing at all -- it read `content-length` only to draw the progress bar --
+ * and resolved on the write stream's `finish`, which a truncated response
+ * reaches just as happily as a complete one. A connection dropped at 90%
+ * produced a partial archive reported as a successful download.
+ *
+ * A stalled connection is a failure. `https.get` has no timeout of its own, so
+ * a server that accepted the connection and then stopped sending left the
+ * progress notification on screen indefinitely.
+ *
+ * And a transient failure is retried before the user hears about it, because
+ * the common cause is a network blip rather than anything they can act on.
+ */
+export function downloadFile(
     url: string,
     destPath: string,
     onProgress?: (pct: number) => void,
+    options: DownloadOptions = {},
 ): Promise<void> {
-    return new Promise((resolve, reject) => {
+    const attempts = options.attempts ?? DOWNLOAD_ATTEMPTS;
+    const timeoutMs = options.timeoutMs ?? STALL_TIMEOUT_MS;
+    const get = options.get ?? https.get;
+
+    const attempt = (): Promise<void> => new Promise((resolve, reject) => {
         const file = fs.createWriteStream(destPath);
-        const doGet = (getUrl: string) => {
-            https.get(getUrl, { headers: { 'User-Agent': 'language-check-vscode' } }, (res) => {
-                if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
-                    doGet(res.headers.location);
-                    return;
-                }
-                const total = parseInt(res.headers['content-length'] ?? '0', 10);
-                let downloaded = 0;
+        let settled = false;
 
-                res.on('data', (chunk: Buffer) => {
-                    downloaded += chunk.length;
-                    if (total > 0 && onProgress) {
-                        onProgress(Math.round((downloaded / total) * 100));
-                    }
-                });
-
-                res.pipe(file);
-                file.on('finish', () => { file.close(); resolve(); });
-            }).on('error', (err) => {
-                fs.unlink(destPath, () => {});
-                reject(err);
-            });
+        // Every failure path goes through here, so a partial file is never
+        // left behind to be mistaken for an installed binary.
+        const fail = (reason: string) => {
+            if (settled) return;
+            settled = true;
+            file.destroy();
+            fs.unlink(destPath, () => reject(new Error(reason)));
         };
-        doGet(url);
+
+        file.on('error', (err) => fail(`could not write ${destPath}: ${err.message}`));
+
+        const doGet = (getUrl: string, redirectsLeft: number) => {
+            const request = get(
+                getUrl,
+                { headers: { 'User-Agent': 'language-check-vscode' } },
+                (res) => {
+                    if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
+                        if (redirectsLeft === 0) {
+                            fail('too many redirects');
+                            return;
+                        }
+                        res.resume();
+                        doGet(res.headers.location, redirectsLeft - 1);
+                        return;
+                    }
+                    if (res.statusCode !== undefined && res.statusCode >= 400) {
+                        res.resume();
+                        fail(`the server answered ${res.statusCode}`);
+                        return;
+                    }
+
+                    const total = parseInt(res.headers['content-length'] ?? '0', 10);
+                    let downloaded = 0;
+
+                    res.on('data', (chunk: Buffer) => {
+                        downloaded += chunk.length;
+                        if (total > 0 && onProgress) {
+                            onProgress(Math.round((downloaded / total) * 100));
+                        }
+                    });
+                    // A response cut off mid-stream still ends the pipe, so
+                    // without this the write stream reaches `finish` and the
+                    // partial file looks like a complete one.
+                    res.on('aborted', () => fail('the connection closed before the download finished'));
+                    res.on('error', (err) => fail(`the download failed: ${err.message}`));
+
+                    res.pipe(file);
+                    file.on('finish', () => {
+                        if (settled) return;
+                        // The size the server promised against the size that
+                        // arrived. This is what makes a truncated download an
+                        // error rather than a successful one.
+                        if (total > 0 && downloaded !== total) {
+                            fail(
+                                `the download stopped early: got ${downloaded} bytes of ${total}`,
+                            );
+                            return;
+                        }
+                        settled = true;
+                        file.close();
+                        resolve();
+                    });
+                },
+            );
+
+            request.setTimeout(timeoutMs, () => {
+                request.destroy();
+                fail(`no data for ${Math.round(timeoutMs / 1000)}s`);
+            });
+            request.on('error', (err) => fail(`the download failed: ${err.message}`));
+        };
+
+        doGet(url, 5);
     });
+
+    const attemptWithRetries = async (): Promise<void> => {
+        let lastReason = 'unknown';
+        for (let n = 1; n <= attempts; n++) {
+            try {
+                await attempt();
+                return;
+            } catch (err) {
+                lastReason = err instanceof Error ? err.message : String(err);
+                if (n < attempts) {
+                    options.onRetry?.(n, lastReason);
+                    // Backed off a little, since the usual cause is a blip
+                    // and retrying instantly tends to hit the same one.
+                    await new Promise(r => setTimeout(r, 500 * n));
+                }
+            }
+        }
+        throw new Error(
+            `Downloading the core binary failed after ${attempts} attempts: ${lastReason}`,
+        );
+    };
+
+    return attemptWithRetries();
 }
 
 /**
