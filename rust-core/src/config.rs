@@ -624,9 +624,19 @@ pub struct ExternalProvider {
     /// Optional arguments to pass to the command.
     #[serde(default)]
     pub args: Vec<String>,
-    /// Optional file extensions this provider supports (empty = all).
+    /// File extensions this provider parses, without the dot (empty = all).
+    ///
+    /// The markup it understands, which is a different question from the
+    /// language it speaks.
     #[serde(default)]
     pub extensions: Vec<String>,
+    /// BCP-47 tags this provider checks (empty = all).
+    ///
+    /// Without this a provider claims every language, including ones it has
+    /// no idea what to do with -- and claiming a language suppresses the
+    /// report that says nothing could check it.
+    #[serde(default)]
+    pub languages: Vec<String>,
 }
 
 /// A WASM plugin loaded via Extism.
@@ -639,9 +649,12 @@ pub struct WasmPlugin {
     pub name: String,
     /// Path to the `.wasm` file (relative to workspace root or absolute).
     pub path: String,
-    /// Optional file extensions this plugin supports (empty = all).
+    /// File extensions this plugin parses, without the dot (empty = all).
     #[serde(default)]
     pub extensions: Vec<String>,
+    /// BCP-47 tags this plugin checks (empty = all).
+    #[serde(default)]
+    pub languages: Vec<String>,
 }
 
 impl Default for EngineConfig {

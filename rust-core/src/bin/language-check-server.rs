@@ -100,7 +100,11 @@ async fn process_file_for_indexing(
     let batch = {
         let mut orch = orchestrator.lock().await;
         let units = prose::range_units(&ranges, &text, &orch.get_config().engines.spell_language);
-        orch.check_units(&units).await
+        orch.check_units_in(
+            &units,
+            &lang_check::orchestrator::CheckContext::for_path(Some(file_path.as_path())),
+        )
+        .await
     };
 
     let batch = batch.unwrap_or_else(|e| {
@@ -591,7 +595,14 @@ async fn main() -> Result<()> {
                             // how much of it to run concurrently.
                             let batch = {
                                 let mut orchestrator = orchestrator_arc.lock().await;
-                                orchestrator.check_units(&units).await
+                                orchestrator
+                                    .check_units_in(
+                                        &units,
+                                        &lang_check::orchestrator::CheckContext::for_path(
+                                            file_path,
+                                        ),
+                                    )
+                                    .await
                             };
                             debug!(
                                 id = request_id,

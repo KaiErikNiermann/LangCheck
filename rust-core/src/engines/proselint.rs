@@ -84,8 +84,8 @@ impl Engine for ProselintEngine {
         "proselint"
     }
 
-    fn supported_languages(&self) -> Vec<&'static str> {
-        vec!["en"]
+    fn supported_languages(&self) -> Vec<String> {
+        vec!["en".to_string()]
     }
 
     async fn check(&mut self, text: &str, _language_id: &str) -> Result<Vec<Diagnostic>> {

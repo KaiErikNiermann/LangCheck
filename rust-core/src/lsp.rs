@@ -324,7 +324,11 @@ impl Backend {
             let mut orch = self.orchestrator.lock().await;
             let units =
                 crate::prose::range_units(&ranges, text, &orch.get_config().engines.spell_language);
-            orch.check_units(&units).await
+            orch.check_units_in(
+                &units,
+                &crate::orchestrator::CheckContext::for_path(uri.to_file_path().ok().as_deref()),
+            )
+            .await
         };
 
         let batch = batch.unwrap_or_else(|e| {

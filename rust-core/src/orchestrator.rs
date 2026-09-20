@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::engines::hunspell::HunspellEngine;
 use crate::engines::{
     Engine, ExternalEngine, HarperEngine, LanguageToolEngine, ProselintEngine, ValeEngine,
-    WasmEngine, engine_supports_language, is_unsupported_language,
+    WasmEngine, engine_handles_extension, engine_supports_language, is_unsupported_language,
 };
 use crate::packs::PackRegistry;
 use crate::prose::ProseUnit;
@@ -13,6 +13,29 @@ use anyhow::Result;
 use std::collections::HashMap;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tracing::{debug, warn};
+
+/// What the engines are told about the document a check came from.
+///
+/// Separate from [`ProseUnit`], which describes one range: an extension is a
+/// fact about the file, and every range in it shares one.
+#[derive(Debug, Clone, Default)]
+pub struct CheckContext {
+    /// The document's file extension, without the dot.
+    pub extension: Option<String>,
+}
+
+impl CheckContext {
+    /// The context for a document at `path`.
+    #[must_use]
+    pub fn for_path(path: Option<&std::path::Path>) -> Self {
+        Self {
+            extension: path
+                .and_then(std::path::Path::extension)
+                .and_then(|e| e.to_str())
+                .map(str::to_ascii_lowercase),
+        }
+    }
+}
 
 #[derive(Default)]
 struct EngineHealthTracker {
@@ -94,6 +117,8 @@ impl Orchestrator {
                     provider.name.clone(),
                     provider.command.clone(),
                     provider.args.clone(),
+                    provider.extensions.clone(),
+                    provider.languages.clone(),
                 )));
             }
 
@@ -101,6 +126,8 @@ impl Orchestrator {
                 match WasmEngine::new(
                     wasm_plugin.name.clone(),
                     std::path::PathBuf::from(&wasm_plugin.path),
+                    wasm_plugin.extensions.clone(),
+                    wasm_plugin.languages.clone(),
                 ) {
                     Ok(engine) => self.engines.push(Box::new(engine)),
                     Err(e) => warn!(
@@ -158,6 +185,13 @@ impl Orchestrator {
         Ok(batch.pop().unwrap_or_default())
     }
 
+    /// What the engines need to know about the document, as opposed to about
+    /// one range of it.
+    ///
+    /// Only the extension so far. A provider that declares which markup it
+    /// parses has to be told what it is being handed, and a prose range on its
+    /// own does not say.
+    ///
     /// Check one document's prose, each range in the language it is written in.
     ///
     /// A document is not always in one language — a French thesis quoting
@@ -166,6 +200,15 @@ impl Orchestrator {
     /// as a misspelling. Ranges are grouped by language and each group checked
     /// on its own, so a group still batches.
     pub async fn check_units(&mut self, units: &[ProseUnit]) -> Result<Vec<Vec<Diagnostic>>> {
+        self.check_units_in(units, &CheckContext::default()).await
+    }
+
+    /// [`Self::check_units`], told what document the prose came from.
+    pub async fn check_units_in(
+        &mut self,
+        units: &[ProseUnit],
+        context: &CheckContext,
+    ) -> Result<Vec<Vec<Diagnostic>>> {
         // First-seen order, so a single-language document keeps its one batch
         // and the common case is unchanged.
         let mut groups: Vec<(&str, Vec<usize>)> = Vec::new();
@@ -179,7 +222,7 @@ impl Orchestrator {
         let mut out: Vec<Vec<Diagnostic>> = vec![Vec::new(); units.len()];
         for (language, slots) in groups {
             let texts: Vec<String> = slots.iter().map(|&i| units[i].text.clone()).collect();
-            let checked = self.check_batch(&texts, language).await?;
+            let checked = self.check_batch_in(&texts, language, context).await?;
             for (&slot, diagnostics) in slots.iter().zip(checked) {
                 out[slot] = diagnostics;
             }
@@ -200,6 +243,18 @@ impl Orchestrator {
         &mut self,
         texts: &[String],
         language: &str,
+    ) -> Result<Vec<Vec<Diagnostic>>> {
+        self.check_batch_in(texts, language, &CheckContext::default())
+            .await
+    }
+
+    /// [`Self::check_batch`], told what document the prose came from.
+    #[allow(clippy::too_many_lines)]
+    pub async fn check_batch_in(
+        &mut self,
+        texts: &[String],
+        language: &str,
+        context: &CheckContext,
     ) -> Result<Vec<Vec<Diagnostic>>> {
         // Texts over max_file_size are skipped, but keep their slot so the
         // caller's results still line up one-to-one with its inputs.
@@ -230,6 +285,13 @@ impl Orchestrator {
 
             // Skip engines that don't support the configured language
             if !engine_supports_language(engine.as_ref(), &spell_language) {
+                continue;
+            }
+
+            // And ones that parse a markup this document is not written in.
+            // Declining on either axis is declining, not failing: the engine
+            // has nothing to say here, which is what no-provider reports.
+            if !engine_handles_extension(engine.as_ref(), context.extension.as_deref()) {
                 continue;
             }
 

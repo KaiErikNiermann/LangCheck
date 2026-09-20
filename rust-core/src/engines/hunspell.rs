@@ -170,7 +170,7 @@ impl super::Engine for HunspellEngine {
         "hunspell"
     }
 
-    fn supported_languages(&self) -> Vec<&'static str> {
+    fn supported_languages(&self) -> Vec<String> {
         // Declared per installation rather than compiled in, so the engine
         // cannot advertise a language whose pack is not there. An empty list
         // is the wildcard the orchestrator already understands, and the

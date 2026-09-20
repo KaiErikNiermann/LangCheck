@@ -14,6 +14,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use lang_check::dictionary::Dictionary;
 use lang_check::morphology::AffixAnalyzer;
 use lang_check::names::NameFilter;
+use lang_check::orchestrator::CheckContext;
 use lang_check::packs::{self, PackRegistry, catalogue};
 use lang_check::sls::SchemaRegistry;
 use lang_check::suppression::{InlineDirectives, SuppressionContext, retain_visible};
@@ -387,7 +388,9 @@ async fn check_file(
         &text,
         &orchestrator.get_config().engines.spell_language,
     );
-    let batch = orchestrator.check_units(&units).await?;
+    let batch = orchestrator
+        .check_units_in(&units, &CheckContext::for_path(Some(path.as_path())))
+        .await?;
     let directives = InlineDirectives::parse(&text);
 
     for (range, mut diagnostics) in ranges.iter().zip(batch) {
@@ -481,7 +484,10 @@ async fn fix_file(
         &text,
         &orchestrator.get_config().engines.spell_language,
     );
-    let batch = orchestrator.check_units(&units).await.unwrap_or_default();
+    let batch = orchestrator
+        .check_units_in(&units, &CheckContext::for_path(Some(path.as_path())))
+        .await
+        .unwrap_or_default();
     let directives = InlineDirectives::parse(&text);
     for (range, mut diagnostics) in ranges.iter().zip(batch) {
         range.adopt_diagnostics(&text, &mut diagnostics);

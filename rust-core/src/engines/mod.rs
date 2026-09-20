@@ -25,9 +25,26 @@ use tracing::{debug, warn};
 pub trait Engine {
     fn name(&self) -> &'static str;
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>>;
-    /// BCP-47 primary subtags this engine supports. Empty = all languages.
-    fn supported_languages(&self) -> Vec<&'static str> {
-        vec![]
+    /// Downcast hooks for the two engines whose markup support is configured.
+    ///
+    /// A narrow alternative to putting `extensions` on every engine, most of
+    /// which are handed prose a grammar already chose and have no opinion.
+    fn as_external(&self) -> Option<&ExternalEngine> {
+        None
+    }
+    fn as_wasm(&self) -> Option<&WasmEngine> {
+        None
+    }
+
+    /// BCP-47 tags this engine handles. Empty means every language.
+    ///
+    /// `String` rather than `&'static str` because the answer is not always
+    /// compiled in: an external provider or a WASM plugin declares its
+    /// languages in config, and until it could, every one of them claimed
+    /// every language -- which made `engines_ran` non-zero for a language
+    /// nothing could actually read, and so suppressed the report saying so.
+    fn supported_languages(&self) -> Vec<String> {
+        Vec::new()
     }
 
     /// Check a batch of independent texts, returning one result per input in
@@ -60,7 +77,29 @@ pub fn engine_supports_language(engine: &(dyn Engine + Send), lang_tag: &str) ->
         return true;
     }
     let primary = lang_tag.split('-').next().unwrap_or(lang_tag);
-    supported.iter().any(|s| s.eq_ignore_ascii_case(primary))
+    supported.iter().any(|declared| {
+        // Declared `en` matches asked-for `en-GB`, and declared `en-GB`
+        // matches asked-for `en`: a provider naming a variant still speaks the
+        // language, and one naming the language still speaks the variant.
+        let declared_primary = declared.split(['-', '_']).next().unwrap_or(declared);
+        declared_primary.eq_ignore_ascii_case(primary)
+    })
+}
+
+/// Whether `engine` parses the markup of the document being checked.
+///
+/// Only the two config-driven engines declare this; everything else is built
+/// around a grammar the extractor already chose, so the question does not
+/// arise for them.
+#[must_use]
+pub fn engine_handles_extension(engine: &(dyn Engine + Send), extension: Option<&str>) -> bool {
+    if let Some(external) = engine.as_external() {
+        return external.handles_extension(extension);
+    }
+    if let Some(wasm) = engine.as_wasm() {
+        return wasm.handles_extension(extension);
+    }
+    true
 }
 
 /// Build a lookup from Unicode-scalar (char) index → UTF-8 byte offset, with a
@@ -138,8 +177,8 @@ impl Engine for HarperEngine {
         "harper"
     }
 
-    fn supported_languages(&self) -> Vec<&'static str> {
-        vec!["en"]
+    fn supported_languages(&self) -> Vec<String> {
+        vec!["en".to_string()]
     }
 
     async fn check(&mut self, text: &str, _language_id: &str) -> Result<Vec<Diagnostic>> {
@@ -632,16 +671,44 @@ pub struct ExternalEngine {
     name: String,
     command: String,
     args: Vec<String>,
+    /// File extensions it parses; empty means every one.
+    extensions: Vec<String>,
+    /// BCP-47 tags it checks; empty means every one.
+    languages: Vec<String>,
 }
 
 impl ExternalEngine {
     #[must_use]
-    pub const fn new(name: String, command: String, args: Vec<String>) -> Self {
+    pub const fn new(
+        name: String,
+        command: String,
+        args: Vec<String>,
+        extensions: Vec<String>,
+        languages: Vec<String>,
+    ) -> Self {
         Self {
             name,
             command,
             args,
+            extensions,
+            languages,
         }
+    }
+
+    /// Whether this provider parses the markup of the document being checked.
+    ///
+    /// Unknown extension counts as a match: a provider is skipped only when it
+    /// has said which formats it handles and this is not one of them.
+    #[must_use]
+    pub fn handles_extension(&self, extension: Option<&str>) -> bool {
+        if self.extensions.is_empty() {
+            return true;
+        }
+        extension.is_some_and(|ext| {
+            self.extensions
+                .iter()
+                .any(|declared| declared.trim_start_matches('.').eq_ignore_ascii_case(ext))
+        })
     }
 }
 
@@ -676,6 +743,14 @@ const fn default_severity_value() -> i32 {
 impl Engine for ExternalEngine {
     fn name(&self) -> &'static str {
         "external"
+    }
+
+    fn supported_languages(&self) -> Vec<String> {
+        self.languages.clone()
+    }
+
+    fn as_external(&self) -> Option<&Self> {
+        Some(self)
     }
 
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
@@ -765,6 +840,10 @@ impl Engine for ExternalEngine {
 pub struct WasmEngine {
     name: String,
     plugin: Plugin,
+    /// File extensions it parses; empty means every one.
+    extensions: Vec<String>,
+    /// BCP-47 tags it checks; empty means every one.
+    languages: Vec<String>,
 }
 
 // SAFETY: Extism Plugin is not Send by default because it wraps a wasmtime Store
@@ -775,11 +854,34 @@ unsafe impl Send for WasmEngine {}
 
 impl WasmEngine {
     /// Create a new WASM engine from a `.wasm` file path.
-    pub fn new(name: String, wasm_path: PathBuf) -> Result<Self> {
+    pub fn new(
+        name: String,
+        wasm_path: PathBuf,
+        extensions: Vec<String>,
+        languages: Vec<String>,
+    ) -> Result<Self> {
         let wasm = Wasm::file(wasm_path);
         let manifest = Manifest::new([wasm]);
         let plugin = Plugin::new(&manifest, [], true)?;
-        Ok(Self { name, plugin })
+        Ok(Self {
+            name,
+            plugin,
+            extensions,
+            languages,
+        })
+    }
+
+    /// Whether this plugin parses the markup of the document being checked.
+    #[must_use]
+    pub fn handles_extension(&self, extension: Option<&str>) -> bool {
+        if self.extensions.is_empty() {
+            return true;
+        }
+        extension.is_some_and(|ext| {
+            self.extensions
+                .iter()
+                .any(|declared| declared.trim_start_matches('.').eq_ignore_ascii_case(ext))
+        })
     }
 
     /// Create a new WASM engine from raw bytes (useful for testing).
@@ -787,12 +889,25 @@ impl WasmEngine {
         let wasm = Wasm::data(wasm_bytes.to_vec());
         let manifest = Manifest::new([wasm]);
         let plugin = Plugin::new(&manifest, [], true)?;
-        Ok(Self { name, plugin })
+        Ok(Self {
+            name,
+            plugin,
+            extensions: Vec::new(),
+            languages: Vec::new(),
+        })
     }
 }
 
 #[async_trait::async_trait]
 impl Engine for WasmEngine {
+    fn supported_languages(&self) -> Vec<String> {
+        self.languages.clone()
+    }
+
+    fn as_wasm(&self) -> Option<&WasmEngine> {
+        Some(self)
+    }
+
     fn name(&self) -> &'static str {
         "wasm"
     }
