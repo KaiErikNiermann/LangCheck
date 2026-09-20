@@ -118,6 +118,7 @@ lang-check/
 │   ├── webview/            SpeedFix + Inspector UIs (Svelte 5 + Tailwind)
 │   ├── l10n/               Runtime localization bundles
 │   └── package.nls.*.json  Command/setting translations
+├── examples/           A worked document per format, with its config
 ├── proto/              Protobuf schema (checker.proto)
 ├── docs/               Sphinx documentation
 ├── scripts/            Build utilities
@@ -125,6 +126,10 @@ lang-check/
 ```
 
 ## Configuration
+
+[`examples/`](examples/) has a working setup per format — a document, the
+`.languagecheck.yaml` it is written against, and a note on what a check reports
+and what it deliberately does not.
 
 Create a `.languagecheck.yaml` in your workspace root:
 
@@ -151,7 +156,7 @@ rules:
 
 performance:
   high_performance_mode: false
-  debounce_ms: 300
+  debounce_ms: 500
   max_file_size: 1048576
 
 auto_fix:

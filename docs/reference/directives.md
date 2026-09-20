@@ -87,9 +87,9 @@ are suppressed.
 
 #### Language Override (`lang:xx`)
 
-Override the natural language for the region. The checker uses this language
-instead of the document default. Takes precedence over `<!-- lang: xx -->`
-scope markers.
+Check the region in another natural language. Every prose range that starts
+inside it is checked in that language; the rest of the document keeps
+`engines.spell_language`.
 
 ```markdown
 <!-- lang-check-begin lang:fr -->
@@ -97,8 +97,24 @@ Ceci est du texte français.
 <!-- lang-check-end -->
 ```
 
-A region with **only** a `lang:` option (no rule IDs) acts as a pure
-language override — it does not suppress any diagnostics.
+A region with **only** a `lang:` option (no rule IDs) is a pure language
+override — it suppresses nothing.
+
+Regions nest, and the innermost one wins. A `lang:` directive also beats
+whatever the markup itself declares, which is how one quoted passage inside a
+`#set text(lang: "de")` document gets checked in another language without
+touching the typesetting.
+
+A tag with no region is resolved before it reaches the engines. It takes the
+document default's region when the language agrees — `lang:en` under an
+`en-GB` document means `en-GB` — and a known variant otherwise. This matters:
+LanguageTool accepts bare `en` and `de` and then reports no spelling errors at
+all in them, so an unresolved tag silently checks nothing.
+
+An engine that cannot read the language says so rather than passing the text.
+LanguageTool has no Hebrew, so a `lang:he` region produces a
+`languagecheck.no-provider` diagnostic naming the language, and the
+LanguageTool engine is *not* marked unhealthy for declining it.
 
 #### Line Slice (`check[a:b]`)
 
@@ -180,8 +196,42 @@ Back to all rules suppressed.
 <!-- lang-check-end -->
 ```
 
-## Interaction with Legacy Scope Markers
+## Scope markers
 
-The `<!-- lang: xx -->` scope markers from `scoping.rs` continue to work.
-When both systems specify a language for the same position, the
-`lang-check-begin lang:xx` directive takes precedence.
+A bare `lang:` marker on its own line switches the language from there until
+the next marker, with no closing directive:
+
+```markdown
+English up here.
+
+<!-- lang: fr -->
+
+Et du français jusqu'au marqueur suivant.
+
+<!-- lang: en-GB -->
+
+English again.
+```
+
+The comment syntax follows the file: `<!-- lang: fr -->`, `// @lang: fr`,
+`/* @lang: fr */`, `% @lang: fr`. Prose before the first marker keeps
+`engines.spell_language`.
+
+Where both apply to the same position, `lang-check-begin lang:xx` wins — it
+names a region, the marker only names a point.
+
+## Languages the markup declares itself
+
+Some formats already carry the information, and it is read directly — no
+directive needed:
+
+| Format | Declaration |
+| --- | --- |
+| Typst | `#set text(lang: "fr", region: "CH")` for the rest of the enclosing block, and `#text(lang: "en")[…]` for that content |
+
+Typst's `region:` becomes the BCP-47 subtag, so `lang: "de", region: "CH"` is
+checked as `de-CH`. Only `text` is read; `lang` means something else on other
+functions.
+
+A directive beats the markup, so a document can keep its typesetting language
+and still have one passage checked in another.

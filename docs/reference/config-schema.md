@@ -53,6 +53,7 @@ engines:
 | `disabled_categories`     | `string[]` | `[]`                        | Category IDs to switch off         |
 | `enabled_categories`      | `string[]` | `[]`                        | Extra category IDs to switch on    |
 | `max_concurrent_requests` | `int`      | `8`                         | In-flight `/v2/check` requests     |
+| `max_request_bytes`       | `int`      | `4096`                      | Prose per request; `0` sends one request per range |
 
 ```{deprecated} 0.5.1
 The flat `engines.languagetool_url` and `engines.vale_config` keys are aliases
@@ -97,8 +98,9 @@ but they log a warning and will be removed in a future release.
 | Field                  | Type     | Default | Description                          |
 |-----------------------|----------|---------|--------------------------------------|
 | `high_performance_mode`| `bool`  | `false` | Only use Harper (skip LT/externals) |
-| `debounce_ms`          | `number`| `300`   | LSP debounce delay in milliseconds  |
+| `debounce_ms`          | `number`| `500`   | Delay after the last keystroke, in milliseconds; `0` checks every change |
 | `max_file_size`        | `number`| `0`     | Max file size in bytes (0=unlimited)|
+| `result_cache_entries` | `number`| `4096`  | Engine answers kept, keyed by the prose that produced them; `0` disables |
 
 ## Languages
 

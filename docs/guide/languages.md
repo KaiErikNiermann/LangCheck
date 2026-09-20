@@ -59,3 +59,60 @@ The spell-check and grammar-check language is separate from the file type. Click
 - **ES** — Spanish
 
 Language detection can also be automatic via the [whatlang](https://crates.io/crates/whatlang) crate when no explicit language is set.
+
+## More than one language in one file
+
+`engines.spell_language` is the document default, not the only answer. A thesis
+in French quoting English, or a German paper with an English abstract, is
+checked passage by passage: the prose is grouped by language and each group
+goes to the engines that read it, so Harper handles the English while
+LanguageTool handles the French.
+
+Three things declare a language, strongest first.
+
+**A region directive.** Works in every format, and is the only option where the
+markup has nothing to say:
+
+```markdown
+<!-- lang-check-begin lang:fr -->
+Ceci est du texte français.
+<!-- lang-check-end -->
+```
+
+**A scope marker**, which runs until the next one:
+
+```markdown
+<!-- lang: fr -->
+```
+
+**The markup's own declaration**, where the format has one. Typst does:
+
+```typst
+#set text(lang: "fr", region: "CH")   // the rest of the enclosing block
+#text(lang: "en")[An English aside.]  // just this content
+```
+
+That last one needs no extra annotation at all — the `lang:` an author already
+writes for hyphenation and quotation marks is the one the checker reads, and
+`region:` becomes the BCP-47 subtag.
+
+See the [directives reference](../reference/directives.md) for the full syntax,
+and [`examples/typst/`](https://github.com/KaiErikNiermann/LangCheck/tree/main/examples/typst)
+for a worked document.
+
+### When nothing can read the language
+
+Not every language has an engine. LanguageTool has no Hebrew, and Harper reads
+only English. Rather than let the passage pass as clean, the checker reports a
+`languagecheck.no-provider` diagnostic naming the language, and does not mark
+the engine unhealthy for declining one.
+
+### Bare tags
+
+A declaration with no region is resolved before it reaches the engines: it
+takes the document default's region when the language agrees, so `lang: "en"`
+under an `en-GB` document means `en-GB`, and a known variant otherwise.
+
+This is not cosmetic. LanguageTool accepts bare `en` and `de` and then reports
+no spelling errors at all in them, so an unresolved tag would check nothing and
+look clean.

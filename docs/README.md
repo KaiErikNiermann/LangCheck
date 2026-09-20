@@ -168,7 +168,7 @@ auto_fix:
 | Field                   | Type     | Default | Description                                       |
 |-------------------------|----------|---------|---------------------------------------------------|
 | `high_performance_mode` | `bool`   | `false` | Only use Harper; skip LT, externals, and WASM     |
-| `debounce_ms`           | `number` | `300`   | LSP debounce delay in milliseconds                |
+| `debounce_ms`           | `number` | `500`   | Delay after the last keystroke, in milliseconds    |
 | `max_file_size`         | `number` | `0`     | Max file size in bytes to check (0 = unlimited)   |
 
 ### dictionaries
