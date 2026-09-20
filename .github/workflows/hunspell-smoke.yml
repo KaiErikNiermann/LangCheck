@@ -1,0 +1,150 @@
+# The Hunspell pack path, end to end, in an environment that has never seen a
+# dictionary.
+#
+# The unit tests cover resolution, validation, the installer's refusals and the
+# engine separately, and all of them run against fixtures or a temp directory.
+# What none of them proves is the thing a user does: read a config, fetch a
+# real pack over the network, resolve it from a path nobody hardcoded, and
+# check a document in a script the rest of the file is not written in. A clean
+# runner is the only place that is honestly tested.
+name: Hunspell Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "rust-core/src/packs/**"
+      - "rust-core/src/engines/hunspell.rs"
+      - "rust-core/src/bin/language-check.rs"
+      - ".github/workflows/hunspell-smoke.yml"
+  pull_request:
+    paths:
+      - "rust-core/src/packs/**"
+      - "rust-core/src/engines/hunspell.rs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+
+      - name: Build the CLI
+        working-directory: rust-core
+        run: cargo build --release --bin language-check
+
+      - name: No packs are installed to begin with
+        shell: bash
+        working-directory: rust-core
+        run: |
+          set -euo pipefail
+          out=$(./target/release/language-check packs available)
+          echo "$out"
+          # The catalogue must announce the licence before anything is fetched.
+          echo "$out" | grep -q 'AGPL-3.0-only' \
+            || { echo "::error::the catalogue does not state the licence"; exit 1; }
+
+      - name: Install the Hebrew pack
+        shell: bash
+        working-directory: rust-core
+        run: |
+          set -euo pipefail
+          out=$(./target/release/language-check packs install he --dir "$PWD/smoke-dicts")
+          echo "$out"
+          echo "$out" | grep -q 'Installed' \
+            || { echo "::error::install did not report success"; exit 1; }
+          test -f smoke-dicts/he_IL.aff || { echo "::error::no .aff landed"; exit 1; }
+          test -f smoke-dicts/he_IL.dic || { echo "::error::no .dic landed"; exit 1; }
+          # The staging directory must not survive a successful install.
+          if ls -A smoke-dicts | grep -q '^\.'; then
+            echo "::error::staging left behind: $(ls -A smoke-dicts)"; exit 1
+          fi
+
+      - name: A config naming the pack resolves it
+        shell: bash
+        working-directory: rust-core
+        run: |
+          set -euo pipefail
+          cat > .languagecheck.yaml <<'CONFIG'
+          engines:
+            harper:
+              enabled: false
+            languagetool:
+              enabled: false
+            hunspell:
+              enabled: true
+              languages: ["he"]
+              search_paths: ["./smoke-dicts"]
+            spell_language: en-US
+          CONFIG
+          # A key the config does not know is reported as having no effect,
+          # which for a supported engine is worse than silence.
+          out=$(./target/release/language-check packs verify he 2>&1)
+          echo "$out"
+          echo "$out" | grep -qi 'unknown keys' \
+            && { echo "::error::engines.hunspell is not a recognised key"; exit 1; }
+          echo "$out" | grep -q 'entries, readable and parseable' \
+            || { echo "::error::verify did not confirm the pack"; exit 1; }
+
+      - name: The document is checked with the resolved pack
+        shell: bash
+        working-directory: rust-core
+        run: |
+          set -euo pipefail
+          # One correct Hebrew word and one with a doubled final letter.
+          printf '<!-- lang-check-begin lang:he -->\n\xd7\xa9\xd7\x9c\xd7\x95\xd7\x9d \xd7\xa9\xd7\x9c\xd7\x95\xd7\x9d\xd7\x9d\n<!-- lang-check-end -->\n' > smoke.md
+          out=$(./target/release/language-check check smoke.md --lang markdown --format json)
+          echo "$out"
+          python3 - "$out" <<'PY'
+          import json, sys
+          found = json.loads(sys.argv[1])
+          spelling = [d for d in found if d.get("rule_id") == "hunspell.spelling"]
+          if len(spelling) != 1:
+              print(f"::error::expected one Hunspell report, got {found}")
+              sys.exit(1)
+          d = spelling[0]
+          if d.get("unified_id") != "spelling.typo":
+              print(f"::error::a Hunspell miss must normalise to spelling.typo, got {d}")
+              sys.exit(1)
+          if not d.get("suggestions"):
+              print(f"::error::no suggestions offered: {d}")
+              sys.exit(1)
+          print("ok: one report, normalised, with suggestions")
+          PY
+
+      - name: A language with no pack is reported, not passed
+        shell: bash
+        working-directory: rust-core
+        run: |
+          set -euo pipefail
+          printf '<!-- lang-check-begin lang:la -->\nGallia est omnis divisa.\n<!-- lang-check-end -->\n' > nopack.md
+          out=$(./target/release/language-check check nopack.md --lang markdown --format json)
+          echo "$out"
+          echo "$out" | grep -q 'languagecheck.no-provider' \
+            || { echo "::error::an unservable language passed as clean"; exit 1; }
+
+      - name: A tampered pin is refused
+        shell: bash
+        working-directory: rust-core
+        run: |
+          set -euo pipefail
+          # Corrupt the installed dictionary and confirm the checker says so
+          # rather than reporting every Hebrew word as a misspelling.
+          printf 'not a dictionary' > smoke-dicts/he_IL.dic
+          if ./target/release/language-check packs verify he 2>&1 | tee verify.txt | grep -q 'entries, readable'; then
+            echo "::error::a corrupted pack verified clean"; cat verify.txt; exit 1
+          fi
+          cat verify.txt
