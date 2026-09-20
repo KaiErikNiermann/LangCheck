@@ -37,11 +37,13 @@ jobs:
         with:
           workspaces: rust-core
 
-      # The extension spawns this binary. Without it the tests would find no
-      # diagnostics and report the extension broken, so it is built first and
-      # in release, which is the profile the test instance resolves.
+      # The extension spawns both of these. The server answers checks, and the
+      # CLI is what `Install` shells out to for a dictionary pack -- the
+      # extension looks for it beside the server, so a run without it fails
+      # the install tests with "could not find the language-check binary"
+      # rather than anything about the feature.
       - name: Build the core
-        run: cargo build --release --bin language-check-server
+        run: cargo build --release --bin language-check-server --bin language-check
         working-directory: rust-core
 
       - uses: pnpm/action-setup@v5

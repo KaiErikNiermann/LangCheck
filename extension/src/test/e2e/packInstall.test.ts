@@ -81,6 +81,13 @@ suite('installing a dictionary pack', () => {
         // working, so the flow is asserted as the single story it is.
         const prompts = recordPrompts(INSTALL);
         const warnings = recordWarnings();
+        const errors: string[] = [];
+        const originalError = vscode.window.showErrorMessage;
+        (vscode.window as unknown as Record<string, unknown>).showErrorMessage =
+            (message: string) => {
+                errors.push(message);
+                return Promise.resolve(undefined);
+            };
         const fetchable = canReachCatalogue() && !hebrewPackPresent();
         try {
             // Installed before the document opens: the offer is raised from
@@ -122,9 +129,24 @@ suite('installing a dictionary pack', () => {
             // so the assertion is on the document rather than on the process:
             // the passage stops being reported as unreadable while the rest
             // of the document goes on being checked.
+            //
+            // The one failure worth short-circuiting is a missing CLI: the
+            // extension shells out to `language-check` beside the server, and
+            // a build that made only the server turns this into a four-minute
+            // timeout that says nothing about why.
             await eventually(
                 'the Hebrew passage to become readable',
-                () => (!hasNoProvider(document.uri) && control(document) ? true : undefined),
+                () => {
+                    const missing = errors.find(m => /Could not find the language-check binary/.test(m));
+                    if (missing) {
+                        throw new Error(
+                            'the language-check CLI is not beside the server binary, so the '
+                            + 'install could never run; build it with '
+                            + '`cargo build --release --bin language-check`',
+                        );
+                    }
+                    return !hasNoProvider(document.uri) && control(document) ? true : undefined;
+                },
                 240_000,
             );
 
@@ -135,6 +157,8 @@ suite('installing a dictionary pack', () => {
         } finally {
             prompts.restore();
             warnings.restore();
+            (vscode.window as unknown as Record<string, unknown>)
+                .showErrorMessage = originalError;
             // The pack is installed into the user's data directory, so the
             // test puts it back the way it found it.
             if (fetchable) {
