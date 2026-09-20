@@ -731,6 +731,51 @@ impl Config {
         })
     }
 
+    /// Make workspace-relative paths in the config absolute.
+    ///
+    /// A path in `.languagecheck.yaml` means "relative to the workspace",
+    /// which is the only reading that makes sense to whoever wrote it. It was
+    /// reaching Vale as written, and Vale is spawned by the core, whose
+    /// working directory is wherever the editor started it -- so the
+    /// documented `config: ".vale.ini"` worked from the CLI, where the two
+    /// coincide, and silently did nothing in VS Code, where they do not. The
+    /// dictionary paths were already resolved against the root; this brings
+    /// the rest into line.
+    ///
+    /// An absolute path is left alone. So is an external provider's command
+    /// when it is a bare name: that form is looked up on PATH, and making it
+    /// workspace-relative would break the one spelling that has no reason to
+    /// be.
+    fn resolve_paths(&mut self, workspace_root: &Path) {
+        let absolute = |value: &str| -> String {
+            let path = Path::new(value);
+            if path.is_absolute() {
+                value.to_string()
+            } else {
+                workspace_root.join(path).to_string_lossy().into_owned()
+            }
+        };
+
+        if let Some(vale_config) = &self.engines.vale.config {
+            self.engines.vale.config = Some(absolute(vale_config));
+        }
+        if let Some(proselint_config) = &self.engines.proselint.config {
+            self.engines.proselint.config = Some(absolute(proselint_config));
+        }
+        for plugin in &mut self.engines.wasm_plugins {
+            plugin.path = absolute(&plugin.path);
+        }
+        for provider in &mut self.engines.external {
+            // Only when it is written as a path. A bare name is looked up on
+            // PATH, and turning `my-checker` into `<root>/my-checker` would
+            // break the one form that has no reason to be workspace-relative.
+            if provider.command.contains(std::path::MAIN_SEPARATOR) || provider.command.contains('/')
+            {
+                provider.command = absolute(&provider.command);
+            }
+        }
+    }
+
     pub fn load(workspace_root: &Path) -> Result<Self> {
         // Prefer YAML, fall back to JSON for backward compatibility
         let yaml_path = workspace_root.join(".languagecheck.yaml");
@@ -740,20 +785,23 @@ impl Config {
         if yaml_path.exists() {
             let content = std::fs::read_to_string(yaml_path)?;
             warn_duplicate_rule_keys(&content);
-            let config: Self = serde_yaml::from_str(&content)?;
+            let mut config: Self = serde_yaml::from_str(&content)?;
             warn_unknown_keys(&serde_yaml::from_str(&content)?);
+            config.resolve_paths(workspace_root);
             Ok(config)
         } else if yml_path.exists() {
             let content = std::fs::read_to_string(yml_path)?;
             warn_duplicate_rule_keys(&content);
-            let config: Self = serde_yaml::from_str(&content)?;
+            let mut config: Self = serde_yaml::from_str(&content)?;
             warn_unknown_keys(&serde_yaml::from_str(&content)?);
+            config.resolve_paths(workspace_root);
             Ok(config)
         } else if json_path.exists() {
             let content = std::fs::read_to_string(json_path)?;
-            let config: Self = serde_json::from_str(&content)?;
+            let mut config: Self = serde_json::from_str(&content)?;
             // YAML 1.2 is a superset of JSON, so one key scanner covers both formats.
             warn_unknown_keys(&serde_yaml::from_str(&content)?);
+            config.resolve_paths(workspace_root);
             Ok(config)
         } else {
             Ok(Self::default())
@@ -1138,6 +1186,123 @@ dictionaries:
         assert!(config.engines.harper.enabled);
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_relative_vale_config_is_resolved_against_the_workspace() {
+        // Vale is spawned by the core, whose working directory is wherever
+        // the editor started it. A path left as written reached Vale meaning
+        // something else entirely, so `config: ".vale.ini"` -- the documented
+        // form -- worked from the CLI and silently did nothing in VS Code.
+        let dir = std::env::temp_dir().join(format!("lc_resolve_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join(".languagecheck.yaml"),
+            "engines:\n  vale:\n    enabled: true\n    config: \".vale.ini\"\n",
+        )
+        .unwrap();
+
+        let config = Config::load(&dir).expect("config");
+        let resolved = config.engines.vale.config.expect("a config path");
+        assert!(
+            Path::new(&resolved).is_absolute(),
+            "left relative: {resolved}"
+        );
+        assert!(resolved.ends_with(".vale.ini"), "{resolved}");
+        assert!(resolved.starts_with(&*dir.to_string_lossy()), "{resolved}");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn an_absolute_path_in_the_config_is_left_alone() {
+        let dir = std::env::temp_dir().join(format!("lc_resolve_abs_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join(".languagecheck.yaml"),
+            "engines:\n  vale:\n    enabled: true\n    config: \"/etc/vale.ini\"\n",
+        )
+        .unwrap();
+
+        let config = Config::load(&dir).expect("config");
+        assert_eq!(config.engines.vale.config.as_deref(), Some("/etc/vale.ini"));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_wasm_plugin_path_is_resolved_too() {
+        // Same reasoning, same failure: a plugin named relative to the
+        // workspace was looked for relative to the editor's cwd.
+        let dir = std::env::temp_dir().join(format!("lc_resolve_wasm_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join(".languagecheck.yaml"),
+            "engines:\n  wasm_plugins:\n    - name: p\n      path: plugins/p.wasm\n",
+        )
+        .unwrap();
+
+        let config = Config::load(&dir).expect("config");
+        let resolved = &config.engines.wasm_plugins[0].path;
+        assert!(Path::new(resolved).is_absolute(), "left relative: {resolved}");
+        assert!(resolved.ends_with("plugins/p.wasm"), "{resolved}");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_relative_proselint_config_is_resolved_too() {
+        // Same shape as Vale's, spawned the same way, with the same failure.
+        let dir = std::env::temp_dir().join(format!("lc_resolve_pl_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join(".languagecheck.yaml"),
+            "engines:\n  proselint:\n    enabled: true\n    config: \"proselint.json\"\n",
+        )
+        .unwrap();
+
+        let config = Config::load(&dir).expect("config");
+        let resolved = config.engines.proselint.config.expect("a config path");
+        assert!(Path::new(&resolved).is_absolute(), "left relative: {resolved}");
+        assert!(resolved.ends_with("proselint.json"), "{resolved}");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn an_external_command_written_as_a_path_is_resolved() {
+        let dir = std::env::temp_dir().join(format!("lc_resolve_ext_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join(".languagecheck.yaml"),
+            "engines:\n  external:\n    - name: c\n      command: ./my-checker\n",
+        )
+        .unwrap();
+
+        let config = Config::load(&dir).expect("config");
+        let command = &config.engines.external[0].command;
+        assert!(Path::new(command).is_absolute(), "left relative: {command}");
+        assert!(command.ends_with("my-checker"), "{command}");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn an_external_command_that_is_a_bare_name_is_left_for_path_lookup() {
+        // The one spelling that must not be touched: `vale` means "whatever
+        // PATH finds", and `<root>/vale` means a file that is not there.
+        let dir = std::env::temp_dir().join(format!("lc_resolve_bare_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join(".languagecheck.yaml"),
+            "engines:\n  external:\n    - name: c\n      command: my-checker\n",
+        )
+        .unwrap();
+
+        let config = Config::load(&dir).expect("config");
+        assert_eq!(config.engines.external[0].command, "my-checker");
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
