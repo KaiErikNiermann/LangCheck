@@ -43,6 +43,22 @@ pub struct DisableSuggestion {
     pub dismissed_count: u64,
 }
 
+/// Generate one `+= 1` method per [`RuleStats`] counter.
+///
+/// The field being incremented is the only thing that varies, and a field name
+/// cannot be a generic parameter, so the three bodies were written out three
+/// times. Adding a fourth counter is now one line here.
+macro_rules! counters {
+    ($($(#[$doc:meta])* $method:ident => $field:ident),+ $(,)?) => {
+        $(
+            $(#[$doc])*
+            pub fn $method(&mut self, rule_id: &str) {
+                self.rules.entry(rule_id.to_string()).or_default().$field += 1;
+            }
+        )+
+    };
+}
+
 impl FeedbackTracker {
     /// Create a new empty tracker.
     #[must_use]
@@ -50,21 +66,13 @@ impl FeedbackTracker {
         Self::default()
     }
 
-    /// Record that a diagnostic was shown to the user.
-    pub fn record_shown(&mut self, rule_id: &str) {
-        self.rules.entry(rule_id.to_string()).or_default().shown += 1;
-    }
-
-    /// Record that the user dismissed a diagnostic.
-    pub fn record_dismissed(&mut self, rule_id: &str) {
-        let stats = self.rules.entry(rule_id.to_string()).or_default();
-        stats.dismissed += 1;
-    }
-
-    /// Record that the user applied a fix.
-    pub fn record_fixed(&mut self, rule_id: &str) {
-        let stats = self.rules.entry(rule_id.to_string()).or_default();
-        stats.fixed += 1;
+    counters! {
+        /// Record that a diagnostic was shown to the user.
+        record_shown => shown,
+        /// Record that the user dismissed a diagnostic.
+        record_dismissed => dismissed,
+        /// Record that the user applied the suggested fix.
+        record_fixed => fixed,
     }
 
     /// Get stats for a specific rule.

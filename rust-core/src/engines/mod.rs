@@ -86,6 +86,24 @@ pub fn engine_supports_language(engine: &(dyn Engine + Send), lang_tag: &str) ->
     })
 }
 
+/// Whether a declared extension list covers the document being checked.
+///
+/// An empty list, or an extension the list does not name, is handled by the
+/// two callers' shared rule: a provider is skipped only when it has said which
+/// formats it parses and this is not one of them. A leading dot in the config
+/// is accepted, since `extensions: [".md"]` is the obvious way to write it.
+fn declares_extension(declared: &[String], extension: Option<&str>) -> bool {
+    if declared.is_empty() {
+        return true;
+    }
+    extension.is_some_and(|ext| {
+        declared
+            .iter()
+            // nosemgrep: declared-extensions-through-declares-extension -- this is the helper.
+            .any(|entry| entry.trim_start_matches('.').eq_ignore_ascii_case(ext))
+    })
+}
+
 /// Whether `engine` parses the markup of the document being checked.
 ///
 /// Only the two config-driven engines declare this; everything else is built
@@ -701,14 +719,7 @@ impl ExternalEngine {
     /// has said which formats it handles and this is not one of them.
     #[must_use]
     pub fn handles_extension(&self, extension: Option<&str>) -> bool {
-        if self.extensions.is_empty() {
-            return true;
-        }
-        extension.is_some_and(|ext| {
-            self.extensions
-                .iter()
-                .any(|declared| declared.trim_start_matches('.').eq_ignore_ascii_case(ext))
-        })
+        declares_extension(&self.extensions, extension)
     }
 }
 
@@ -874,14 +885,7 @@ impl WasmEngine {
     /// Whether this plugin parses the markup of the document being checked.
     #[must_use]
     pub fn handles_extension(&self, extension: Option<&str>) -> bool {
-        if self.extensions.is_empty() {
-            return true;
-        }
-        extension.is_some_and(|ext| {
-            self.extensions
-                .iter()
-                .any(|declared| declared.trim_start_matches('.').eq_ignore_ascii_case(ext))
-        })
+        declares_extension(&self.extensions, extension)
     }
 
     /// Create a new WASM engine from raw bytes (useful for testing).

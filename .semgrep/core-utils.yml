@@ -201,3 +201,56 @@ rules:
       - pattern: IgnoreParser::should_ignore_by_region(...)
       - pattern: crate::ignore_rules::IgnoreParser::should_ignore(...)
       - pattern: crate::ignore_rules::IgnoreParser::should_ignore_by_region(...)
+
+  - id: comment-syntax-through-in-comment
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      Unwrap a line's comment through `text_util::in_comment`, which takes the content inside
+      and hands it to a parser. The four spellings accepted -- `<!-- … -->`, `// …`, `/* … */`
+      and `% …`, covering Markdown and HTML, the C-family markup languages and LaTeX -- are a
+      single fact about what a directive may be written in, and a reader that spells them out
+      for itself can accept a set the others do not. `ScopeParser::extract_marker` and
+      `IgnoreParser::extract_directive` were byte-identical apart from which parser they called;
+      run against the revision before they were converted this rule reports 2 findings, one per
+      reader, which is the answer it must keep finding if the shape comes back.
+    paths:
+      exclude:
+        - "**/rust-core/src/text_util.rs"
+    patterns:
+      - pattern-either:
+          - pattern: $LINE.strip_prefix("<!--")
+          - pattern: $LINE.strip_prefix("/*")
+      - pattern-inside: |
+          fn $F(...) -> $R {
+              ...
+          }
+
+  - id: declared-extensions-through-declares-extension
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      Match a configured extension list through `engines::declares_extension`. Accepting a
+      leading dot, comparing case-insensitively, and treating an empty list as a wildcard are
+      three decisions that have to agree between every engine that reads `extensions` from
+      config, or the same `.languagecheck.yaml` means different things to an external provider
+      and a WASM plugin. `ExternalEngine::handles_extension` and `WasmEngine::handles_extension`
+      held byte-identical copies; run against the revision before they were converted this rule
+      reports 2 findings, which is the answer it must keep finding if the shape comes back.
+    pattern: $E.trim_start_matches('.').eq_ignore_ascii_case($EXT)
+
+  - id: workspace-blobs-through-cbor-helpers
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      Round-trip workspace index values through `WorkspaceIndex::put_cbor` and `get_cbor`. Every
+      table in the index maps a file path to an opaque CBOR blob, so encoding at the call site
+      repeats the transaction and commit discipline once per table -- and a write that forgets
+      `commit()` is silently dropped, which no test of the writer alone can see.
+      `update_diagnostics`/`update_insights` and `get_diagnostics`/`get_insights` were two
+      mirrored pairs differing only in the table constant and the value type; run against the
+      revision before they were converted this rule reports 4 findings, one per method, which is
+      the answer it must keep finding if the shape comes back.
+    pattern-either:
+      - pattern: ciborium::into_writer(...)
+      - pattern: ciborium::from_reader(...)

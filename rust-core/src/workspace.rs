@@ -6,6 +6,10 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
+/// Every table in the index maps a file path to an opaque byte blob, so one
+/// pair of accessors serves all three.
+type Table = TableDefinition<'static, &'static str, &'static [u8]>;
+
 const DIAGNOSTICS_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("diagnostics");
 const INSIGHTS_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("insights");
 const FILE_HASHES_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("file_hashes");
@@ -76,63 +80,57 @@ impl WorkspaceIndex {
     /// Store the content hash for a file after indexing.
     pub fn update_file_hash(&self, file_path: &str, content: &str) -> Result<()> {
         let hash = crate::hashing::content_hash(content);
-        let write_txn = self.db.begin_write()?;
-        {
-            let mut table = write_txn.open_table(FILE_HASHES_TABLE)?;
-            table.insert(file_path, hash.to_le_bytes().as_slice())?;
-        }
-        write_txn.commit()?;
-        Ok(())
+        self.put_bytes(FILE_HASHES_TABLE, file_path, hash.to_le_bytes().as_slice())
     }
 
     pub fn update_diagnostics(&self, file_path: &str, diagnostics: &[Diagnostic]) -> Result<()> {
-        let mut data = Vec::new();
-        ciborium::into_writer(&diagnostics, &mut data)?;
-        let write_txn = self.db.begin_write()?;
-        {
-            let mut table = write_txn.open_table(DIAGNOSTICS_TABLE)?;
-            table.insert(file_path, data.as_slice())?;
-        }
-        write_txn.commit()?;
-        Ok(())
+        self.put_cbor(DIAGNOSTICS_TABLE, file_path, &diagnostics)
     }
 
     pub fn update_insights(&self, file_path: &str, insights: &ProseInsights) -> Result<()> {
-        let mut data = Vec::new();
-        ciborium::into_writer(&insights, &mut data)?;
+        self.put_cbor(INSIGHTS_TABLE, file_path, &insights)
+    }
+
+    pub fn get_diagnostics(&self, file_path: &str) -> Result<Option<Vec<Diagnostic>>> {
+        self.get_cbor(DIAGNOSTICS_TABLE, file_path)
+    }
+
+    pub fn get_insights(&self, file_path: &str) -> Result<Option<ProseInsights>> {
+        self.get_cbor(INSIGHTS_TABLE, file_path)
+    }
+
+    /// Write `bytes` under `key`, in a transaction of its own.
+    fn put_bytes(&self, table: Table, key: &str, bytes: &[u8]) -> Result<()> {
         let write_txn = self.db.begin_write()?;
         {
-            let mut table = write_txn.open_table(INSIGHTS_TABLE)?;
-            table.insert(file_path, data.as_slice())?;
+            let mut table = write_txn.open_table(table)?;
+            table.insert(key, bytes)?;
         }
         write_txn.commit()?;
         Ok(())
     }
 
-    pub fn get_diagnostics(&self, file_path: &str) -> Result<Option<Vec<Diagnostic>>> {
-        let read_txn = self.db.begin_read()?;
-        let table = read_txn.open_table(DIAGNOSTICS_TABLE)?;
-        let result = table.get(file_path)?;
-
-        if let Some(data) = result {
-            let diagnostics = ciborium::from_reader(data.value())?;
-            Ok(Some(diagnostics))
-        } else {
-            Ok(None)
-        }
+    /// Write `value` under `key` as CBOR.
+    fn put_cbor<T: serde::Serialize>(&self, table: Table, key: &str, value: &T) -> Result<()> {
+        let mut data = Vec::new();
+        // nosemgrep: workspace-blobs-through-cbor-helpers -- this is the helper.
+        ciborium::into_writer(value, &mut data)?;
+        self.put_bytes(table, key, &data)
     }
 
-    pub fn get_insights(&self, file_path: &str) -> Result<Option<ProseInsights>> {
+    /// Read back what [`Self::put_cbor`] stored, if anything is under `key`.
+    fn get_cbor<T: serde::de::DeserializeOwned>(
+        &self,
+        table: Table,
+        key: &str,
+    ) -> Result<Option<T>> {
         let read_txn = self.db.begin_read()?;
-        let table = read_txn.open_table(INSIGHTS_TABLE)?;
-        let result = table.get(file_path)?;
-
-        if let Some(data) = result {
-            let insights = ciborium::from_reader(data.value())?;
-            Ok(Some(insights))
-        } else {
-            Ok(None)
-        }
+        let table = read_txn.open_table(table)?;
+        let Some(data) = table.get(key)? else {
+            return Ok(None);
+        };
+        // nosemgrep: workspace-blobs-through-cbor-helpers -- this is the helper.
+        Ok(Some(ciborium::from_reader(data.value())?))
     }
 }
 

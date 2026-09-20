@@ -78,33 +78,7 @@ impl ScopeParser {
     }
 
     fn extract_marker(line: &str) -> Option<String> {
-        let trimmed = line.trim();
-
-        // <!-- lang: xx --> format
-        if let Some(rest) = trimmed.strip_prefix("<!--")
-            && let Some(inner) = rest.strip_suffix("-->")
-        {
-            return Self::parse_lang_directive(inner.trim());
-        }
-
-        // // @lang: xx format
-        if let Some(rest) = trimmed.strip_prefix("//") {
-            return Self::parse_lang_directive(rest.trim());
-        }
-
-        // /* @lang: xx */ format
-        if let Some(rest) = trimmed.strip_prefix("/*")
-            && let Some(inner) = rest.strip_suffix("*/")
-        {
-            return Self::parse_lang_directive(inner.trim());
-        }
-
-        // % @lang: xx format (LaTeX)
-        if let Some(rest) = trimmed.strip_prefix('%') {
-            return Self::parse_lang_directive(rest.trim());
-        }
-
-        None
+        crate::text_util::in_comment(line, Self::parse_lang_directive)
     }
 
     fn parse_lang_directive(s: &str) -> Option<String> {

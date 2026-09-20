@@ -326,33 +326,7 @@ impl IgnoreParser {
 
     /// Extract a directive from a single line of text.
     fn extract_directive(line: &str) -> Option<(DirectiveKind, Vec<String>, Option<BeginOptions>)> {
-        let trimmed = line.trim();
-
-        // HTML comment: <!-- lang-check-... -->
-        if let Some(rest) = trimmed.strip_prefix("<!--")
-            && let Some(inner) = rest.strip_suffix("-->")
-        {
-            return Self::parse_directive_content(inner.trim());
-        }
-
-        // Line comment: // lang-check-...
-        if let Some(rest) = trimmed.strip_prefix("//") {
-            return Self::parse_directive_content(rest.trim());
-        }
-
-        // Block comment (single line): /* lang-check-... */
-        if let Some(rest) = trimmed.strip_prefix("/*")
-            && let Some(inner) = rest.strip_suffix("*/")
-        {
-            return Self::parse_directive_content(inner.trim());
-        }
-
-        // LaTeX comment: % lang-check-...
-        if let Some(rest) = trimmed.strip_prefix('%') {
-            return Self::parse_directive_content(rest.trim());
-        }
-
-        None
+        crate::text_util::in_comment(line, Self::parse_directive_content)
     }
 
     /// Parse the content after the comment markers.

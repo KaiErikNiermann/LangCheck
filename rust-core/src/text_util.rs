@@ -128,3 +128,39 @@ mod tests {
         assert_eq!(min_suggestion_distance("recieve", &[]), None);
     }
 }
+
+/// Unwrap a line's comment syntax and hand the content inside to `parse`.
+///
+/// Both directive readers -- the scope markers in [`crate::scoping`] and the
+/// `lang-check-*` directives in [`crate::ignore_rules`] -- accept the same four
+/// spellings of a comment, and differ only in what they do with the text
+/// inside. The four are `<!-- ... -->`, `// ...`, `/* ... */` and `% ...`,
+/// covering Markdown and HTML, the C-family markup languages, and LaTeX.
+///
+/// Returns `None` when the line is not a comment, or when `parse` rejects
+/// what was inside one.
+pub fn in_comment<T>(line: &str, parse: impl Fn(&str) -> Option<T>) -> Option<T> {
+    let trimmed = line.trim();
+
+    if let Some(rest) = trimmed.strip_prefix("<!--")
+        && let Some(inner) = rest.strip_suffix("-->")
+    {
+        return parse(inner.trim());
+    }
+
+    if let Some(rest) = trimmed.strip_prefix("//") {
+        return parse(rest.trim());
+    }
+
+    if let Some(rest) = trimmed.strip_prefix("/*")
+        && let Some(inner) = rest.strip_suffix("*/")
+    {
+        return parse(inner.trim());
+    }
+
+    if let Some(rest) = trimmed.strip_prefix('%') {
+        return parse(rest.trim());
+    }
+
+    None
+}
