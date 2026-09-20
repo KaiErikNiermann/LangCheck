@@ -201,6 +201,8 @@ mod tests {
             severity: 2,
             unified_id: "test.unified".to_string(),
             confidence: 0.9,
+            language: String::new(),
+            pack_installable: false,
         }];
 
         idx.update_diagnostics("test.md", &diags).unwrap();

@@ -115,6 +115,8 @@ mod tests {
             severity: 2,
             unified_id: String::new(),
             confidence: 1.0,
+            language: String::new(),
+            pack_installable: false,
         }
     }
 

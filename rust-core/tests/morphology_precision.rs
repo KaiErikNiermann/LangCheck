@@ -35,6 +35,8 @@ fn spelling(text: &str, suggestions: &[&str]) -> Diagnostic {
         severity: 2,
         unified_id: "spelling.typo".to_string(),
         confidence: 1.0,
+        language: String::new(),
+        pack_installable: false,
     }
 }
 

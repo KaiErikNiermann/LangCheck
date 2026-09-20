@@ -220,6 +220,8 @@ impl StyleRuleEngine {
             severity,
             unified_id: format!("style.custom.{}", rule.id),
             confidence: 0.9,
+            language: String::new(),
+            pack_installable: false,
         }
     }
 }

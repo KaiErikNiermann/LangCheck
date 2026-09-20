@@ -230,6 +230,8 @@ impl super::Engine for HunspellEngine {
                 // Below Harper and LanguageTool on purpose: a wordlist with no
                 // grammar behind it cannot tell a coinage from a typo.
                 confidence: 0.6,
+                language: String::new(),
+                pack_installable: false,
             });
         }
         Ok(diagnostics)

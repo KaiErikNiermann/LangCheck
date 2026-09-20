@@ -161,6 +161,8 @@ impl Engine for ProselintEngine {
                             severity: Severity::Warning as i32,
                             unified_id: String::new(),
                             confidence: 0.7,
+                            language: String::new(),
+                            pack_installable: false,
                         });
                     }
                 }

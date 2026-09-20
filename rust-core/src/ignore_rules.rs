@@ -557,6 +557,8 @@ mod tests {
             severity: 2,
             unified_id: unified_id.to_string(),
             confidence: 0.9,
+            language: String::new(),
+            pack_installable: false,
         }
     }
 

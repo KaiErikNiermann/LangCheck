@@ -172,6 +172,8 @@ impl Engine for ValeEngine {
                     severity: map_severity(&alert.severity),
                     unified_id: String::new(),
                     confidence: 0.75,
+                    language: String::new(),
+                    pack_installable: false,
                 });
             }
         }

@@ -177,6 +177,8 @@ impl Engine for HarperEngine {
                     severity: Severity::Warning as i32,
                     unified_id: String::new(), // Will be filled by normalizer
                     confidence: 0.8,
+                    language: String::new(),
+                    pack_installable: false,
                 }
             })
             .collect();
@@ -497,6 +499,8 @@ async fn languagetool_request(
                 severity: severity as i32,
                 unified_id: String::new(), // Will be filled by normalizer
                 confidence: 0.8,
+                language: String::new(),
+                pack_installable: false,
             }
         })
         .collect())
@@ -743,6 +747,8 @@ impl Engine for ExternalEngine {
                     } else {
                         0.7
                     },
+                    language: String::new(),
+                    pack_installable: false,
                 }
             })
             .collect();
@@ -835,6 +841,8 @@ impl Engine for WasmEngine {
                     } else {
                         0.7
                     },
+                    language: String::new(),
+                    pack_installable: false,
                 }
             })
             .collect();
@@ -1110,6 +1118,8 @@ mod tests {
             severity: 2,
             unified_id: String::new(),
             confidence: 0.8,
+            language: String::new(),
+            pack_installable: false,
         }
     }
 
