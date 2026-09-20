@@ -1,0 +1,4 @@
+# Harper alone. What makes a .toy file checkable at all is the schema beside
+# this file, not anything here.
+engines:
+  harper: true

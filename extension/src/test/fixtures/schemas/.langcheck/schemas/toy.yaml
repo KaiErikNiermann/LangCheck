@@ -1,0 +1,8 @@
+# A deliberately tiny schema. `.toy` is not a format anything else knows, which
+# is the point: a language VS Code has no id for, reachable only through this.
+name: toy
+extensions: [toy]
+prose_patterns:
+  - pattern: "^PROSE (.*)$"
+skip_patterns:
+  - pattern: "^SKIP "
