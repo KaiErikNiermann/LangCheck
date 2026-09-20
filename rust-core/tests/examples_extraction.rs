@@ -118,3 +118,114 @@ fn every_example_config_parses() {
             .unwrap_or_else(|e| panic!("{} does not parse: {e}", path.display()));
     }
 }
+
+/// The grammar each example is parsed with, for the syntax check.
+fn grammar_for(language_id: &str) -> tree_sitter::Language {
+    lang_check::languages::resolve_ts_language(language_id)
+}
+
+/// Report every `ERROR` or `MISSING` node in a tree, as `line: text`.
+fn parse_errors(node: tree_sitter::Node, text: &str, out: &mut Vec<String>) {
+    if node.is_error() || node.is_missing() {
+        let line = text[..node.start_byte()].lines().count();
+        let snippet: String = text[node.byte_range()].chars().take(60).collect();
+        out.push(format!("L{line}: {snippet:?}"));
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        parse_errors(child, text, out);
+    }
+}
+
+/// An example that does not parse is not an example of anything.
+///
+/// Cheap enough to always run: the grammars are already linked in, so this
+/// needs no Typst or TeX installation. What it cannot see is a document that
+/// parses and then fails to *build* — an undefined environment, a package that
+/// is not there — which is what `every_example_compiles` covers where the
+/// toolchain exists.
+#[test]
+fn every_example_parses_without_errors() {
+    for example in examples() {
+        let text = std::fs::read_to_string(&example.path).expect("read example");
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&grammar_for(example.language_id))
+            .expect("grammar");
+        let tree = parser.parse(&text, None).expect("parse");
+
+        let mut errors = Vec::new();
+        parse_errors(tree.root_node(), &text, &mut errors);
+        assert!(
+            errors.is_empty(),
+            "{} does not parse as {}:\n  {}",
+            example.path.display(),
+            example.language_id,
+            errors.join("\n  ")
+        );
+    }
+}
+
+/// Build each example with its real toolchain, where that toolchain is here.
+///
+/// Parsing is not building. `thesis.typ` once imported a drawing package and
+/// called it wrongly, and `paper.tex` used an `algorithm` environment without
+/// loading the package — both parse fine and neither produced a document, so
+/// the Typst LSP reported the file as empty in the editor while our own
+/// extraction looked correct.
+///
+/// Skipped rather than failed when the compiler is absent, so a checkout
+/// without TeX Live still runs the suite.
+#[test]
+fn every_example_compiles() {
+    for (relative, program, args) in [
+        (
+            "typst/thesis.typ",
+            "typst",
+            vec!["compile", "thesis.typ", "-"],
+        ),
+        (
+            "latex/paper.tex",
+            "latexmk",
+            vec![
+                "-pdf",
+                "-interaction=nonstopmode",
+                "-halt-on-error",
+                "paper.tex",
+            ],
+        ),
+    ] {
+        let path = examples_root().join(relative);
+        let dir = path.parent().expect("example directory");
+        let out_dir = std::env::temp_dir().join(format!(
+            "lang_check_example_build_{}_{}",
+            std::process::id(),
+            program
+        ));
+        std::fs::create_dir_all(&out_dir).expect("build directory");
+
+        let mut command = std::process::Command::new(program);
+        command.current_dir(dir).args(&args);
+        if program == "latexmk" {
+            command.arg(format!("-outdir={}", out_dir.display()));
+        }
+
+        let output = match command.output() {
+            Ok(output) => output,
+            // Not installed: this machine cannot answer the question.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                eprintln!("skipping {relative}: {program} is not installed");
+                continue;
+            }
+            Err(e) => panic!("running {program}: {e}"),
+        };
+
+        let _ = std::fs::remove_dir_all(&out_dir);
+        assert!(
+            output.status.success(),
+            "{relative} does not compile:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}

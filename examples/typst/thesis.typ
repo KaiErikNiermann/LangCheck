@@ -2,11 +2,9 @@
 // constructs the extractor has to get right. Every misspelling in it is
 // deliberate; `expected.md` lists what a check should find and why.
 
-#import "@preview/cetz:0.3.1": canvas, draw
-
 #set document(title: "Le canon et sa réception", author: "A. Lecteur")
 #set page(numbering: "1", margin: 2.5cm)
-#set text(lang: "fr", region: "FR", font: "Libertinus Serif", size: 11pt)
+#set text(lang: "fr", region: "FR", size: 11pt)
 #set par(justify: true)
 
 #show heading.where(level: 1): it => [
@@ -58,9 +56,7 @@ Une formule en ligne $a^2 + b^2 = c^2$ au milieu d'une phrase ne coupe pas la
 phrase en deux.
 
 #figure(
-  canvas({
-    draw.circle((0, 0), radius: 1)
-  }),
+  circle(radius: 1cm, stroke: 0.5pt),
   caption: [Une légende, elle, est de la prose et se vérifie.],
 ) <fig-cercle>
 
