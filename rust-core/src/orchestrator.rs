@@ -218,6 +218,10 @@ impl Orchestrator {
         let spell_language = language.to_string();
         let mut per_text: Vec<Vec<Diagnostic>> = vec![Vec::new(); batch.len()];
         let mut engines_ran = 0u32;
+        // Engines that ran and failed outright, with why. A failure that only
+        // reaches the log leaves the prose looking checked and clean, which is
+        // the worst of the three possible answers.
+        let mut engine_failures: Vec<String> = Vec::new();
 
         for engine in &mut self.engines {
             let engine_name = engine.name();
@@ -318,6 +322,7 @@ impl Orchestrator {
                     tracker.consecutive_failures += 1;
                     tracker.last_error = Some(e.to_string());
                     warn!(engine = engine_name, "Engine error: {e}");
+                    engine_failures.push(format!("{engine_name}: {e}"));
                 }
                 _ => {
                     tracker.consecutive_failures = 0;
@@ -355,6 +360,24 @@ impl Orchestrator {
                     rule_id: "languagecheck.no-provider".to_string(),
                     severity: Severity::Information as i32,
                     unified_id: "languagecheck.no-provider".to_string(),
+                    confidence: 1.0,
+                });
+            } else if !engine_failures.is_empty() && all_diagnostics.is_empty() {
+                // Every engine that took this on failed. Without this the
+                // passage reads as clean and the reason is a line in a log the
+                // user has no reason to open -- a broken dictionary would
+                // silently stop checking a language and look like success.
+                all_diagnostics.push(Diagnostic {
+                    start_byte: 0,
+                    end_byte: 0,
+                    message: format!(
+                        "This passage went unchecked: {}",
+                        engine_failures.join("; ")
+                    ),
+                    suggestions: Vec::new(),
+                    rule_id: "languagecheck.engine-error".to_string(),
+                    severity: Severity::Warning as i32,
+                    unified_id: "languagecheck.engine-error".to_string(),
                     confidence: 1.0,
                 });
             }
@@ -706,6 +729,63 @@ mod tests {
                 language: language_id.to_string(),
             }))
         }
+    }
+
+    /// Fails every text, the way an engine with a broken dictionary does.
+    struct FailingEngine;
+
+    #[async_trait::async_trait]
+    impl Engine for FailingEngine {
+        fn name(&self) -> &'static str {
+            "hunspell"
+        }
+
+        async fn check(&mut self, _text: &str, _language_id: &str) -> Result<Vec<Diagnostic>> {
+            Err(anyhow::anyhow!(
+                "he_IL.dic is not a dictionary this checker can read"
+            ))
+        }
+    }
+
+    #[tokio::test]
+    async fn an_engine_that_fails_outright_says_so_on_the_document() {
+        // Reported where the user is looking, not only in a log: prose that
+        // went unchecked because a dictionary is broken must not come back
+        // indistinguishable from prose that is clean.
+        let mut orchestrator = Orchestrator::new(Config::default());
+        orchestrator.engines = vec![Box::new(FailingEngine)];
+
+        let batch = orchestrator
+            .check_batch(&["shalom".to_string()], "he")
+            .await
+            .unwrap();
+        assert_eq!(batch[0].len(), 1, "{:?}", batch[0]);
+        assert_eq!(batch[0][0].unified_id, "languagecheck.engine-error");
+        assert!(
+            batch[0][0].message.contains("he_IL.dic"),
+            "the report must name what broke: {}",
+            batch[0][0].message
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failure_does_not_mask_another_engines_findings() {
+        // One engine down must not hide what a working one found, so the
+        // notice only appears when nothing came back at all.
+        let mut orchestrator = Orchestrator::new(Config::default());
+        orchestrator.engines = vec![Box::new(FailingEngine), Box::new(CountingEngine::default())];
+
+        let batch = orchestrator
+            .check_batch(&["alpha".to_string()], "en-US")
+            .await
+            .unwrap();
+        assert!(
+            !batch[0]
+                .iter()
+                .any(|d| d.unified_id == "languagecheck.engine-error"),
+            "{:?}",
+            batch[0]
+        );
     }
 
     #[tokio::test]
