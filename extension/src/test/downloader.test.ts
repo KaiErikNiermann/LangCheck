@@ -15,7 +15,7 @@ vi.mock('os', async (importOriginal) => {
 // Import after mocking
 import { EventEmitter } from 'events';
 
-import { getPlatformArchiveName, binaryExists, downloadFile } from '../downloader';
+import { getPlatformArchiveName, binaryExists, downloadFile, computeSha256 } from '../downloader';
 import type { HttpGet } from '../downloader';
 
 describe('downloader', () => {
@@ -242,5 +242,23 @@ describe('downloadFile', () => {
                 attempts: 2,
             }),
         ).rejects.toThrow(/failed after 2 attempts/);
+    });
+});
+
+describe('computeSha256', () => {
+    it('matches what sha256sum would print', async () => {
+        // The release publishes `sha256sum` output, so the two have to agree
+        // about the same bytes or every verification fails on correct files.
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lc-sha-'));
+        const file = path.join(dir, 'archive');
+        fs.writeFileSync(file, 'abc');
+        try {
+            // SHA-256 of "abc", a published constant.
+            await expect(computeSha256(file)).resolves.toBe(
+                'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+            );
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
     });
 });

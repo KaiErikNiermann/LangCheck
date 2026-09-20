@@ -112,6 +112,34 @@ export async function downloadBinary(
         },
     );
 
+    // Verify the archive against the checksum the release published.
+    //
+    // A size check catches a download that stopped early; this catches one
+    // that arrived complete and wrong. Skipped when the release has no
+    // checksums asset, which is every release before this was added -- a
+    // missing file is an older release, not a compromised one, and refusing
+    // to install would strand anyone pinned to one.
+    const checksumsAsset = release.assets.find(a => a.name === CHECKSUMS_ASSET);
+    if (checksumsAsset) {
+        progress.report({ message: '(3/3) Verifying…' });
+        const expected = await expectedChecksum(
+            checksumsAsset.browser_download_url,
+            archiveName,
+            binDir,
+        );
+        if (expected) {
+            const actual = await computeSha256(archivePath);
+            if (actual !== expected) {
+                fs.unlinkSync(archivePath);
+                throw new Error(
+                    `The downloaded archive does not match the checksum published for `
+                    + `${release.tag_name}. Expected ${expected}, got ${actual}. `
+                    + `Nothing was installed.`,
+                );
+            }
+        }
+    }
+
     // Extract the server binary from the tar.gz archive
     progress.report({ message: '(3/3) Extracting binary…' });
     const binaryName = serverBinaryName();
@@ -140,6 +168,39 @@ export async function downloadBinary(
 
     progress.report({ message: 'Installed successfully' });
     return destPath;
+}
+
+/** The release asset listing one SHA-256 per archive. */
+const CHECKSUMS_ASSET = 'checksums.txt';
+
+/**
+ * The checksum `archiveName` should have, from the release's checksums file.
+ *
+ * Returns undefined when the file cannot be read or does not mention the
+ * archive, which is treated as "no checksum to check against" rather than as a
+ * failure: the alternative is refusing to install over a network hiccup
+ * fetching a file that is only a cross-check.
+ */
+async function expectedChecksum(
+    url: string,
+    archiveName: string,
+    binDir: string,
+): Promise<string | undefined> {
+    const localPath = path.join(binDir, CHECKSUMS_ASSET);
+    try {
+        await downloadFile(url, localPath, undefined, { attempts: 2 });
+        const listing = fs.readFileSync(localPath, 'utf8');
+        fs.unlinkSync(localPath);
+        // `sha256sum` format: the digest, whitespace, then the file name.
+        for (const line of listing.split(/\r?\n/)) {
+            const [digest, name] = line.trim().split(/\s+/);
+            if (name === archiveName && digest) return digest.toLowerCase();
+        }
+        return undefined;
+    } catch {
+        if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
+        return undefined;
+    }
 }
 
 /** Fetch the latest release info from GitHub. */

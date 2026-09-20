@@ -325,6 +325,16 @@ jobs:
         with:
           path: artifacts
 
+      # Published so a download can be verified against what was released.
+      # The checksums were already computed here, for the Homebrew formula
+      # alone; the extension had nothing to check an archive against.
+      - name: Compute release checksums
+        run: |
+          cd artifacts
+          sha256sum binary-*/language-check-*.tar.gz \
+            | sed 's#binary-[^/]*/##' > checksums.txt
+          cat checksums.txt
+
       - name: Create release
         uses: softprops/action-gh-release@v3
         with:
@@ -333,6 +343,7 @@ jobs:
             artifacts/binary-*/language-check-*.tar.gz
             artifacts/vsix/*.vsix
             artifacts/wasm-plugins/*.wasm
+            artifacts/checksums.txt
 
   publish-crate:
     name: Publish to crates.io
