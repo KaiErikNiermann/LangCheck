@@ -19,7 +19,7 @@ use lang_check::packs::{self, PackRegistry, catalogue};
 use lang_check::sls::SchemaRegistry;
 use lang_check::suppression::{InlineDirectives, SuppressionContext, retain_visible};
 use lang_check::text_util::snap_range;
-use lang_check::{checker::Diagnostic, config, orchestrator, prose, rules};
+use lang_check::{checker::Diagnostic, checker::Severity, config, orchestrator, prose, rules};
 use orchestrator::Orchestrator;
 use serde::Serialize;
 use std::fs;
@@ -128,12 +128,19 @@ struct JsonDiagnostic {
 impl JsonDiagnostic {
     fn from_diagnostic(d: &Diagnostic, file: &str, text: &str, byte_offset: usize) -> Self {
         let (line, column) = get_line_col(text, byte_offset);
-        let severity = match d.severity {
-            1 => "error",
-            2 => "warning",
-            3 => "information",
-            4 => "hint",
-            _ => "unknown",
+        // Matched on the enum, not on the numbers. Written out by hand these
+        // were `1 => "error"` and `3 => "information"`, which is the enum
+        // backwards -- SEVERITY_INFORMATION is 1 and SEVERITY_ERROR is 3 --
+        // so every error in `--format json` was labelled information and
+        // every information an error. The LSP path got it right, so a Neovim
+        // user saw the correct severity and anyone parsing this JSON in CI did
+        // not.
+        let severity = match Severity::try_from(d.severity) {
+            Ok(Severity::Error) => "error",
+            Ok(Severity::Warning) => "warning",
+            Ok(Severity::Information) => "information",
+            Ok(Severity::Hint) => "hint",
+            Ok(Severity::Unspecified) | Err(_) => "unknown",
         };
         Self {
             file: file.to_string(),
