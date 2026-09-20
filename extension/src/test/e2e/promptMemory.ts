@@ -56,3 +56,32 @@ export function recordPrompts(answer?: string): PromptRecorder {
         },
     };
 }
+
+/**
+ * Record every warning notification, dismissing each.
+ *
+ * Separate from [`recordPrompts`] because the extension raises its engine
+ * failures through `showWarningMessage` and its offers through
+ * `showInformationMessage`, and a test watching for one must not swallow the
+ * other.
+ */
+export function recordWarnings(): PromptRecorder {
+    const seen: RecordedPrompt[] = [];
+    const original = vscode.window.showWarningMessage;
+
+    const replacement = (message: string, ...rest: unknown[]) => {
+        seen.push({ message, items: rest.filter((r): r is string => typeof r === 'string') });
+        return Promise.resolve(undefined);
+    };
+
+    (vscode.window as unknown as Record<string, unknown>).showWarningMessage = replacement;
+
+    return {
+        seen,
+        forLanguage: (tag: string) => seen.filter(p => p.message.includes(tag)),
+        restore: () => {
+            (vscode.window as unknown as Record<string, unknown>)
+                .showWarningMessage = original;
+        },
+    };
+}

@@ -11,6 +11,7 @@
  * location, so the test covers the path resolution as well as the wiring.
  */
 import * as assert from 'assert';
+import { existsSync } from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
@@ -91,7 +92,7 @@ suite('engines and severities, changed live', () => {
     test('adding a WASM plugin activates it without a reload', async function () {
         this.timeout(BUDGET_MS + 15_000);
         assert.ok(
-            require('fs').existsSync(wasmPath),
+            existsSync(wasmPath),
             `the plugin this repository ships is not at ${wasmPath}`,
         );
         await settlesTo('the baseline', () => control(document) !== undefined);

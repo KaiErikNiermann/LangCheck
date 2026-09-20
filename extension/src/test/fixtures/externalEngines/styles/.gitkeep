@@ -1,0 +1,2 @@
+Vale refuses to start when StylesPath does not exist, and an empty directory
+does not survive a clone on its own.

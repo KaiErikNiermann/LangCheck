@@ -1,0 +1,4 @@
+# Harper alone. The tests switch Vale on and LanguageTool on with a url that
+# cannot work, so the baseline has to be without either.
+engines:
+  harper: true
