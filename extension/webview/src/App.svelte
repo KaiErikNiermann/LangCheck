@@ -16,6 +16,17 @@
 
   type Scope = 'file' | 'workspace';
 
+  /**
+   * How many suggestions the panel shows.
+   *
+   * One per key it can offer: 1-9 and 0. Past that a button has no shortcut,
+   * which is the whole point of this panel, and the list becomes a wall --
+   * LanguageTool alone answers a French misspelling with eighty replacements,
+   * and merging engines concatenates more. The rest stay reachable under the
+   * lightbulb, which is built for scrolling.
+   */
+  const KEYABLE_SUGGESTIONS = 10;
+
   let diagnostics: Diagnostic[] = $state([]);
   let currentIndex = $state(0);
   let lowResource = $state(false);
@@ -298,7 +309,7 @@
 
       <!-- Action buttons -->
       <div class="actions">
-        {#each current.suggestions.slice(0, lowResource ? 3 : current.suggestions.length) as suggestion, i}
+        {#each current.suggestions.slice(0, lowResource ? 3 : KEYABLE_SUGGESTIONS) as suggestion, i}
           <button
             class="action"
             class:selected={selectedAction === i}
@@ -311,6 +322,10 @@
         {/each}
         {#if lowResource && current.suggestions.length > 3}
           <div class="more-hint">+{current.suggestions.length - 3} more (keys 4-9)</div>
+        {:else if current.suggestions.length > KEYABLE_SUGGESTIONS}
+          <div class="more-hint">
+            +{current.suggestions.length - KEYABLE_SUGGESTIONS} more in the quick fix menu
+          </div>
         {/if}
 
         <button
