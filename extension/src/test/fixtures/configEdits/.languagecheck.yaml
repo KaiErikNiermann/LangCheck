@@ -1,0 +1,6 @@
+# Harper alone, with morphology left at its default, which is on. That is what
+# makes `preimage` in the document accepted: nothing carries the word, and
+# morphology reaches it. Switching morphology off is therefore a config change
+# with one visible consequence, which is what these tests watch for.
+engines:
+  harper: true

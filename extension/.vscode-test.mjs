@@ -78,6 +78,13 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 120_000 },
     },
     {
+        label: 'config-edits',
+        files: 'out/test/e2e/configEdits.test.js',
+        workspaceFolder: './src/test/fixtures/configEdits',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 150_000 },
+    },
+    {
         label: 'cache-phase1',
         files: 'out/test/e2e/cacheReusePhase1.test.js',
         workspaceFolder: './src/test/fixtures/cache',
