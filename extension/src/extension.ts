@@ -209,6 +209,16 @@ function parseSkipEnvironments(content: string): Set<string> {
     return parseYamlList(content, 'skip_environments');
 }
 
+/**
+ * Parse `dictionaries.paths` list items from a YAML config string.
+ *
+ * The key is nested, and [`parseYamlList`] matches on the key alone, which is
+ * enough here: no other `paths:` key exists in the schema.
+ */
+function parseDictionaryPaths(content: string): Set<string> {
+    return parseYamlList(content, 'paths');
+}
+
 /** Parse prose_environments list items from a YAML config string. */
 function parseProseEnvironments(content: string): Set<string> {
     return parseYamlList(content, 'prose_environments');
@@ -2023,6 +2033,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
         if (CORE_SETTINGS.some(key => event.affectsConfiguration(key))) {
             log.info('Core setting changed, reinitializing');
+            await refreshDictionaryWatchers();
             await reinitializeAndRecheck();
         }
         // Everything else -- the check trigger, the inlay hints, the panel --
@@ -2055,6 +2066,10 @@ export async function activate(context: vscode.ExtensionContext) {
                 debounceMs = parseDebounceMs(raw);
                 inlayHintEmitter.fire();
                 if (changed) {
+                    // Before the recheck: the config may have named a
+                    // different wordlist, and the new one has to be watched
+                    // from now on.
+                    await refreshDictionaryWatchers();
                     await reinitializeAndRecheck();
                 }
                 return;
@@ -2078,9 +2093,62 @@ export async function activate(context: vscode.ExtensionContext) {
             await reinitializeAndRecheck();
         }
     };
+    /**
+     * Watchers over the wordlists the config names, rebuilt when it changes.
+     *
+     * Adding a path to the config reloaded the core, because the config file
+     * is watched -- but editing the wordlist it points at did nothing until
+     * the next reload. Editing a wordlist is the more ordinary of the two, so
+     * the feature appeared to work once and then stop.
+     *
+     * Watched individually rather than by a broad glob: these are arbitrary
+     * paths a user chose, and a pattern wide enough to cover them would fire
+     * on files that have nothing to do with this extension.
+     */
+    let dictionaryWatchers: vscode.FileSystemWatcher[] = [];
+
+    const refreshDictionaryWatchers = async () => {
+        for (const watcher of dictionaryWatchers) watcher.dispose();
+        dictionaryWatchers = [];
+
+        const folder = vscode.workspace.workspaceFolders?.[0];
+        if (!folder) return;
+
+        const paths = new Set<string>([
+            // The file `Add to dictionary` writes to. The core updates its own
+            // copy when it writes there, but a hand edit is a change like any
+            // other.
+            '.languagecheck/dictionary.txt',
+            ...vscode.workspace.getConfiguration('languageCheck')
+                .get<string[]>('dictionaries.paths', []),
+        ]);
+        if (typeof lastKnownConfigText === 'string') {
+            for (const configured of parseDictionaryPaths(lastKnownConfigText)) {
+                paths.add(configured);
+            }
+        }
+
+        for (const relative of paths) {
+            // An absolute path is outside the workspace and outside what a
+            // workspace-relative pattern can express; the core still reads it,
+            // it simply is not watched.
+            if (path.isAbsolute(relative)) continue;
+            const watcher = vscode.workspace.createFileSystemWatcher(
+                new vscode.RelativePattern(folder, relative),
+            );
+            const reload = () => reinitializeAndRecheck();
+            watcher.onDidChange(reload);
+            watcher.onDidCreate(reload);
+            watcher.onDidDelete(reload);
+            dictionaryWatchers.push(watcher);
+            context.subscriptions.push(watcher);
+        }
+    };
+
     configWatcher.onDidChange(checkConfigChange);
     configWatcher.onDidCreate(checkConfigChange);
     configWatcher.onDidDelete(checkConfigChange);
+    await refreshDictionaryWatchers();
     context.subscriptions.push(configWatcher);
 
     // Eagerly read the initial config values so we can detect changes
