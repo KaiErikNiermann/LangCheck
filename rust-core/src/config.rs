@@ -746,7 +746,11 @@ impl Config {
             return false;
         }
         let relative = path.strip_prefix(workspace_root).unwrap_or(path);
-        let as_text = relative.to_string_lossy();
+        // Separators normalised, because the patterns are written with `/` --
+        // `node_modules/**` is how anyone writes it, on any platform -- while
+        // the path arrives with the platform's own. Without this, `exclude`
+        // matched nothing at all on Windows and said nothing about why.
+        let as_text = relative.to_string_lossy().replace('\\', "/");
         // Written once, because the indexer, the CLI and the editor all have
         // to agree about what is excluded -- a file the editor still checks
         // after the indexer skipped it is the inconsistency this avoids.
@@ -1245,6 +1249,20 @@ dictionaries:
     }
 
     #[test]
+    fn exclude_matches_whichever_separator_the_platform_uses() {
+        // The patterns are written with `/` on every platform; the path
+        // arrives with the platform's own separator. Matching the two
+        // literally meant `exclude` never matched anything on Windows.
+        let config = Config {
+            exclude: vec!["drafts/**".to_string()],
+            ..Config::default()
+        };
+        let root = Path::new("/home/someone/project");
+        let with_backslashes = root.join("drafts").join("notes.md");
+        assert!(config.excludes(&with_backslashes, root));
+    }
+
+    #[test]
     fn an_empty_exclude_list_excludes_nothing() {
         let config = Config::default();
         let root = Path::new("/tmp");
@@ -1294,14 +1312,26 @@ dictionaries:
     fn an_absolute_path_in_the_config_is_left_alone() {
         let dir = std::env::temp_dir().join(format!("lc_resolve_abs_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
+
+        // Taken from the platform rather than written out. `/etc/vale.ini` is
+        // absolute on Unix and merely rooted on Windows, where it has no drive
+        // -- so it is resolved against the workspace's drive, correctly, and a
+        // test that hard-coded it would be testing the wrong thing there.
+        let elsewhere = std::env::temp_dir().join("vale.ini");
+        let elsewhere = elsewhere.to_string_lossy().into_owned();
+        // Single-quoted, because a backslash inside a double-quoted YAML
+        // scalar is an escape and a Windows path is full of them.
         std::fs::write(
             dir.join(".languagecheck.yaml"),
-            "engines:\n  vale:\n    enabled: true\n    config: \"/etc/vale.ini\"\n",
+            format!("engines:\n  vale:\n    enabled: true\n    config: '{elsewhere}'\n"),
         )
         .unwrap();
 
         let config = Config::load(&dir).expect("config");
-        assert_eq!(config.engines.vale.config.as_deref(), Some("/etc/vale.ini"));
+        assert_eq!(
+            config.engines.vale.config.as_deref(),
+            Some(elsewhere.as_str())
+        );
 
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -1324,7 +1354,11 @@ dictionaries:
             Path::new(resolved).is_absolute(),
             "left relative: {resolved}"
         );
-        assert!(resolved.ends_with("plugins/p.wasm"), "{resolved}");
+        // Compared with separators normalised: the join uses the platform's.
+        assert!(
+            resolved.replace('\\', "/").ends_with("plugins/p.wasm"),
+            "{resolved}"
+        );
 
         std::fs::remove_dir_all(&dir).ok();
     }
