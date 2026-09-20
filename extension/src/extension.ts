@@ -1982,6 +1982,44 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
     // Watch .languagecheck config files for any change that affects results
+    /**
+     * Settings the core is told about at Initialize, and only then.
+     *
+     * Changing one of these used to do nothing at all until the window was
+     * reloaded: `.languagecheck.yaml` had a file watcher, and VS Code's own
+     * settings had nothing. Switching the bundled wordlists off in the
+     * Settings UI left every one of their words still accepted, with no
+     * indication that the setting had not taken.
+     */
+    const CORE_SETTINGS = [
+        'languageCheck.dictionaries.bundled',
+        'languageCheck.dictionaries.disabled',
+        'languageCheck.dictionaries.paths',
+        'languageCheck.names.enabled',
+        'languageCheck.workspace.indexOnOpen',
+        'languageCheck.workspace.dbPath',
+    ];
+
+    /** Settings that decide which binary runs, so the process has to be replaced. */
+    const CORE_PROCESS_SETTINGS = [
+        'languageCheck.core.binaryPath',
+        'languageCheck.core.channel',
+    ];
+
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async event => {
+        if (CORE_PROCESS_SETTINGS.some(key => event.affectsConfiguration(key))) {
+            log.info('Core binary setting changed, restarting');
+            await bootClient();
+            return;
+        }
+        if (CORE_SETTINGS.some(key => event.affectsConfiguration(key))) {
+            log.info('Core setting changed, reinitializing');
+            await reinitializeAndRecheck();
+        }
+        // Everything else -- the check trigger, the inlay hints, the panel --
+        // is read where it is used, so a change takes effect on its own.
+    }));
+
     const configWatcher = vscode.workspace.createFileSystemWatcher('**/.languagecheck.{yaml,yml,json}');
     const checkConfigChange = async () => {
         const folder = vscode.workspace.workspaceFolders?.[0];
