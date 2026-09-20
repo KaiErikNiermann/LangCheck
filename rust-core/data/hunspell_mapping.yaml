@@ -1,0 +1,9 @@
+provider: hunspell
+mappings:
+  # Hunspell answers one question and reports it one way: the word is not in
+  # the dictionary. Mapped to the same category as Harper's and
+  # LanguageTool's spelling reports, so the user dictionary, the morphology
+  # check, the name filter and `lang-check-begin spelling.typo` all apply to
+  # it exactly as they do to theirs.
+  - native_id: hunspell.spelling
+    unified_id: spelling.typo

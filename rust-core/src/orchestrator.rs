@@ -1,10 +1,12 @@
 use crate::cache::ResultCache;
 use crate::checker::{Diagnostic, EngineHealth, Severity};
 use crate::config::Config;
+use crate::engines::hunspell::HunspellEngine;
 use crate::engines::{
     Engine, ExternalEngine, HarperEngine, LanguageToolEngine, ProselintEngine, ValeEngine,
     WasmEngine, engine_supports_language, is_unsupported_language,
 };
+use crate::packs::PackRegistry;
 use crate::prose::ProseUnit;
 use crate::rules::RuleNormalizer;
 use anyhow::Result;
@@ -69,6 +71,21 @@ impl Orchestrator {
             if self.config.engines.proselint.enabled {
                 self.engines.push(Box::new(ProselintEngine::new(
                     self.config.engines.proselint.config.clone(),
+                )));
+            }
+
+            if self.config.engines.hunspell.enabled {
+                let hunspell = &self.config.engines.hunspell;
+                let mut registry = PackRegistry::new();
+                for dir in &hunspell.search_paths {
+                    registry = registry.with_search_path(dir);
+                }
+                for (language, path) in &hunspell.dictionary_paths {
+                    registry = registry.with_override(language, path);
+                }
+                self.engines.push(Box::new(HunspellEngine::new(
+                    registry,
+                    hunspell.languages.clone(),
                 )));
             }
 
@@ -389,6 +406,8 @@ fn adopt_results(
         for d in &mut diagnostics {
             let provider = if d.rule_id.starts_with("harper") {
                 "harper"
+            } else if d.rule_id.starts_with("hunspell.") {
+                "hunspell"
             } else if d.rule_id.starts_with("vale.") {
                 "vale"
             } else if d.rule_id.starts_with("proselint.") {

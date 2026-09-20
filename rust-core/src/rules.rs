@@ -39,8 +39,9 @@ impl RuleNormalizer {
     fn load_defaults(&mut self) {
         const HARPER_YAML: &str = include_str!("../data/harper_mapping.yaml");
         const LT_YAML: &str = include_str!("../data/languagetool_mapping.yaml");
+        const HUNSPELL_YAML: &str = include_str!("../data/hunspell_mapping.yaml");
 
-        for yaml_src in [HARPER_YAML, LT_YAML] {
+        for yaml_src in [HARPER_YAML, LT_YAML, HUNSPELL_YAML] {
             let mapping: RuleMapping =
                 serde_yaml::from_str(yaml_src).expect("embedded YAML mapping should be valid");
             let mut map = HashMap::new();

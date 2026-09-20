@@ -258,6 +258,7 @@ pub struct EngineConfig {
     pub languagetool: LanguageToolConfig,
     pub vale: ValeConfig,
     pub proselint: ProselintConfig,
+    pub hunspell: HunspellConfig,
     /// External checker providers registered via config.
     pub external: Vec<ExternalProvider>,
     /// WASM checker plugins loaded via Extism.
@@ -289,6 +290,8 @@ struct EngineConfigWire {
     vale: ValeConfig,
     #[serde(default, deserialize_with = "deser_engine_or_bool")]
     proselint: ProselintConfig,
+    #[serde(default, deserialize_with = "deser_engine_or_bool")]
+    hunspell: HunspellConfig,
     #[serde(default)]
     external: Vec<ExternalProvider>,
     #[serde(default)]
@@ -310,6 +313,7 @@ impl From<EngineConfigWire> for EngineConfig {
             mut languagetool,
             mut vale,
             proselint,
+            hunspell,
             external,
             wasm_plugins,
             spell_language,
@@ -341,6 +345,7 @@ impl From<EngineConfigWire> for EngineConfig {
             languagetool,
             vale,
             proselint,
+            hunspell,
             external,
             wasm_plugins,
             spell_language,
@@ -510,6 +515,55 @@ const fn default_lt_max_request_bytes() -> usize {
     4096
 }
 
+/// Hunspell: spelling for the languages the other engines do not read.
+///
+/// ```yaml
+/// engines:
+///   hunspell:
+///     enabled: true
+///     languages: ["he", "la"]
+///     dictionary_paths:
+///       la: /opt/dictionaries/latin
+/// ```
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct HunspellConfig {
+    /// Off by default, like every engine that needs something installed.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Languages to check with Hunspell, as BCP-47 tags.
+    ///
+    /// Naming them ahead of time is what lets a pack be fetched before it is
+    /// needed rather than mid-document, and what keeps this engine to the gaps
+    /// -- leave English out and Harper keeps it. Empty means any language with
+    /// a pack behind it, which is the discovery mode and not the tidy one.
+    #[serde(default)]
+    pub languages: Vec<String>,
+    /// Per-language override: a directory, an `.aff`/`.dic` stem, or either
+    /// file of the pair. Beats every search path, so a pinned dictionary is
+    /// definitely the one in use.
+    #[serde(default)]
+    pub dictionary_paths: HashMap<String, String>,
+    /// Extra directories to search, before the platform's own.
+    #[serde(default)]
+    pub search_paths: Vec<String>,
+    /// Fetch a missing pack without being asked.
+    ///
+    /// Off by default: a dictionary is a third-party download under its own
+    /// licence -- Hspell is AGPL-3.0, the Latin pack GPL -- and that is a
+    /// decision to put to the user rather than to make for them.
+    #[serde(default)]
+    pub auto_install: bool,
+}
+
+impl EngineToggle for HunspellConfig {
+    fn enabled(&self) -> bool {
+        self.enabled
+    }
+    fn set_enabled(&mut self, v: bool) {
+        self.enabled = v;
+    }
+}
+
 impl EngineToggle for LanguageToolConfig {
     fn enabled(&self) -> bool {
         self.enabled
@@ -597,6 +651,7 @@ impl Default for EngineConfig {
             languagetool: LanguageToolConfig::default(),
             vale: ValeConfig::default(),
             proselint: ProselintConfig::default(),
+            hunspell: HunspellConfig::default(),
             external: Vec::new(),
             wasm_plugins: Vec::new(),
             spell_language: default_spell_language(),
