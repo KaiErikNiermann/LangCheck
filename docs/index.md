@@ -33,6 +33,7 @@ guide/neovim-setup
 guide/languagetool-setup
 guide/vale-setup
 guide/proselint-setup
+guide/hunspell-setup
 guide/configuration
 guide/languages
 guide/localization

@@ -23,6 +23,7 @@ Complete reference for `.languagecheck.yaml`.
 | `languagetool`   | `bool` or `LanguageToolConfig`              | `false`   | Enable LanguageTool         |
 | `vale`           | `bool` or `ValeConfig`                      | `false`   | Enable Vale                 |
 | `proselint`      | `bool` or `ProselintConfig`                 | `false`   | Enable proselint            |
+| `hunspell`       | `bool` or [`HunspellConfig`](#hunspellconfig) | `false`   | Enable Hunspell             |
 | `spell_language` | `string`                                    | `"en-US"` | BCP-47 tag to check against |
 | `external`       | [`ExternalProvider[]`](#external-providers) | `[]`      | External checker binaries   |
 | `wasm_plugins`   | [`WasmPlugin[]`](#wasm-plugins)             | `[]`      | WASM checker plugins        |
@@ -111,6 +112,33 @@ but they log a warning and will be removed in a future release.
 | `latex`     | [`LaTeXConfig`](#languages-latex)     | See below | LaTeX-specific settings            |
 
 (languages-latex)=
+### HunspellConfig
+
+Spelling for the languages the other engines do not read. See
+[Hunspell Setup](../guide/hunspell-setup.md).
+
+| Field              | Type                 | Default | Description                                               |
+|--------------------|----------------------|---------|-----------------------------------------------------------|
+| `enabled`          | `bool`               | `false` | Enable the engine                                          |
+| `languages`        | `string[]`           | `[]`    | BCP-47 tags to check; empty means any language with a pack |
+| `dictionary_paths` | `map<string,string>` | `{}`    | Per-language override: a directory, a stem, or either file |
+| `search_paths`     | `string[]`           | `[]`    | Extra directories, searched before the platform's own      |
+| `auto_install`     | `bool`               | `false` | Fetch a missing pack without asking                        |
+
+```yaml
+engines:
+  hunspell:
+    enabled: true
+    languages: ["he", "la"]
+    dictionary_paths:
+      la: /opt/dictionaries/latin
+```
+
+Dictionaries are not bundled — Hspell is AGPL-3.0 and the Latin pack is GPL, so
+neither can ship inside an MIT binary. Install one with
+`language-check packs install <lang>`, through your package manager, or by
+naming an existing pair under `dictionary_paths`.
+
 ### `languages.latex`
 
 | Field               | Type       | Default | Description                                     |

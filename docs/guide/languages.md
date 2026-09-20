@@ -102,10 +102,18 @@ for a worked document.
 
 ### When nothing can read the language
 
-Not every language has an engine. LanguageTool has no Hebrew, and Harper reads
-only English. Rather than let the passage pass as clean, the checker reports a
-`languagecheck.no-provider` diagnostic naming the language, and does not mark
-the engine unhealthy for declining one.
+Not every language has an engine. LanguageTool has no Hebrew and no Latin, and
+Harper reads only English. Rather than let the passage pass as clean, the
+checker reports a `languagecheck.no-provider` diagnostic naming the language,
+and does not mark the engine unhealthy for declining one.
+
+For most of those, [Hunspell](hunspell-setup.md) fills the gap with spelling —
+Hebrew, Latin, Welsh, Old English and a long tail besides, using the dictionary
+format LibreOffice and Firefox already read. It checks spelling and nothing
+else, so where LanguageTool supports a language, prefer it.
+
+In VS Code the editor offers to install a dictionary when it meets a language
+nothing can check, and remembers a refusal.
 
 ### Bare tags
 

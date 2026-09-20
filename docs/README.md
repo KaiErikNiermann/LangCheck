@@ -107,6 +107,7 @@ over JSON when both exist. When no config file is found, defaults are used.
 | `languagetool`   | `bool` or `LanguageToolConfig`  | `false`              | Enable LanguageTool integration      |
 | `vale`           | `bool` or `ValeConfig`          | `false`              | Enable Vale                          |
 | `proselint`      | `bool` or `ProselintConfig`     | `false`              | Enable proselint                     |
+| `hunspell`       | `bool` or `HunspellConfig`      | `false`              | Enable Hunspell spelling             |
 | `spell_language` | `string`                        | `"en-US"`            | BCP-47 tag to check against          |
 | `external`       | `ExternalProvider[]`            | `[]`                 | External checker binaries            |
 | `wasm_plugins`   | `WasmPlugin[]`                  | `[]`                 | WASM checker plugins (Extism)        |
