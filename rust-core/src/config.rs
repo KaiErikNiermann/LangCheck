@@ -837,6 +837,7 @@ const KNOWN_ENGINE_KEYS: &[&str] = &[
     "languagetool",
     "vale",
     "proselint",
+    "hunspell",
     "external",
     "wasm_plugins",
     "spell_language",
@@ -906,6 +907,31 @@ impl Default for Config {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn every_engine_key_the_config_accepts_is_declared_known() {
+        // A field that parses but is not listed here is reported to the user
+        // as having no effect, which is the opposite of true and reads as the
+        // feature being unsupported. Adding an engine means adding it twice,
+        // so this is the reminder.
+        let yaml = "\
+engines:
+  harper: false
+  languagetool: false
+  vale: false
+  proselint: false
+  hunspell:
+    enabled: true
+  spell_language: en-US
+";
+        let value: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
+        let engines = value.get("engines").expect("engines section");
+        assert_eq!(
+            unknown_keys(engines, KNOWN_ENGINE_KEYS),
+            Vec::<String>::new(),
+            "an engine key parses but is not declared known"
+        );
+    }
     use super::*;
 
     #[test]

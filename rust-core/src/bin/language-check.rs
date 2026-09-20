@@ -14,6 +14,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use lang_check::dictionary::Dictionary;
 use lang_check::morphology::AffixAnalyzer;
 use lang_check::names::NameFilter;
+use lang_check::packs::{self, PackRegistry, catalogue};
 use lang_check::sls::SchemaRegistry;
 use lang_check::suppression::{InlineDirectives, SuppressionContext, retain_visible};
 use lang_check::text_util::snap_range;
@@ -68,6 +69,32 @@ enum Commands {
     Config {
         #[command(subcommand)]
         action: ConfigAction,
+    },
+    /// Manage Hunspell dictionary packs
+    Packs {
+        #[command(subcommand)]
+        action: PackAction,
+    },
+}
+
+#[derive(Clone, Subcommand)]
+enum PackAction {
+    /// Show which packs are installed and where they were found
+    List,
+    /// Show which languages have a published download
+    Available,
+    /// Download and install a pack
+    Install {
+        /// BCP-47 tag, e.g. `he`
+        language: String,
+        /// Install here instead of the user data directory
+        #[arg(long)]
+        dir: Option<PathBuf>,
+    },
+    /// Check an installed pack without installing anything
+    Verify {
+        /// BCP-47 tag, e.g. `he`
+        language: String,
     },
 }
 
@@ -168,6 +195,9 @@ async fn main() -> Result<()> {
         }
         Commands::Config { action } => {
             handle_config(action)?;
+        }
+        Commands::Packs { action } => {
+            handle_packs(action, &config).await?;
         }
     }
 
@@ -572,6 +602,99 @@ fn list_rules(filter: Option<&str>, provider: Option<&str>, format: &OutputForma
             println!("{}", serde_json::to_string_pretty(&json).unwrap());
         }
     }
+}
+
+/// The registry the CLI uses, honouring whatever the config pins.
+fn pack_registry(config: &Config) -> PackRegistry {
+    let hunspell = &config.engines.hunspell;
+    let mut registry = PackRegistry::new();
+    for dir in &hunspell.search_paths {
+        registry = registry.with_search_path(dir);
+    }
+    for (language, path) in &hunspell.dictionary_paths {
+        registry = registry.with_override(language, path);
+    }
+    registry
+}
+
+/// `language-check packs …`
+///
+/// Exists so a pack can be installed and checked without an editor in the
+/// loop -- for CI, for a headless machine, and for finding out why a language
+/// is going unchecked.
+async fn handle_packs(action: PackAction, config: &Config) -> Result<()> {
+    let registry = pack_registry(config);
+
+    match action {
+        PackAction::List => {
+            let installed = registry.installed();
+            if installed.is_empty() {
+                println!("No Hunspell packs found.");
+                println!("Searched:");
+                for dir in registry.search_paths() {
+                    println!("  {}", dir.display());
+                }
+                return Ok(());
+            }
+            for pack in installed {
+                println!(
+                    "{:<10} {:<10} {}",
+                    pack.stem,
+                    pack.source.to_string(),
+                    pack.aff.parent().unwrap_or(&pack.aff).display()
+                );
+            }
+        }
+        PackAction::Available => {
+            for pack in catalogue::CATALOGUE {
+                let state = if registry.resolve(pack.language).is_ok() {
+                    "installed"
+                } else {
+                    "available"
+                };
+                println!(
+                    "{:<6} {:<10} {:<16} {}",
+                    pack.language, state, pack.licence, pack.provenance
+                );
+            }
+        }
+        PackAction::Install { language, dir } => {
+            let Some(pack) = catalogue::find(&language) else {
+                anyhow::bail!(
+                    "no download is published for \"{language}\"; install a pack yourself and \
+                     name it under engines.hunspell.dictionary_paths"
+                );
+            };
+            let target = dir
+                .or_else(packs::managed_dir)
+                .ok_or_else(|| anyhow::anyhow!("could not determine the user data directory"))?;
+
+            // Said before anything is fetched: these are someone else's terms
+            // on someone else's work.
+            println!("{} — {}, {}", pack.stem, pack.licence, pack.provenance);
+            println!("Installing into {}", target.display());
+
+            let report = packs::install::install(pack, &target)
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            println!("Installed {} entries.", report.entries);
+            for warning in &report.warnings {
+                eprintln!("{} {warning}", style("warning:").yellow());
+            }
+        }
+        PackAction::Verify { language } => {
+            let pack = registry
+                .resolve(&language)
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            println!("{} ({}) at {}", pack.stem, pack.source, pack.aff.display());
+            let report = packs::validate(&pack).map_err(|e| anyhow::anyhow!("{e}"))?;
+            println!("{} entries, readable and parseable.", report.entries);
+            for warning in &report.warnings {
+                eprintln!("{} {warning}", style("warning:").yellow());
+            }
+        }
+    }
+    Ok(())
 }
 
 fn handle_config(action: ConfigAction) -> Result<()> {
