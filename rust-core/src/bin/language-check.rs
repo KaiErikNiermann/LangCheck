@@ -286,7 +286,23 @@ async fn check_path(
     let mut orchestrator = Orchestrator::new(config.clone());
     let mut all_json_diagnostics: Vec<JsonDiagnostic> = Vec::new();
 
+    // `exclude` is a statement about which files this project checks, so it
+    // holds here too. It governed the background indexer alone, which meant
+    // `language-check check .` walked straight into `node_modules/**`.
+    //
+    // Matched against the directory the config was read from, which is where
+    // the patterns are written relative to. The file's own parent would make
+    // `drafts/**` fail to match `drafts/d.md`, since the path it saw would be
+    // just `d.md`.
+    let workspace_root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+
     if path.is_file() {
+        if config.excludes(&path, &workspace_root) {
+            if matches!(format, OutputFormat::Pretty) {
+                println!("{} is excluded by the config.", path.display());
+            }
+            return Ok(());
+        }
         check_file(
             &path,
             &mut orchestrator,
@@ -318,6 +334,7 @@ async fn check_path(
         }
         files.sort_unstable();
         files.dedup();
+        files.retain(|file| !config.excludes(file, &workspace_root));
 
         let pb = if files.len() > 1 && matches!(format, OutputFormat::Pretty) {
             let bar = ProgressBar::new(files.len() as u64);

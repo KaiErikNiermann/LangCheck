@@ -207,6 +207,9 @@ async fn main() -> Result<()> {
     let schema_registry_arc: Arc<Mutex<SchemaRegistry>> =
         Arc::new(Mutex::new(SchemaRegistry::new()));
     let workspace_index_arc: Arc<Mutex<Option<WorkspaceIndex>>> = Arc::new(Mutex::new(None));
+    // Kept because `exclude` patterns are written relative to it, and a check
+    // request carries an absolute path.
+    let workspace_root_arc: Arc<Mutex<Option<PathBuf>>> = Arc::new(Mutex::new(None));
     let indexing_notify = Arc::new(Notify::new());
 
     // Background indexing task — uses its own orchestrator to avoid mutex
@@ -250,18 +253,6 @@ async fn main() -> Result<()> {
                     let indexing_orchestrator =
                         Arc::new(Mutex::new(Orchestrator::new(config.clone())));
 
-                    // Build exclude matchers from config.
-                    let exclude_patterns: Vec<glob::Pattern> = config
-                        .exclude
-                        .iter()
-                        .filter_map(|p| glob::Pattern::new(p).ok())
-                        .collect();
-                    let match_opts = glob::MatchOptions {
-                        require_literal_separator: false,
-                        require_literal_leading_dot: false,
-                        case_sensitive: true,
-                    };
-
                     let mut tasks = Vec::new();
                     let mut file_patterns = lang_check::languages::all_file_patterns(&config);
                     file_patterns.extend(schema_registry_arc.lock().await.fallback_file_patterns());
@@ -271,12 +262,7 @@ async fn main() -> Result<()> {
                         if let Ok(entries) = glob(&full_pattern) {
                             for path in entries.flatten() {
                                 // Skip files matching exclude patterns
-                                let rel = path.strip_prefix(&root).unwrap_or(&path);
-                                let rel_str = rel.to_string_lossy();
-                                if exclude_patterns
-                                    .iter()
-                                    .any(|p| p.matches_with(&rel_str, match_opts))
-                                {
+                                if config.excludes(&path, &root) {
                                     continue;
                                 }
 
@@ -399,6 +385,7 @@ async fn main() -> Result<()> {
         let name_filter_arc = name_filter_arc.clone();
         let schema_registry_arc = schema_registry_arc.clone();
         let workspace_index_arc = workspace_index_arc.clone();
+        let workspace_root_arc = workspace_root_arc.clone();
         let indexing_notify = indexing_notify.clone();
         let stdout_arc_clone = stdout_arc.clone();
 
@@ -410,6 +397,7 @@ async fn main() -> Result<()> {
             let response_payload = match request.payload {
                 Some(checker::request::Payload::Initialize(req)) => {
                     let root_path = std::path::PathBuf::from(&req.workspace_root);
+                    *workspace_root_arc.lock().await = Some(root_path.clone());
 
                     let config = Config::load_or_warn(&root_path);
                     info!(
@@ -531,10 +519,31 @@ async fn main() -> Result<()> {
                         })),
                     }
                 }
-                Some(checker::request::Payload::CheckProse(req)) => {
+                Some(checker::request::Payload::CheckProse(req)) => 'check: {
                     let canonical_lang =
                         lang_check::languages::resolve_language_id(&req.language_id);
                     let file_path = req.file_path.as_deref().map(Path::new);
+
+                    // `exclude` is a statement about which files this project
+                    // checks, so it has to hold wherever a check is asked for.
+                    // It governed the background indexer alone, which meant a
+                    // file in `node_modules/**` was skipped by the indexer and
+                    // checked the moment someone opened it.
+                    if let Some(path) = file_path {
+                        let excluded = {
+                            let cfg = config_arc.lock().await;
+                            let root = workspace_root_arc.lock().await;
+                            root.as_ref()
+                                .is_some_and(|root| cfg.excludes(path, root))
+                        };
+                        if excluded {
+                            debug!(id = request_id, file = ?path, "CheckProse: excluded by config");
+                            break 'check Some(response::Payload::CheckProse(
+                                CheckResponse::default(),
+                            ));
+                        }
+                    }
+
                     debug!(
                         id = request_id,
                         language = canonical_lang,

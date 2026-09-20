@@ -731,6 +731,36 @@ impl Config {
         })
     }
 
+    /// Whether `exclude` covers this path.
+    ///
+    /// `path` may be absolute or already relative to `workspace_root`; it is
+    /// reduced to the workspace-relative form the patterns are written
+    /// against, because `node_modules/**` is how a user thinks about it and
+    /// an absolute path would never match.
+    ///
+    /// An unparseable pattern excludes nothing. Refusing to check a file
+    /// because a glob had a typo is the worse of the two failures.
+    #[must_use]
+    pub fn excludes(&self, path: &Path, workspace_root: &Path) -> bool {
+        if self.exclude.is_empty() {
+            return false;
+        }
+        let relative = path.strip_prefix(workspace_root).unwrap_or(path);
+        let as_text = relative.to_string_lossy();
+        // Written once, because the indexer, the CLI and the editor all have
+        // to agree about what is excluded -- a file the editor still checks
+        // after the indexer skipped it is the inconsistency this avoids.
+        let options = glob::MatchOptions {
+            require_literal_separator: false,
+            require_literal_leading_dot: false,
+            case_sensitive: true,
+        };
+        self.exclude
+            .iter()
+            .filter_map(|pattern| glob::Pattern::new(pattern).ok())
+            .any(|pattern| pattern.matches_with(&as_text, options))
+    }
+
     /// Make workspace-relative paths in the config absolute.
     ///
     /// A path in `.languagecheck.yaml` means "relative to the workspace",
@@ -1186,6 +1216,51 @@ dictionaries:
         assert!(config.engines.harper.enabled);
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn exclude_matches_a_path_relative_to_the_workspace() {
+        let config = Config {
+            exclude: vec!["drafts/**".to_string(), "node_modules/**".to_string()],
+            ..Config::default()
+        };
+        let root = Path::new("/home/someone/project");
+
+        assert!(config.excludes(&root.join("drafts/notes.md"), root));
+        assert!(config.excludes(&root.join("node_modules/pkg/README.md"), root));
+        assert!(!config.excludes(&root.join("docs/notes.md"), root));
+    }
+
+    #[test]
+    fn exclude_accepts_a_path_that_is_already_relative() {
+        // The indexer has relative paths and the editor absolute ones, and
+        // both ask the same question.
+        let config = Config {
+            exclude: vec!["drafts/**".to_string()],
+            ..Config::default()
+        };
+        let root = Path::new("/home/someone/project");
+        assert!(config.excludes(Path::new("drafts/notes.md"), root));
+    }
+
+    #[test]
+    fn an_empty_exclude_list_excludes_nothing() {
+        let config = Config::default();
+        let root = Path::new("/tmp");
+        assert!(!config.excludes(&root.join("anything.md"), root));
+    }
+
+    #[test]
+    fn a_malformed_pattern_excludes_nothing_rather_than_everything() {
+        // Refusing to check a file because a glob had a typo is the worse of
+        // the two failures: the user sees silence and no reason for it.
+        let config = Config {
+            exclude: vec!["[unclosed".to_string(), "drafts/**".to_string()],
+            ..Config::default()
+        };
+        let root = Path::new("/tmp");
+        assert!(!config.excludes(&root.join("notes.md"), root));
+        assert!(config.excludes(&root.join("drafts/notes.md"), root));
     }
 
     #[test]

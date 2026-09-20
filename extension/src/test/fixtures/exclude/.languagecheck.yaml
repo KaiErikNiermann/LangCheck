@@ -1,0 +1,5 @@
+# `drafts/` is not checked. Everything else in this workspace is.
+engines:
+  harper: true
+exclude:
+  - "drafts/**"
