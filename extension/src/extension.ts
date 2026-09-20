@@ -10,6 +10,7 @@ import { createAPI } from './api';
 import { binaryExists, downloadBinary } from './downloader';
 import { formatSuggestionLabel, speedFixSuggestionLabel, displayOriginalText } from './inlayLabels';
 import type { LanguageCheckDiagnostic } from './api';
+import { DEFAULT_DEBOUNCE_MS, parseDebounceMs } from './configParsing';
 import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth, InspectorEngineInfo, InspectorNameSpan } from './events';
 import { Logger } from './logger';
 
@@ -39,7 +40,7 @@ let inlayHintsEnabled = true;
 
 // Check-on-change debounce timer per document
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
-const DEBOUNCE_MS = 500;
+let debounceMs = DEFAULT_DEBOUNCE_MS;
 
 // Concurrency limiter: max simultaneous CheckProse RPCs to avoid flooding
 // the server (each LT check holds the orchestrator mutex for seconds).
@@ -1826,7 +1827,7 @@ export async function activate(context: vscode.ExtensionContext) {
         debounceTimers.set(uri, setTimeout(() => {
             debounceTimers.delete(uri);
             checkDocument(doc);
-        }, DEBOUNCE_MS));
+        }, debounceMs));
     }));
 
     // Always re-check on save (regardless of trigger mode)
@@ -1868,6 +1869,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 userSkipEnvs = parseSkipEnvironments(raw);
                 userSkipCommands = parseSkipCommands(raw);
                 userProseEnvs = parseProseEnvironments(raw);
+                debounceMs = parseDebounceMs(raw);
                 inlayHintEmitter.fire();
                 if (changed) {
                     await reinitializeAndRecheck();
@@ -1896,6 +1898,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     userSkipEnvs = parseSkipEnvironments(raw);
                     userSkipCommands = parseSkipCommands(raw);
                     userProseEnvs = parseProseEnvironments(raw);
+                    debounceMs = parseDebounceMs(raw);
                     break;
                 } catch { /* not found, try next */ }
             }

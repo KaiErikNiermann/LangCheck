@@ -149,7 +149,10 @@ pub struct PerformanceConfig {
     /// Enable High Performance Mode (only harper, no LT/externals).
     #[serde(default)]
     pub high_performance_mode: bool,
-    /// Debounce delay in milliseconds for LSP on-type checking.
+    /// How long after the last keystroke a check runs, in milliseconds.
+    ///
+    /// Read by the editor clients, which own the typing loop; the core checks
+    /// whatever it is handed, whenever it is handed it.
     #[serde(default = "default_debounce_ms")]
     pub debounce_ms: u64,
     /// Maximum file size in bytes to check (0 = unlimited).
@@ -168,15 +171,17 @@ impl Default for PerformanceConfig {
     fn default() -> Self {
         Self {
             high_performance_mode: false,
-            debounce_ms: 300,
+            debounce_ms: 500,
             max_file_size: 0,
             result_cache_entries: default_result_cache_entries(),
         }
     }
 }
 
+/// Long enough that a burst of typing produces one check, short enough that a
+/// pause feels answered. The VS Code extension defaults to the same number.
 const fn default_debounce_ms() -> u64 {
-    300
+    500
 }
 
 /// Room for several long documents at once: a 36 kB file is around 110 prose
@@ -1196,7 +1201,7 @@ engines:
     fn performance_config_defaults() {
         let config = Config::default();
         assert!(!config.performance.high_performance_mode);
-        assert_eq!(config.performance.debounce_ms, 300);
+        assert_eq!(config.performance.debounce_ms, 500);
         assert_eq!(config.performance.max_file_size, 0);
     }
 
