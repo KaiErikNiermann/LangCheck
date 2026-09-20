@@ -25,6 +25,18 @@ import { Logger } from './logger';
 const GITHUB_REPO = 'KaiErikNiermann/LangCheck';
 
 let client: LanguageClient | null = null;
+
+/**
+ * Whether the core has finished its Initialize, not merely started.
+ *
+ * `client` is set the moment the process is spawned, but Initialize is what
+ * loads the config, the user dictionary and the ignore store -- and the core
+ * answers other requests while it is still doing that. A check that raced it
+ * came back with the dictionary empty, so every word the user had added was
+ * reported as a misspelling, on exactly the first check after opening a
+ * window. Nothing retried it, because the answer was not an error.
+ */
+let coreInitialized = false;
 let traceLogger: TraceLogger | null = null;
 let log: Logger;
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('language-check');
@@ -45,6 +57,15 @@ let ltDownNotificationShown = false;
 // Inlay hint invalidation
 const inlayHintEmitter = new vscode.EventEmitter<void>();
 let inlayHintsEnabled = true;
+
+/**
+ * Whether the last check was answered from the core's stored result.
+ *
+ * Module-level because `checkDocument` returns a count for its many callers
+ * and only the command needs this. Read immediately after the check that set
+ * it, so there is nothing to key it by.
+ */
+let lastCheckServedFromCache = false;
 
 /**
  * How sure an engine has to be before its suggestion is shown inline.
@@ -305,6 +326,7 @@ export async function activate(context: vscode.ExtensionContext) {
             pushInspectorEvent('info', 'initialize', 'Server initialized', { durationMs: performance.now() - t0 });
             log.debug('Initialize response received');
         }
+        coreInitialized = true;
     };
 
 
@@ -333,10 +355,14 @@ export async function activate(context: vscode.ExtensionContext) {
         const binaryPath = resolveBinaryPath(channel);
         currentServerPath = binaryPath;
         log.info('Starting core', { binary: binaryPath, channel: channel ?? 'stable' });
+        coreInitialized = false;
         client = new LanguageClient(binaryPath);
         client.setLogger(log);
         if (traceLogger) client.setTraceLogger(traceLogger);
-        client.onRestart(() => initializeClient());
+        client.onRestart(async () => {
+            await initializeClient();
+            checkVisibleUnchecked();
+        });
         client.onFailure(reason => reportCoreFailure(reason, binaryPath));
         client.start();
         traceLogger?.logEvent(`Core started: ${binaryPath} (channel: ${channel ?? 'stable'})`);
@@ -372,7 +398,11 @@ export async function activate(context: vscode.ExtensionContext) {
      * turned up the moment the Inspector was opened and not before.
      */
     const checkIfUnchecked = (document: vscode.TextDocument) => {
-        if (!client) return;
+        // Not `client` alone: a check sent between the process starting and
+        // Initialize returning is answered with an empty dictionary. The
+        // documents skipped here are picked up by `checkVisibleUnchecked` as
+        // soon as Initialize returns.
+        if (!client || !coreInitialized) return;
         if (!supportedLanguages.includes(document.languageId)) return;
         if (diagnosticsMap.has(document.uri.toString())) return;
         checkDocument(document);
@@ -1650,9 +1680,9 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.checkDocument', async () => {
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.checkDocument', async (): Promise<CheckOutcome | undefined> => {
         const editor = vscode.window.activeTextEditor;
-        if (!editor) return;
+        if (!editor) return undefined;
         const result = await checkDocument(editor.document);
         // Show feedback when invoked manually
         if (result === 0) {
@@ -1660,6 +1690,10 @@ export async function activate(context: vscode.ExtensionContext) {
         } else if (result > 0) {
             vscode.window.showInformationMessage(vscode.l10n.t('Found {0} issue(s).', result));
         }
+        // Returned so a caller can see what the check did. A command's return
+        // value reaches executeCommand, which is how the end-to-end tests
+        // assert that a reload reused the stored result.
+        return { diagnostics: result, servedFromCache: lastCheckServedFromCache };
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.checkWorkspace', async () => {
@@ -2678,6 +2712,19 @@ const inFlightChecks = new Map<string, { text: string; result: Promise<number> }
  * limiter and each one re-derives an answer that is already on its way, so the
  * latency the user sees is the queue depth times the real cost.
  */
+/** What a check did, for the caller that asked for it. */
+interface CheckOutcome {
+    /** How many diagnostics the document ended up with. */
+    diagnostics: number;
+    /**
+     * Whether the engines ran, or the core served the result it already had.
+     *
+     * Reported by the core rather than guessed from elapsed time: "fast" and
+     * "cached" are not the same claim, and only one of them is checkable.
+     */
+    servedFromCache: boolean;
+}
+
 async function checkDocument(document: vscode.TextDocument): Promise<number> {
     // A client that has given up restarting can never answer. Bail out before
     // taking a concurrency slot, or a down core starves the slots for a full
@@ -2804,6 +2851,7 @@ async function runCheck(
             }
 
             const t3 = performance.now();
+            lastCheckServedFromCache = response.checkProse.servedFromCache === true;
             diagnosticCollection.set(document.uri, extendedDiagnostics);
             diagnosticsMap.set(document.uri.toString(), extendedDiagnostics);
             inlayHintEmitter.fire();
