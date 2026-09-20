@@ -1,0 +1,25 @@
+# Three engines, all of them reading English, all of them looking at the same
+# words. That overlap is the point: it exercises the path where one span
+# collects a diagnostic from every engine and they have to be merged into one.
+
+engines:
+  # Harper is in-process and English-only, so it needs nothing running.
+  harper: true
+
+  # LanguageTool adds grammar and style on top of spelling, and returns the
+  # longest suggestion lists of the three -- dozens for a single misspelling.
+  # Start it with `docker compose up -d` from the repository root.
+  languagetool:
+    enabled: true
+    url: "http://localhost:8010"
+
+  # Hunspell reads the system en_US dictionary, which has to be installed
+  # first -- see README.md. English has no pinned pack, because Harper already
+  # covers English; this example enables Hunspell anyway to get a third engine
+  # onto the same word.
+  hunspell:
+    enabled: true
+    languages: ["en-US"]
+
+# Left at their defaults on purpose: nothing here suppresses a diagnostic, so
+# what a check reports is the whole of what the three engines had to say.

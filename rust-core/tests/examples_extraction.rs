@@ -34,6 +34,7 @@ fn examples_root() -> PathBuf {
 fn examples() -> Vec<Example> {
     [
         ("typst/thesis.typ", "typst"),
+        ("typst-overlapping-checkers/overlap.typ", "typst"),
         ("latex/paper.tex", "latex"),
         ("markdown/notes.md", "markdown"),
     ]

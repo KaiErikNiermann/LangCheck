@@ -9,6 +9,7 @@ deliberately does not.
 | --- | --- |
 | [`typst/`](typst/) | A French thesis quoting English and Hebrew. Typst's own `#set text(lang: …)` and `#text(lang: …)[…]` routing each passage to the right language, figures, math, raw blocks, and a `lang:` directive overriding the markup. |
 | [`latex/`](latex/) | An English paper with a French quotation. `skip_environments` and `skip_commands`, the preamble rule, the built-in skip set, and `lang:` as the way to mark another language where LaTeX offers no declaration. |
+| [`typst-overlapping-checkers/`](typst-overlapping-checkers/) | Three engines reading English at once. Merging the diagnostics they all report for one word, interleaving their suggestions, the caps each surface applies, and the hyphenated words where byte-exact merging leaves two squiggles. |
 | [`markdown/`](markdown/) | Release notes. The smallest useful config — one offline engine — plus a project wordlist, the name filter, and turning a rule off. |
 
 ## Running one
@@ -23,6 +24,8 @@ cd markdown && language-check check notes.md
 `markdown/` and `latex/` use Harper alone and need nothing running. `typst/`
 enables LanguageTool, because Harper reads only English; start it with
 `docker compose up -d` from the repository root.
+`typst-overlapping-checkers/` wants all three engines at once and has its own
+README saying how to get the third.
 
 ## They are also tests
 
