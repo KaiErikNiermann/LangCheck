@@ -1,3 +1,4 @@
+pub mod hunspell;
 mod proselint;
 mod vale;
 
