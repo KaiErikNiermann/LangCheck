@@ -713,8 +713,23 @@ async fn main() -> Result<()> {
 
                             }
 
+                            // An answer produced while an engine was failing is
+                            // an incomplete answer, and storing it would serve
+                            // it back for as long as the document and config
+                            // stay the same -- so a LanguageTool that came back
+                            // up would never contribute again, and its failures
+                            // would never escalate either, because the engines
+                            // stop being asked once there is something to serve.
+                            let engines_healthy = orchestrator_arc
+                                .lock()
+                                .await
+                                .engine_health_report()
+                                .iter()
+                                .all(|health| health.consecutive_failures == 0);
+
                             // Store diagnostics and insights in workspace index (non-fatal)
-                            if let Some(idx) = &*workspace_index_arc.lock().await
+                            if engines_healthy
+                                && let Some(idx) = &*workspace_index_arc.lock().await
                                 && let Some(file_path) = req.file_path.clone()
                             {
                                 let insights = ProseInsights::analyze_ranges(&req.text, &ranges);
