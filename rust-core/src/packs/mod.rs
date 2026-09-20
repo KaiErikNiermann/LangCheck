@@ -13,6 +13,9 @@
 //! because a Linux user who has run `pacman -S hunspell-he` should not be
 //! asked to download a second copy.
 
+pub mod catalogue;
+pub mod install;
+
 use std::fmt;
 use std::path::{Path, PathBuf};
 
