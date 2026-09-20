@@ -320,7 +320,7 @@
     "vsce:package": "pnpm run build && vsce package --no-dependencies",
     "vsce:ls": "vsce ls --no-dependencies",
     "compile:e2e": "tsc -p tsconfig.test.json",
-    "pretest:e2e": "pnpm run build:dev && pnpm run compile:e2e",
+    "pretest:e2e": "rm -rf .vscode-test/user-data-decline && pnpm run build:dev && pnpm run compile:e2e",
     "test:e2e": "vscode-test"
   },
   "keywords": [],

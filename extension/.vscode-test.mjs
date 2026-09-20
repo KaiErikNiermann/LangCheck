@@ -1,26 +1,72 @@
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig } from '@vscode/test-cli';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * End-to-end tests: a real VS Code, this extension loaded, a real workspace.
  *
  * The unit tests under `src/test/*.test.ts` run in vitest and cover pure
  * logic. These cover what only a running editor can show -- whether a check
- * actually fired after a document opened, and whether anything was drawn --
- * which is where the startup races live.
+ * actually fired after a document opened, whether anything was drawn, and
+ * whether a refusal survives a reload.
+ *
+ * Nothing else may be able to answer for a diagnostic, a hint or a code
+ * action, or a green run would prove nothing about this extension.
  */
-export default defineConfig({
-    files: 'out/test/e2e/**/*.test.js',
-    workspaceFolder: './src/test/fixtures/basic',
-    mocha: {
-        ui: 'tdd',
-        // A check spans a subprocess launch and a dictionary load, so the
-        // per-test timeouts are set in the tests themselves against what the
-        // feature is held to. This is only a ceiling.
-        timeout: 90_000,
+const launchArgs = ['--disable-extensions'];
+
+/**
+ * Shared by the two phases of the suppression test, and by nothing else.
+ *
+ * A refusal is stored in globalState, which lives in the user data directory.
+ * Pointing both phases at one directory and giving every other config its own
+ * is what makes phase two a reload rather than a continuation -- and what
+ * stops a refusal leaking into the tests that are not about one.
+ */
+// Absolute: `--user-data-dir` resolves against VS Code's working directory,
+// which is not guaranteed to be the same for both launches, and two phases
+// pointed at different directories would make phase two pass by finding
+// nothing rather than by the refusal being honoured.
+const declineUserDataDir = path.join(here, '.vscode-test', 'user-data-decline');
+
+export default defineConfig([
+    {
+        label: 'startup',
+        files: 'out/test/e2e/startup.test.js',
+        workspaceFolder: './src/test/fixtures/basic',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 90_000 },
     },
-    launchArgs: [
-        // Nothing else should be able to answer for a diagnostic or a hint, or
-        // a green run would prove nothing about this extension.
-        '--disable-extensions',
-    ],
-});
+    {
+        label: 'invariants',
+        files: 'out/test/e2e/invariants.test.js',
+        workspaceFolder: './src/test/fixtures/basic',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 120_000 },
+    },
+    {
+        label: 'reload',
+        files: 'out/test/e2e/reload.test.js',
+        workspaceFolder: './src/test/fixtures/basic',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 90_000 },
+    },
+    {
+        label: 'decline-phase1',
+        files: 'out/test/e2e/declinePhase1.test.js',
+        workspaceFolder: './src/test/fixtures/packs',
+        launchArgs: [...launchArgs, '--user-data-dir', declineUserDataDir],
+        mocha: { ui: 'tdd', timeout: 90_000 },
+    },
+    {
+        // A second window over the same user data, which is the reload.
+        label: 'decline-phase2',
+        files: 'out/test/e2e/declinePhase2.test.js',
+        workspaceFolder: './src/test/fixtures/packs',
+        launchArgs: [...launchArgs, '--user-data-dir', declineUserDataDir],
+        mocha: { ui: 'tdd', timeout: 90_000 },
+    },
+]);

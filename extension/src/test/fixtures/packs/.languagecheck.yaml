@@ -1,0 +1,5 @@
+# Harper alone, which reads English and nothing else. A Hebrew passage in this
+# workspace therefore reaches no engine, which is what makes the editor offer
+# to install a dictionary for it -- the offer this fixture exists to test.
+engines:
+  harper: true
