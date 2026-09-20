@@ -46,6 +46,16 @@ let ltDownNotificationShown = false;
 const inlayHintEmitter = new vscode.EventEmitter<void>();
 let inlayHintsEnabled = true;
 
+/**
+ * How sure an engine has to be before its suggestion is shown inline.
+ *
+ * Harper and LanguageTool report 0.8, Vale 0.75, proselint 0.7 and Hunspell
+ * 0.6, so at this floor the first two reach the hint and the rest stay in the
+ * quick fix menu. A hint is applied with one keystroke and sits in the text,
+ * which is a different bar from a menu entry someone chose to open.
+ */
+const HINT_CONFIDENCE_FLOOR = 0.8;
+
 // Check-on-change debounce timer per document
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 let debounceMs = DEFAULT_DEBOUNCE_MS;
@@ -464,7 +474,8 @@ export async function activate(context: vscode.ExtensionContext) {
                 const byPosition = new Map<string, { diag: typeof diagnostics[number]; idx: number; fmt: { label: string; applyValue: string } }[]>();
                 for (let i = 0; i < diagnostics.length; i++) {
                     const d = diagnostics[i]!;
-                    if (d.confidence && d.confidence >= 0.8 && d.suggestions && d.suggestions.length > 0) {
+                    if (d.confidence !== undefined && d.confidence >= HINT_CONFIDENCE_FLOOR
+                        && d.suggestions && d.suggestions.length > 0) {
                         const fmt = formatInlayLabel(d, document);
                         if (!fmt) continue;
                         const key = `${d.range.end.line}:${d.range.end.character}`;
@@ -510,6 +521,19 @@ export async function activate(context: vscode.ExtensionContext) {
                     hint.tooltip = tooltip;
                     hints.push(hint);
                 }
+                // Whether a hint appears depends on four things that are
+                // invisible from the editor: the provider firing at all, the
+                // document having diagnostics, those diagnostics clearing the
+                // confidence floor, and the label formatter returning one. A
+                // count of each is what tells the four apart without guessing.
+                log.debug('provideInlayHints', {
+                    language: document.languageId,
+                    diagnostics: diagnostics.length,
+                    aboveConfidenceFloor: diagnostics.filter(
+                        d => d.confidence !== undefined && d.confidence >= HINT_CONFIDENCE_FLOOR
+                    ).length,
+                    hints: hints.length,
+                });
                 return hints;
             }
         }
