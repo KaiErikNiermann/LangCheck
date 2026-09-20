@@ -25,7 +25,8 @@ const FILE_HASHES_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("fi
 /// offsets. The config, because it decides which engines run and at what
 /// severity. The dictionary and the ignored set, because both remove
 /// diagnostics after the engines produced them. Whether names are detected,
-/// for the same reason. And the version of this program, because an upgrade
+/// for the same reason. The loaded SLS schemas, because a schema decides which
+/// lines of a document are prose at all. And the version of this program, because an upgrade
 /// changes what the engines say without any of the above moving.
 ///
 /// `stable_hash` and not `content_hash`: this value is written to disk in one
@@ -37,15 +38,17 @@ pub fn check_fingerprint(
     dictionary: &crate::dictionary::Dictionary,
     ignore_store: &crate::hashing::IgnoreStore,
     names_enabled: bool,
+    schemas: u64,
 ) -> u64 {
     let config_repr = serde_json::to_string(config).unwrap_or_default();
     crate::hashing::stable_hash(&format!(
-        "{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}",
+        "{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}",
         crate::hashing::stable_hash(text),
         crate::hashing::stable_hash(&config_repr),
         dictionary.fingerprint(),
         ignore_store.fingerprint(),
         names_enabled,
+        schemas,
         env!("CARGO_PKG_VERSION"),
     ))
 }

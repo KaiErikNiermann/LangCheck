@@ -153,6 +153,7 @@ async fn process_file_for_indexing(
                 &dict,
                 &ignores,
                 name_filter_arc.lock().await.is_some(),
+                schema_registry_arc.lock().await.fingerprint(),
             )
         };
         idx.store_check(file_path_str, fingerprint, &all_diagnostics)
@@ -625,6 +626,7 @@ async fn main() -> Result<()> {
                                     &dict,
                                     &ignores,
                                     name_filter_arc.lock().await.is_some(),
+                                    schema_registry_arc.lock().await.fingerprint(),
                                 )
                             };
 
@@ -769,7 +771,10 @@ async fn main() -> Result<()> {
                 }
                 Some(checker::request::Payload::GetMetadata(_)) => {
                     let cfg = config_arc.lock().await;
+                    let schema_extensions =
+                        schema_registry_arc.lock().await.fallback_extensions();
                     Some(response::Payload::GetMetadata(MetadataResponse {
+                        schema_extensions,
                         name: "Rust Core".to_string(),
                         version: "0.1.0".to_string(),
                         supported_languages: lang_check::languages::SUPPORTED_LANGUAGE_IDS

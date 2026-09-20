@@ -221,6 +221,13 @@ fn merge_ranges(mut ranges: Vec<(usize, usize)>) -> Vec<ProseRange> {
 #[derive(Debug, Default)]
 pub struct SchemaRegistry {
     schemas: Vec<CompiledSchema>,
+    /// Hashes of the sources loaded, in load order.
+    ///
+    /// Kept because a schema decides which lines of a document are prose, so
+    /// editing one changes the answer to a check -- and the stored result of
+    /// that check has to stop applying when it does. Compiled schemas hold
+    /// regexes, which cannot be hashed, so the source is hashed as it arrives.
+    source_hashes: Vec<u64>,
 }
 
 impl SchemaRegistry {
@@ -234,6 +241,7 @@ impl SchemaRegistry {
         let schema: LanguageSchema = serde_yaml::from_str(yaml)?;
         let compiled = CompiledSchema::compile(&schema)?;
         self.schemas.push(compiled);
+        self.source_hashes.push(crate::hashing::stable_hash(yaml));
         Ok(())
     }
 
@@ -277,6 +285,42 @@ impl SchemaRegistry {
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.schemas.is_empty()
+    }
+
+    /// A value that changes whenever the loaded schemas do.
+    ///
+    /// Read by the check cache. A schema says which lines of a document are
+    /// prose, so editing one changes what a check reports -- and without this
+    /// the stored result from before the edit still applied, which made an
+    /// edited schema look like a schema that was never read.
+    #[must_use]
+    pub fn fingerprint(&self) -> u64 {
+        let joined = self
+            .source_hashes
+            .iter()
+            .map(u64::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        crate::hashing::stable_hash(&joined)
+    }
+
+    /// Extensions handled only by a schema, without the dot.
+    ///
+    /// The editor needs these to know which documents to send at all: its own
+    /// list is of language ids it has grammars for, and a schema language has
+    /// no entry there. Built-in extensions are left out because a built-in
+    /// grammar takes precedence over a schema anyway.
+    #[must_use]
+    pub fn fallback_extensions(&self) -> Vec<String> {
+        let mut extensions = BTreeSet::new();
+        for schema in &self.schemas {
+            for ext in &schema.extensions {
+                if crate::languages::builtin_language_for_extension(ext).is_none() {
+                    extensions.insert(ext.clone());
+                }
+            }
+        }
+        extensions.into_iter().collect()
     }
 
     /// Glob patterns for extensions handled only by SLS, preserving built-in precedence.

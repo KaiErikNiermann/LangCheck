@@ -178,4 +178,10 @@ message MetadataResponse {
   string version = 2;
   repeated string supported_languages = 3;
   string spell_language = 4;
+  // File extensions, without the dot, that only an SLS schema handles.
+  //
+  // The editor decides what to send by VS Code's language id, and a schema
+  // language has no id there -- so without this the schemas were unreachable
+  // from the editor entirely, however correct they were.
+  repeated string schema_extensions = 5;
 }
