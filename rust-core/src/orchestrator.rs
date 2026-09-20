@@ -590,7 +590,15 @@ fn adopt_results(
             };
             d.unified_id = normalizer.normalize(provider, &d.rule_id);
 
-            // Apply rule severity overrides from config.
+            // The category decides the severity, not the engine -- otherwise
+            // the same misspelling is an error from LanguageTool and a warning
+            // from Harper, and the colour of a squiggle says which engine
+            // noticed it instead of how serious it is.
+            if let Some(severity) = crate::rules::default_severity(&d.unified_id) {
+                d.severity = severity;
+            }
+
+            // Applied after, so a configured override beats the default.
             if let Some(severity) = rule_override_severity(config, &d.rule_id, &d.unified_id) {
                 d.severity = severity;
             }

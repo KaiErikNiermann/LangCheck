@@ -91,6 +91,34 @@ impl RuleNormalizer {
     }
 }
 
+/// The severity a unified rule category carries, before any config override.
+///
+/// Severity is a property of the problem, not of the engine that noticed it.
+/// Each engine had its own opinion -- `LanguageTool` reports a misspelling as
+/// an error, Harper and Hunspell as a warning -- so the same typo came back
+/// red or yellow depending on which of them got there, and a word all three
+/// found whose spans did not merge showed both colours at once. Deciding it
+/// here makes the colour mean how serious the problem is and never which
+/// checker found it, and leaves the merge's "keep the highest severity" rule
+/// a real tiebreak rather than a vote between arbitrary defaults.
+///
+/// A user's `rules:` override still wins: this is the default, applied first.
+#[must_use]
+pub fn default_severity(unified_id: &str) -> Option<i32> {
+    // Categories, not individual rules: a rule this table does not know about
+    // keeps whatever its engine said, which is the right answer for an
+    // external provider's own vocabulary.
+    let category = unified_id.split('.').next().unwrap_or(unified_id);
+    Some(match category {
+        // Wrong, and unambiguously so.
+        "spelling" | "grammar" => 2, // warning
+        // A judgement about how the prose reads, which the author may disagree
+        // with. Never an error.
+        "style" | "typography" => 1, // information
+        _ => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -206,5 +234,29 @@ mod tests {
             normalizer.normalize("unknown_provider", "some.random.rule"),
             "style.unknown"
         );
+    }
+
+    #[test]
+    fn spelling_has_one_severity_whichever_engine_found_it() {
+        // The reason this exists: LanguageTool reports a misspelling as an
+        // error and Harper as a warning, so `recieved` came back red from one
+        // and yellow from the other.
+        let normalizer = RuleNormalizer::new();
+        let harper = normalizer.normalize("harper", "harper.Spelling");
+        let lt = normalizer.normalize("languagetool", "languagetool.MORFOLOGIK_RULE_EN_US");
+        assert_eq!(default_severity(&harper), default_severity(&lt));
+        assert_eq!(default_severity(&harper), Some(2));
+    }
+
+    #[test]
+    fn style_is_never_an_error() {
+        assert_eq!(default_severity("style.passive_voice"), Some(1));
+        assert_eq!(default_severity("typography.punctuation"), Some(1));
+    }
+
+    #[test]
+    fn an_unknown_category_keeps_what_its_engine_said() {
+        // An external provider's own vocabulary is not this table's business.
+        assert_eq!(default_severity("vale.Custom"), None);
     }
 }
