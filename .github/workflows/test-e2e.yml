@@ -1,0 +1,68 @@
+name: Test Extension E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "extension/**"
+      - "rust-core/**"
+      - "proto/**"
+      - ".github/workflows/test-e2e.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "extension/**"
+      - "rust-core/**"
+      - "proto/**"
+      - ".github/workflows/test-e2e.yml"
+
+concurrency:
+  group: test-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Extension E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+
+      # The extension spawns this binary. Without it the tests would find no
+      # diagnostics and report the extension broken, so it is built first and
+      # in release, which is the profile the test instance resolves.
+      - name: Build the core
+        run: cargo build --release --bin language-check-server
+        working-directory: rust-core
+
+      - uses: pnpm/action-setup@v5
+        with:
+          package_json_file: extension/package.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: extension/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: extension
+
+      - name: Build extension and compile the tests
+        run: pnpm run pretest:e2e
+        working-directory: extension
+
+      # VS Code needs a display even when nothing is looked at.
+      - name: Run the end-to-end tests
+        run: xvfb-run -a pnpm exec vscode-test
+        working-directory: extension

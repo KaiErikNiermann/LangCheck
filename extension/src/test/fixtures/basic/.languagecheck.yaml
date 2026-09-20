@@ -1,0 +1,5 @@
+# The smallest config that checks something: one in-process engine, nothing to
+# start and nothing to download, so a test asserting "squiggles appeared" is
+# asserting about the extension and not about a server being up.
+engines:
+  harper: true

@@ -1,0 +1,5 @@
+node_modules/
+out/
+# The downloaded core binary, and the VS Code the end-to-end tests run in.
+bin/
+.vscode-test/

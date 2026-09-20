@@ -21,6 +21,20 @@ export default tseslint.config(
         },
     },
     {
+        // The end-to-end tests are compiled by tsconfig.test.json, which the
+        // root config excludes so the main typecheck does not need mocha's
+        // globals. Pointing the parser at that project is what lets eslint
+        // read them at all.
+        files: ["src/test/e2e/**/*.ts"],
+        languageOptions: {
+            parserOptions: {
+                projectService: false,
+                project: "./tsconfig.test.json",
+                tsconfigRootDir: import.meta.dirname,
+            },
+        },
+    },
+    {
         ignores: ["out/", "webview/", "src/proto/"],
     },
 );

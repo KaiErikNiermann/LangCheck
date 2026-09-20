@@ -318,7 +318,10 @@
     "lint": "eslint src/",
     "test": "vitest",
     "vsce:package": "pnpm run build && vsce package --no-dependencies",
-    "vsce:ls": "vsce ls --no-dependencies"
+    "vsce:ls": "vsce ls --no-dependencies",
+    "compile:e2e": "tsc -p tsconfig.test.json",
+    "pretest:e2e": "pnpm run build:dev && pnpm run compile:e2e",
+    "test:e2e": "vscode-test"
   },
   "keywords": [],
   "author": "",
@@ -331,10 +334,14 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/long": "^5.0.0",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^26.5.1",
     "@types/vscode": "~1.85.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.10.0",
+    "mocha": "^12.0.2",
     "protobufjs-cli": "^2.7.0",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",

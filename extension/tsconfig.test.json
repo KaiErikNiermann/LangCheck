@@ -1,0 +1,11 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "types": ["node", "vscode", "mocha"],
+        "noEmit": false
+    },
+    // Overrides the base exclude, which lists src/test/e2e precisely so the
+    // main typecheck skips it -- this config is the one that compiles it.
+    "exclude": ["node_modules", ".vscode-test", "webview"],
+    "include": ["src/test/e2e/**/*.ts"]
+}

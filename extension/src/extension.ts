@@ -257,7 +257,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
         const selectedChannel = channel ?? config.get<string>('core.channel', 'stable');
 
-        if (context.extensionMode === vscode.ExtensionMode.Development) {
+        // Test counts as development here. The end-to-end tests run under
+        // ExtensionMode.Test, where the packaged `bin/` directory exists only
+        // in a release build -- so without this they would check nothing and
+        // pass, which is the failure mode they were written to catch.
+        if (context.extensionMode === vscode.ExtensionMode.Development
+            || context.extensionMode === vscode.ExtensionMode.Test) {
             // Dev runs straight out of rust-core/target. Prefer the profile the
             // channel asks for, but fall back to the other one: a checkout that
             // only ran `cargo build` has no target/release, and pointing at a
@@ -346,9 +351,52 @@ export async function activate(context: vscode.ExtensionContext) {
     // missing — similar to how the Lean 4 extension bootstraps its server.
     const binDir = path.join(context.extensionPath, 'bin');
 
-    const bootClient = () => {
+    /**
+     * When a document is re-checked after its first check.
+     *
+     * The fallback matters: every reader used to pass `'onChange'` while
+     * package.json declares `'onSave'`, and the manifest wins, so the code
+     * said one thing and the extension did the other.
+     */
+    const checkTrigger = () =>
+        vscode.workspace.getConfiguration('languageCheck').get<string>('check.trigger', 'onSave');
+
+    /**
+     * Check a document that has never been checked.
+     *
+     * Deliberately not gated on `check.trigger`. That setting is about when to
+     * re-check -- on every keystroke or on save -- and reading it as "never
+     * check until saved" left a freshly opened file with no squiggles at all
+     * until the user edited and saved it. Opening the Inspector called
+     * `checkDocument` directly, with no such gate, which is why the squiggles
+     * turned up the moment the Inspector was opened and not before.
+     */
+    const checkIfUnchecked = (document: vscode.TextDocument) => {
+        if (!client) return;
+        if (!supportedLanguages.includes(document.languageId)) return;
+        if (diagnosticsMap.has(document.uri.toString())) return;
+        checkDocument(document);
+    };
+
+    /**
+     * Check everything visible that has no diagnostics yet.
+     *
+     * Called once the core is up. The open and tab-switch handlers both return
+     * early when `client` is still null, and a document that arrived during
+     * startup was dropped with nothing to retry it -- the sole fallback was a
+     * 500 ms timer, which loses whenever the binary takes longer than that to
+     * start. Driving the retry off the core being ready removes the guess.
+     */
+    const checkVisibleUnchecked = () => {
+        for (const editor of vscode.window.visibleTextEditors) {
+            checkIfUnchecked(editor.document);
+        }
+    };
+
+    const bootClient = async () => {
         startClient();
-        initializeClient();
+        await initializeClient();
+        checkVisibleUnchecked();
     };
 
     if (isDev) {
@@ -901,7 +949,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.toggleCheckTrigger', async () => {
         const config = vscode.workspace.getConfiguration('languageCheck');
-        const current = config.get<string>('check.trigger', 'onChange');
+        const current = checkTrigger();
         const next = current === 'onChange' ? 'onSave' : 'onChange';
         await config.update('check.trigger', next, vscode.ConfigurationTarget.Workspace);
         const label = next === 'onSave'
@@ -1847,51 +1895,30 @@ export async function activate(context: vscode.ExtensionContext) {
     // which would flood the server with hundreds of concurrent checks.
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((document) => {
         if (!supportedLanguages.includes(document.languageId)) return;
-        if (!client) return;
-        const trigger = vscode.workspace.getConfiguration('languageCheck').get<string>('check.trigger', 'onChange');
-        if (trigger === 'onSave') return;
         const isVisible = vscode.window.visibleTextEditors.some(
             e => e.document.uri.toString() === document.uri.toString()
         );
         if (!isVisible) return;
-        checkDocument(document);
+        checkIfUnchecked(document);
     }));
 
     // Also check when the active editor changes (e.g. switching tabs)
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor((editor) => {
         if (!editor) return;
-        if (!supportedLanguages.includes(editor.document.languageId)) return;
-        if (!client) return;
-        const trigger = vscode.workspace.getConfiguration('languageCheck').get<string>('check.trigger', 'onChange');
-        if (trigger === 'onSave') return;
-        // Only check if we don't already have diagnostics for this document
-        const uri = editor.document.uri.toString();
-        if (!diagnosticsMap.has(uri)) {
-            checkDocument(editor.document);
-        }
+        checkIfUnchecked(editor.document);
     }));
 
-    // ── Initial check: if there's already an active editor when the extension activates ──
-    // This handles window reload where the editor is already open before activation.
-    if (vscode.window.activeTextEditor) {
-        const doc = vscode.window.activeTextEditor.document;
-        if (supportedLanguages.includes(doc.languageId)) {
-            const trigger = vscode.workspace.getConfiguration('languageCheck').get<string>('check.trigger', 'onChange');
-            if (trigger !== 'onSave') {
-                // Delay slightly to let the client finish starting
-                setTimeout(() => {
-                    if (client && !diagnosticsMap.has(doc.uri.toString())) {
-                        checkDocument(doc);
-                    }
-                }, 500);
-            }
-        }
-    }
+    // ── Initial check on reload ──
+    // An editor open before the extension activated raises no open event, so
+    // it is checked here. `bootClient` does the same once the core is ready;
+    // whichever runs second finds the document already in `diagnosticsMap` and
+    // does nothing, so the two cannot double-check it.
+    checkVisibleUnchecked();
 
     // ── Check-on-change with debounce ──
     context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((event) => {
         if (!supportedLanguages.includes(event.document.languageId)) return;
-        const trigger = vscode.workspace.getConfiguration('languageCheck').get<string>('check.trigger', 'onChange');
+        const trigger = checkTrigger();
         if (trigger !== 'onChange') return;
 
         const uri = event.document.uri.toString();
