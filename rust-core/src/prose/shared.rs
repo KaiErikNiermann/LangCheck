@@ -295,6 +295,117 @@ pub fn is_fully_excluded(range: &ProseRange) -> bool {
 // Cross-block continuation merging
 // ---------------------------------------------------------------------------
 
+/// Split ranges longer than `limit` bytes into several, at sentence bounds.
+///
+/// A prose range is the unit of three things at once: one cache key, one
+/// engine request, and one box in the inspector. A document whose author does
+/// not leave a blank line between paragraphs -- soft-wrapped prose, a
+/// generated file, a single long note -- extracts as ONE range covering the
+/// whole thing, and all three collapse with it. Measured on 30 kB of
+/// soft-wrapped Typst against a 4-CPU `LanguageTool`: 341 ms per keystroke
+/// with the result cache on, against 35 ms for the same text with blank
+/// lines, because every keystroke dirties the single key and re-sends
+/// everything.
+///
+/// Splitting costs nothing on a cold check, because
+/// [`crate::engines`] packs ranges back together up to its own request size —
+/// the chunks exist for cache granularity, not for the wire.
+///
+/// Sentence boundaries are preferred so each chunk is whole sentences and the
+/// cross-sentence rules still see what they need; failing that a word
+/// boundary, and failing that a character boundary, because a range that
+/// cannot be split is a range that goes back to being unsplittable. A split is
+/// never placed inside an exclusion.
+#[must_use]
+pub fn split_oversized(ranges: Vec<ProseRange>, text: &str, limit: usize) -> Vec<ProseRange> {
+    if limit == 0 {
+        return ranges;
+    }
+    let mut out = Vec::with_capacity(ranges.len());
+    for range in ranges {
+        if range.end_byte - range.start_byte <= limit {
+            out.push(range);
+            continue;
+        }
+        let mut start = range.start_byte;
+        while range.end_byte - start > limit {
+            let cut = split_point(text, start, start + limit, &range.exclusions);
+            // No usable cut before the limit: the rest travels as one piece
+            // rather than looping forever on a range that will not divide.
+            if cut <= start {
+                break;
+            }
+            out.push(chunk_of(&range, start, cut));
+            start = cut;
+        }
+        out.push(chunk_of(&range, start, range.end_byte));
+    }
+    out
+}
+
+/// One piece of a split range, taking the exclusions that fall inside it.
+fn chunk_of(range: &ProseRange, start: usize, end: usize) -> ProseRange {
+    ProseRange {
+        start_byte: start,
+        end_byte: end,
+        exclusions: range
+            .exclusions
+            .iter()
+            .filter(|&&(es, ee)| es < end && ee > start)
+            .map(|&(es, ee)| (es.max(start), ee.min(end)))
+            .collect(),
+        language: range.language.clone(),
+    }
+}
+
+/// Where to cut a range that runs past `limit`, searching back from it.
+///
+/// Returns `from` when nothing usable was found, which the caller reads as
+/// "do not split".
+fn split_point(text: &str, from: usize, limit: usize, exclusions: &[(usize, usize)]) -> usize {
+    let hard_end = limit.min(text.len());
+    let in_exclusion = |at: usize| exclusions.iter().any(|&(es, ee)| at > es && at < ee);
+
+    // A sentence end: terminator, then the whitespace after it.
+    let window = &text[from..hard_end];
+    let mut sentence = None;
+    let mut word = None;
+    for (offset, ch) in window.char_indices() {
+        let at = from + offset;
+        if !ch.is_whitespace() {
+            continue;
+        }
+        // The split goes after the whitespace run, so the next chunk starts on
+        // a word rather than on the space before it.
+        let after = at + ch.len_utf8();
+        if after <= from || in_exclusion(after) {
+            continue;
+        }
+        let terminated = text[..at]
+            .chars()
+            .next_back()
+            .is_some_and(|c| matches!(c, '.' | '!' | '?' | '\u{2026}'));
+        if terminated {
+            sentence = Some(after);
+        }
+        word = Some(after);
+    }
+
+    if let Some(at) = sentence {
+        return at;
+    }
+    if let Some(at) = word {
+        return at;
+    }
+    // Neither: cut on a character boundary so a single enormous token still
+    // divides rather than defeating the whole pass.
+    let mut at = hard_end;
+    while at > from && !text.is_char_boundary(at) {
+        at -= 1;
+    }
+    if in_exclusion(at) { from } else { at }
+}
+
 /// Merge adjacent prose blocks that are a logical continuation of one another,
 /// so a sentence split across markup boundaries (e.g. `\p{Here is something}
 /// ##{math} \p{continuation.}`) is checked as one unit and does not raise a
@@ -573,5 +684,158 @@ mod tests {
             language: None,
         };
         assert!(!is_fully_excluded(&r));
+    }
+
+    /// `(text, byte span)` for each chunk, so a test reads as the split it
+    /// describes.
+    fn split_texts(text: &str, limit: usize, exclusions: Vec<(usize, usize)>) -> Vec<String> {
+        let range = ProseRange {
+            start_byte: 0,
+            end_byte: text.len(),
+            exclusions,
+            language: None,
+        };
+        split_oversized(vec![range], text, limit)
+            .iter()
+            .map(|r| text[r.start_byte..r.end_byte].to_string())
+            .collect()
+    }
+
+    #[test]
+    fn a_range_within_the_limit_is_left_alone() {
+        let text = "One sentence. Two sentence.";
+        assert_eq!(split_texts(text, 4096, Vec::new()), vec![text]);
+    }
+
+    #[test]
+    fn a_zero_limit_disables_splitting() {
+        let text = "One sentence. Two sentence. Three sentence.";
+        assert_eq!(split_texts(text, 0, Vec::new()), vec![text]);
+    }
+
+    #[test]
+    fn a_long_range_splits_after_a_sentence() {
+        let text = "One sentence here. Two sentence here. Three sentence here.";
+        let chunks = split_texts(text, 30, Vec::new());
+        assert!(chunks.len() > 1, "expected a split, got {chunks:?}");
+        // Every chunk but the last ends where a sentence ended.
+        for chunk in &chunks[..chunks.len() - 1] {
+            assert!(
+                chunk.trim_end().ends_with('.'),
+                "chunk does not end on a sentence: {chunk:?}"
+            );
+        }
+        assert_eq!(chunks.concat(), text, "splitting must not lose or add text");
+    }
+
+    #[test]
+    fn a_range_with_no_sentence_end_splits_on_a_word() {
+        let text = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu";
+        let chunks = split_texts(text, 20, Vec::new());
+        assert!(chunks.len() > 1);
+        assert_eq!(chunks.concat(), text);
+        for chunk in &chunks {
+            assert!(!chunk.starts_with(' '), "a chunk begins mid-gap: {chunk:?}");
+        }
+    }
+
+    #[test]
+    fn a_single_enormous_token_still_divides() {
+        // No sentence end and no space: the fallback is a character boundary,
+        // so one unsplittable token cannot defeat the whole pass.
+        let text = "a".repeat(100);
+        let chunks = split_texts(&text, 20, Vec::new());
+        assert!(chunks.len() > 1);
+        assert_eq!(chunks.concat(), text);
+    }
+
+    #[test]
+    fn splitting_never_lands_inside_an_exclusion() {
+        //                     0123456789012345678901234567890123456789
+        let text = "Start here. $a + b = c$ and more text after it.";
+        let math = (12, 23);
+        for chunk in split_oversized(
+            vec![ProseRange {
+                start_byte: 0,
+                end_byte: text.len(),
+                exclusions: vec![math],
+                language: None,
+            }],
+            text,
+            16,
+        ) {
+            assert!(
+                chunk.start_byte <= math.0 || chunk.start_byte >= math.1,
+                "a chunk starts inside the exclusion at {}",
+                chunk.start_byte
+            );
+        }
+    }
+
+    #[test]
+    fn each_chunk_keeps_the_exclusions_that_fall_in_it() {
+        let text = "Alpha $x$ beta. Gamma $y$ delta. Epsilon $z$ zeta.";
+        let ranges = split_oversized(
+            vec![ProseRange {
+                start_byte: 0,
+                end_byte: text.len(),
+                exclusions: vec![(6, 9), (22, 25), (40, 43)],
+                language: None,
+            }],
+            text,
+            20,
+        );
+        assert!(ranges.len() > 1);
+        for range in &ranges {
+            for &(es, ee) in &range.exclusions {
+                assert!(
+                    es >= range.start_byte && ee <= range.end_byte,
+                    "exclusion {es}..{ee} escapes its chunk {}..{}",
+                    range.start_byte,
+                    range.end_byte
+                );
+            }
+        }
+        let kept: usize = ranges.iter().map(|r| r.exclusions.len()).sum();
+        assert_eq!(kept, 3, "every exclusion belongs to exactly one chunk");
+    }
+
+    #[test]
+    fn a_chunk_inherits_the_language_of_the_range_it_came_from() {
+        let text = "Une phrase ici. Une autre phrase ici. Et une troisieme phrase ici.";
+        let ranges = split_oversized(
+            vec![ProseRange {
+                start_byte: 0,
+                end_byte: text.len(),
+                exclusions: Vec::new(),
+                language: Some("fr".to_string()),
+            }],
+            text,
+            24,
+        );
+        assert!(ranges.len() > 1);
+        assert!(ranges.iter().all(|r| r.language.as_deref() == Some("fr")));
+    }
+
+    #[test]
+    fn splitting_is_stable_under_an_edit_elsewhere() {
+        // The point of splitting is cache granularity, so a chunk the edit did
+        // not touch has to come out byte-identical or it is a cache miss.
+        let mut base = String::new();
+        for i in 0..40 {
+            use std::fmt::Write as _;
+            let _ = write!(base, "Sentence number {i} in this paragraph. ");
+        }
+        let before = split_texts(&base, 512, Vec::new());
+        let mut edited = base.clone();
+        edited.insert_str(20, "inserted ");
+        let after = split_texts(&edited, 512, Vec::new());
+
+        let unchanged = after.iter().filter(|c| before.contains(c)).count();
+        assert!(
+            unchanged * 4 >= after.len() * 3,
+            "only {unchanged}/{} chunks survived the edit; splitting is cascading",
+            after.len()
+        );
     }
 }

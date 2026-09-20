@@ -101,6 +101,7 @@ but they log a warning and will be removed in a future release.
 | `debounce_ms`          | `number`| `500`   | Delay after the last keystroke, in milliseconds; `0` checks every change |
 | `max_file_size`        | `number`| `0`     | Max file size in bytes (0=unlimited)|
 | `result_cache_entries` | `number`| `4096`  | Engine answers kept, keyed by the prose that produced them; `0` disables |
+| `max_range_bytes`      | `number`| `2048`  | Longest prose range handed on; longer ones split at sentence bounds. `0` disables |
 
 ## Languages
 

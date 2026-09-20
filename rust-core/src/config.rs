@@ -165,6 +165,15 @@ pub struct PerformanceConfig {
     /// disables it and re-checks every range on every keystroke.
     #[serde(default = "default_result_cache_entries")]
     pub result_cache_entries: usize,
+    /// Longest prose range handed on, in bytes; longer ones are split at
+    /// sentence boundaries. `0` disables splitting.
+    ///
+    /// A range is one cache key and one box in the inspector, so a document
+    /// written without blank lines between paragraphs otherwise becomes a
+    /// single range and neither the cache nor the inspector can say anything
+    /// useful about it.
+    #[serde(default = "default_max_range_bytes")]
+    pub max_range_bytes: usize,
 }
 
 impl Default for PerformanceConfig {
@@ -174,6 +183,7 @@ impl Default for PerformanceConfig {
             debounce_ms: 500,
             max_file_size: 0,
             result_cache_entries: default_result_cache_entries(),
+            max_range_bytes: default_max_range_bytes(),
         }
     }
 }
@@ -188,6 +198,14 @@ const fn default_debounce_ms() -> u64 {
 /// ranges, so this holds roughly thirty of them per engine before evicting.
 const fn default_result_cache_entries() -> usize {
     4096
+}
+
+/// Several sentences, so the cross-sentence rules still have something to work
+/// with, while a keystroke dirties a paragraph's worth of cache rather than a
+/// chapter's. Splitting costs nothing on a cold check: the engines pack ranges
+/// back together up to `max_request_bytes` before sending them.
+const fn default_max_range_bytes() -> usize {
+    2048
 }
 
 /// Configuration for bundled and additional wordlist dictionaries.

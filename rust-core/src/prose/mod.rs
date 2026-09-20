@@ -102,6 +102,25 @@ pub fn extract_reporting_syntax(
     schema_registry: Option<&SchemaRegistry>,
     latex_extras: &latex::LatexExtras,
 ) -> Result<Extraction> {
+    extract_with_range_limit(
+        text,
+        lang_id,
+        path,
+        schema_registry,
+        latex_extras,
+        crate::config::PerformanceConfig::default().max_range_bytes,
+    )
+}
+
+/// [`extract_reporting_syntax`], with the range size limit supplied.
+pub fn extract_with_range_limit(
+    text: &str,
+    lang_id: &str,
+    path: Option<&Path>,
+    schema_registry: Option<&SchemaRegistry>,
+    latex_extras: &latex::LatexExtras,
+    max_range_bytes: usize,
+) -> Result<Extraction> {
     if let Some(ext) = path
         .and_then(|value| value.extension())
         .and_then(|value| value.to_str())
@@ -109,7 +128,7 @@ pub fn extract_reporting_syntax(
         && let Some(schema) = schema_registry.and_then(|registry| registry.find_by_extension(ext))
     {
         return Ok(Extraction {
-            ranges: schema.extract(text),
+            ranges: shared::split_oversized(schema.extract(text), text, max_range_bytes),
             syntax: schema.name.clone(),
         });
     }
@@ -131,8 +150,10 @@ pub fn extract_reporting_syntax(
     }
 
     apply_language_overrides(&mut ranges, &resolved.regions, &ScopeParser::parse(text));
+    // Last, so a chunk inherits the language of the range it came from and a
+    // split never lands inside an exclusion the extractors just installed.
     Ok(Extraction {
-        ranges,
+        ranges: shared::split_oversized(ranges, text, max_range_bytes),
         syntax: canonical_lang.to_string(),
     })
 }

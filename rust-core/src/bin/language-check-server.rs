@@ -525,21 +525,26 @@ async fn main() -> Result<()> {
                         text_len = req.text.len(),
                         "CheckProse: starting extraction"
                     );
-                    let (extraction, spell_language) = {
+                    let (extraction, spell_language, max_range_bytes) = {
                         let schema_registry = schema_registry_arc.lock().await;
                         let cfg = config_arc.lock().await;
                         let latex_extras = prose::latex::LatexExtras {
                             skip_envs: &cfg.languages.latex.skip_environments,
                             skip_commands: &cfg.languages.latex.skip_commands,
                         };
-                        let extraction = prose::extract_reporting_syntax(
+                        let extraction = prose::extract_with_range_limit(
                             &req.text,
                             canonical_lang,
                             file_path,
                             Some(&schema_registry),
                             &latex_extras,
+                            cfg.performance.max_range_bytes,
                         );
-                        (extraction, cfg.engines.spell_language.clone())
+                        (
+                            extraction,
+                            cfg.engines.spell_language.clone(),
+                            cfg.performance.max_range_bytes,
+                        )
                     };
 
                     match extraction {
@@ -575,6 +580,7 @@ async fn main() -> Result<()> {
                                     .collect(),
                                 names: Vec::new(),
                                 syntax,
+                                max_range_bytes: max_range_bytes as u32,
                             };
 
                             let mut all_diagnostics = Vec::new();
