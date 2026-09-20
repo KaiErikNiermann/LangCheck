@@ -22,3 +22,12 @@ node_modules/**
 pnpm-lock.yaml
 **/*.map
 **/*.ts
+# The end-to-end suite's own files. `.vscode-test/` holds a whole downloaded
+# VS Code, so packaging after a test run would otherwise produce a VSIX
+# hundreds of megabytes large; the rest is test code with no business
+# shipping. `src/**` already covers the sources, but `out/test/` is build
+# output and is not.
+.vscode-test/**
+.vscode-test.mjs
+tsconfig.test.json
+out/test/**
