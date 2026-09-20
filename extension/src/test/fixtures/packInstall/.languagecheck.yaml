@@ -1,0 +1,8 @@
+# Hunspell is enabled for Hebrew but has no dictionary until one is installed.
+# That is the state the offer exists for: a language the user asked to check
+# and nothing on this machine can read.
+engines:
+  harper: true
+  hunspell:
+    enabled: true
+    languages: ["he"]
