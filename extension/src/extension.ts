@@ -21,6 +21,7 @@ import {
 } from './packPrompt';
 import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth, InspectorEngineInfo, InspectorNameSpan } from './events';
 import { Logger } from './logger';
+import { ConfigStatusView } from './configGutter';
 
 const GITHUB_REPO = 'KaiErikNiermann/LangCheck';
 
@@ -50,6 +51,7 @@ let log: Logger;
 const diagnosticCollection = vscode.languages.createDiagnosticCollection('language-check');
 let speedFixPanel: vscode.WebviewPanel | null = null;
 let inspectorPanel: vscode.WebviewPanel | null = null;
+let configStatusView: ConfigStatusView | null = null;
 let languageStatusBarItem: vscode.StatusBarItem;
 let insightsStatusBarItem: vscode.StatusBarItem;
 
@@ -465,10 +467,48 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     };
 
+    /**
+     * Ask the core what the config's external references resolve to.
+     *
+     * Returns null when there is no core to ask, which the view draws as
+     * nothing rather than as a failure: "the server is not running" is not an
+     * answer about the user's config.
+     */
+    const probeConfig = async (text: string, filePath: string, format: string) => {
+        if (!client || !coreInitialized) return null;
+        const response = await client.sendRequest({
+            probeConfig: { text, filePath, format },
+        });
+        return response.probeConfig ?? null;
+    };
+
+    configStatusView = new ConfigStatusView(context.extensionUri, probeConfig, log);
+    configStatusView.activate();
+    context.subscriptions.push(configStatusView);
+
+    /**
+     * The model behind the gutter marks, for the end-to-end tests.
+     *
+     * VS Code's decoration API is write-only -- nothing can read back what an
+     * extension drew -- so a test that wants to know which icon is on which
+     * line has to be handed the state the extension pushed. This is that
+     * state, at the last point the extension controls.
+     */
+    context.subscriptions.push(vscode.commands.registerCommand(
+        'language-check.configStatus',
+        (uri?: string) => uri === undefined
+            ? configStatusView?.snapshots_() ?? []
+            : configStatusView?.snapshot(uri) ?? undefined,
+    ));
+
     const bootClient = async () => {
         startClient();
         await initializeClient();
         checkVisibleUnchecked();
+        // The core is what answers a probe, so every config on screen is
+        // stale until it is up -- and stale again after a restart, which is
+        // why this is here rather than only at activation.
+        configStatusView?.refresh();
     };
 
     if (isDev) {
@@ -2108,6 +2148,10 @@ export async function activate(context: vscode.ExtensionContext) {
                     // from now on.
                     await refreshDictionaryWatchers();
                     await reinitializeAndRecheck();
+                    // A change from outside the editor -- another window, a
+                    // branch switch -- moves the text without a keystroke to
+                    // fire the usual trigger.
+                    configStatusView?.refresh();
                 }
                 return;
             } catch { /* not found, try next */ }
