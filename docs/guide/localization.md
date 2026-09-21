@@ -72,7 +72,7 @@ To add a new language for the extension:
 Set VS Code's display language to test your translations:
 
 ```
-Ctrl+Shift+P → Configure Display Language → select your locale
+Ctrl+Shift+P -> Configure Display Language -> select your locale
 ```
 
 Or launch with a locale flag:

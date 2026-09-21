@@ -1,338 +1,387 @@
 /* ── Font: Inter via Google Fonts ────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 
 body {
-    --font-stack: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
-                  Helvetica, Arial, sans-serif;
-    --font-stack--headings: var(--font-stack);
+  --font-stack:
+    "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
+    Arial, sans-serif;
+  --font-stack--headings: var(--font-stack);
+  --font-stack--monospace: "JetBrains Mono", monospace;
 }
 
 /* Language switcher styles */
 .lang-switcher {
-    padding: 10px 15px;
-    background: rgba(128, 128, 128, 0.1);
-    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
-    font-size: 0.9em;
+  padding: 10px 15px;
+  background: rgba(128, 128, 128, 0.1);
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+  font-size: 0.9em;
 }
 
 .lang-switcher .lang-label {
-    opacity: 0.6;
-    font-size: 0.85em;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+  opacity: 0.6;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .lang-switcher ul.languages {
-    list-style: none;
-    padding: 0;
-    margin: 5px 0 0 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 5px 0 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .lang-switcher ul.languages li {
-    display: inline-block;
+  display: inline-block;
 }
 
 .lang-switcher ul.languages li.current span {
-    font-weight: bold;
-    border-bottom: 2px solid var(--color-brand-primary, currentColor);
+  font-weight: bold;
+  border-bottom: 2px solid var(--color-brand-primary, currentColor);
 }
 
 .lang-switcher ul.languages li.unsupported a {
-    opacity: 0.45;
-    text-decoration: underline dashed;
-    text-underline-offset: 3px;
-    cursor: help;
+  opacity: 0.45;
+  text-decoration: underline dashed;
+  text-underline-offset: 3px;
+  cursor: help;
 }
 
 /* ── Typography & spacing ────────────────────────────────────── */
 
 /* Slightly relax line-height in body text for readability */
 .content p {
-    line-height: 1.7;
+  line-height: 1.7;
 }
 
 /* Give section headings a touch more breathing room */
 .content h2 {
-    margin-top: 2.5rem;
-    padding-bottom: 0.3rem;
-    border-bottom: 1px solid var(--color-sidebar-background-border);
+  margin-top: 2.5rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--color-sidebar-background-border);
 }
 
 .content h3 {
-    margin-top: 2rem;
+  margin-top: 2rem;
 }
 
 /* ── Code blocks ─────────────────────────────────────────────── */
 
 /* Soften code blocks and lift them slightly from the flow */
 .highlight pre {
-    border-radius: 8px;
-    padding: 1.1em 1.2em;
-    font-size: 0.88em;
-    line-height: 1.55;
-    border: 1px solid var(--color-sidebar-background-border);
+  border-radius: 8px;
+  padding: 1.1em 1.2em;
+  font-size: 0.88em;
+  line-height: 1.55;
+  border: 1px solid var(--color-sidebar-background-border);
+}
+
+.highlight,
+.highlight pre,
+.highlight code {
+  font-family: var(--font-stack--monospace);
+  line-height: 1.5;
+  font-variant-ligatures: common-ligatures contextual;
+  font-feature-settings: "liga" 1, "calt" 1;
 }
 
 /* Inline code: softer contrast, slight padding */
 .content code.literal {
-    padding: 0.15em 0.35em;
-    border-radius: 4px;
-    font-size: 0.9em;
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  font-size: 0.9em;
 }
 
 /* ── Tables ──────────────────────────────────────────────────── */
 
 /* Rounder, airier tables */
 .content table {
-    border-collapse: separate;
-    border-spacing: 0;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid var(--color-sidebar-background-border);
-    width: 100%;
-    margin: 1.2em 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--color-sidebar-background-border);
+  width: 100%;
+  margin: 1.2em 0;
 }
 
 .content table th,
 .content table td {
-    padding: 0.6em 1em;
-    border-bottom: 1px solid var(--color-sidebar-background-border);
+  padding: 0.6em 1em;
+  border-bottom: 1px solid var(--color-sidebar-background-border);
 }
 
 .content table th {
-    font-size: 0.85em;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    font-weight: 600;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
 }
 
 .content table tr:last-child td {
-    border-bottom: none;
+  border-bottom: none;
 }
 
 /* ── Admonitions (GitHub markdown-alert style) ───────────────── */
 
 /* Override Furo's CSS variables to remove title backgrounds */
 body {
-    --color-admonition-title-background:         transparent;
-    --color-admonition-title-background--note:    transparent;
-    --color-admonition-title-background--tip:     transparent;
-    --color-admonition-title-background--hint:    transparent;
-    --color-admonition-title-background--important: transparent;
-    --color-admonition-title-background--warning: transparent;
-    --color-admonition-title-background--attention: transparent;
-    --color-admonition-title-background--caution: transparent;
-    --color-admonition-title-background--danger:  transparent;
-    --color-admonition-title-background--error:   transparent;
-    --color-admonition-title-background--seealso: transparent;
-    --color-admonition-title-background--admonition-todo: transparent;
+  --color-admonition-title-background: transparent;
+  --color-admonition-title-background--note: transparent;
+  --color-admonition-title-background--tip: transparent;
+  --color-admonition-title-background--hint: transparent;
+  --color-admonition-title-background--important: transparent;
+  --color-admonition-title-background--warning: transparent;
+  --color-admonition-title-background--attention: transparent;
+  --color-admonition-title-background--caution: transparent;
+  --color-admonition-title-background--danger: transparent;
+  --color-admonition-title-background--error: transparent;
+  --color-admonition-title-background--seealso: transparent;
+  --color-admonition-title-background--admonition-todo: transparent;
 
-    /* GitHub accent colors for border + icon + title text */
-    --color-admonition-title--note:      #4493f8;
-    --color-admonition-title--tip:       #3fb950;
-    --color-admonition-title--hint:      #3fb950;
-    --color-admonition-title--important: #ab7df8;
-    --color-admonition-title--warning:   #d29922;
-    --color-admonition-title--attention: #d29922;
-    --color-admonition-title--caution:   #f85149;
-    --color-admonition-title--danger:    #f85149;
-    --color-admonition-title--error:     #f85149;
-    --color-admonition-title--seealso:   #4493f8;
-    --color-admonition-title:            #ab7df8;
+  /* GitHub accent colors for border + icon + title text */
+  --color-admonition-title--note: #4493f8;
+  --color-admonition-title--tip: #3fb950;
+  --color-admonition-title--hint: #3fb950;
+  --color-admonition-title--important: #ab7df8;
+  --color-admonition-title--warning: #d29922;
+  --color-admonition-title--attention: #d29922;
+  --color-admonition-title--caution: #f85149;
+  --color-admonition-title--danger: #f85149;
+  --color-admonition-title--error: #f85149;
+  --color-admonition-title--seealso: #4493f8;
+  --color-admonition-title: #ab7df8;
 
-    /* Match surrounding body text size (Furo defaults to 0.8125rem) */
-    --admonition-font-size:       1rem;
-    --admonition-title-font-size: 1rem;
+  /* Match surrounding body text size (Furo defaults to 0.8125rem) */
+  --admonition-font-size: 1rem;
+  --admonition-title-font-size: 1rem;
 }
 
 .admonition {
-    border-radius: 0;
-    background: none;
-    margin: 1em 0;
-    padding: 0.5em 1em;
-    color: inherit;
-    box-shadow: none;
-    border-left-width: .25em;
-    font-size: var(--admonition-font-size);
+  border-radius: 0;
+  background: none;
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  color: inherit;
+  box-shadow: none;
+  border-left-width: 0.25em;
+  font-size: var(--admonition-font-size);
 }
 
 /* Title: no background, colored text matching the left border */
 .admonition > .admonition-title {
-    background-color: transparent !important;
-    padding: 0.4rem 0.5rem 0.4rem 2rem;
-    margin: 0 0 0.3em 0;
-    font-size: var(--admonition-title-font-size);
-    font-weight: 600;
+  background-color: transparent !important;
+  padding: 0.4rem 0.5rem 0.4rem 2rem;
+  margin: 0 0 0.3em 0;
+  font-size: var(--admonition-title-font-size);
+  font-weight: 600;
 }
 
 /* Color the title text to match icon + border */
-.admonition.note > .admonition-title      { color: var(--color-admonition-title--note); }
-.admonition.tip > .admonition-title       { color: var(--color-admonition-title--tip); }
-.admonition.hint > .admonition-title      { color: var(--color-admonition-title--hint); }
-.admonition.important > .admonition-title { color: var(--color-admonition-title--important); }
-.admonition.warning > .admonition-title   { color: var(--color-admonition-title--warning); }
-.admonition.attention > .admonition-title { color: var(--color-admonition-title--attention); }
-.admonition.caution > .admonition-title   { color: var(--color-admonition-title--caution); }
-.admonition.danger > .admonition-title    { color: var(--color-admonition-title--danger); }
-.admonition.error > .admonition-title     { color: var(--color-admonition-title--error); }
-.admonition.seealso > .admonition-title   { color: var(--color-admonition-title--seealso); }
+.admonition.note > .admonition-title {
+  color: var(--color-admonition-title--note);
+}
+.admonition.tip > .admonition-title {
+  color: var(--color-admonition-title--tip);
+}
+.admonition.hint > .admonition-title {
+  color: var(--color-admonition-title--hint);
+}
+.admonition.important > .admonition-title {
+  color: var(--color-admonition-title--important);
+}
+.admonition.warning > .admonition-title {
+  color: var(--color-admonition-title--warning);
+}
+.admonition.attention > .admonition-title {
+  color: var(--color-admonition-title--attention);
+}
+.admonition.caution > .admonition-title {
+  color: var(--color-admonition-title--caution);
+}
+.admonition.danger > .admonition-title {
+  color: var(--color-admonition-title--danger);
+}
+.admonition.error > .admonition-title {
+  color: var(--color-admonition-title--error);
+}
+.admonition.seealso > .admonition-title {
+  color: var(--color-admonition-title--seealso);
+}
 
 /* ── Definition lists (troubleshooting etc.) ──────────────────── */
 
 dl.simple dt,
 dl dt {
-    margin-top: 1.2em;
-    font-weight: 600;
+  margin-top: 1.2em;
+  font-weight: 600;
 }
 
 dl.simple dd,
 dl dd {
-    margin-left: 1.2em;
+  margin-left: 1.2em;
 }
 
 /* ── Sidebar navigation ──────────────────────────────────────── */
 
 /* Soften the sidebar caption labels */
 .sidebar-tree .caption {
-    font-size: 0.8em;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    opacity: 0.7;
-    margin-top: 1.5em;
+  font-size: 0.8em;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-top: 1.5em;
 }
 
 /* ── Sidebar brand (name + release/marketplace row) ──────────── */
 
 body {
-    --lc-brand-gap:          0.4rem;
-    --lc-brand-pad-block:    0.75rem;
-    --lc-meta-gap:           0.5rem;
-    --lc-meta-icon-size:     1rem;
-    --lc-dot-size:           3px;
-    --lc-dot-opacity:        0.4;
-    --lc-version-font-size:  0.7rem;
-    --lc-version-pad-inline: 0.38rem;
-    --lc-version-pad-block:  0.05rem;
-    --lc-version-radius:     4px;
-    --lc-version-text:       var(--color-brand-primary);
-    --lc-version-background: color-mix(in srgb, var(--color-brand-primary) 12%, transparent);
-    --lc-version-border:     color-mix(in srgb, var(--color-brand-primary) 32%, transparent);
-    --lc-version-background--hover: color-mix(in srgb, var(--color-brand-primary) 22%, transparent);
-    --lc-version-border--hover:     color-mix(in srgb, var(--color-brand-primary) 55%, transparent);
-    --lc-link-idle:          var(--color-foreground-secondary);
-    --lc-link-hover:         var(--color-brand-primary);
+  --lc-brand-gap: 0.4rem;
+  --lc-brand-pad-block: 0.75rem;
+  --lc-meta-gap: 0.5rem;
+  --lc-meta-icon-size: 1rem;
+  --lc-dot-size: 3px;
+  --lc-dot-opacity: 0.4;
+  --lc-version-font-size: 0.7rem;
+  --lc-version-pad-inline: 0.38rem;
+  --lc-version-pad-block: 0.05rem;
+  --lc-version-radius: 4px;
+  --lc-version-text: var(--color-brand-primary);
+  --lc-version-background: color-mix(
+    in srgb,
+    var(--color-brand-primary) 12%,
+    transparent
+  );
+  --lc-version-border: color-mix(
+    in srgb,
+    var(--color-brand-primary) 32%,
+    transparent
+  );
+  --lc-version-background--hover: color-mix(
+    in srgb,
+    var(--color-brand-primary) 22%,
+    transparent
+  );
+  --lc-version-border--hover: color-mix(
+    in srgb,
+    var(--color-brand-primary) 55%,
+    transparent
+  );
+  --lc-link-idle: var(--color-foreground-secondary);
+  --lc-link-hover: var(--color-brand-primary);
 }
 
 /* Furo stacks the brand in a column, so the anchor owns the separation between
    its parts and the name gives up its own margin. The meta row lives outside
    that anchor — it holds links of its own, and anchors cannot nest. */
 .sidebar-brand {
-    align-items: flex-start;
-    gap: var(--lc-brand-gap);
-    padding-block: var(--lc-brand-pad-block) 0;
+  align-items: flex-start;
+  gap: var(--lc-brand-gap);
+  padding-block: var(--lc-brand-pad-block) 0;
 }
 
 .sidebar-brand-text {
-    margin-block: 0;
-    font-weight: 600;
-    line-height: 1.15;
-    letter-spacing: -0.01em;
+  margin-block: 0;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
 }
 
 .sidebar-brand-meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--lc-meta-gap);
-    padding-inline: var(--sidebar-item-spacing-horizontal);
-    padding-block: var(--lc-brand-gap) var(--lc-brand-pad-block);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lc-meta-gap);
+  padding-inline: var(--sidebar-item-spacing-horizontal);
+  padding-block: var(--lc-brand-gap) var(--lc-brand-pad-block);
 }
 
 .sidebar-brand-version {
-    display: inline-block;
-    text-decoration: none;
-    transition: background 120ms ease-in-out, border-color 120ms ease-in-out;
-    padding-inline: var(--lc-version-pad-inline);
-    padding-block: var(--lc-version-pad-block);
-    border: 1px solid var(--lc-version-border);
-    border-radius: var(--lc-version-radius);
-    background: var(--lc-version-background);
-    color: var(--lc-version-text);
-    font-family: var(--font-stack--monospace);
-    font-size: var(--lc-version-font-size);
-    font-variant-numeric: tabular-nums;
-    line-height: 1.6;
+  display: inline-block;
+  text-decoration: none;
+  transition:
+    background 120ms ease-in-out,
+    border-color 120ms ease-in-out;
+  padding-inline: var(--lc-version-pad-inline);
+  padding-block: var(--lc-version-pad-block);
+  border: 1px solid var(--lc-version-border);
+  border-radius: var(--lc-version-radius);
+  background: var(--lc-version-background);
+  color: var(--lc-version-text);
+  font-family: var(--font-stack--monospace);
+  font-size: var(--lc-version-font-size);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
 }
 
 .sidebar-brand-version:hover,
 .sidebar-brand-version:focus-visible {
-    background: var(--lc-version-background--hover);
-    border-color: var(--lc-version-border--hover);
+  background: var(--lc-version-background--hover);
+  border-color: var(--lc-version-border--hover);
 }
 
 .sidebar-brand-dot {
-    inline-size: var(--lc-dot-size);
-    block-size: var(--lc-dot-size);
-    border-radius: 50%;
-    background: var(--color-foreground-secondary);
-    opacity: var(--lc-dot-opacity);
+  inline-size: var(--lc-dot-size);
+  block-size: var(--lc-dot-size);
+  border-radius: 50%;
+  background: var(--color-foreground-secondary);
+  opacity: var(--lc-dot-opacity);
 }
 
 .sidebar-brand-link {
-    display: inline-flex;
-    color: var(--lc-link-idle);
-    text-decoration: none;
-    transition: color 120ms ease-in-out;
+  display: inline-flex;
+  color: var(--lc-link-idle);
+  text-decoration: none;
+  transition: color 120ms ease-in-out;
 }
 
 .sidebar-brand-link:hover,
 .sidebar-brand-link:focus-visible {
-    color: var(--lc-link-hover);
+  color: var(--lc-link-hover);
 }
 
 .sidebar-brand-icon {
-    inline-size: var(--lc-meta-icon-size);
-    block-size: var(--lc-meta-icon-size);
+  inline-size: var(--lc-meta-icon-size);
+  block-size: var(--lc-meta-icon-size);
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .sidebar-brand-link,
-    .sidebar-brand-version {
-        transition: none;
-    }
+  .sidebar-brand-link,
+  .sidebar-brand-version {
+    transition: none;
+  }
 }
 
 /* ── Search shortcut hint (Ctrl+K) ───────────────────────────── */
 
 body {
-    --lc-kbd-font-size:   0.66rem;
-    --lc-kbd-pad-inline:  0.34rem;
-    --lc-kbd-pad-block:   0.1rem;
-    --lc-kbd-radius:      4px;
-    --lc-kbd-min-size:    1.15em;
-    --lc-kbd-gap:         0.16rem;
-    --lc-kbd-plus-opacity: 0.55;
-    --lc-kbd-text:        var(--color-foreground-secondary);
-    --lc-kbd-background:  var(--color-background-primary);
-    --lc-kbd-border:      var(--color-background-border);
-    --lc-kbd-shadow:      0 1px 0 var(--color-background-border);
-    --lc-search-hint-slot: 4rem;
+  --lc-kbd-font-size: 0.66rem;
+  --lc-kbd-pad-inline: 0.34rem;
+  --lc-kbd-pad-block: 0.1rem;
+  --lc-kbd-radius: 4px;
+  --lc-kbd-min-size: 1.15em;
+  --lc-kbd-gap: 0.16rem;
+  --lc-kbd-plus-opacity: 0.55;
+  --lc-kbd-text: var(--color-foreground-secondary);
+  --lc-kbd-background: var(--color-background-primary);
+  --lc-kbd-border: var(--color-background-border);
+  --lc-kbd-shadow: 0 1px 0 var(--color-background-border);
+  --lc-search-hint-slot: 4rem;
 }
 
 /* Furo's search container is already the positioned ancestor, and its input
    sits on a higher layer — so the badge is inert and the whole box stays one
    click target that opens the palette. */
 .lc-search-hint {
-    position: absolute;
-    inset-inline-end: var(--sidebar-search-input-spacing-horizontal);
-    inset-block: 0;
-    display: flex;
-    align-items: center;
-    gap: var(--lc-kbd-gap);
-    pointer-events: none;
+  position: absolute;
+  inset-inline-end: var(--sidebar-search-input-spacing-horizontal);
+  inset-block: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--lc-kbd-gap);
+  pointer-events: none;
 }
 
 /* Sphinx fills this box with the query on the search results page, and an
@@ -340,39 +389,39 @@ body {
    soon as the field holds anything. */
 .sidebar-search:not(:placeholder-shown) ~ .lc-search-hint,
 .sidebar-search:focus ~ .lc-search-hint {
-    display: none;
+  display: none;
 }
 
 .lc-kbd-plus {
-    color: var(--lc-kbd-text);
-    font-size: var(--lc-kbd-font-size);
-    opacity: var(--lc-kbd-plus-opacity);
+  color: var(--lc-kbd-text);
+  font-size: var(--lc-kbd-font-size);
+  opacity: var(--lc-kbd-plus-opacity);
 }
 
 .lc-kbd {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-inline-size: var(--lc-kbd-min-size);
-    padding-inline: var(--lc-kbd-pad-inline);
-    padding-block: var(--lc-kbd-pad-block);
-    border: 1px solid var(--lc-kbd-border);
-    border-radius: var(--lc-kbd-radius);
-    box-shadow: var(--lc-kbd-shadow);
-    background: var(--lc-kbd-background);
-    color: var(--lc-kbd-text);
-    font-family: var(--font-stack);
-    font-size: var(--lc-kbd-font-size);
-    font-weight: 600;
-    line-height: 1.5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--lc-kbd-min-size);
+  padding-inline: var(--lc-kbd-pad-inline);
+  padding-block: var(--lc-kbd-pad-block);
+  border: 1px solid var(--lc-kbd-border);
+  border-radius: var(--lc-kbd-radius);
+  box-shadow: var(--lc-kbd-shadow);
+  background: var(--lc-kbd-background);
+  color: var(--lc-kbd-text);
+  font-family: var(--font-stack);
+  font-size: var(--lc-kbd-font-size);
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 /* Keep the placeholder clear of the badge. */
 .sidebar-search {
-    padding-inline-end: calc(
-        var(--sidebar-search-input-spacing-horizontal) + var(--lc-search-hint-slot)
-    );
-    cursor: pointer;
+  padding-inline-end: calc(
+    var(--sidebar-search-input-spacing-horizontal) + var(--lc-search-hint-slot)
+  );
+  cursor: pointer;
 }
 
 /* ── Command palette (ninja-keys) ────────────────────────────── */
@@ -380,36 +429,44 @@ body {
 /* Every value is one of Furo's own theme tokens, so the palette follows the
    light/dark toggle without a class of its own to keep in sync. */
 ninja-keys {
-    /* Inherited by the shadow DOM, which Furo's own scrollbar rules cannot reach. */
-    scrollbar-width: thin;
-    scrollbar-color: var(--color-foreground-border) transparent;
+  /* Inherited by the shadow DOM, which Furo's own scrollbar rules cannot reach. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-foreground-border) transparent;
 
-    --ninja-width:            min(40rem, 92vw);
-    --ninja-font-family:      var(--font-stack);
-    --ninja-font-size:        0.95rem;
-    --ninja-top:              12vh;
-    --ninja-z-index:          60;
-    --ninja-actions-height:   22rem;
-    --ninja-icon-size:        1.1em;
-    --ninja-key-border-radius: var(--lc-kbd-radius);
+  --ninja-width: min(40rem, 92vw);
+  --ninja-font-family: var(--font-stack);
+  --ninja-font-size: 0.95rem;
+  --ninja-top: 12vh;
+  --ninja-z-index: 60;
+  --ninja-actions-height: 22rem;
+  --ninja-icon-size: 1.1em;
+  --ninja-key-border-radius: var(--lc-kbd-radius);
 
-    --ninja-text-color:           var(--color-foreground-primary);
-    --ninja-secondary-text-color: var(--color-foreground-secondary);
-    --ninja-group-text-color:     var(--color-foreground-muted);
-    --ninja-placeholder-color:    var(--color-foreground-muted);
-    --ninja-icon-color:           var(--color-foreground-muted);
-    --ninja-accent-color:         var(--color-brand-primary);
+  --ninja-text-color: var(--color-foreground-primary);
+  --ninja-secondary-text-color: var(--color-foreground-secondary);
+  --ninja-group-text-color: var(--color-foreground-muted);
+  --ninja-placeholder-color: var(--color-foreground-muted);
+  --ninja-icon-color: var(--color-foreground-muted);
+  --ninja-accent-color: var(--color-brand-primary);
 
-    --ninja-modal-background:           var(--color-background-primary);
-    --ninja-secondary-background-color: var(--color-background-secondary);
-    --ninja-footer-background:          var(--color-background-secondary);
-    --ninja-separate-border:            1px solid var(--color-background-border);
+  --ninja-modal-background: var(--color-background-primary);
+  --ninja-secondary-background-color: var(--color-background-secondary);
+  --ninja-footer-background: var(--color-background-secondary);
+  --ninja-separate-border: 1px solid var(--color-background-border);
 
-    --ninja-selected-background:  color-mix(in srgb, var(--color-brand-primary) 12%, transparent);
-    --ninja-selected-text-color:  var(--color-brand-content);
+  --ninja-selected-background: color-mix(
+    in srgb,
+    var(--color-brand-primary) 12%,
+    transparent
+  );
+  --ninja-selected-text-color: var(--color-brand-content);
 
-    --ninja-overflow-background: color-mix(in srgb, var(--color-background-primary) 65%, transparent);
-    --ninja-backdrop-filter:     blur(2px);
-    --ninja-modal-shadow:        0 16px 70px
-        color-mix(in srgb, var(--color-foreground-primary) 28%, transparent);
+  --ninja-overflow-background: color-mix(
+    in srgb,
+    var(--color-background-primary) 65%,
+    transparent
+  );
+  --ninja-backdrop-filter: blur(2px);
+  --ninja-modal-shadow: 0 16px 70px
+    color-mix(in srgb, var(--color-foreground-primary) 28%, transparent);
 }

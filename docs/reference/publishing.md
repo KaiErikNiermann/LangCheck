@@ -27,7 +27,7 @@ platform-independent and the core binary is fetched at first activation.
 **One-time maintainer setup:**
 
 1. Sign in at [open-vsx.org](https://open-vsx.org) with the GitHub account that owns the
-   repository, then create an access token under *Settings → Access Tokens*.
+   repository, then create an access token under *Settings -> Access Tokens*.
 2. Create the publisher namespace (it must exist before the first publish):
 
    ```bash
@@ -35,7 +35,7 @@ platform-independent and the core binary is fetched at first activation.
    ```
 
 3. Add the token as the `OVSX_PAT` repository secret in GitHub
-   (*Settings → Secrets and variables → Actions*).
+   (*Settings -> Secrets and variables -> Actions*).
 
 Optionally, claim namespace ownership by opening an issue on
 [EclipseFdn/open-vsx.org](https://github.com/EclipseFdn/open-vsx.org/issues) — this

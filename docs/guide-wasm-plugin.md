@@ -256,7 +256,7 @@ See the [Extism documentation](https://extism.org/docs/write-a-plugin/) and the 
 
 ## Reference Implementation
 
-The `plugins/wordiness-check/` directory in the Language Check repository is a complete working example. It detects wordy phrases (e.g. "in order to" → "to") and includes:
+The `plugins/wordiness-check/` directory in the Language Check repository is a complete working example. It detects wordy phrases (e.g. "in order to" -> "to") and includes:
 
 - Detection logic with word-boundary matching
 - Comprehensive unit tests
