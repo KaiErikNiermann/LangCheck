@@ -7,6 +7,9 @@ on:
 
 permissions:
   contents: write
+  # Reading a previous run's artifacts is how an unchanged core is reused
+  # instead of rebuilt. See the `build-binaries` job.
+  actions: read
 
 # Reusable retry shell function — source this in steps that download from
 # external services (GitHub Releases, pip, etc.) to survive transient 500s.
@@ -65,7 +68,65 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Identity of the thing being built, not of the tag that asked for it.
+      # A release re-cut because a smoke test was wrong compiles the same
+      # sources to the same archive -- five targets of it, one under `cross`
+      # -- and that wait is the whole cost of a bad test premise. So the
+      # archive is keyed on the sources that decide it and looked up before
+      # anything is built.
+      #
+      # `git ls-files -s` lists blob ids, so the key is the content of
+      # rust-core and proto/, not their timestamps. rustc is in the key too:
+      # the same sources built by a newer toolchain are a different binary,
+      # and shipping last month's codegen because the inputs matched would be
+      # a silent downgrade.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Key this build on its inputs
+        id: key
+        shell: bash
+        working-directory: .
+        run: |
+          sources=$(git ls-files -s rust-core proto | git hash-object --stdin)
+          hash=$(printf '%s\n%s\n%s\n' "$sources" "$(rustc -V)" "${{ matrix.target }}" \
+            | git hash-object --stdin | cut -c1-16)
+          echo "name=binary-${{ matrix.target }}-$hash" >> "$GITHUB_OUTPUT"
+          echo "Build key: $hash"
+
+      - name: Look for a build of these sources
+        id: prior
+        shell: bash
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The newest unexpired artifact under this key, from any run in this
+          # repository. Finding none is the ordinary case on a source change,
+          # and is not a failure.
+          run_id=$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/artifacts" \
+            -f name="${{ steps.key.outputs.name }}" -f per_page=1 \
+            --jq '.artifacts[] | select(.expired == false) | .workflow_run.id' \
+            2>/dev/null | head -1 || true)
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          if [ -n "$run_id" ]; then
+            echo "::notice::Reusing the archive from run $run_id: rust-core, proto/ and rustc are unchanged."
+          else
+            echo "No prior build under this key; building."
+          fi
+
+      - name: Reuse the prior build
+        if: steps.prior.outputs.run_id != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ steps.key.outputs.name }}
+          path: rust-core
+          run-id: ${{ steps.prior.outputs.run_id }}
+          github-token: ${{ github.token }}
+
       - name: Install protoc
+        if: steps.prior.outputs.run_id == ''
         shell: bash
         working-directory: .
         run: |
@@ -91,27 +152,24 @@ jobs:
           fi
           protoc --version
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
       - name: Install cross
-        if: matrix.cross
+        if: matrix.cross && steps.prior.outputs.run_id == ''
         run: cargo install cross --locked
 
       - name: Stage proto for cross build
-        if: matrix.cross
+        if: matrix.cross && steps.prior.outputs.run_id == ''
         run: mkdir -p proto && cp ../proto/checker.proto proto/
 
       - name: Build (native)
-        if: "!matrix.cross"
+        if: "!matrix.cross && steps.prior.outputs.run_id == ''"
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Build (cross)
-        if: matrix.cross
+        if: matrix.cross && steps.prior.outputs.run_id == ''
         run: cross build --release --target ${{ matrix.target }}
 
       - name: Package binaries
+        if: steps.prior.outputs.run_id == ''
         shell: bash
         run: |
           mkdir -p dist
@@ -120,9 +178,19 @@ jobs:
           cd dist
           tar czf ../language-check-${{ matrix.target }}.tar.gz *
 
+      # What every downstream job asks for, under the name it has always used.
       - uses: actions/upload-artifact@v7
         with:
           name: binary-${{ matrix.target }}
+          path: rust-core/language-check-${{ matrix.target }}.tar.gz
+
+      # And under the key, so the next run can find it. Only when it was built
+      # here: re-uploading a reused archive would move its expiry and keep one
+      # build alive for as long as releases keep being cut.
+      - uses: actions/upload-artifact@v7
+        if: steps.prior.outputs.run_id == ''
+        with:
+          name: ${{ steps.key.outputs.name }}
           path: rust-core/language-check-${{ matrix.target }}.tar.gz
 
   smoke-test:
