@@ -11,9 +11,11 @@
  * did not ask for is one they will never think to look for.
  */
 import * as assert from 'assert';
+import * as fs from 'fs';
 import * as vscode from 'vscode';
 
-import { eventually, fixture, openInEditor, ourDiagnostics } from './helpers';
+import { eventually, fixture, fixtureRoot, openInEditor, ourDiagnostics } from './helpers';
+import * as path from 'path';
 
 const BUDGET_MS = 45_000;
 
@@ -26,6 +28,15 @@ suite('ignoring every issue in a selection', () => {
 
     suiteSetup(async function () {
         this.timeout(90_000);
+        // An ignore is durable by design: it is written to the workspace so
+        // it survives a reload. That makes this suite non-repeatable unless
+        // the store is cleared first -- the second run would find the words
+        // it silenced on the first already gone, and wait for them for ever.
+        fs.rmSync(path.join(fixtureRoot(), '.languagecheck'), {
+            recursive: true,
+            force: true,
+        });
+
         const extension = vscode.extensions.getExtension('KaiErikNiermann.language-check');
         assert.ok(extension);
         await extension.activate();

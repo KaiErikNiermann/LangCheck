@@ -107,7 +107,20 @@ suite('installing a dictionary pack', () => {
                 errors.push(message);
                 return Promise.resolve(undefined);
             };
-        const fetchable = canReachCatalogue() && !hebrewPackPresent();
+        // Decided before anything is asserted. Installing a pack puts it on
+        // the machine for good, so a second run of this suite starts with
+        // Hebrew readable -- there is no unchecked-language report to wait
+        // for, and waiting for one is what the run before this did until it
+        // timed out. The install half is the story; without it there is no
+        // test to run.
+        if (hebrewPackPresent()) {
+            console.log(
+                `    (skipped: a Hebrew pack is already installed at ${packDirectory()}, `
+                + 'so the before-and-after cannot be shown)',
+            );
+            this.skip();
+        }
+        const fetchable = canReachCatalogue();
         try {
             // Installed before the document opens: the offer is raised from
             // the check that opening triggers.
@@ -123,21 +136,20 @@ suite('installing a dictionary pack', () => {
             );
             assert.ok(control(document), 'the rest of the document went unchecked too');
 
-            // Where it sits, not merely that it exists. The report marks the
-            // start of the passage it could not read, so it belongs on the
-            // line the passage opens -- before the third word is flagged as a
-            // misspelling by anything, because nothing here can read Hebrew.
+            // Where it sits, not merely that it exists. This passage is
+            // Hebrew because a pragma says so, and the pragma is the thing to
+            // change -- so that is what carries the report, not the prose.
             const text = document.getText();
-            const passageLine = document.positionAt(text.indexOf(HEBREW.first)).line;
             assert.strictEqual(
+                document.getText(unchecked.range),
+                '<!-- lang-check-begin lang:he -->',
+                'the unchecked-language report is not on the declaration',
+            );
+            const passageLine = document.positionAt(text.indexOf(HEBREW.first)).line;
+            assert.notStrictEqual(
                 unchecked.range.start.line,
                 passageLine,
-                'the unchecked-language report is not on the passage it is about',
-            );
-            assert.strictEqual(
-                unchecked.range.start.character,
-                0,
-                'the report should mark the start of the passage',
+                'the prose was marked instead of the declaration that named it',
             );
             assert.ok(
                 !ourDiagnostics(document.uri).some(
