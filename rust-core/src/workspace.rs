@@ -36,8 +36,8 @@ const FILE_HASHES_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("fi
 pub fn check_fingerprint(
     text: &str,
     config: &crate::config::Config,
-    dictionary: &crate::dictionary::Dictionary,
-    ignore_store: &crate::hashing::IgnoreStore,
+    _dictionary: &crate::dictionary::Dictionary,
+    _ignore_store: &crate::hashing::IgnoreStore,
     names_enabled: bool,
     schemas: u64,
 ) -> u64 {
@@ -51,12 +51,18 @@ pub fn check_fingerprint(
     } else {
         0
     };
+    // The dictionary and the ignore store are deliberately absent. Both are
+    // filters applied after the engines have run, so what is stored is what
+    // the engines said and both are re-applied on the way out. Including them
+    // meant a single word added to the dictionary invalidated every stored
+    // result in the workspace -- re-running the engines, a LanguageTool round
+    // trip per prose range, to reach the answer already held and discard one
+    // more of it. They are still parameters so a caller cannot silently stop
+    // passing what it must go on applying.
     crate::hashing::stable_hash(&format!(
-        "{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}",
+        "{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}",
         crate::hashing::stable_hash(text),
         crate::hashing::stable_hash(&config_repr),
-        dictionary.fingerprint(),
-        ignore_store.fingerprint(),
         names_enabled,
         schemas,
         packs,
@@ -66,11 +72,15 @@ pub fn check_fingerprint(
 
 /// A check's result, with what it was computed from.
 ///
-/// The fingerprint covers everything that can change the answer -- the
-/// document text, the config, the user dictionary, the ignored diagnostics,
-/// whether name detection is on, and the version of this program. A stored
-/// result is served only when the fingerprint still matches, so there is one
-/// decision to get right rather than one per input.
+/// The fingerprint covers everything that can change what the *engines*
+/// produce -- the document text, the config, whether name detection is on, the
+/// installed packs, and the version of this program. A stored result is served
+/// only when it still matches, so there is one decision to get right rather
+/// than one per input.
+///
+/// What it deliberately leaves out is the dictionary and the ignore store.
+/// Those filter the engines' output rather than change it, and they are
+/// re-applied to a stored result on the way out.
 ///
 /// Storing the result without it was the previous state of things: every check
 /// wrote here and nothing ever read it back.
@@ -259,6 +269,68 @@ mod tests {
         let db_path = dir.join(".languagecheck.db");
         let idx = WorkspaceIndex::new(&dir, Some(&db_path)).unwrap();
         (idx, dir)
+    }
+
+    /// A dictionary edit must not invalidate a stored result.
+    ///
+    /// The dictionary is applied as a suppression *after* the engines have
+    /// run, exactly as a severity override is. A word added to it can only
+    /// remove findings from an answer already computed, so re-running the
+    /// engines reaches the same raw result and discards one more of it --
+    /// which for LanguageTool is a network round trip per prose range, paid
+    /// to learn nothing.
+    ///
+    /// The same holds for the ignore store, which is the other post-engine
+    /// filter.
+    #[test]
+    fn a_dictionary_edit_does_not_invalidate_a_stored_result() {
+        let config = crate::config::Config::default();
+        let ignores = crate::hashing::IgnoreStore::default();
+        let mut dictionary = crate::dictionary::Dictionary::default();
+        let before = check_fingerprint("some prose", &config, &dictionary, &ignores, false, 0);
+
+        //  inserts before it persists; the persist has nowhere to
+        // go in a test and its failure is not what is being measured.
+        let _ = dictionary.add_word("zorblat");
+        let after = check_fingerprint("some prose", &config, &dictionary, &ignores, false, 0);
+
+        assert_eq!(
+            before, after,
+            "adding a word re-ran the engines to reach the answer already stored"
+        );
+    }
+
+    #[test]
+    fn the_things_that_do_change_the_answer_still_change_the_fingerprint() {
+        // The other half: a fingerprint that ignored everything would serve a
+        // stale result for ever.
+        let config = crate::config::Config::default();
+        let ignores = crate::hashing::IgnoreStore::default();
+        let dictionary = crate::dictionary::Dictionary::default();
+        let base = check_fingerprint("some prose", &config, &dictionary, &ignores, false, 0);
+
+        assert_ne!(
+            base,
+            check_fingerprint("other prose", &config, &dictionary, &ignores, false, 0),
+            "the text"
+        );
+        let mut other = crate::config::Config::default();
+        other.engines.languagetool.enabled = !other.engines.languagetool.enabled;
+        assert_ne!(
+            base,
+            check_fingerprint("some prose", &other, &dictionary, &ignores, false, 0),
+            "the config"
+        );
+        assert_ne!(
+            base,
+            check_fingerprint("some prose", &config, &dictionary, &ignores, true, 0),
+            "name detection"
+        );
+        assert_ne!(
+            base,
+            check_fingerprint("some prose", &config, &dictionary, &ignores, false, 7),
+            "the schemas"
+        );
     }
 
     fn cleanup(dir: &Path) {

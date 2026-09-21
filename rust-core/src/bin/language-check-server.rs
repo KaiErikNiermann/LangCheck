@@ -675,45 +675,17 @@ async fn main() -> Result<()> {
                                     "CheckProse: engines done"
                                 );
 
-                                let directives = InlineDirectives::parse(&req.text);
-                                let ignore_store = ignore_store_arc.lock().await;
-                                let dict = dictionary_arc.lock().await;
-                                let morphology = morphology_arc.lock().await;
-                                let name_filter = name_filter_arc.lock().await;
                                 let batch = batch.unwrap_or_else(|e| {
                                     warn!(id = request_id, "CheckProse: batch failed: {e}");
                                     Vec::new()
                                 });
                                 for (range, mut diagnostics) in ranges.iter().zip(batch) {
+                                    // Offsets become document-level here, which
+                                    // is what both the cache and the
+                                    // suppression pass below expect.
                                     range.adopt_diagnostics(&req.text, &mut diagnostics);
-
-                                    let mut ctx = SuppressionContext::new()
-                                        .with_ignore(&ignore_store)
-                                        .with_dictionary(&dict)
-                                        .with_directives(&directives);
-                                    if let Some(analyzer) = morphology.as_ref() {
-                                        ctx = ctx.with_morphology(analyzer);
-                                    }
-                                    if let Some(filter) = name_filter.as_ref() {
-                                        ctx = ctx.with_names(filter);
-                                    }
-                                    detected_names.extend(
-                                        retain_visible(&mut diagnostics, &req.text, &ctx)
-                                            .into_iter()
-                                            .map(|n| checker::NameSpan {
-                                                start_byte: n.start_byte,
-                                                end_byte: n.end_byte,
-                                                confidence: n.confidence,
-                                                signals: n.signals,
-                                            }),
-                                    );
-
                                     all_diagnostics.extend(diagnostics);
                                 }
-                                drop(name_filter);
-                                drop(morphology);
-                                drop(dict);
-                                drop(ignore_store);
                                 debug!(
                                     id = request_id,
                                     elapsed_ms = check_start.elapsed().as_millis() as u64,
@@ -737,8 +709,19 @@ async fn main() -> Result<()> {
                                 .iter()
                                 .all(|health| health.consecutive_failures == 0);
 
-                            // Store diagnostics and insights in workspace index (non-fatal)
+                            // Stored before the suppression pass, and only
+                            // when the answer was freshly computed.
+                            //
+                            // What goes in is what the engines said, not what
+                            // survives the dictionary and the ignore store.
+                            // Those are filters applied afterwards, so keeping
+                            // their output would mean a word added to the
+                            // dictionary invalidated every stored result --
+                            // re-running the engines, a LanguageTool round trip
+                            // per prose range, to reach the answer already held
+                            // and discard one more of it.
                             if engines_healthy
+                                && !served_from_cache
                                 && let Some(idx) = &*workspace_index_arc.lock().await
                                 && let Some(file_path) = req.file_path.clone()
                             {
@@ -751,6 +734,38 @@ async fn main() -> Result<()> {
                                     .unwrap_or_else(|e| {
                                         warn!(file = file_path, "Error updating insights: {e}");
                                     });
+                            }
+
+                            // One suppression pass, whichever path produced the
+                            // diagnostics. A stored result has to be filtered
+                            // too, or the dictionary would apply to a fresh
+                            // check and not to a reused one.
+                            {
+                                let directives = InlineDirectives::parse(&req.text);
+                                let ignore_store = ignore_store_arc.lock().await;
+                                let dict = dictionary_arc.lock().await;
+                                let morphology = morphology_arc.lock().await;
+                                let name_filter = name_filter_arc.lock().await;
+                                let mut ctx = SuppressionContext::new()
+                                    .with_ignore(&ignore_store)
+                                    .with_dictionary(&dict)
+                                    .with_directives(&directives);
+                                if let Some(analyzer) = morphology.as_ref() {
+                                    ctx = ctx.with_morphology(analyzer);
+                                }
+                                if let Some(filter) = name_filter.as_ref() {
+                                    ctx = ctx.with_names(filter);
+                                }
+                                detected_names.extend(
+                                    retain_visible(&mut all_diagnostics, &req.text, &ctx)
+                                        .into_iter()
+                                        .map(|n| checker::NameSpan {
+                                            start_byte: n.start_byte,
+                                            end_byte: n.end_byte,
+                                            confidence: n.confidence,
+                                            signals: n.signals,
+                                        }),
+                                );
                             }
                             let engine_health =
                                 orchestrator_arc.lock().await.engine_health_report();

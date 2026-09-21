@@ -222,8 +222,12 @@ impl Dictionary {
     /// A value that changes whenever the accepted words do.
     ///
     /// Read by the check cache. Adding a word to the dictionary must make the
-    /// misspelling it covers disappear, which cannot happen if a stored result
-    /// from before the addition is still served.
+    /// misspelling it covers disappear.
+    ///
+    /// No longer part of the check fingerprint: the dictionary filters what
+    /// the engines produced rather than changing it, so a stored result keeps
+    /// its raw diagnostics and this filter is re-applied on the way out. The
+    /// fingerprint is still what the pack registry and the inspector compare.
     #[must_use]
     pub fn fingerprint(&self) -> u64 {
         let mut sorted: Vec<&str> = self.words().map(String::as_str).collect();
