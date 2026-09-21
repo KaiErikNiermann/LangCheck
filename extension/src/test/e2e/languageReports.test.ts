@@ -52,7 +52,7 @@ suite('unchecked-language reports', () => {
         );
         assert.strictEqual(
             document.getText(onPragma.range),
-            '<!-- lang-check-begin lang:he -->',
+            'lang:he',
             'the squiggle does not cover the declaration exactly',
         );
     });

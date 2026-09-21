@@ -63,7 +63,9 @@ fn a_declared_language_is_reported_against_the_declaration() {
         report["line"], 3,
         "the report belongs on the declaration, not on the passage: {report}"
     );
-    assert_eq!(report["column"], 1, "{report}");
+    // Column 23 is the `l` of `lang:he`, not the `<` of the comment: what a
+    // reader changes is the tag and the key in front of it.
+    assert_eq!(report["column"], 23, "{report}");
 }
 
 #[test]
@@ -79,6 +81,8 @@ fn a_scope_marker_is_a_declaration_too() {
     let found = report(workspace.path());
     let report = no_provider(&found);
     assert_eq!(report["line"], 3, "{report}");
+    // `<!-- lang: he -->`: the sixth column opens `lang: he`.
+    assert_eq!(report["column"], 6, "{report}");
 }
 
 #[test]

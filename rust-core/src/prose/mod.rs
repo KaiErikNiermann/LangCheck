@@ -157,7 +157,12 @@ pub fn extract_with_range_limit(
         ranges = apply_type_overrides(text, ranges, &type_regions, latex_extras)?;
     }
 
-    apply_language_overrides(&mut ranges, &resolved.regions, &ScopeParser::parse(text));
+    apply_language_overrides(
+        text,
+        &mut ranges,
+        &resolved.regions,
+        &ScopeParser::parse(text),
+    );
     // Before the split, so a chunk never begins with the blanks an exclusion
     // left: the engines read a leading whitespace run as sentence structure.
     for range in &mut ranges {
@@ -185,6 +190,7 @@ pub fn extract_with_range_limit(
 /// which is how a `#set text(lang: "de")` meant for hyphenation gets overridden
 /// for one quoted passage without touching the typesetting.
 fn apply_language_overrides(
+    text: &str,
     ranges: &mut [ProseRange],
     regions: &[DirectiveRegion],
     scopes: &[ScopedRegion],
@@ -203,15 +209,70 @@ fn apply_language_overrides(
             .min_by_key(|region| region.byte_range.end - region.byte_range.start);
         if let Some(region) = innermost {
             range.language.clone_from(&region.options.language);
-            range.language_span = region.directive_range.as_ref().map(|r| (r.start, r.end));
+            range.language_span = region.directive_range.as_ref().map(|line| {
+                declaration_span(text, line.clone(), region.options.language.as_deref())
+            });
         } else if let Some(scope) = scopes
             .iter()
             .find(|s| s.byte_range.contains(&range.start_byte))
         {
             range.language = Some(scope.language.clone());
-            range.language_span = Some((scope.marker_range.start, scope.marker_range.end));
+            range.language_span = Some(declaration_span(
+                text,
+                scope.marker_range.clone(),
+                Some(&scope.language),
+            ));
         }
     }
+}
+
+/// Narrow a declaration line to the `lang:` token that named the language.
+///
+/// The parsers record the whole line, because a line is what they scan. What
+/// a reader changes is the key and the tag, so `<!-- lang-check-begin lang:he
+/// -->` is reported against `lang:he` and `<!-- lang: fr -->` against `lang:
+/// fr`. The `lang-check-begin` in front of it is how the region is opened,
+/// not how its language was chosen.
+///
+/// `tag` is matched literally, so a line that mentions `lang:` more than once
+/// -- `lang-check-begin match:/lang:xx/ lang:he` -- is narrowed to the token
+/// that actually declared the language. The whole line is kept when no token
+/// matches, which is what a declaration written some other way gets.
+fn declaration_span(text: &str, line: Range<usize>, tag: Option<&str>) -> (usize, usize) {
+    let whole = (line.start, line.end);
+    let Some(tag) = tag.filter(|t| !t.is_empty()) else {
+        return whole;
+    };
+    let slice = &text[line.clone()];
+
+    for (key, _) in slice.match_indices("lang:") {
+        // A token ending in `lang:` -- `slang:`, `xlang:` -- is not this key.
+        if slice[..key]
+            .chars()
+            .next_back()
+            .is_some_and(|c| c.is_alphanumeric() || c == '_')
+        {
+            continue;
+        }
+        let after_colon = key + "lang:".len();
+        let value =
+            after_colon + slice[after_colon..].len() - slice[after_colon..].trim_start().len();
+        if !slice[value..].starts_with(tag) {
+            continue;
+        }
+        let end = value + tag.len();
+        // `lang:he` must not match the `lang:hex` of a longer tag.
+        if slice[end..]
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        {
+            continue;
+        }
+        return (line.start + key, line.start + end);
+    }
+
+    whole
 }
 
 /// Re-extract prose for regions tagged with `type:FORMAT`.
@@ -714,6 +775,44 @@ mod tests {
     use latex::LatexExtras;
 
     // ---- extract_text byte-blanking (FFI-free; also exercised under Miri) ----
+
+    #[test]
+    fn a_declaration_span_covers_the_tag_and_its_key() {
+        let text = "<!-- lang-check-begin lang:he -->\n";
+        let span = declaration_span(text, 0..32, Some("he"));
+        assert_eq!(&text[span.0..span.1], "lang:he");
+    }
+
+    #[test]
+    fn a_declaration_span_keeps_the_space_a_marker_writes() {
+        let text = "<!-- lang: fr -->\n";
+        let span = declaration_span(text, 0..17, Some("fr"));
+        assert_eq!(&text[span.0..span.1], "lang: fr");
+    }
+
+    #[test]
+    fn a_declaration_span_skips_a_tag_a_filter_only_mentions() {
+        let text = "<!-- lang-check-begin match:/lang:xx/ lang:he -->\n";
+        let span = declaration_span(text, 0..48, Some("he"));
+        assert_eq!(&text[span.0..span.1], "lang:he");
+    }
+
+    #[test]
+    fn a_declaration_span_does_not_stop_inside_a_longer_tag() {
+        let text = "<!-- lang-check-begin lang:de-CH -->\n";
+        let span = declaration_span(text, 0..35, Some("de-CH"));
+        assert_eq!(&text[span.0..span.1], "lang:de-CH");
+    }
+
+    #[test]
+    fn a_line_with_no_such_token_keeps_the_whole_line() {
+        // A Typst set rule writes the tag in quotes and is recorded by the
+        // Typst extractor, which does not come through here. This is the
+        // fallback any other declaration form gets.
+        let text = "#set text(lang: \"he\")\n";
+        let span = declaration_span(text, 0..21, Some("he"));
+        assert_eq!(span, (0, 21));
+    }
 
     #[test]
     fn extract_text_no_exclusions_is_borrowed() {

@@ -142,7 +142,7 @@ suite('installing a dictionary pack', () => {
             const text = document.getText();
             assert.strictEqual(
                 document.getText(unchecked.range),
-                '<!-- lang-check-begin lang:he -->',
+                'lang:he',
                 'the unchecked-language report is not on the declaration',
             );
             const passageLine = document.positionAt(text.indexOf(HEBREW.first)).line;
