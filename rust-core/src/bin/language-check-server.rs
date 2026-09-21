@@ -11,7 +11,7 @@ use anyhow::Result;
 use bytes::{Buf, BytesMut};
 use checker::{
     CheckResponse, ErrorResponse, ExtractionExclusion, ExtractionInfo, ExtractionProseRange,
-    MetadataResponse, Request, Response, response,
+    MetadataResponse, ProbeConfigResponse, Request, Response, response,
 };
 use config::Config;
 use dictionary::Dictionary;
@@ -372,6 +372,7 @@ async fn main() -> Result<()> {
             Some(checker::request::Payload::GetMetadata(_)) => "GetMetadata",
             Some(checker::request::Payload::Ignore(_)) => "Ignore",
             Some(checker::request::Payload::AddDictionaryWord(_)) => "AddDictionaryWord",
+            Some(checker::request::Payload::ProbeConfig(_)) => "ProbeConfig",
             None => "Empty",
         };
         debug!(id = request_id, kind = payload_kind, "Request received");
@@ -778,6 +779,54 @@ async fn main() -> Result<()> {
                             .collect(),
                         spell_language: cfg.engines.spell_language.clone(),
                     }))
+                }
+                Some(checker::request::Payload::ProbeConfig(req)) => {
+                    // The buffer on screen, not the file on disk. The editor
+                    // asks about text that may never have been saved, which
+                    // is the point: the answer has to arrive while the URL is
+                    // still being typed, not after the mistake is committed.
+                    let root = workspace_root_arc
+                        .lock()
+                        .await
+                        .clone()
+                        .unwrap_or_else(|| PathBuf::from("."));
+                    let root = req
+                        .file_path
+                        .as_deref()
+                        .and_then(|p| Path::new(p).parent().map(Path::to_path_buf))
+                        .unwrap_or(root);
+
+                    let parsed = if req.text.is_empty() {
+                        Config::load(&root).map_err(|e| e.to_string())
+                    } else {
+                        Config::parse_text(&req.text, &root, &req.format)
+                            .map_err(|e| e.to_string())
+                    };
+
+                    match parsed {
+                        Ok(config) => {
+                            let probes = lang_check::config_probe::probe_config(&config, &root)
+                                .await
+                                .into_iter()
+                                .map(lang_check::config_probe::Probe::into_wire)
+                                .collect::<Vec<_>>();
+                            debug!(id = request_id, probes = probes.len(), "ProbeConfig: answered");
+                            Some(response::Payload::ProbeConfig(ProbeConfigResponse {
+                                probes,
+                                parse_error: String::new(),
+                            }))
+                        }
+                        // A config that does not parse is not an RPC failure:
+                        // it is the ordinary state of a file being edited, and
+                        // the editor draws it as one message rather than as a
+                        // broken connection.
+                        Err(message) => {
+                            Some(response::Payload::ProbeConfig(ProbeConfigResponse {
+                                probes: Vec::new(),
+                                parse_error: message,
+                            }))
+                        }
+                    }
                 }
                 Some(checker::request::Payload::Ignore(req)) => {
                     debug!(id = request_id, "Ignore: adding fingerprint");
