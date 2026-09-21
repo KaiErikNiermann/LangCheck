@@ -10,8 +10,8 @@
 use anyhow::Result;
 use bytes::{Buf, BytesMut};
 use checker::{
-    CheckResponse, ErrorResponse, ExtractionExclusion, ExtractionInfo, ExtractionProseRange,
-    ConfigIssue, MetadataResponse, ProbeConfigResponse, Request, Response, response,
+    CheckResponse, ConfigIssue, ErrorResponse, ExtractionExclusion, ExtractionInfo,
+    ExtractionProseRange, MetadataResponse, ProbeConfigResponse, Request, Response, response,
 };
 use config::Config;
 use dictionary::Dictionary;
@@ -799,8 +799,7 @@ async fn main() -> Result<()> {
                     let parsed = if req.text.is_empty() {
                         Config::load(&root).map_err(|e| e.to_string())
                     } else {
-                        Config::parse_text(&req.text, &root, &req.format)
-                            .map_err(|e| e.to_string())
+                        Config::parse_text(&req.text, &root, &req.format).map_err(|e| e.to_string())
                     };
 
                     match parsed {
@@ -843,13 +842,11 @@ async fn main() -> Result<()> {
                         // it is the ordinary state of a file being edited, and
                         // the editor draws it as one message rather than as a
                         // broken connection.
-                        Err(message) => {
-                            Some(response::Payload::ProbeConfig(ProbeConfigResponse {
-                                probes: Vec::new(),
-                                issues: Vec::new(),
-                                parse_error: message,
-                            }))
-                        }
+                        Err(message) => Some(response::Payload::ProbeConfig(ProbeConfigResponse {
+                            probes: Vec::new(),
+                            issues: Vec::new(),
+                            parse_error: message,
+                        })),
                     }
                 }
                 Some(checker::request::Payload::Ignore(req)) => {

@@ -63,7 +63,11 @@ impl ProbeStatus {
 
     #[must_use]
     pub const fn worst(self, other: Self) -> Self {
-        if other.severity() > self.severity() { other } else { self }
+        if other.severity() > self.severity() {
+            other
+        } else {
+            self
+        }
     }
 
     #[must_use]
@@ -176,10 +180,8 @@ async fn probe_harper(config: &Config) -> Vec<Probe> {
             return Vec::new();
         }
         let dict = harper_core::spell::FstDictionary::curated();
-        let group = harper_core::linting::LintGroup::new_curated(
-            dict,
-            harper_core::Dialect::American,
-        );
+        let group =
+            harper_core::linting::LintGroup::new_curated(dict, harper_core::Dialect::American);
         let mut unknown: Vec<String> = linters
             .keys()
             .filter(|name| !group.contains_key(name))
@@ -237,7 +239,12 @@ async fn probe_languagetool(config: &Config) -> Vec<Probe> {
     // carries the gutter mark, and the URL is what the squiggle goes under.
     let blame_url = |why: String| {
         vec![
-            Probe::new("engines.languagetool", ENGINE, ProbeStatus::Down, why.clone()),
+            Probe::new(
+                "engines.languagetool",
+                ENGINE,
+                ProbeStatus::Down,
+                why.clone(),
+            ),
             Probe::new("engines.languagetool.url", ENGINE, ProbeStatus::Down, why),
         ]
     };
@@ -263,7 +270,12 @@ async fn probe_languagetool(config: &Config) -> Vec<Probe> {
         entries.len()
     );
     let mut probes = vec![
-        Probe::new("engines.languagetool", ENGINE, ProbeStatus::Ok, reached.clone()),
+        Probe::new(
+            "engines.languagetool",
+            ENGINE,
+            ProbeStatus::Ok,
+            reached.clone(),
+        ),
         Probe::new("engines.languagetool.url", ENGINE, ProbeStatus::Ok, reached),
     ];
 
@@ -414,7 +426,12 @@ async fn probe_proselint(config: &Config) -> Vec<Probe> {
             format!("Found {version} on PATH."),
         )],
         Err(why) => {
-            return vec![Probe::new("engines.proselint", ENGINE, ProbeStatus::Down, why)];
+            return vec![Probe::new(
+                "engines.proselint",
+                ENGINE,
+                ProbeStatus::Down,
+                why,
+            )];
         }
     };
 
@@ -749,7 +766,11 @@ mod tests {
 
         let block = find(&probes, "engines.languagetool").expect("the block is reported");
         assert_eq!(block.status, ProbeStatus::Ok);
-        assert!(block.detail.contains("serving 1 languages"), "{}", block.detail);
+        assert!(
+            block.detail.contains("serving 1 languages"),
+            "{}",
+            block.detail
+        );
         assert_eq!(
             find(&probes, "engines.languagetool.url").map(|p| p.status),
             Some(ProbeStatus::Ok)
@@ -870,4 +891,3 @@ mod tests {
         assert!(error.contains("not on PATH"), "{error}");
     }
 }
-
