@@ -40,9 +40,28 @@ function hebrewPackPresent(): boolean {
     return fs.existsSync(path.join(dir, 'he_IL.dic'));
 }
 
-function hasNoProvider(uri: vscode.Uri): boolean {
-    return ourDiagnostics(uri).some(d => d.code === 'languagecheck.no-provider');
+function noProvider(uri: vscode.Uri): vscode.Diagnostic | undefined {
+    return ourDiagnostics(uri).find(d => d.code === 'languagecheck.no-provider');
 }
+
+function hasNoProvider(uri: vscode.Uri): boolean {
+    return noProvider(uri) !== undefined;
+}
+
+/**
+ * The Hebrew passage, as three words with the offsets they sit at.
+ *
+ * Hebrew renders right to left, so the first word appears at the visual right
+ * of the line and the third at the visual left. A squiggle in the correct
+ * place therefore looks misplaced to anyone reading the screen left to right,
+ * which is exactly why these assert offsets and never appearance.
+ */
+const HEBREW = {
+    first: 'שלום',
+    second: 'עולם',
+    /** The deliberate misspelling: shalom with the final mem doubled. */
+    third: 'שלוםם',
+};
 
 function control(document: vscode.TextDocument): boolean {
     return ourDiagnostics(document.uri).some(
@@ -97,12 +116,35 @@ suite('installing a dictionary pack', () => {
             // Hunspell is enabled for Hebrew and has no dictionary, so the
             // passage reaches no engine and the core says so. That diagnostic
             // is what the offer is keyed on.
-            await eventually(
+            const unchecked = await eventually(
                 'the unchecked-language report',
-                () => (hasNoProvider(document.uri) ? true : undefined),
+                () => noProvider(document.uri),
                 BUDGET_MS,
             );
             assert.ok(control(document), 'the rest of the document went unchecked too');
+
+            // Where it sits, not merely that it exists. The report marks the
+            // start of the passage it could not read, so it belongs on the
+            // line the passage opens -- before the third word is flagged as a
+            // misspelling by anything, because nothing here can read Hebrew.
+            const text = document.getText();
+            const passageLine = document.positionAt(text.indexOf(HEBREW.first)).line;
+            assert.strictEqual(
+                unchecked.range.start.line,
+                passageLine,
+                'the unchecked-language report is not on the passage it is about',
+            );
+            assert.strictEqual(
+                unchecked.range.start.character,
+                0,
+                'the report should mark the start of the passage',
+            );
+            assert.ok(
+                !ourDiagnostics(document.uri).some(
+                    d => document.getText(d.range) === HEBREW.third,
+                ),
+                'the Hebrew was spell-checked with no dictionary installed',
+            );
 
             const offers = await eventually(
                 'an offer naming Hebrew',
@@ -120,9 +162,18 @@ suite('installing a dictionary pack', () => {
             if (!fetchable) {
                 // The pack is fetched from the network by design, and a
                 // machine that already has it cannot show the change. The
-                // offer half above is still worth asserting, so the test
-                // stops here rather than skipping from the start.
-                return;
+                // offer half above is still worth asserting, so the test runs
+                // that far and then declares itself pending.
+                //
+                // Pending rather than a quiet `return`: this used to report a
+                // pass named "...and the dictionary takes effect" while the
+                // install half had not run, which is the one thing a test
+                // must never do.
+                console.log(
+                    `    (install half skipped: catalogue reachable=${canReachCatalogue()}, `
+                    + `pack already present=${hebrewPackPresent()})`,
+                );
+                this.skip();
             }
 
             // The install runs as a subprocess and ends with a reinitialize,
@@ -154,6 +205,32 @@ suite('installing a dictionary pack', () => {
                 hebrewPackPresent(),
                 `the pack is not on disk at ${packDirectory()}`,
             );
+
+            // And the dictionary is being used, on the right word. `שלוםם`
+            // is the doubled-mem misspelling and the only one in the passage:
+            // a span that covered `שלום` or `עולם` would mean the offsets
+            // were half what they should be, which is what a byte offset read
+            // as a character index gives on two-byte text.
+            const flagged = await eventually(
+                'the misspelled Hebrew word to be reported',
+                () => ourDiagnostics(document.uri).find(
+                    d => (d.code as string) === 'hunspell.spelling',
+                ),
+                BUDGET_MS,
+            );
+            assert.strictEqual(
+                document.getText(flagged.range),
+                HEBREW.third,
+                'the Hebrew squiggle is not on the misspelled word',
+            );
+            for (const spelled of [HEBREW.first, HEBREW.second]) {
+                assert.ok(
+                    !ourDiagnostics(document.uri).some(
+                        d => document.getText(d.range) === spelled,
+                    ),
+                    `${spelled} is spelled correctly and was reported anyway`,
+                );
+            }
         } finally {
             prompts.restore();
             warnings.restore();

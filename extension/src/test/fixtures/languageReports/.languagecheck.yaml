@@ -1,0 +1,5 @@
+# Latin by default, so the undeclared prose is a language Harper cannot read;
+# the Hebrew block declares itself with a pragma.
+engines:
+  harper: true
+  spell_language: "la"
