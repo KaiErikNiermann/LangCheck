@@ -23,6 +23,7 @@ import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, Insp
 import { Logger } from './logger';
 import { ConfigStatusView } from './configGutter';
 import { classifyConfigChange, silencedBy } from './configRules';
+import { engines as enginesBehind, spanned } from './ignoreSpan';
 
 const GITHUB_REPO = 'KaiErikNiermann/LangCheck';
 
@@ -1058,6 +1059,39 @@ export async function activate(context: vscode.ExtensionContext) {
                     actions.push(...singleChoice, ...replacements);
                 }
 
+                // Offered once for the whole selection, not once per
+                // diagnostic. "Ignore this issue" is keyed on one finding's
+                // message, so a phrase three engines all dislike takes three
+                // trips through the lightbulb -- and the second and third
+                // only appear once the one above has gone.
+                const here = spanned(
+                    {
+                        start: document.offsetAt(range.start),
+                        end: document.offsetAt(range.end),
+                    },
+                    diagnostics.map(d => ({
+                        start: document.offsetAt(d.range.start),
+                        end: document.offsetAt(d.range.end),
+                        code: typeof d.code === 'string' ? d.code : undefined,
+                    })),
+                );
+                if (here.length > 1 && enginesBehind(here.map(d => d.code)).size > 0) {
+                    const silenceAll = new vscode.CodeAction(
+                        vscode.l10n.t('Ignore all {0} issues here', here.length),
+                        vscode.CodeActionKind.QuickFix,
+                    );
+                    silenceAll.command = {
+                        command: 'language-check.ignoreSelection',
+                        title: 'Ignore all issues here',
+                        arguments: [
+                            document.uri.toString(),
+                            document.offsetAt(range.start),
+                            document.offsetAt(range.end),
+                        ],
+                    };
+                    actions.push(silenceAll);
+                }
+
                 return actions;
             }
         },
@@ -1229,6 +1263,76 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand('language-check.ignoreDiagnostic', async (diagnosticId: string) => {
         await ignoreDiagnostic(diagnosticId);
     }));
+
+    /**
+     * Silence every engine over one span.
+     *
+     * Each finding is fingerprinted separately, because that is what the
+     * ignore store holds and what makes the suppression survive a reload. The
+     * span is only how they are chosen.
+     *
+     * Called with no arguments from the palette, where the editor's own
+     * selection is the span.
+     */
+    context.subscriptions.push(vscode.commands.registerCommand(
+        'language-check.ignoreSelection',
+        async (uriText?: string, startOffset?: number, endOffset?: number) => {
+            const editor = uriText === undefined
+                ? vscode.window.activeTextEditor
+                : vscode.window.visibleTextEditors.find(e => e.document.uri.toString() === uriText)
+                    ?? vscode.window.activeTextEditor;
+            if (!editor || !client) return;
+
+            const document = editor.document;
+            const uri = document.uri.toString();
+            const diagnostics = diagnosticsMap.get(uri);
+            if (!diagnostics || diagnostics.length === 0) return;
+
+            const start = startOffset ?? document.offsetAt(editor.selection.start);
+            const end = endOffset ?? document.offsetAt(editor.selection.end);
+            const chosen = spanned(
+                { start, end },
+                diagnostics.map((d, index) => ({
+                    start: document.offsetAt(d.range.start),
+                    end: document.offsetAt(d.range.end),
+                    index,
+                })),
+            );
+            if (chosen.length === 0) {
+                vscode.window.showInformationMessage(
+                    vscode.l10n.t('Nothing to ignore in the selection.'),
+                );
+                return;
+            }
+
+            const text = document.getText();
+            for (const { index } of chosen) {
+                const diagnostic = diagnostics[index];
+                if (!diagnostic) continue;
+                await client.sendRequest({
+                    ignore: {
+                        message: diagnostic.message,
+                        context: document.getText(diagnostic.range),
+                        text,
+                        startByte: diagnostic.coreStartByte ?? 0,
+                        endByte: diagnostic.coreEndByte ?? 0,
+                    },
+                });
+            }
+
+            const silenced = new Set(chosen.map(c => c.index));
+            const remaining = diagnostics.filter((_, index) => !silenced.has(index));
+            diagnosticsMap.set(uri, remaining);
+            diagnosticCollection.set(document.uri, remaining);
+            inlayHintEmitter.fire();
+            updateSpeedFixDiagnostics();
+            pushInspectorEvent(
+                'info',
+                'ignoreSelection',
+                `Ignoring ${chosen.length} issue(s) over the selection`,
+            );
+        },
+    ));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.fixAllSpellingInFile', async (uri: string, word: string, replacement: string) => {
         const diagnostics = diagnosticsMap.get(uri);

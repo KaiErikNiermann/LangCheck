@@ -49,5 +49,6 @@
   "walkthrough.language.description": "Cliquez sur l'indicateur de langue dans la barre d'état (en bas à droite) pour basculer entre l'anglais, l'allemand, le français et l'espagnol.\n\n[Sélectionner la langue](command:language-check.selectLanguage)",
   "walkthrough.configure.title": "Configurer les règles",
   "walkthrough.configure.description": "Créez un fichier `.languagecheck.yaml` à la racine de votre espace de travail pour désactiver des règles, ajouter des corrections automatiques ou configurer les moteurs. Consultez la [documentation](https://github.com) pour plus de détails.",
-  "command.installPack": "Installer un dictionnaire Hunspell"
+  "command.installPack": "Installer un dictionnaire Hunspell",
+  "command.ignoreSelection": "Language Check : ignorer tous les problèmes de la sélection"
 }

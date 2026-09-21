@@ -111,6 +111,10 @@
         "command": "language-check.installPack",
         "title": "%command.installPack%",
         "category": "Language Check"
+      },
+      {
+        "command": "language-check.ignoreSelection",
+        "title": "%command.ignoreSelection%"
       }
     ],
     "keybindings": [

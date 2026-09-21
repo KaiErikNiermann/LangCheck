@@ -99,6 +99,13 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 150_000 },
     },
     {
+        label: 'ignore-selection',
+        files: 'out/test/e2e/ignoreSelection.test.js',
+        workspaceFolder: './src/test/fixtures/selection',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 150_000 },
+    },
+    {
         label: 'deactivate-rule',
         files: 'out/test/e2e/deactivateRule.test.js',
         workspaceFolder: './src/test/fixtures/deactivateRule',

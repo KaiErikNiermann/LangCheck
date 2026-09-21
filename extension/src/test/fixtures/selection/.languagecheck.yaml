@@ -1,0 +1,5 @@
+# Harper and the bundled WASM plugin, so more than one engine has an opinion
+# about the same words and the span action has something to silence.
+engines:
+  harper: true
+  spell_language: "en-US"
