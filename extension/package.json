@@ -32,7 +32,8 @@
     "onLanguage:xhtml",
     "onLanguage:bibtex",
     "onLanguage:org",
-    "onLanguage:typst"
+    "onLanguage:typst",
+    "workspaceContains:.languagecheck.{yaml,yml,json}"
   ],
   "main": "./out/extension.js",
   "l10n": "./l10n",

@@ -1,0 +1,6 @@
+# The baseline: one engine, built in, nothing to reach for. Every test here
+# rewrites this file and the teardown puts it back, so anything added to it
+# has to be something the baseline assertions still hold under.
+engines:
+  harper: true
+  spell_language: "en-US"

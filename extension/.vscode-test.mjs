@@ -99,6 +99,15 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 150_000 },
     },
     {
+        label: 'config-probe',
+        files: 'out/test/e2e/configProbe.test.js',
+        workspaceFolder: './src/test/fixtures/configProbe',
+        launchArgs,
+        // Several cases start a server, break it, and wait for the marks to
+        // follow, which is a few round trips each.
+        mocha: { ui: 'tdd', timeout: 200_000 },
+    },
+    {
         label: 'external-engines',
         files: 'out/test/e2e/externalEngines.test.js',
         workspaceFolder: './src/test/fixtures/externalEngines',
