@@ -11,7 +11,7 @@ use anyhow::Result;
 use bytes::{Buf, BytesMut};
 use checker::{
     CheckResponse, ErrorResponse, ExtractionExclusion, ExtractionInfo, ExtractionProseRange,
-    MetadataResponse, ProbeConfigResponse, Request, Response, response,
+    ConfigIssue, MetadataResponse, ProbeConfigResponse, Request, Response, response,
 };
 use config::Config;
 use dictionary::Dictionary;
@@ -810,9 +810,32 @@ async fn main() -> Result<()> {
                                 .into_iter()
                                 .map(lang_check::config_probe::Probe::into_wire)
                                 .collect::<Vec<_>>();
-                            debug!(id = request_id, probes = probes.len(), "ProbeConfig: answered");
+                            // Unknown keys reached only the log before this,
+                            // where nothing could draw them: serde drops what
+                            // it does not recognise without a word, so a typo'd
+                            // key looked exactly like a setting that had no
+                            // effect.
+                            let issues = Config::unknown_key_paths(&req.text)
+                                .into_iter()
+                                .map(|key| ConfigIssue {
+                                    message: format!(
+                                        "\"{}\" is not a setting this reads, so it has no \
+                                         effect.",
+                                        key.rsplit('.').next().unwrap_or(&key)
+                                    ),
+                                    key,
+                                    severity: checker::Severity::Warning as i32,
+                                })
+                                .collect::<Vec<_>>();
+                            debug!(
+                                id = request_id,
+                                probes = probes.len(),
+                                issues = issues.len(),
+                                "ProbeConfig: answered"
+                            );
                             Some(response::Payload::ProbeConfig(ProbeConfigResponse {
                                 probes,
+                                issues,
                                 parse_error: String::new(),
                             }))
                         }
@@ -823,6 +846,7 @@ async fn main() -> Result<()> {
                         Err(message) => {
                             Some(response::Payload::ProbeConfig(ProbeConfigResponse {
                                 probes: Vec::new(),
+                                issues: Vec::new(),
                                 parse_error: message,
                             }))
                         }

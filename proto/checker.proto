@@ -243,4 +243,17 @@ message ProbeConfigResponse {
   // Set when the text could not be parsed at all, in which case `probes` is
   // empty and the editor has nothing to draw but this.
   string parse_error = 2;
+  // Findings the file settles on its own -- a key no version of the schema
+  // has, a value outside its enum. Kept apart from `probes` because they earn
+  // no gutter mark: a mark means something outside the file was reached, and
+  // a tick next to a spelling check would say nothing.
+  repeated ConfigIssue issues = 3;
+}
+
+// Something wrong with the config that reading it is enough to establish.
+message ConfigIssue {
+  // Dotted path to the offending key, spelled as in ConfigProbe.
+  string key = 1;
+  string message = 2;
+  Severity severity = 3;
 }
