@@ -8,17 +8,24 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn temp_workspace(prefix: &str) -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("time should move forward")
-        .as_nanos();
-    let dir = std::env::temp_dir().join(format!(
-        "lang-check-{prefix}-{}-{nanos}",
-        std::process::id()
-    ));
-    fs::create_dir_all(&dir).expect("temp dir should be created");
-    dir
+/// A workspace directory that is unique, and removed when the handle drops.
+///
+/// Built with `tempfile` rather than from a pid and a timestamp. The
+/// hand-rolled version named the directory after `SystemTime::now()`, and
+/// tests in one binary run in parallel threads: where the clock is coarser
+/// than a nanosecond -- macOS among them -- two of them landed on the same
+/// name, shared one `.languagecheck.yaml`, and read each other's config. The
+/// symptom was a severity override that worked locally and reported the
+/// category default in CI. `tempfile` creates the directory with O_EXCL and
+/// retries, so the name cannot collide.
+///
+/// The returned handle must stay alive for as long as the directory is
+/// needed; dropping it deletes the tree.
+fn temp_workspace(prefix: &str) -> tempfile::TempDir {
+    tempfile::Builder::new()
+        .prefix(prefix)
+        .tempdir()
+        .expect("a temp workspace")
 }
 
 fn write_file(path: &Path, contents: &str) {
@@ -31,7 +38,7 @@ fn write_file(path: &Path, contents: &str) {
 #[test]
 fn schema_registry_load_dir_loads_multiple_schemas() {
     let workspace = temp_workspace("sls-load-dir");
-    let schema_dir = workspace.join(".langcheck/schemas");
+    let schema_dir = workspace.path().join(".langcheck/schemas");
 
     write_file(
         &schema_dir.join("asciidoc.yaml"),
@@ -66,14 +73,12 @@ skip_blocks: []
     assert_eq!(registry.len(), 2);
     assert!(registry.find_by_extension("adoc").is_some());
     assert!(registry.find_by_extension("toml").is_some());
-
-    fs::remove_dir_all(workspace).expect("temp dir should be removed");
 }
 
 #[test]
 fn sls_does_not_shadow_built_in_extractors() {
     let workspace = temp_workspace("sls-builtins");
-    let schema_dir = workspace.join(".langcheck/schemas");
+    let schema_dir = workspace.path().join(".langcheck/schemas");
 
     write_file(
         &schema_dir.join("shadow-rst.yaml"),
@@ -87,9 +92,9 @@ skip_blocks: []
 "#,
     );
 
-    let registry = SchemaRegistry::from_workspace(&workspace).expect("registry should load");
+    let registry = SchemaRegistry::from_workspace(workspace.path()).expect("registry should load");
     let text = "My Title\n========\n\nThis is a paragraph.\n";
-    let path = workspace.join("doc.rst");
+    let path = workspace.path().join("doc.rst");
     let ranges = prose::extract_with_fallback(
         &text,
         "rst",
@@ -109,14 +114,12 @@ skip_blocks: []
             .iter()
             .any(|range_text| range_text.contains("This is a paragraph"))
     );
-
-    fs::remove_dir_all(workspace).expect("temp dir should be removed");
 }
 
 #[test]
 fn cli_uses_workspace_sls_schema_for_unknown_extension() {
     let workspace = temp_workspace("sls-cli");
-    let schema_dir = workspace.join(".langcheck/schemas");
+    let schema_dir = workspace.path().join(".langcheck/schemas");
 
     write_file(
         &schema_dir.join("asciidoc.yaml"),
@@ -133,12 +136,12 @@ skip_blocks:
     );
 
     write_file(
-        &workspace.join("sample.adoc"),
+        &workspace.path().join("sample.adoc"),
         "= Title\n\nThis is an test.\n\n----\nThis is an test in code.\n----\n\nAnother clean paragraph.\n",
     );
 
     let output = Command::new(env!("CARGO_BIN_EXE_language-check"))
-        .current_dir(&workspace)
+        .current_dir(workspace.path())
         .arg("check")
         .arg("sample.adoc")
         .arg("--format")
@@ -158,6 +161,4 @@ skip_blocks:
     assert_eq!(diagnostics.len(), 1, "expected one prose diagnostic");
     assert_eq!(diagnostics[0]["file"], "sample.adoc");
     assert_eq!(diagnostics[0]["line"], 3);
-
-    fs::remove_dir_all(workspace).expect("temp dir should be removed");
 }

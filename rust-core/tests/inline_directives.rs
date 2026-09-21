@@ -26,23 +26,24 @@ const SYNTAXES: &[(&str, &str, &str, &str)] = &[
     ("typst", "typ", "// ", ""),
 ];
 
-fn temp_workspace() -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "lang_check_directives_{}_{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    std::fs::create_dir_all(&dir).unwrap();
-    // Harper alone: no network, and it flags the typo on its own.
-    std::fs::write(
-        dir.join(".languagecheck.yaml"),
-        "engines:\n  harper:\n    enabled: true\n  languagetool:\n    enabled: false\n  spell_language: en-US\n",
-    )
-    .unwrap();
-    dir
+/// A workspace directory that is unique, and removed when the handle drops.
+///
+/// Built with `tempfile` rather than from a pid and a timestamp. The
+/// hand-rolled version named the directory after `SystemTime::now()`, and
+/// tests in one binary run in parallel threads: where the clock is coarser
+/// than a nanosecond -- macOS among them -- two of them landed on the same
+/// name, shared one `.languagecheck.yaml`, and read each other's config. The
+/// symptom was a severity override that worked locally and reported the
+/// category default in CI. `tempfile` creates the directory with O_EXCL and
+/// retries, so the name cannot collide.
+///
+/// The returned handle must stay alive for as long as the directory is
+/// needed; dropping it deletes the tree.
+fn temp_workspace() -> tempfile::TempDir {
+    tempfile::Builder::new()
+        .prefix("lang_check_test")
+        .tempdir()
+        .expect("a temp workspace")
 }
 
 /// Check one file through the CLI and report the 1-based lines it flagged.
@@ -109,9 +110,9 @@ fn begin_end_region_is_suppressed_in_every_format() {
     let dir = temp_workspace();
     for &(lang, ext, open, close) in SYNTAXES {
         let name = format!("region.{ext}");
-        std::fs::write(dir.join(&name), begin_end_document(open, close)).unwrap();
+        std::fs::write(dir.path().join(&name), begin_end_document(open, close)).unwrap();
         assert_eq!(
-            flagged_lines(&dir, &name, lang),
+            flagged_lines(dir.path(), &name, lang),
             vec![1, 7],
             "begin/end region not honoured in {lang}"
         );
@@ -123,9 +124,9 @@ fn disable_directives_are_honoured_in_every_format() {
     let dir = temp_workspace();
     for &(lang, ext, open, close) in SYNTAXES {
         let name = format!("disable.{ext}");
-        std::fs::write(dir.join(&name), disable_document(open, close)).unwrap();
+        std::fs::write(dir.path().join(&name), disable_document(open, close)).unwrap();
         assert_eq!(
-            flagged_lines(&dir, &name, lang),
+            flagged_lines(dir.path(), &name, lang),
             vec![1, 10],
             "disable directives not honoured in {lang}"
         );
@@ -136,9 +137,12 @@ fn disable_directives_are_honoured_in_every_format() {
 fn a_document_without_directives_keeps_every_diagnostic() {
     let dir = temp_workspace();
     std::fs::write(
-        dir.join("plain.md"),
+        dir.path().join("plain.md"),
         format!("A {TYPO} sentence here.\n\nA final {TYPO} sentence.\n"),
     )
     .unwrap();
-    assert_eq!(flagged_lines(&dir, "plain.md", "markdown"), vec![1, 3]);
+    assert_eq!(
+        flagged_lines(dir.path(), "plain.md", "markdown"),
+        vec![1, 3]
+    );
 }

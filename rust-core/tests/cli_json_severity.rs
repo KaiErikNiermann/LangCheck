@@ -17,27 +17,34 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-fn temp_workspace(prefix: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "{prefix}_{}_{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+/// A workspace directory that is unique, and removed when the handle drops.
+///
+/// Built with `tempfile` rather than from a pid and a timestamp. The
+/// hand-rolled version named the directory after `SystemTime::now()`, and
+/// tests in one binary run in parallel threads: where the clock is coarser
+/// than a nanosecond -- macOS among them -- two of them landed on the same
+/// name, shared one `.languagecheck.yaml`, and read each other's config. The
+/// symptom was a severity override that worked locally and reported the
+/// category default in CI. `tempfile` creates the directory with O_EXCL and
+/// retries, so the name cannot collide.
+///
+/// The returned handle must stay alive for as long as the directory is
+/// needed; dropping it deletes the tree.
+fn temp_workspace(prefix: &str) -> tempfile::TempDir {
+    tempfile::Builder::new()
+        .prefix(prefix)
+        .tempdir()
+        .expect("a temp workspace")
 }
 
 /// The severities reported for a document checked under `config`.
 fn severities(config: &str) -> Vec<String> {
     let workspace = temp_workspace("lang_check_json_severity");
-    std::fs::write(workspace.join(".languagecheck.yaml"), config).unwrap();
-    std::fs::write(workspace.join("doc.md"), "A recieve typo.\n").unwrap();
+    std::fs::write(workspace.path().join(".languagecheck.yaml"), config).unwrap();
+    std::fs::write(workspace.path().join("doc.md"), "A recieve typo.\n").unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_language-check"))
-        .current_dir(&workspace)
+        .current_dir(workspace.path())
         .args(["check", "doc.md", "--format", "json"])
         .output()
         .expect("the CLI runs");
@@ -49,7 +56,6 @@ fn severities(config: &str) -> Vec<String> {
         .iter()
         .filter_map(|d| d["severity"].as_str().map(str::to_string))
         .collect();
-    std::fs::remove_dir_all(&workspace).ok();
     found
 }
 

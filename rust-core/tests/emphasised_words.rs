@@ -16,18 +16,22 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Harper alone: no server, no network, and it flags the typo on its own.
-fn workspace() -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "lang_check_emphasis_{}_{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    std::fs::create_dir_all(&dir).unwrap();
+///
+/// Built with `tempfile` rather than from a pid and a timestamp. The
+/// hand-rolled version named the directory after `SystemTime::now()`, and
+/// tests in one binary run in parallel threads: where the clock is coarser
+/// than a nanosecond -- macOS among them -- two of them landed on the same
+/// name and read each other's `.languagecheck.yaml`.
+///
+/// The returned handle must stay alive for as long as the directory is
+/// needed; dropping it deletes the tree.
+fn workspace() -> tempfile::TempDir {
+    let dir = tempfile::Builder::new()
+        .prefix("lang_check_emphasis")
+        .tempdir()
+        .expect("a temp workspace");
     std::fs::write(
-        dir.join(".languagecheck.yaml"),
+        dir.path().join(".languagecheck.yaml"),
         "engines:\n  harper:\n    enabled: true\n  languagetool:\n    enabled: false\n  spell_language: en-US\nrules:\n  typography.capitalization:\n    severity: \"off\"\n",
     )
     .unwrap();
@@ -73,7 +77,12 @@ fn misspellings(dir: &Path, name: &str, contents: &str, lang: &str) -> Vec<Strin
 fn a_misspelling_inside_markdown_emphasis_is_reported() {
     let dir = workspace();
     assert_eq!(
-        misspellings(&dir, "emph.md", "A _deliberatly_ wrong word.\n", "markdown"),
+        misspellings(
+            dir.path(),
+            "emph.md",
+            "A _deliberatly_ wrong word.\n",
+            "markdown"
+        ),
         vec!["deliberatly"]
     );
 }
@@ -83,7 +92,7 @@ fn a_misspelling_inside_markdown_strong_emphasis_is_reported() {
     let dir = workspace();
     assert_eq!(
         misspellings(
-            &dir,
+            dir.path(),
             "strong.md",
             "A **deliberatly** wrong word.\n",
             "markdown"
@@ -96,7 +105,12 @@ fn a_misspelling_inside_markdown_strong_emphasis_is_reported() {
 fn a_misspelling_inside_typst_emphasis_is_reported() {
     let dir = workspace();
     assert_eq!(
-        misspellings(&dir, "emph.typ", "A _deliberatly_ wrong word.\n", "typst"),
+        misspellings(
+            dir.path(),
+            "emph.typ",
+            "A _deliberatly_ wrong word.\n",
+            "typst"
+        ),
         vec!["deliberatly"]
     );
 }
@@ -107,7 +121,13 @@ fn a_correctly_spelled_emphasised_word_is_not_reported() {
     // The delimiters must not reach the speller: `_reception_` sent whole is
     // what started this, reported with `_ reception` among its suggestions.
     assert!(
-        misspellings(&dir, "clean.md", "A _reception_ was held.\n", "markdown").is_empty(),
+        misspellings(
+            dir.path(),
+            "clean.md",
+            "A _reception_ was held.\n",
+            "markdown"
+        )
+        .is_empty(),
         "an emphasised word that is spelled correctly must not be reported"
     );
 }
@@ -117,7 +137,7 @@ fn code_and_urls_inside_a_sentence_are_not_spell_checked() {
     let dir = workspace();
     let source = "Call `recieve` from <https://exmaple.org/teh> now.\n";
     assert!(
-        misspellings(&dir, "code.md", source, "markdown").is_empty(),
+        misspellings(dir.path(), "code.md", source, "markdown").is_empty(),
         "inline code and link targets are not prose"
     );
 }
@@ -127,7 +147,7 @@ fn a_links_text_is_still_spell_checked() {
     let dir = workspace();
     assert_eq!(
         misspellings(
-            &dir,
+            dir.path(),
             "link.md",
             "See [the deliberatly wrong guide](https://example.org/x).\n",
             "markdown"
@@ -147,7 +167,7 @@ fn emphasis_before_punctuation_does_not_invent_a_whitespace_complaint() {
     let dir = workspace();
     for (name, lang) in [("punct.md", "markdown"), ("punct.typ", "typst")] {
         let reported = misspellings(
-            &dir,
+            dir.path(),
             name,
             "A _stressed_. And *another*, then the end.\n",
             lang,

@@ -10,17 +10,24 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn temp_workspace(prefix: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "{prefix}_{}_{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+/// A workspace directory that is unique, and removed when the handle drops.
+///
+/// Built with `tempfile` rather than from a pid and a timestamp. The
+/// hand-rolled version named the directory after `SystemTime::now()`, and
+/// tests in one binary run in parallel threads: where the clock is coarser
+/// than a nanosecond -- macOS among them -- two of them landed on the same
+/// name, shared one `.languagecheck.yaml`, and read each other's config. The
+/// symptom was a severity override that worked locally and reported the
+/// category default in CI. `tempfile` creates the directory with O_EXCL and
+/// retries, so the name cannot collide.
+///
+/// The returned handle must stay alive for as long as the directory is
+/// needed; dropping it deletes the tree.
+fn temp_workspace(prefix: &str) -> tempfile::TempDir {
+    tempfile::Builder::new()
+        .prefix(prefix)
+        .tempdir()
+        .expect("a temp workspace")
 }
 
 fn write(dir: &Path, name: &str, contents: &str) {
@@ -36,16 +43,20 @@ fn checking_a_directory_visits_every_matching_file() {
     let workspace = temp_workspace("lang_check_cli_dir");
     // Two of markdown's extensions, one nested, plus a file of another language that
     // must not be picked up.
-    write(&workspace, "top.md", "This sentance is wrong.\n");
+    write(workspace.path(), "top.md", "This sentance is wrong.\n");
     write(
-        &workspace,
+        workspace.path(),
         "nested/deep.markdown",
         "Another mispeling here.\n",
     );
-    write(&workspace, "ignored.tree", "\\p{A third mispeling.}\n");
+    write(
+        workspace.path(),
+        "ignored.tree",
+        "\\p{A third mispeling.}\n",
+    );
 
     let output = Command::new(env!("CARGO_BIN_EXE_language-check"))
-        .current_dir(&workspace)
+        .current_dir(workspace.path())
         .args(["check", ".", "--lang", "markdown", "--format", "json"])
         .output()
         .expect("the CLI runs");
@@ -70,6 +81,4 @@ fn checking_a_directory_visits_every_matching_file() {
         !files.iter().any(|f| f.ends_with("ignored.tree")),
         "a file of another language was checked: {files:?}"
     );
-
-    std::fs::remove_dir_all(&workspace).ok();
 }
