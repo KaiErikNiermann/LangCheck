@@ -42,6 +42,10 @@ html_theme_options = {
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 
+# The palette is an ES module: it imports the vendored ninja-keys bundle and
+# reads the action index that the command_palette extension writes.
+html_js_files = [("command-palette.js", {"type": "module"})]
+
 # Sidebar: insert language picker after brand, before search
 html_sidebars = {
     "**": [

@@ -304,3 +304,97 @@ body {
         transition: none;
     }
 }
+
+/* ── Search shortcut hint (Ctrl+K) ───────────────────────────── */
+
+body {
+    --lc-kbd-font-size:   0.66rem;
+    --lc-kbd-pad-inline:  0.34rem;
+    --lc-kbd-pad-block:   0.1rem;
+    --lc-kbd-radius:      4px;
+    --lc-kbd-min-size:    1.15em;
+    --lc-kbd-gap:         0.18rem;
+    --lc-kbd-text:        var(--color-foreground-secondary);
+    --lc-kbd-background:  var(--color-background-primary);
+    --lc-kbd-border:      var(--color-background-border);
+    --lc-kbd-shadow:      0 1px 0 var(--color-background-border);
+    --lc-search-hint-slot: 3.6rem;
+}
+
+/* Furo's search container is already the positioned ancestor, and its input
+   sits on a higher layer — so the badge is inert and the whole box stays one
+   click target that opens the palette. */
+.lc-search-hint {
+    position: absolute;
+    inset-inline-end: var(--sidebar-search-input-spacing-horizontal);
+    inset-block: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--lc-kbd-gap);
+    pointer-events: none;
+}
+
+.lc-kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: var(--lc-kbd-min-size);
+    padding-inline: var(--lc-kbd-pad-inline);
+    padding-block: var(--lc-kbd-pad-block);
+    border: 1px solid var(--lc-kbd-border);
+    border-radius: var(--lc-kbd-radius);
+    box-shadow: var(--lc-kbd-shadow);
+    background: var(--lc-kbd-background);
+    color: var(--lc-kbd-text);
+    font-family: var(--font-stack);
+    font-size: var(--lc-kbd-font-size);
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+/* Keep the placeholder clear of the badge. */
+.sidebar-search {
+    padding-inline-end: calc(
+        var(--sidebar-search-input-spacing-horizontal) + var(--lc-search-hint-slot)
+    );
+    cursor: pointer;
+}
+
+/* ── Command palette (ninja-keys) ────────────────────────────── */
+
+/* Every value is one of Furo's own theme tokens, so the palette follows the
+   light/dark toggle without a class of its own to keep in sync. */
+ninja-keys {
+    /* Inherited by the shadow DOM, which Furo's own scrollbar rules cannot reach. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-foreground-border) transparent;
+
+    --ninja-width:            min(40rem, 92vw);
+    --ninja-font-family:      var(--font-stack);
+    --ninja-font-size:        0.95rem;
+    --ninja-top:              12vh;
+    --ninja-z-index:          60;
+    --ninja-actions-height:   22rem;
+    --ninja-icon-size:        1.1em;
+    --ninja-key-border-radius: var(--lc-kbd-radius);
+
+    --ninja-text-color:           var(--color-foreground-primary);
+    --ninja-secondary-text-color: var(--color-foreground-secondary);
+    --ninja-group-text-color:     var(--color-foreground-muted);
+    --ninja-placeholder-color:    var(--color-foreground-muted);
+    --ninja-icon-color:           var(--color-foreground-muted);
+    --ninja-accent-color:         var(--color-brand-primary);
+
+    --ninja-modal-background:           var(--color-background-primary);
+    --ninja-secondary-background-color: var(--color-background-secondary);
+    --ninja-footer-background:          var(--color-background-secondary);
+    --ninja-separate-border:            1px solid var(--color-background-border);
+
+    --ninja-selected-background:  color-mix(in srgb, var(--color-brand-primary) 12%, transparent);
+    --ninja-selected-text-color:  var(--color-brand-content);
+
+    --ninja-overflow-background: color-mix(in srgb, var(--color-background-primary) 65%, transparent);
+    --ninja-backdrop-filter:     blur(2px);
+    --ninja-modal-shadow:        0 16px 70px
+        color-mix(in srgb, var(--color-foreground-primary) 28%, transparent);
+}
