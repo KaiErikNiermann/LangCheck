@@ -87,6 +87,8 @@ pub struct Probe {
     pub detail: String,
     /// The owning engine, empty for a top-level key.
     pub engine: String,
+    /// Whether the key is at fault rather than its value.
+    pub blames_key: bool,
 }
 
 impl Probe {
@@ -101,7 +103,18 @@ impl Probe {
             status,
             detail: detail.into(),
             engine: engine.to_string(),
+            blames_key: false,
         }
+    }
+
+    /// Mark this as a finding about the key itself.
+    ///
+    /// A rule name the engine does not have is a bad key; underlining the
+    /// `false` beside it would point at the wrong token.
+    #[must_use]
+    const fn blaming_key(mut self) -> Self {
+        self.blames_key = true;
+        self
     }
 
     #[must_use]
@@ -111,6 +124,7 @@ impl Probe {
             status: self.status.wire() as i32,
             detail: self.detail,
             engine: self.engine,
+            blames_key: self.blames_key,
         }
     }
 }
@@ -184,15 +198,18 @@ async fn probe_harper(config: &Config) -> Vec<Probe> {
         "Harper is built in and always available.",
     )];
     for name in unknown {
-        probes.push(Probe::new(
-            format!("engines.harper.linters.{name}"),
-            ENGINE,
-            ProbeStatus::Down,
-            format!(
-                "Harper has no linter called \"{name}\", so this setting does nothing. \
-                 Rule names are case-sensitive and spelled like LongSentences."
-            ),
-        ));
+        probes.push(
+            Probe::new(
+                format!("engines.harper.linters.{name}"),
+                ENGINE,
+                ProbeStatus::Down,
+                format!(
+                    "Harper has no linter called \"{name}\", so this setting does nothing. \
+                     Rule names are case-sensitive and spelled like LongSentences."
+                ),
+            )
+            .blaming_key(),
+        );
     }
     probes
 }
@@ -853,3 +870,4 @@ mod tests {
         assert!(error.contains("not on PATH"), "{error}");
     }
 }
+

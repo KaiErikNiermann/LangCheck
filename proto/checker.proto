@@ -221,6 +221,11 @@ message ConfigProbe {
   // The engine this key belongs to, empty for a top-level key. The editor
   // rolls child probes up onto the engine's own line with it.
   string engine = 4;
+  // Whether the key is what is wrong, rather than its value. A rule name the
+  // engine does not have is a bad key; a URL nothing answers on is a bad
+  // value. The editor underlines whichever this names, because underlining
+  // `false` when the name beside it is the typo points at the wrong token.
+  bool blames_key = 5;
 }
 
 enum ProbeStatus {

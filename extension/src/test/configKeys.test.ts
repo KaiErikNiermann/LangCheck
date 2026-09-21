@@ -87,7 +87,11 @@ describe('config key spans', () => {
         const duplicate = parsed.problems.find(p => /unique/i.test(p.message));
         expect(duplicate).toBeDefined();
         expect(duplicate!.fatal).toBe(false);
-        expect(duplicate!.message).toMatch(/last one/);
+        expect(duplicate!.message).toMatch(/falls back to its default/);
+        // Over the key, not over the single column the parser reports: a
+        // one-character underline next to the word that is wrong reads as a
+        // stray mark.
+        expect(source.slice(duplicate!.start, duplicate!.end)).toBe('harper');
     });
 
     it('still gives spans for the rest of a file that has a duplicate key', () => {

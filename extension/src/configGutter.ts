@@ -274,7 +274,13 @@ export class ConfigStatusView implements vscode.Disposable {
             }
 
             if (status === 'down' || status === 'degraded') {
-                diagnostics.push(squiggle(document, span, detail, status));
+                diagnostics.push(squiggle(
+                    document,
+                    span,
+                    detail,
+                    status,
+                    probe.blamesKey === true,
+                ));
             }
         }
 

@@ -46,14 +46,15 @@ export interface ParsedConfig {
  * A duplicate key is what the sample config in our own README invites.
  *
  * The file documents both `harper: true` and the nested `harper:` block, and
- * a reader who copies both gets a YAML map with the key twice. YAML takes the
- * last one, so the shorthand silently vanishes -- and because the document
- * still resolves, nothing downstream has any reason to mention it.
+ * a reader who copies both gets a YAML map with the key twice.
  *
- * The parser files it under `errors`, but it is not one in the sense that
- * matters here: the contents are intact and every other key still has a
- * position, so the document is walked as usual and this is reported on its
- * own.
+ * What happens then is worse than it looks. `yaml` resolves the document by
+ * keeping the last entry, which is why the contents are intact here and every
+ * other key still has a position -- so the file is walked as usual and this is
+ * reported on its own. But the core parses with serde, which rejects a
+ * duplicate outright, and a config that fails to load falls back to the
+ * defaults in full. One repeated key therefore silently discards every
+ * setting in the file, which is what the message has to say.
  */
 const RESOLVES_ANYWAY = new Set(['DUPLICATE_KEY']);
 
@@ -67,6 +68,18 @@ const RESOLVES_ANYWAY = new Set(['DUPLICATE_KEY']);
 function firstSentence(message: string): string {
     const line = message.split('\n')[0] ?? message;
     return line.replace(/ at line \d+, column \d+:?$/, '');
+}
+
+/**
+ * Widen a one-character position to the token that starts there.
+ *
+ * `yaml` reports a duplicate key as a single column, which underlines one
+ * character and reads as a stray mark next to the word that is actually
+ * wrong. The key runs to the first space or colon.
+ */
+function tokenAt(text: string, start: number): number {
+    const match = /^[^\s:#]+/.exec(text.slice(start));
+    return match === null ? start + 1 : start + match[0].length;
 }
 
 export function parseConfigKeys(text: string): ParsedConfig {
@@ -95,10 +108,10 @@ export function parseConfigKeys(text: string): ParsedConfig {
         if (!resolves) fatal = true;
         problems.push({
             message: resolves
-                ? `${firstSentence(error.message)}. YAML keeps the last one, so the earlier block has no effect.`
+                ? `${firstSentence(error.message)}. A repeated key makes the whole config fail to load, so every setting in this file falls back to its default.`
                 : firstSentence(error.message),
             start: error.pos[0],
-            end: error.pos[1],
+            end: resolves ? tokenAt(text, error.pos[0]) : error.pos[1],
             fatal: !resolves,
         });
     }
