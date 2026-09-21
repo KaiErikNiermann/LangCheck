@@ -99,6 +99,14 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 150_000 },
     },
     {
+        label: 'dictionary-edit',
+        files: 'out/test/e2e/dictionaryEdit.test.js',
+        workspaceFolder: './src/test/fixtures/dictEdit',
+        launchArgs,
+        // One case watches for a flicker across a six-second window.
+        mocha: { ui: 'tdd', timeout: 200_000 },
+    },
+    {
         label: 'ignore-selection',
         files: 'out/test/e2e/ignoreSelection.test.js',
         workspaceFolder: './src/test/fixtures/selection',

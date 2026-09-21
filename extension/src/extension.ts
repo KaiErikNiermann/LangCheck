@@ -10,7 +10,15 @@ import { createAPI } from './api';
 import { binaryExists, downloadBinary } from './downloader';
 import { formatSuggestionLabel, speedFixSuggestionLabel, displayOriginalText } from './inlayLabels';
 import type { LanguageCheckDiagnostic } from './api';
-import { DEFAULT_DEBOUNCE_MS, parseDebounceMs } from './configParsing';
+import {
+    DEFAULT_DEBOUNCE_MS,
+    parseDebounceMs,
+    parseDictionaryPaths,
+    parseProseEnvironments,
+    parseSkipCommands,
+    parseSkipEnvironments,
+    wordsAdded,
+} from './configParsing';
 import {
     declinePack,
     forgetDecline,
@@ -202,40 +210,6 @@ let userSkipEnvs = new Set<string>();
 // User-configured prose_environments from .languagecheck.yaml (suppress inlay hints, keep checking)
 let userProseEnvs = new Set<string>();
 
-/** Parse a YAML list under the given key from a config string. */
-function parseYamlList(content: string, key: string): Set<string> {
-    const items = new Set<string>();
-    const re = new RegExp(`${key}:\\s*\\n((?:\\s+-\\s+\\S+\\n?)*)`);
-    const match = content.match(re);
-    if (match?.[1]) {
-        for (const line of match[1].split('\n')) {
-            const item = line.match(/^\s+-\s+(\S+)/);
-            if (item?.[1]) items.add(item[1]);
-        }
-    }
-    return items;
-}
-
-/** Parse skip_environments list items from a YAML config string. */
-function parseSkipEnvironments(content: string): Set<string> {
-    return parseYamlList(content, 'skip_environments');
-}
-
-/**
- * Parse `dictionaries.paths` list items from a YAML config string.
- *
- * The key is nested, and [`parseYamlList`] matches on the key alone, which is
- * enough here: no other `paths:` key exists in the schema.
- */
-function parseDictionaryPaths(content: string): Set<string> {
-    return parseYamlList(content, 'paths');
-}
-
-/** Parse prose_environments list items from a YAML config string. */
-function parseProseEnvironments(content: string): Set<string> {
-    return parseYamlList(content, 'prose_environments');
-}
-
 // Built-in LaTeX commands whose arguments the checker always skips (mirrors SKIP_GENERIC_COMMANDS in latex.rs)
 const BUILTIN_SKIP_COMMANDS = new Set([
     "thispagestyle", "pagestyle", "bibliographystyle", "bibliography",
@@ -252,10 +226,7 @@ const BUILTIN_SKIP_COMMANDS = new Set([
 // User-configured skip_commands from .languagecheck.yaml
 let userSkipCommands = new Set<string>();
 
-/** Parse skip_commands list items from a YAML config string. */
-function parseSkipCommands(content: string): Set<string> {
-    return parseYamlList(content, 'skip_commands');
-}
+
 
 /** Push a timestamped event to the Inspector event log (if open). */
 function pushInspectorEvent(level: InspectorEvent['level'], source: string, message: string, extra?: { durationMs?: number; details?: string }) {
@@ -2354,6 +2325,62 @@ export async function activate(context: vscode.ExtensionContext) {
      */
     const SCHEMA_DIR_PATTERN = '.langcheck/schemas/**/*';
 
+    /**
+     * What each watched wordlist held last time it was read.
+     *
+     * Kept so a change can be classified: adding a word can only remove
+     * spelling findings, and removing one needs the check because the finding
+     * was dropped inside the core and never reached the editor.
+     */
+    const wordlistContents = new Map<string, string>();
+
+    const readWordlist = async (uri: vscode.Uri): Promise<string> => {
+        try {
+            return Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+        } catch {
+            return '';
+        }
+    };
+
+    /**
+     * Apply a wordlist edit that only added words.
+     *
+     * The accepted words' findings are dropped in place, so the file does not
+     * blank and fill back in to arrive at what is already on screen minus one
+     * word. The re-check still runs, because the core also accepts affixed
+     * forms of a dictionary word through the morphology analyser and this
+     * only knows the exact ones -- but it runs without clearing first, so
+     * nothing flickers while it does.
+     */
+    const applyAcceptedWords = async (added: ReadonlySet<string>) => {
+        if (added.size > 0) {
+            log.info('Wordlist gained words, filtering in place', { words: [...added] });
+            for (const [uri, diagnostics] of diagnosticsMap) {
+                const document = vscode.workspace.textDocuments.find(
+                    d => d.uri.toString() === uri,
+                );
+                if (!document) continue;
+                const remaining = diagnostics.filter(d => {
+                    const ruleId = typeof d.code === 'string' ? d.code : '';
+                    if (!isSpellingRule(ruleId)) return true;
+                    return !added.has(document.getText(d.range).toLowerCase());
+                });
+                if (remaining.length === diagnostics.length) continue;
+                diagnosticsMap.set(uri, remaining);
+                diagnosticCollection.set(document.uri, remaining);
+            }
+            inlayHintEmitter.fire();
+            updateSpeedFixDiagnostics();
+        }
+        await initializeClient();
+        // No clear: `checkDocument` replaces a document's diagnostics in one
+        // go when it finishes, so there is no window in which the file looks
+        // clean.
+        for (const editor of vscode.window.visibleTextEditors) {
+            if (isCheckable(editor.document)) checkDocument(editor.document);
+        }
+    };
+
     const refreshDictionaryWatchers = async () => {
         for (const watcher of dictionaryWatchers) watcher.dispose();
         dictionaryWatchers = [];
@@ -2393,7 +2420,21 @@ export async function activate(context: vscode.ExtensionContext) {
             const watcher = vscode.workspace.createFileSystemWatcher(
                 new vscode.RelativePattern(folder, relative),
             );
-            const reload = () => reinitializeAndRecheck();
+            const uri = vscode.Uri.joinPath(folder.uri, relative);
+            const key = uri.toString();
+            wordlistContents.set(key, await readWordlist(uri));
+            const reload = async () => {
+                const before = wordlistContents.get(key) ?? '';
+                const after = await readWordlist(uri);
+                wordlistContents.set(key, after);
+                const added = wordsAdded(before, after);
+                if (added === null) {
+                    // A word was taken away, or the file was rewritten.
+                    await reinitializeAndRecheck();
+                    return;
+                }
+                await applyAcceptedWords(added);
+            };
             watcher.onDidChange(reload);
             watcher.onDidCreate(reload);
             watcher.onDidDelete(reload);
@@ -2405,7 +2446,6 @@ export async function activate(context: vscode.ExtensionContext) {
     configWatcher.onDidChange(checkConfigChange);
     configWatcher.onDidCreate(checkConfigChange);
     configWatcher.onDidDelete(checkConfigChange);
-    await refreshDictionaryWatchers();
     context.subscriptions.push(configWatcher);
 
     // Eagerly read the initial config values so we can detect changes
@@ -2433,6 +2473,12 @@ export async function activate(context: vscode.ExtensionContext) {
             lastKnownSpellLanguage = 'en-US';
         }
     }
+
+    // After the config has been read, not before: the wordlists to watch are
+    // named in it, and registering the watchers first meant a path from
+    // `dictionaries.paths` was never watched at all. Editing the wordlist
+    // then did nothing until the config file itself happened to change.
+    await refreshDictionaryWatchers();
 
     // Listen for diagnostic changes to keep SpeedFix in sync
     context.subscriptions.push(vscode.languages.onDidChangeDiagnostics(() => {

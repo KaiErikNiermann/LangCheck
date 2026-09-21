@@ -1,0 +1,8 @@
+# Harper alone, so the findings are stable and need no server.
+engines:
+  harper: true
+  spell_language: "en-US"
+
+dictionaries:
+  paths:
+    - "words.txt"
