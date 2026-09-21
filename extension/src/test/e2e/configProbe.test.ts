@@ -341,8 +341,14 @@ suite('config status, live', () => {
             'the squiggle sits on the rule name',
         );
         // The block header carries the rollup, so the failure is visible
-        // without expanding anything.
-        await marked('engines.harper', 'down');
+        // without expanding anything -- and it carries the reason with it. A
+        // header that goes red and then explains itself with "Harper is built
+        // in and always available" is worse than no hover at all.
+        const header = await marked('engines.harper', 'down');
+        assert.ok(
+            header.details.some(d => /no linter called/i.test(d)),
+            `the header hover should say why it is red: ${JSON.stringify(header.details)}`,
+        );
     });
 
     test('a real linter name produces no complaint', async function () {

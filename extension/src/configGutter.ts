@@ -164,7 +164,8 @@ export class ConfigStatusView implements vscode.Disposable {
         return this.snapshots.get(uri);
     }
 
-    public snapshots_(): ConfigStatusSnapshot[] {
+    /** Every config being tracked, for the status command with no argument. */
+    public allSnapshots(): ConfigStatusSnapshot[] {
         return [...this.snapshots.values()];
     }
 
@@ -209,7 +210,9 @@ export class ConfigStatusView implements vscode.Disposable {
         }
 
         // A newer edit already started its own probe; this answer is about
-        // text that is no longer on screen.
+        // text that is no longer on screen. `forget` clears the generation
+        // too, so a document closed mid-probe is covered by the same check
+        // and its answer is not resurrected into an empty snapshot.
         if (this.inFlight.get(uri) !== generation) return;
         if (response === null) return;
 
@@ -266,11 +269,20 @@ export class ConfigStatusView implements vscode.Disposable {
             mark(lineOf(span), key, status, detail);
 
             // The engine's own line carries the rollup, so a broken URL turns
-            // the block header as well as the URL.
+            // the block header as well as the URL. The reason travels with it:
+            // a header that goes red and then explains itself with "Harper is
+            // built in and always available" is worse than no hover at all.
             const engine = probe.engine ?? '';
             if (engine && key !== `engines.${engine}`) {
                 const header = spanForKey(parsed.spans, `engines.${engine}`);
-                if (header) mark(lineOf(header), `engines.${engine}`, status, '');
+                if (header) {
+                    mark(
+                        lineOf(header),
+                        `engines.${engine}`,
+                        status,
+                        status === 'ok' ? '' : detail,
+                    );
+                }
             }
 
             if (status === 'down' || status === 'degraded') {

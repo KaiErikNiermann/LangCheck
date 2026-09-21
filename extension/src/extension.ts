@@ -497,7 +497,7 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand(
         'language-check.configStatus',
         (uri?: string) => uri === undefined
-            ? configStatusView?.snapshots_() ?? []
+            ? configStatusView?.allSnapshots() ?? []
             : configStatusView?.snapshot(uri) ?? undefined,
     ));
 
