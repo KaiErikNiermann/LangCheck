@@ -43,6 +43,10 @@ suite('dictionary edits', () => {
     teardown(async function () {
         this.timeout(BUDGET_MS);
         await vscode.workspace.fs.writeFile(wordsUri, Buffer.from(originalWords, 'utf8'));
+        // Shown first: removing a word takes the re-check path, and that
+        // re-checks the visible editors. A document left hidden by the test
+        // above would wait for a check that is correctly not being run.
+        await vscode.window.showTextDocument(document, { preview: false });
         await eventually(
             'the baseline wordlist to be back in force',
             () => (words().has('zorblat') ? true : undefined),
@@ -63,6 +67,33 @@ suite('dictionary edits', () => {
             BUDGET_MS,
         );
     }
+
+    /**
+     * The invariant behind the bug, stated on its own.
+     *
+     * Anything registered during activation that reads a value out of the
+     * config has to be registered after the config has been read. The
+     * wordlist watchers were not, so a path from `dictionaries.paths` was
+     * never watched and editing the file did nothing -- until the config file
+     * itself happened to change, which re-registered them by accident.
+     *
+     * This asserts the first edit works, with nothing touching the config.
+     */
+    test('a config-declared wordlist is watched from the first activation', async function () {
+        this.timeout(BUDGET_MS + 30_000);
+        await baseline();
+
+        await vscode.workspace.fs.writeFile(
+            wordsUri,
+            Buffer.from(`${originalWords}zorblat\n`, 'utf8'),
+        );
+
+        await eventually(
+            'the very first wordlist edit to take effect',
+            () => (!words().has('zorblat') ? true : undefined),
+            BUDGET_MS,
+        );
+    });
 
     test('a word added by hand stops being reported', async function () {
         this.timeout(BUDGET_MS + 30_000);

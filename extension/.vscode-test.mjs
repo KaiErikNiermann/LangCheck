@@ -99,6 +99,13 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 150_000 },
     },
     {
+        label: 'scope',
+        files: 'out/test/e2e/scope.test.js',
+        workspaceFolder: './src/test/fixtures/scope',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 200_000 },
+    },
+    {
         label: 'dictionary-edit',
         files: 'out/test/e2e/dictionaryEdit.test.js',
         workspaceFolder: './src/test/fixtures/dictEdit',
