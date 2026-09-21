@@ -24,6 +24,7 @@ extension/*.vsix
 # Sphinx docs
 docs/_build/
 docs/.venv/
+docs/_ext/__pycache__/
 *.mo
 
 # Debug/test output

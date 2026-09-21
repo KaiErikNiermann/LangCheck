@@ -313,12 +313,13 @@ body {
     --lc-kbd-pad-block:   0.1rem;
     --lc-kbd-radius:      4px;
     --lc-kbd-min-size:    1.15em;
-    --lc-kbd-gap:         0.18rem;
+    --lc-kbd-gap:         0.16rem;
+    --lc-kbd-plus-opacity: 0.55;
     --lc-kbd-text:        var(--color-foreground-secondary);
     --lc-kbd-background:  var(--color-background-primary);
     --lc-kbd-border:      var(--color-background-border);
     --lc-kbd-shadow:      0 1px 0 var(--color-background-border);
-    --lc-search-hint-slot: 3.6rem;
+    --lc-search-hint-slot: 4rem;
 }
 
 /* Furo's search container is already the positioned ancestor, and its input
@@ -332,6 +333,20 @@ body {
     align-items: center;
     gap: var(--lc-kbd-gap);
     pointer-events: none;
+}
+
+/* Sphinx fills this box with the query on the search results page, and an
+   input scrolls its own text under its padding, so the badge steps aside as
+   soon as the field holds anything. */
+.sidebar-search:not(:placeholder-shown) ~ .lc-search-hint,
+.sidebar-search:focus ~ .lc-search-hint {
+    display: none;
+}
+
+.lc-kbd-plus {
+    color: var(--lc-kbd-text);
+    font-size: var(--lc-kbd-font-size);
+    opacity: var(--lc-kbd-plus-opacity);
 }
 
 .lc-kbd {

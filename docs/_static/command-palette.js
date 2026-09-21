@@ -93,6 +93,12 @@ const wireSearchBox = (palette) => {
     hint.className = 'lc-search-hint';
     hint.setAttribute('aria-hidden', 'true');
     for (const key of IS_APPLE ? ['⌘', 'K'] : ['Ctrl', 'K']) {
+      if (hint.childElementCount > 0) {
+        const plus = document.createElement('span');
+        plus.className = 'lc-kbd-plus';
+        plus.textContent = '+';
+        hint.append(plus);
+      }
       const kbd = document.createElement('kbd');
       kbd.className = 'lc-kbd';
       kbd.textContent = key;
