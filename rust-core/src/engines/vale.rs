@@ -63,6 +63,13 @@ fn ext_for_language_id(language_id: &str) -> &str {
 }
 
 /// Convert a 1-based line number and 1-based column span to byte offsets.
+///
+/// Vale is written in Go and counts its columns in runes, so the span is a
+/// character index into the line and not a byte one. Taking it for bytes
+/// shifts the underline left by one for every multi-byte character earlier on
+/// the same line -- two for an em dash -- which on a line of prose that
+/// happens to contain one lands the squiggle in the middle of the word
+/// before. The offsets on the wire are bytes, so the conversion happens here.
 #[allow(clippy::cast_possible_truncation)]
 fn line_span_to_byte_range(text: &str, line: u32, span: (u32, u32)) -> (u32, u32) {
     let target_line = line.saturating_sub(1) as usize;
@@ -70,11 +77,13 @@ fn line_span_to_byte_range(text: &str, line: u32, span: (u32, u32)) -> (u32, u32
 
     for (i, l) in text.split('\n').enumerate() {
         if i == target_line {
-            let col_start = span.0.saturating_sub(1) as usize;
-            let col_end = span.1 as usize; // span end is inclusive in Vale
-            let start = byte_offset + col_start.min(l.len()) as u32;
-            let end = byte_offset + col_end.min(l.len()) as u32;
-            return (start, end);
+            let table = super::char_to_byte_table(l);
+            let start_char = span.0.saturating_sub(1) as usize;
+            // Vale's span end is inclusive, so the exclusive index is one past.
+            let end_char = span.1 as usize;
+            let start = byte_offset + super::lookup_offset(&table, start_char);
+            let end = byte_offset + super::lookup_offset(&table, end_char);
+            return (start, end.max(start));
         }
         byte_offset += l.len() as u32 + 1;
     }
@@ -199,6 +208,42 @@ mod tests {
         let text = "First line\nSecond line here";
         // Line 2, columns 8-11 (1-based) → "line"
         let (start, end) = line_span_to_byte_range(text, 2, (8, 11));
+        assert_eq!(&text[start as usize..end as usize], "line");
+    }
+
+    /// The span Vale actually returned for a line out of the notes this was
+    /// found in, measured with `vale 3.13.1` rather than assumed:
+    ///
+    /// ```text
+    /// The em dash — and morphisms here.
+    /// Span [19, 27]  Match "morphisms"
+    /// ```
+    ///
+    /// The em dash is one rune and three bytes, so reading 19 as a byte
+    /// column starts the underline two bytes early -- on the `d` of "and".
+    #[test]
+    fn a_span_after_an_em_dash_still_lands_on_the_word() {
+        let text = "The em dash — and morphisms here.";
+        let (start, end) = line_span_to_byte_range(text, 1, (19, 27));
+        assert_eq!(&text[start as usize..end as usize], "morphisms");
+    }
+
+    #[test]
+    fn a_span_on_a_later_line_counts_that_line_s_own_characters() {
+        // The multi-byte character is on the first line, so the second line's
+        // own columns are unaffected by it -- but the byte offset it starts
+        // at is not.
+        let text = "Résumé — first
+The word naïve here";
+        // "naïve" is chars 10-14 on line 2, 1-based inclusive.
+        let (start, end) = line_span_to_byte_range(text, 2, (10, 14));
+        assert_eq!(&text[start as usize..end as usize], "naïve");
+    }
+
+    #[test]
+    fn a_span_reaching_past_the_line_is_clamped_to_its_end() {
+        let text = "Short — line";
+        let (start, end) = line_span_to_byte_range(text, 1, (9, 999));
         assert_eq!(&text[start as usize..end as usize], "line");
     }
 
