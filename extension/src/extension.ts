@@ -389,10 +389,23 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push({ dispose: () => traceLogger?.dispose() });
 
     // Ensure the core binary is available before starting the client.
-    // In development mode, warn if the locally-built binary is missing.
-    // In production mode, automatically download it from GitHub Releases if
-    // missing — similar to how the Lean 4 extension bootstraps its server.
+    // In development and test modes, the binary is whatever `cargo build` left
+    // in rust-core/target, so a missing one is a build step that was skipped.
+    // In production it is downloaded from GitHub Releases if missing --
+    // similar to how the Lean 4 extension bootstraps its server.
     const binDir = path.join(context.extensionPath, 'bin');
+
+    /**
+     * Whether the core is a local build rather than a downloaded one.
+     *
+     * Test counts with Development, and has to: `resolveBinaryPath` returns a
+     * path under rust-core/target in both modes, so a download into `bin/`
+     * installs a binary the test run then never opens. It is not merely
+     * wasted -- it puts an unauthenticated api.github.com call in front of
+     * every one of the end-to-end launches, and a release whose assets are
+     * still uploading, or a rate-limited runner, failed all of them at once.
+     */
+    const usesLocalBuild = isDev || context.extensionMode === vscode.ExtensionMode.Test;
 
     /**
      * When a document is re-checked after its first check.
@@ -484,22 +497,28 @@ export async function activate(context: vscode.ExtensionContext) {
         configStatusView?.refresh();
     };
 
-    if (isDev) {
-        const devBinaryPath = resolveBinaryPath();
-        if (!fs.existsSync(devBinaryPath)) {
+    if (usesLocalBuild) {
+        const localBinaryPath = resolveBinaryPath();
+        if (!fs.existsSync(localBinaryPath)) {
             const target = vscode.workspace.getConfiguration('languageCheck')
                 .get<string>('core.channel', 'stable') === 'debug' ? 'debug' : 'release';
-            log.warn('Dev binary not found', { expected: devBinaryPath });
-            const selection = await vscode.window.showWarningMessage(
+            log.error('Local core binary not found', { expected: localBinaryPath });
+            // Not awaited. Nothing dismisses a notification in a test run, and
+            // an activation that waits for a click never returns -- which is
+            // how a missing binary turned into every suite timing out in its
+            // `suiteSetup` with a message that named neither the binary nor
+            // the reason.
+            void vscode.window.showWarningMessage(
                 vscode.l10n.t(
                     'Language Check: core binary not found. Build it with `cargo build{0}` in rust-core/, or download a release.',
                     target === 'release' ? ' --release' : '',
                 ),
                 vscode.l10n.t('Download Release'),
-            );
-            if (selection === vscode.l10n.t('Download Release')) {
-                vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${GITHUB_REPO}/releases`));
-            }
+            ).then(selection => {
+                if (selection === vscode.l10n.t('Download Release')) {
+                    vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${GITHUB_REPO}/releases`));
+                }
+            });
         } else {
             bootClient();
         }
@@ -522,16 +541,20 @@ export async function activate(context: vscode.ExtensionContext) {
         if (result.ok) {
             bootClient();
         } else {
-            const selection = await vscode.window.showErrorMessage(
+            // Not awaited, for the same reason as above: activation reports
+            // the failure and finishes. Waiting on the click left the
+            // extension stuck in `activate` with no core and no way to retry.
+            void vscode.window.showErrorMessage(
                 vscode.l10n.t('Failed to install core binary: {0}', result.error),
                 vscode.l10n.t('Retry'),
                 vscode.l10n.t('Download Manually'),
-            );
-            if (selection === vscode.l10n.t('Retry')) {
-                vscode.commands.executeCommand('language-check.downloadBinary');
-            } else if (selection === vscode.l10n.t('Download Manually')) {
-                vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${GITHUB_REPO}/releases`));
-            }
+            ).then(selection => {
+                if (selection === vscode.l10n.t('Retry')) {
+                    vscode.commands.executeCommand('language-check.downloadBinary');
+                } else if (selection === vscode.l10n.t('Download Manually')) {
+                    vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${GITHUB_REPO}/releases`));
+                }
+            });
         }
     } else {
         bootClient();
