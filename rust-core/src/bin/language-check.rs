@@ -191,12 +191,17 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::Check { path, lang, format } => {
             let schema_registry = SchemaRegistry::from_workspace(&current_dir)?;
-            let lang = lang.map_or_else(
-                || lang_check::languages::detect_language(&path, &config),
-                |l| lang_check::languages::resolve_language_id(&l).to_string(),
-            );
+            let pinned = lang.map(|l| lang_check::languages::resolve_language_id(&l).to_string());
             let suppression = CliSuppression::load(&current_dir, &config);
-            check_path(path, lang, &format, config, &schema_registry, &suppression).await?;
+            check_path(
+                path,
+                pinned,
+                &format,
+                config,
+                &schema_registry,
+                &suppression,
+            )
+            .await?;
         }
         Commands::Fix { path, lang } => {
             let schema_registry = SchemaRegistry::from_workspace(&current_dir)?;
@@ -288,9 +293,41 @@ impl CliSuppression {
     }
 }
 
+/// The globs a directory run walks.
+///
+/// One glob per extension rather than a single `*.{md,markdown}` alternation:
+/// the `glob` crate implements `*`, `**` and `[...]` but not brace expansion,
+/// so a braced pattern is matched literally and every directory run silently
+/// found nothing.
+///
+/// Without `--lang`, every extension the grammars know. The language used to
+/// come from `detect_language` on the *directory*, which has no extension and
+/// fell back to Markdown -- so checking a project walked its `.md` files and
+/// silently skipped every `.html`, `.tex` and `.typ` in it, reporting a clean
+/// result for files it never opened. `--lang` still pins the language each
+/// file is *parsed* as; it no longer decides which files exist.
+fn directory_patterns(path: &Path, pinned_lang: Option<&str>, config: &Config) -> Vec<String> {
+    let root = path.to_string_lossy();
+    let Some(lang) = pinned_lang else {
+        return lang_check::languages::all_file_patterns(config)
+            .into_iter()
+            .map(|(suffix, _)| format!("{root}/{suffix}"))
+            .collect();
+    };
+    let exts = lang_check::languages::extensions_for_language(lang, config);
+    if exts.is_empty() {
+        vec![format!("{root}/**/*.{lang}")]
+    } else {
+        exts.iter()
+            .map(|ext| format!("{root}/**/*.{ext}"))
+            .collect()
+    }
+}
+
 async fn check_path(
     path: PathBuf,
-    lang: String,
+    // The language `--lang` pinned, or None to take each file's own.
+    pinned_lang: Option<String>,
     format: &OutputFormat,
     config: Config,
     schema_registry: &SchemaRegistry,
@@ -309,6 +346,16 @@ async fn check_path(
     // just `d.md`.
     let workspace_root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
 
+    // A file's own extension decides its language. For a single file the
+    // detection is the same answer `--lang` would give when omitted; for a
+    // directory it is the only correct one, because a directory has no
+    // extension of its own.
+    let language_of = |file: &Path| -> String {
+        pinned_lang
+            .clone()
+            .unwrap_or_else(|| lang_check::languages::detect_language(file, &config))
+    };
+
     if path.is_file() {
         if !config.checks(&path, &workspace_root) {
             if matches!(format, OutputFormat::Pretty) {
@@ -319,7 +366,7 @@ async fn check_path(
         check_file(
             &path,
             &mut orchestrator,
-            &lang,
+            &language_of(&path),
             suppression,
             format,
             &mut all_json_diagnostics,
@@ -327,20 +374,7 @@ async fn check_path(
         )
         .await?;
     } else {
-        // One glob per extension rather than a single `*.{md,markdown}` alternation: the
-        // `glob` crate implements `*`, `**` and `[...]` but not brace expansion, so a
-        // braced pattern is matched literally and every directory run silently found
-        // nothing. Sorted and deduplicated so the output order is stable and a file that
-        // two extensions both claim is checked once.
-        let exts = lang_check::languages::extensions_for_language(&lang, &config);
-        let root = path.to_string_lossy();
-        let patterns: Vec<String> = if exts.is_empty() {
-            vec![format!("{root}/**/*.{lang}")]
-        } else {
-            exts.iter()
-                .map(|ext| format!("{root}/**/*.{ext}"))
-                .collect()
-        };
+        let patterns = directory_patterns(&path, pinned_lang.as_deref(), &config);
         let mut files: Vec<PathBuf> = Vec::new();
         for pattern in &patterns {
             files.extend(glob::glob(pattern)?.flatten());
@@ -372,7 +406,7 @@ async fn check_path(
             check_file(
                 p,
                 &mut orchestrator,
-                &lang,
+                &language_of(p),
                 suppression,
                 format,
                 &mut all_json_diagnostics,

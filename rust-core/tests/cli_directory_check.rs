@@ -82,3 +82,69 @@ fn checking_a_directory_visits_every_matching_file() {
         "a file of another language was checked: {files:?}"
     );
 }
+
+/// A directory holds more than one format, and `check <dir>` has to visit all
+/// of them.
+///
+/// The file list was globbed from the extensions of a single language, and
+/// that language was auto-detected from the *directory* path -- which is not a
+/// file and has no extension, so it fell back to Markdown. Checking a project
+/// therefore walked its `.md` files and silently skipped every `.html`,
+/// `.tex`, `.typ` and `.org` in it, reporting a clean result for files it had
+/// never opened.
+///
+/// Each file was also checked *as* that one language, so a `.html` reached on
+/// some other path would have been parsed as Markdown.
+#[test]
+fn checking_a_directory_visits_every_format_not_just_one() {
+    let workspace = temp_workspace("lang_check_cli_formats");
+    write(workspace.path(), "notes.md", "A mispeling in Markdown.\n");
+    write(
+        workspace.path(),
+        "page.html",
+        "<h1>Title</h1>\n<p>A mispeling in HTML.</p>\n",
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_language-check"))
+        .current_dir(workspace.path())
+        .args(["check", ".", "--format", "json"])
+        .output()
+        .expect("the CLI runs");
+    assert!(output.status.success(), "{output:?}");
+
+    let diagnostics: Vec<serde_json::Value> =
+        serde_json::from_slice(&output.stdout).expect("valid JSON array");
+    let files: std::collections::BTreeSet<String> = diagnostics
+        .iter()
+        .filter_map(|d| d["file"].as_str().map(str::to_string))
+        .collect();
+
+    assert!(
+        files.iter().any(|f| f.ends_with("notes.md")),
+        "the Markdown file was not checked: {files:?}"
+    );
+    assert!(
+        files.iter().any(|f| f.ends_with("page.html")),
+        "the HTML file was not checked: {files:?}"
+    );
+}
+
+/// `--lang` still pins the language, for a directory of files the extension
+/// does not identify.
+#[test]
+fn an_explicit_lang_still_applies_to_every_file_in_a_directory() {
+    let workspace = temp_workspace("lang_check_cli_explicit");
+    write(workspace.path(), "a.md", "A mispeling here.\n");
+    write(workspace.path(), "b.md", "Another mispeling.\n");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_language-check"))
+        .current_dir(workspace.path())
+        .args(["check", ".", "--lang", "markdown", "--format", "json"])
+        .output()
+        .expect("the CLI runs");
+    assert!(output.status.success(), "{output:?}");
+
+    let diagnostics: Vec<serde_json::Value> =
+        serde_json::from_slice(&output.stdout).expect("valid JSON array");
+    assert!(diagnostics.len() >= 2, "{diagnostics:?}");
+}
