@@ -10,6 +10,28 @@ pub struct Config {
     pub engines: EngineConfig,
     #[serde(default)]
     pub rules: HashMap<String, RuleConfig>,
+    /// Which files this project checks, as workspace-relative globs.
+    ///
+    /// Empty means every file the editor opens and every file the indexer
+    /// finds, which is the behaviour this had before the key existed and the
+    /// right default for a repository that is mostly prose. It is the wrong
+    /// one for a repository that is mostly code with a `docs/` in it: there
+    /// the exclude list has to name every directory that is *not* prose, and
+    /// it silently stops being right the moment someone adds another one.
+    ///
+    /// `include` and `exclude` compose the way a type-checker's do -- include
+    /// selects, exclude subtracts from the selection -- so narrowing to
+    /// `docs/**` and then dropping `docs/_build/**` needs no knowledge of
+    /// what else is in the tree.
+    #[serde(default)]
+    pub include: Vec<String>,
+    /// Paths not to check, as workspace-relative globs.
+    ///
+    /// The built-in list is always in force; anything written here is added
+    /// to it. Replacing it instead was the obvious reading and the wrong one:
+    /// a config that excluded one directory of its own silently stopped
+    /// excluding `node_modules/**`, so adding a single pattern could multiply
+    /// the work by a hundred with nothing to say it had.
     #[serde(default = "default_exclude")]
     pub exclude: Vec<String>,
     #[serde(default)]
@@ -687,20 +709,25 @@ fn default_spell_language() -> String {
     "en-US".to_string()
 }
 fn default_exclude() -> Vec<String> {
+    // Each directory name carries a `**/` prefix because a glob is anchored
+    // at the start of the workspace-relative path. Written as `.venv/**`
+    // these covered a virtualenv at the repository root and nothing else, so
+    // `docs/.venv/` was walked in full -- a thousand findings from
+    // site-packages READMEs nobody here wrote.
     vec![
-        "node_modules/**".to_string(),
-        ".git/**".to_string(),
-        "target/**".to_string(),
-        "dist/**".to_string(),
-        "build/**".to_string(),
-        ".next/**".to_string(),
-        ".nuxt/**".to_string(),
-        "vendor/**".to_string(),
-        "__pycache__/**".to_string(),
-        ".venv/**".to_string(),
-        "venv/**".to_string(),
-        ".tox/**".to_string(),
-        ".mypy_cache/**".to_string(),
+        "**/node_modules/**".to_string(),
+        "**/.git/**".to_string(),
+        "**/target/**".to_string(),
+        "**/dist/**".to_string(),
+        "**/build/**".to_string(),
+        "**/.next/**".to_string(),
+        "**/.nuxt/**".to_string(),
+        "**/vendor/**".to_string(),
+        "**/__pycache__/**".to_string(),
+        "**/.venv/**".to_string(),
+        "**/venv/**".to_string(),
+        "**/.tox/**".to_string(),
+        "**/.mypy_cache/**".to_string(),
         "*.min.js".to_string(),
         "*.min.css".to_string(),
         "*.bundle.js".to_string(),
@@ -742,27 +769,66 @@ impl Config {
     /// because a glob had a typo is the worse of the two failures.
     #[must_use]
     pub fn excludes(&self, path: &Path, workspace_root: &Path) -> bool {
-        if self.exclude.is_empty() {
-            return false;
+        matches_any(&self.exclude, path, workspace_root)
+    }
+
+    /// Whether `include` selects this path.
+    ///
+    /// An empty `include` selects everything, so a config that never mentions
+    /// the key behaves as it always did.
+    #[must_use]
+    pub fn includes(&self, path: &Path, workspace_root: &Path) -> bool {
+        self.include.is_empty() || matches_any(&self.include, path, workspace_root)
+    }
+
+    /// Whether this project checks this file at all.
+    ///
+    /// The one question the indexer, the CLI and the editor all have to
+    /// answer the same way: a file the editor still checks after the indexer
+    /// skipped it is the inconsistency this exists to avoid. `include`
+    /// selects and `exclude` subtracts, so an excluded path stays excluded
+    /// however explicitly `include` names it.
+    #[must_use]
+    pub fn checks(&self, path: &Path, workspace_root: &Path) -> bool {
+        self.includes(path, workspace_root) && !self.excludes(path, workspace_root)
+    }
+}
+
+/// Whether any of `patterns` matches `path`, relative to the workspace.
+///
+/// Separators are normalised because the patterns are written with `/` --
+/// `node_modules/**` is how anyone writes it, on any platform -- while the
+/// path arrives with the platform's own. Without this, `exclude` matched
+/// nothing at all on Windows and said nothing about why.
+fn matches_any(patterns: &[String], path: &Path, workspace_root: &Path) -> bool {
+    if patterns.is_empty() {
+        return false;
+    }
+    let relative = path.strip_prefix(workspace_root).unwrap_or(path);
+    let as_text = relative.to_string_lossy().replace('\\', "/");
+    let options = glob::MatchOptions {
+        require_literal_separator: false,
+        require_literal_leading_dot: false,
+        case_sensitive: true,
+    };
+    patterns
+        .iter()
+        .filter_map(|pattern| glob::Pattern::new(pattern).ok())
+        .any(|pattern| pattern.matches_with(&as_text, options))
+}
+
+impl Config {
+    /// Fold the built-in excludes into whatever the file supplied.
+    ///
+    /// Done at load so every later reader -- the editor, the indexer, the
+    /// CLI and `config show` -- sees one list, and the list it sees is the
+    /// one in force.
+    fn merge_default_excludes(&mut self) {
+        for pattern in default_exclude() {
+            if !self.exclude.contains(&pattern) {
+                self.exclude.push(pattern);
+            }
         }
-        let relative = path.strip_prefix(workspace_root).unwrap_or(path);
-        // Separators normalised, because the patterns are written with `/` --
-        // `node_modules/**` is how anyone writes it, on any platform -- while
-        // the path arrives with the platform's own. Without this, `exclude`
-        // matched nothing at all on Windows and said nothing about why.
-        let as_text = relative.to_string_lossy().replace('\\', "/");
-        // Written once, because the indexer, the CLI and the editor all have
-        // to agree about what is excluded -- a file the editor still checks
-        // after the indexer skipped it is the inconsistency this avoids.
-        let options = glob::MatchOptions {
-            require_literal_separator: false,
-            require_literal_leading_dot: false,
-            case_sensitive: true,
-        };
-        self.exclude
-            .iter()
-            .filter_map(|pattern| glob::Pattern::new(pattern).ok())
-            .any(|pattern| pattern.matches_with(&as_text, options))
     }
 
     /// Make workspace-relative paths in the config absolute.
@@ -829,6 +895,7 @@ impl Config {
         } else {
             serde_yaml::from_str(text)?
         };
+        config.merge_default_excludes();
         config.resolve_paths(workspace_root);
         Ok(config)
     }
@@ -865,6 +932,7 @@ impl Config {
             warn_duplicate_rule_keys(&content);
             let mut config: Self = serde_yaml::from_str(&content)?;
             warn_unknown_keys(&serde_yaml::from_str(&content)?);
+            config.merge_default_excludes();
             config.resolve_paths(workspace_root);
             Ok(config)
         } else if yml_path.exists() {
@@ -872,6 +940,7 @@ impl Config {
             warn_duplicate_rule_keys(&content);
             let mut config: Self = serde_yaml::from_str(&content)?;
             warn_unknown_keys(&serde_yaml::from_str(&content)?);
+            config.merge_default_excludes();
             config.resolve_paths(workspace_root);
             Ok(config)
         } else if json_path.exists() {
@@ -879,6 +948,7 @@ impl Config {
             let mut config: Self = serde_json::from_str(&content)?;
             // YAML 1.2 is a superset of JSON, so one key scanner covers both formats.
             warn_unknown_keys(&serde_yaml::from_str(&content)?);
+            config.merge_default_excludes();
             config.resolve_paths(workspace_root);
             Ok(config)
         } else {
@@ -960,6 +1030,7 @@ fn duplicate_rule_keys(content: &str) -> Vec<String> {
 const KNOWN_TOP_LEVEL_KEYS: &[&str] = &[
     "engines",
     "rules",
+    "include",
     "exclude",
     "auto_fix",
     "performance",
@@ -1032,6 +1103,9 @@ impl Default for Config {
         Self {
             engines: EngineConfig::default(),
             rules: HashMap::new(),
+            // Empty: a config that never mentions `include` checks
+            // everything, which is what this did before the key existed.
+            include: Vec::new(),
             exclude: default_exclude(),
             auto_fix: Vec::new(),
             performance: PerformanceConfig::default(),
@@ -1150,12 +1224,21 @@ dictionaries:
 
     #[test]
     fn default_config_has_standard_excludes() {
+        // Asserted through `checks` rather than on the pattern strings: what
+        // matters is that these directories are skipped wherever they sit,
+        // and spelling them out again here only pins the spelling.
         let config = Config::default();
-        assert!(config.exclude.contains(&"node_modules/**".to_string()));
-        assert!(config.exclude.contains(&".git/**".to_string()));
-        assert!(config.exclude.contains(&"target/**".to_string()));
-        assert!(config.exclude.contains(&"dist/**".to_string()));
-        assert!(config.exclude.contains(&"vendor/**".to_string()));
+        let root = Path::new("/ws");
+        for directory in ["node_modules", ".git", "target", "dist", "vendor"] {
+            assert!(
+                !config.checks(&root.join(directory).join("a.md"), root),
+                "{directory} at the root should be skipped"
+            );
+            assert!(
+                !config.checks(&root.join("nested").join(directory).join("a.md"), root),
+                "{directory} one level down should be skipped too"
+            );
+        }
     }
 
     #[test]
@@ -1303,6 +1386,121 @@ dictionaries:
         let root = Path::new("/home/someone/project");
         let with_backslashes = root.join("drafts").join("notes.md");
         assert!(config.excludes(&with_backslashes, root));
+    }
+
+    #[test]
+    fn a_config_that_excludes_something_of_its_own_still_excludes_node_modules() {
+        // The trap this closes: writing one exclude used to replace the
+        // built-in list wholesale, so adding a pattern could multiply the
+        // work by a hundred and nothing said so.
+        let config = Config::parse_text(
+            "exclude:\n  - \"docs/_build/**\"\n",
+            Path::new("/ws"),
+            "yaml",
+        )
+        .expect("parses");
+        let root = Path::new("/ws");
+        assert!(!config.checks(&root.join("docs/_build/html/a.md"), root));
+        assert!(!config.checks(&root.join("docs/.venv/lib/pkg/README.md"), root));
+        assert!(!config.checks(&root.join("extension/node_modules/p/readme.md"), root));
+        assert!(config.checks(&root.join("docs/guide.md"), root));
+    }
+
+    #[test]
+    fn merging_the_defaults_does_not_duplicate_a_pattern_the_file_repeats() {
+        let config = Config::parse_text(
+            "exclude:\n  - \"**/node_modules/**\"\n",
+            Path::new("/ws"),
+            "yaml",
+        )
+        .expect("parses");
+        assert_eq!(
+            config
+                .exclude
+                .iter()
+                .filter(|p| p.as_str() == "**/node_modules/**")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn an_absent_include_selects_everything() {
+        // The key is new, so every config written before it exists has to go
+        // on meaning what it meant.
+        let config = Config::default();
+        let root = Path::new("/ws");
+        assert!(config.checks(&root.join("docs/guide.md"), root));
+        assert!(config.checks(&root.join("src/deep/notes.md"), root));
+    }
+
+    #[test]
+    fn an_include_narrows_to_what_it_names() {
+        let config = Config {
+            include: vec!["docs/**".to_string(), "README.md".to_string()],
+            exclude: Vec::new(),
+            ..Config::default()
+        };
+        let root = Path::new("/ws");
+        assert!(config.checks(&root.join("docs/guide/languages.md"), root));
+        assert!(config.checks(&root.join("README.md"), root));
+        // The point of the key: everything else stops being looked at
+        // without having to be named.
+        assert!(!config.checks(&root.join("extension/src/test/fixtures/a.md"), root));
+        assert!(!config.checks(&root.join("rust-core/target/doc/x.md"), root));
+    }
+
+    #[test]
+    fn a_star_crosses_directory_separators_in_both_lists() {
+        // Pinned because it is the one place these globs differ from a
+        // type-checker's, and the difference decides what `include: ["*.md"]`
+        // means: every Markdown file in the tree, not the ones beside the
+        // config. Write `docs/**` to anchor.
+        let config = Config {
+            include: vec!["*.md".to_string()],
+            exclude: Vec::new(),
+            ..Config::default()
+        };
+        let root = Path::new("/ws");
+        assert!(config.checks(&root.join("deep/nested/note.md"), root));
+    }
+
+    #[test]
+    fn a_nested_build_directory_is_excluded_by_default() {
+        // `docs/.venv/` is the case that motivated the `**/` prefixes: a
+        // virtualenv one level down was checked in full.
+        let config = Config::default();
+        let root = Path::new("/ws");
+        assert!(!config.checks(&root.join("docs/.venv/lib/pkg/README.md"), root));
+        assert!(!config.checks(&root.join("extension/node_modules/p/readme.md"), root));
+        assert!(!config.checks(&root.join(".venv/lib/a.md"), root));
+    }
+
+    #[test]
+    fn exclude_subtracts_from_include_and_not_the_other_way_round() {
+        // A path both name is excluded. Otherwise narrowing to `docs/**` and
+        // then dropping `docs/_build/**` would be impossible to express.
+        let config = Config {
+            include: vec!["docs/**".to_string()],
+            exclude: vec!["docs/_build/**".to_string()],
+            ..Config::default()
+        };
+        let root = Path::new("/ws");
+        assert!(config.checks(&root.join("docs/index.md"), root));
+        assert!(!config.checks(&root.join("docs/_build/html/index.md"), root));
+    }
+
+    #[test]
+    fn an_empty_include_list_is_not_an_empty_selection() {
+        // `include: []` reads as "no opinion", not "check nothing". The
+        // opposite reading turns an accidental empty list into a checker
+        // that silently does nothing at all.
+        let config = Config {
+            include: Vec::new(),
+            exclude: Vec::new(),
+            ..Config::default()
+        };
+        assert!(config.checks(Path::new("/ws/anything.md"), Path::new("/ws")));
     }
 
     #[test]
@@ -1898,3 +2096,4 @@ engines:
         );
     }
 }
+
