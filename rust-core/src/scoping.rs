@@ -30,8 +30,15 @@ impl ScopeParser {
     #[must_use]
     pub fn parse(text: &str) -> Vec<ScopedRegion> {
         let mut markers: Vec<(usize, String)> = Vec::new();
+        // A marker inside a fenced block is an example of a marker. The
+        // language guide shows one in a ```markdown fence, and obeying it
+        // switched the rest of that page to French.
+        let mut fences = crate::text_util::FenceTracker::new();
 
         for (line_start, line) in line_byte_offsets(text) {
+            if fences.consume(line) {
+                continue;
+            }
             if let Some(lang) = Self::extract_marker(line) {
                 // The scope starts after the marker line
                 let scope_start = line_start + line.len();
@@ -185,6 +192,49 @@ Deutscher Absatz.
         let regions = ScopeParser::parse(text);
         assert_eq!(regions.len(), 1);
         assert_eq!(regions[0].language, "ja");
+    }
+
+    #[test]
+    fn a_marker_inside_a_fence_is_an_example_and_not_a_directive() {
+        // Lifted from docs/guide/languages.md, which documents the marker by
+        // showing one. Before this the page switched itself to French at the
+        // fence and stayed there, so every later paragraph was checked
+        // against a French dictionary.
+        let text =
+            "Intro paragraph.\n\n```markdown\n<!-- lang: fr -->\n```\n\nStill English here.\n";
+        assert!(
+            ScopeParser::parse(text).is_empty(),
+            "a fenced marker must not open a scope"
+        );
+    }
+
+    #[test]
+    fn a_marker_outside_a_fence_still_applies_after_one() {
+        let text =
+            "```markdown\n<!-- lang: de -->\n```\n<!-- lang: fr -->\nCeci est fran\u{e7}ais.\n";
+        let regions = ScopeParser::parse(text);
+        assert_eq!(regions.len(), 1, "{regions:?}");
+        assert_eq!(regions[0].language, "fr");
+        assert!(text[regions[0].byte_range.clone()].contains("Ceci"));
+    }
+
+    #[test]
+    fn a_tilde_fence_closes_the_block_a_tilde_fence_opened() {
+        let text = "~~~\n<!-- lang: fr -->\n~~~\n<!-- lang: de -->\nDeutscher Text.\n";
+        let regions = ScopeParser::parse(text);
+        assert_eq!(regions.len(), 1, "{regions:?}");
+        assert_eq!(regions[0].language, "de");
+    }
+
+    #[test]
+    fn a_backtick_run_does_not_close_a_tilde_fence() {
+        // Inside a ~~~ block, ``` is content. Treating it as a close would
+        // let the rest of the block escape and be read as directives.
+        let text = "~~~\n```\n<!-- lang: fr -->\n~~~\nEnglish again.\n";
+        assert!(
+            ScopeParser::parse(text).is_empty(),
+            "the marker is still fenced"
+        );
     }
 
     #[test]

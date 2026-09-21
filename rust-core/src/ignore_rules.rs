@@ -92,8 +92,17 @@ impl IgnoreParser {
     #[must_use]
     pub fn parse_directives(text: &str) -> Vec<IgnoreDirective> {
         let mut directives = Vec::new();
+        // A directive inside a fenced block is an example of a directive.
+        // Documentation that shows `lang-check-disable` would otherwise
+        // switch checking off for everything after the fence, which is the
+        // same way a fenced `lang: fr` marker used to turn a whole page
+        // French.
+        let mut fences = crate::text_util::FenceTracker::new();
 
         for (line_start, line) in line_byte_offsets(text) {
+            if fences.consume(line) {
+                continue;
+            }
             let line_end = line_start + line.len();
 
             if let Some((kind, rule_ids, options)) = Self::extract_directive(line) {

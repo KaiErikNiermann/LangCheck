@@ -164,3 +164,80 @@ pub fn in_comment<T>(line: &str, parse: impl Fn(&str) -> Option<T>) -> Option<T>
 
     None
 }
+
+/// Tracks whether a line falls inside a fenced code block.
+///
+/// A directive written inside a fence is an example of a directive, not one.
+/// The language guide demonstrates the scope marker by showing
+/// ` ```markdown ` … `<!-- lang: fr -->` … ` ``` `, and without this the
+/// marker was obeyed: everything after it in the file was checked as French,
+/// so the page documenting the feature was the page the feature broke.
+///
+/// Fences are recognised the way `CommonMark` defines them -- three or more
+/// backticks or tildes, indented no more than three spaces, closed by at
+/// least as many of the same character with nothing after them. Typst raw
+/// blocks use the same delimiters, and a format with no fences at all simply
+/// never opens one.
+#[derive(Debug, Default)]
+pub struct FenceTracker {
+    /// The character and length of the fence currently open.
+    open: Option<(u8, usize)>,
+}
+
+impl FenceTracker {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { open: None }
+    }
+
+    /// Feed the next line; returns whether it is inside a fence.
+    ///
+    /// The fence lines themselves count as inside, because a directive can
+    /// only ever be on one of them by accident.
+    pub fn consume(&mut self, line: &str) -> bool {
+        let Some((marker, run)) = fence_run(line) else {
+            return self.open.is_some();
+        };
+
+        // A closing fence matches the opener's character and is at least as
+        // long, with nothing after it. Anything else inside a fence -- a ```
+        // run within a ~~~ block, say -- is just content.
+        if let Some((open_marker, open_run)) = self.open {
+            if marker == open_marker && run >= open_run && info_string(line, marker).is_empty() {
+                self.open = None;
+            }
+        } else {
+            self.open = Some((marker, run));
+        }
+        true
+    }
+
+    /// Whether a fence is currently open.
+    #[must_use]
+    pub const fn inside(&self) -> bool {
+        self.open.is_some()
+    }
+}
+
+/// The fence character and its run length, when a line opens or closes one.
+fn fence_run(line: &str) -> Option<(u8, usize)> {
+    let indent = line.len() - line.trim_start().len();
+    // More than three spaces of indent makes it an indented code block, not a
+    // fence.
+    if indent > 3 {
+        return None;
+    }
+    let rest = line.trim_start();
+    let marker = match rest.as_bytes().first() {
+        Some(&b'`') => b'`',
+        Some(&b'~') => b'~',
+        _ => return None,
+    };
+    let run = rest.bytes().take_while(|&b| b == marker).count();
+    (run >= 3).then_some((marker, run))
+}
+
+/// Whatever follows the fence characters, trimmed.
+fn info_string(line: &str, marker: u8) -> &str {
+    line.trim_start().trim_start_matches(marker as char).trim()
+}
