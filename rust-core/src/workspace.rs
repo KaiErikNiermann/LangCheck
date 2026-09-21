@@ -59,14 +59,22 @@ pub fn check_fingerprint(
     // trip per prose range, to reach the answer already held and discard one
     // more of it. They are still parameters so a caller cannot silently stop
     // passing what it must go on applying.
+    //
+    // The build, not only the version. A released binary has one of each, so
+    // an upgrade retires the results of the version before it either way;
+    // during development the version stands still while the code moves, and a
+    // result stored by the previous build is an answer the current engines no
+    // longer give. `build.rs` derives the id from this crate's sources, so an
+    // unchanged checkout keeps its stored results.
     crate::hashing::stable_hash(&format!(
-        "{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}",
+        "{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}\x1e{}",
         crate::hashing::stable_hash(text),
         crate::hashing::stable_hash(&config_repr),
         names_enabled,
         schemas,
         packs,
         env!("CARGO_PKG_VERSION"),
+        env!("LANG_CHECK_BUILD_ID"),
     ))
 }
 
