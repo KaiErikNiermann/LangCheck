@@ -811,6 +811,49 @@ impl Config {
         }
     }
 
+    /// Parse a config from text that is not on disk yet.
+    ///
+    /// The editor asks about the buffer it is showing, which is not the file
+    /// the engines are running under: a half-typed URL has to be answerable
+    /// before it is saved, or the feedback arrives after the mistake has
+    /// already been committed. Relative paths still resolve against
+    /// `workspace_root`, because that is what they will mean once the file is
+    /// written.
+    ///
+    /// `format` is the file's extension when the caller knows it. YAML 1.2 is
+    /// a superset of JSON, so the YAML parser reads both and "json" only
+    /// picks the stricter reader for a better error message.
+    pub fn parse_text(text: &str, workspace_root: &Path, format: &str) -> Result<Self> {
+        let mut config: Self = if format.eq_ignore_ascii_case("json") {
+            serde_json::from_str(text)?
+        } else {
+            serde_yaml::from_str(text)?
+        };
+        config.resolve_paths(workspace_root);
+        Ok(config)
+    }
+
+    /// Every unknown key in `text`, as dotted paths, for a caller that wants
+    /// to report them against a position instead of a log line.
+    ///
+    /// [`warn_unknown_keys`] writes the same finding to the log, which is
+    /// where it went before anything could draw it.
+    #[must_use]
+    pub fn unknown_key_paths(text: &str) -> Vec<String> {
+        let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(text) else {
+            return Vec::new();
+        };
+        let mut out: Vec<String> = unknown_keys(&value, KNOWN_TOP_LEVEL_KEYS);
+        if let Some(engines) = value.get("engines") {
+            out.extend(
+                unknown_keys(engines, KNOWN_ENGINE_KEYS)
+                    .into_iter()
+                    .map(|k| format!("engines.{k}")),
+            );
+        }
+        out
+    }
+
     pub fn load(workspace_root: &Path) -> Result<Self> {
         // Prefer YAML, fall back to JSON for backward compatibility
         let yaml_path = workspace_root.join(".languagecheck.yaml");

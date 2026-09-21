@@ -471,7 +471,7 @@ fn pack_texts(texts: &[String], limit: usize) -> Vec<Pack> {
 ///
 /// The message is the whole point: it names the setting, says what is wrong
 /// with the value, and gives one that works. `reqwest` says "builder error".
-fn usable_languagetool_url(url: &str) -> std::result::Result<(), String> {
+pub(crate) fn usable_languagetool_url(url: &str) -> std::result::Result<(), String> {
     if url.trim().is_empty() {
         return Err(
             "LanguageTool is enabled but engines.languagetool.url is empty. \

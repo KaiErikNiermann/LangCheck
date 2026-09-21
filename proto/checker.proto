@@ -10,6 +10,7 @@ message Request {
     IgnoreRequest ignore = 4;
     InitializeRequest initialize = 5;
     AddDictionaryWordRequest add_dictionary_word = 6;
+    ProbeConfigRequest probe_config = 7;
   }
 }
 
@@ -54,6 +55,7 @@ message Response {
     MetadataResponse get_metadata = 3;
     ErrorResponse error = 4;
     OkResponse ok = 5;
+    ProbeConfigResponse probe_config = 6;
   }
 }
 
@@ -68,6 +70,8 @@ service CheckerProvider {
   rpc CheckProse(CheckRequest) returns (CheckResponse);
   // Get available rules/settings for this provider
   rpc GetMetadata(MetadataRequest) returns (MetadataResponse);
+  // Resolve every config reference that points outside the file
+  rpc ProbeConfig(ProbeConfigRequest) returns (ProbeConfigResponse);
 }
 
 message CheckRequest {
@@ -184,4 +188,59 @@ message MetadataResponse {
   // language has no id there -- so without this the schemas were unreachable
   // from the editor entirely, however correct they were.
   repeated string schema_extensions = 5;
+}
+
+// Ask what the config's external references resolve to right now.
+//
+// Separate from Initialize because the editor asks this about the buffer on
+// screen, which may not be the config in force: the point is to answer for
+// the text being typed, before it is saved and before any engine runs under
+// it.
+message ProbeConfigRequest {
+  // The config file's text as the editor holds it, unsaved edits included.
+  // Empty means read the workspace config from disk.
+  string text = 1;
+  // Which file the text came from, so a relative `vale.config` resolves
+  // against the same directory the loader would use.
+  optional string file_path = 2;
+  // Format hint taken from the file name: "yaml" or "json". Empty means YAML,
+  // which parses JSON too.
+  string format = 3;
+}
+
+// What a probe found, keyed by where in the config it looked.
+message ConfigProbe {
+  // Dotted path to the key this is about, e.g. "engines.languagetool.url".
+  // A key inside a map is spelled with the map key, e.g.
+  // "engines.harper.linters.LongSentences"; a list entry uses its index,
+  // e.g. "engines.languagetool.disabled_rules.0".
+  string key = 1;
+  ProbeStatus status = 2;
+  // One line naming what was reached and what it answered, for the hover.
+  string detail = 3;
+  // The engine this key belongs to, empty for a top-level key. The editor
+  // rolls child probes up onto the engine's own line with it.
+  string engine = 4;
+}
+
+enum ProbeStatus {
+  PROBE_STATUS_UNSPECIFIED = 0;
+  // Resolved: the server answered, the file was read, the name is real.
+  PROBE_STATUS_OK = 1;
+  // Reached, but not entirely as configured -- a server that is up but does
+  // not serve the configured language, a config file that parsed with
+  // complaints.
+  PROBE_STATUS_DEGRADED = 2;
+  // Did not resolve. `detail` says why.
+  PROBE_STATUS_DOWN = 3;
+  // Not probed because the engine is switched off. Drawn as nothing, which
+  // is different from drawn as failing.
+  PROBE_STATUS_SKIPPED = 4;
+}
+
+message ProbeConfigResponse {
+  repeated ConfigProbe probes = 1;
+  // Set when the text could not be parsed at all, in which case `probes` is
+  // empty and the editor has nothing to draw but this.
+  string parse_error = 2;
 }

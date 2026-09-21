@@ -12,6 +12,7 @@ pub mod checker {
 
 pub mod cache;
 pub mod config;
+pub mod config_probe;
 pub mod detection;
 pub mod dictionary;
 pub mod document;
