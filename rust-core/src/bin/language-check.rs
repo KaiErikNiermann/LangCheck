@@ -10,6 +10,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use config::Config;
 use console::style;
+use glob::glob;
 use indicatif::{ProgressBar, ProgressStyle};
 use lang_check::dictionary::Dictionary;
 use lang_check::morphology::AffixAnalyzer;
@@ -23,7 +24,7 @@ use lang_check::{checker::Diagnostic, checker::Severity, config, orchestrator, p
 use orchestrator::Orchestrator;
 use serde::Serialize;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
 #[command(name = "language-check", version)]
@@ -99,12 +100,24 @@ enum PackAction {
     },
 }
 
-#[derive(Copy, Clone, Subcommand)]
+#[derive(Clone, Subcommand)]
 enum ConfigAction {
     /// Show the current effective configuration
     Show,
     /// Generate a default .languagecheck.json in the current directory
     Init,
+    /// List the files this config selects for checking
+    Files {
+        /// Also list the files that were skipped, and which pattern did it
+        #[arg(long)]
+        skipped: bool,
+        /// Print paths only, one per line, for piping into another command
+        #[arg(long)]
+        bare: bool,
+        /// Where to look. Defaults to the workspace root.
+        #[arg(default_value = ".")]
+        path: PathBuf,
+    },
 }
 
 #[derive(Clone, ValueEnum)]
@@ -297,7 +310,7 @@ async fn check_path(
     let workspace_root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
 
     if path.is_file() {
-        if config.excludes(&path, &workspace_root) {
+        if !config.checks(&path, &workspace_root) {
             if matches!(format, OutputFormat::Pretty) {
                 println!("{} is excluded by the config.", path.display());
             }
@@ -334,7 +347,7 @@ async fn check_path(
         }
         files.sort_unstable();
         files.dedup();
-        files.retain(|file| !config.excludes(file, &workspace_root));
+        files.retain(|file| config.checks(file, &workspace_root));
 
         let pb = if files.len() > 1 && matches!(format, OutputFormat::Pretty) {
             let bar = ProgressBar::new(files.len() as u64);
@@ -738,6 +751,13 @@ fn handle_config(action: ConfigAction) -> Result<()> {
             });
             println!("{}", serde_yaml::to_string(&config)?);
         }
+        ConfigAction::Files {
+            skipped,
+            bare,
+            path,
+        } => {
+            list_selected_files(&path, skipped, bare)?;
+        }
         ConfigAction::Init => {
             let yaml_path = std::env::current_dir()?.join(".languagecheck.yaml");
             let json_path = std::env::current_dir()?.join(".languagecheck.json");
@@ -762,6 +782,132 @@ fn handle_config(action: ConfigAction) -> Result<()> {
             );
         }
     }
+    Ok(())
+}
+
+/// Show which files the config selects, and which pattern rejected the rest.
+///
+/// `include` and `exclude` decide what this project checks, and until you can
+/// see the answer the only way to find out is to run a check and count. A
+/// pattern that silently matches nothing, or one that swallows a directory
+/// nobody meant to drop, both look exactly like a checker that is working.
+/// What a config selects, and what it turned away.
+struct Selection {
+    selected: Vec<PathBuf>,
+    /// Each rejected path with the list that rejected it.
+    rejected: Vec<(PathBuf, &'static str)>,
+}
+
+/// Walk the same patterns the indexer walks and sort the results by verdict.
+///
+/// The grammars decide which extensions are candidates, so this answers for
+/// what the editor and CI will visit and not for every file on disk.
+fn select_files(
+    config: &Config,
+    root: &Path,
+    search_from: &Path,
+    with_rejected: bool,
+) -> Selection {
+    let mut patterns = lang_check::languages::all_file_patterns(config);
+    patterns.sort();
+    patterns.dedup();
+
+    let mut selection = Selection {
+        selected: Vec::new(),
+        rejected: Vec::new(),
+    };
+    for (suffix, _lang) in &patterns {
+        let Ok(entries) = glob(&format!("{}/{}", search_from.to_string_lossy(), suffix)) else {
+            continue;
+        };
+        for found in entries.flatten() {
+            if config.checks(&found, root) {
+                selection.selected.push(found);
+            } else if with_rejected {
+                let list = if config.includes(&found, root) {
+                    "exclude"
+                } else {
+                    "include"
+                };
+                selection.rejected.push((found, list));
+            }
+        }
+    }
+    selection.selected.sort();
+    selection.selected.dedup();
+    selection.rejected.sort();
+    selection.rejected.dedup();
+    selection
+}
+
+/// Show which files the config selects, and which list rejected the rest.
+///
+/// `include` and `exclude` decide what this project checks, and until you can
+/// see the answer the only way to find out is to run a check and count. A
+/// pattern that matches nothing, and one that swallows a directory nobody
+/// meant to drop, both look exactly like a checker that is working.
+fn list_selected_files(target: &Path, show_skipped: bool, bare: bool) -> Result<()> {
+    let root = std::env::current_dir()?;
+    let config = Config::load(&root).unwrap_or_else(|e| {
+        eprintln!("lang-check: ignoring unreadable .languagecheck.yaml, using defaults: {e}");
+        Config::default()
+    });
+
+    let search_from = if target == Path::new(".") {
+        root.clone()
+    } else {
+        root.join(target)
+    };
+    let selection = select_files(&config, &root, &search_from, show_skipped);
+
+    let relative = |p: &Path| -> String {
+        p.strip_prefix(&root)
+            .unwrap_or(p)
+            .to_string_lossy()
+            .into_owned()
+    };
+
+    if bare {
+        for file in &selection.selected {
+            println!("{}", relative(file));
+        }
+        return Ok(());
+    }
+
+    if config.include.is_empty() {
+        println!(
+            "{} every file the grammars recognise",
+            style("include:").bold()
+        );
+    } else {
+        println!("{} {}", style("include:").bold(), config.include.join(", "));
+    }
+    println!(
+        "{} {} pattern(s)\n",
+        style("exclude:").bold(),
+        config.exclude.len()
+    );
+
+    for file in &selection.selected {
+        println!("  {} {}", style("+").green(), relative(file));
+    }
+    for (file, list) in &selection.rejected {
+        println!(
+            "  {} {} {}",
+            style("-").red(),
+            relative(file),
+            style(format!("({list})")).dim()
+        );
+    }
+    println!(
+        "\n{} file(s) selected{}",
+        style(selection.selected.len()).bold(),
+        if show_skipped {
+            format!(", {} skipped", selection.rejected.len())
+        } else {
+            String::new()
+        }
+    );
     Ok(())
 }
 
