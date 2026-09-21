@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent / "_ext"))
 project = "Language Check"
 copyright = "2025, KaiErikNiermann"
 author = "KaiErikNiermann"
-release = "0.6.0"
+release = "0.6.1"
 
 extensions = [
     "myst_parser",
