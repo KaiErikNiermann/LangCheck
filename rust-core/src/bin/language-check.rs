@@ -46,6 +46,9 @@ enum Commands {
         /// Output format
         #[arg(short, long, default_value = "pretty")]
         format: OutputFormat,
+        /// Exit non-zero when a finding at this severity or worse is reported
+        #[arg(long, default_value = "never")]
+        fail_on: FailOn,
     },
     /// Fix a file by applying high-confidence suggestions
     Fix {
@@ -120,10 +123,73 @@ enum ConfigAction {
     },
 }
 
+/// What a run accumulated, across every file it visited.
+///
+/// The severities are collected whatever the output format, because
+/// `--fail-on` has to answer the same way for `--format pretty` as for
+/// `--format json`.
+#[derive(Default)]
+struct Report {
+    json: Vec<JsonDiagnostic>,
+    severities: Vec<String>,
+}
+
+/// The name a severity goes out under, in the JSON and at the gate.
+///
+/// One mapping rather than two. It was written out as numbers in two places
+/// and one of them had `1 => "error"` and `3 => "information"`, where the enum
+/// is `SEVERITY_INFORMATION` = 1 and `SEVERITY_ERROR` = 3 -- so every error came
+/// out labelled information and every information an error.
+fn severity_name(severity: i32) -> &'static str {
+    match Severity::try_from(severity) {
+        Ok(Severity::Error) => "error",
+        Ok(Severity::Warning) => "warning",
+        Ok(Severity::Information) => "information",
+        Ok(Severity::Hint) => "hint",
+        Ok(Severity::Unspecified) | Err(_) => "unknown",
+    }
+}
+
 #[derive(Clone, ValueEnum)]
 enum OutputFormat {
     Pretty,
     Json,
+}
+
+/// How bad a finding has to be before the run is called a failure.
+///
+/// `never` is the default, because someone running this at a terminal is
+/// reading the output and a non-zero exit there breaks a `&&` chain for no
+/// reason. CI passes `warning`, which is where the categories that mean "this
+/// text is wrong" sit.
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum FailOn {
+    Never,
+    Error,
+    Warning,
+    Information,
+    Hint,
+}
+
+impl FailOn {
+    /// Whether `severity`, as the JSON spells it, reaches this threshold.
+    fn reached_by(self, severity: &str) -> bool {
+        let rank = |s: &str| match s {
+            "error" => 4,
+            "warning" => 3,
+            "information" => 2,
+            "hint" => 1,
+            _ => 0,
+        };
+        let threshold = match self {
+            Self::Never => return false,
+            Self::Error => 4,
+            Self::Warning => 3,
+            Self::Information => 2,
+            Self::Hint => 1,
+        };
+        rank(severity) >= threshold
+    }
 }
 
 #[derive(Serialize)]
@@ -148,13 +214,7 @@ impl JsonDiagnostic {
         // every information an error. The LSP path got it right, so a Neovim
         // user saw the correct severity and anyone parsing this JSON in CI did
         // not.
-        let severity = match Severity::try_from(d.severity) {
-            Ok(Severity::Error) => "error",
-            Ok(Severity::Warning) => "warning",
-            Ok(Severity::Information) => "information",
-            Ok(Severity::Hint) => "hint",
-            Ok(Severity::Unspecified) | Err(_) => "unknown",
-        };
+        let severity = severity_name(d.severity);
         Self {
             file: file.to_string(),
             line,
@@ -189,11 +249,16 @@ async fn main() -> Result<()> {
     });
 
     match cli.command {
-        Commands::Check { path, lang, format } => {
+        Commands::Check {
+            path,
+            lang,
+            format,
+            fail_on,
+        } => {
             let schema_registry = SchemaRegistry::from_workspace(&current_dir)?;
             let pinned = lang.map(|l| lang_check::languages::resolve_language_id(&l).to_string());
             let suppression = CliSuppression::load(&current_dir, &config);
-            check_path(
+            let reported = check_path(
                 path,
                 pinned,
                 &format,
@@ -202,6 +267,12 @@ async fn main() -> Result<()> {
                 &suppression,
             )
             .await?;
+            // Exit 1 rather than 2: 2 already means the run could not happen
+            // at all, and a gate that cannot tell "found problems" from
+            // "could not look" is not a gate.
+            if reported.iter().any(|severity| fail_on.reached_by(severity)) {
+                std::process::exit(1);
+            }
         }
         Commands::Fix { path, lang } => {
             let schema_registry = SchemaRegistry::from_workspace(&current_dir)?;
@@ -332,9 +403,9 @@ async fn check_path(
     config: Config,
     schema_registry: &SchemaRegistry,
     suppression: &CliSuppression,
-) -> Result<()> {
+) -> Result<Vec<String>> {
     let mut orchestrator = Orchestrator::new(config.clone());
-    let mut all_json_diagnostics: Vec<JsonDiagnostic> = Vec::new();
+    let mut report = Report::default();
 
     // `exclude` is a statement about which files this project checks, so it
     // holds here too. It governed the background indexer alone, which meant
@@ -361,7 +432,7 @@ async fn check_path(
             if matches!(format, OutputFormat::Pretty) {
                 println!("{} is excluded by the config.", path.display());
             }
-            return Ok(());
+            return Ok(report.severities);
         }
         check_file(
             &path,
@@ -369,7 +440,7 @@ async fn check_path(
             &language_of(&path),
             suppression,
             format,
-            &mut all_json_diagnostics,
+            &mut report,
             schema_registry,
         )
         .await?;
@@ -409,7 +480,7 @@ async fn check_path(
                 &language_of(p),
                 suppression,
                 format,
-                &mut all_json_diagnostics,
+                &mut report,
                 schema_registry,
             )
             .await?;
@@ -423,10 +494,10 @@ async fn check_path(
     }
 
     if matches!(format, OutputFormat::Json) {
-        println!("{}", serde_json::to_string_pretty(&all_json_diagnostics)?);
+        println!("{}", serde_json::to_string_pretty(&report.json)?);
     }
 
-    Ok(())
+    Ok(report.severities)
 }
 
 async fn check_file(
@@ -435,7 +506,7 @@ async fn check_file(
     lang: &str,
     suppression: &CliSuppression,
     format: &OutputFormat,
-    json_diagnostics: &mut Vec<JsonDiagnostic>,
+    report: &mut Report,
     schema_registry: &SchemaRegistry,
 ) -> Result<()> {
     let text = fs::read_to_string(path)?;
@@ -472,6 +543,9 @@ async fn check_file(
             found_issues += 1;
             let byte_offset = d.start_byte as usize;
 
+            report
+                .severities
+                .push(severity_name(d.severity).to_string());
             match format {
                 OutputFormat::Pretty => {
                     let (line, col) = get_line_col(&text, byte_offset);
@@ -489,7 +563,7 @@ async fn check_file(
                     }
                 }
                 OutputFormat::Json => {
-                    json_diagnostics.push(JsonDiagnostic::from_diagnostic(
+                    report.json.push(JsonDiagnostic::from_diagnostic(
                         &d,
                         &file_str,
                         &text,
