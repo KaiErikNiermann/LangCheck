@@ -142,7 +142,7 @@ Important patterns to follow:
   special constructs win when there is ambiguity.
 - Use `prec.right(...)` for constructs that should consume as much as possible
   (headings, commands).
-- Keep the `_node` choice in priority order -- more specific constructs first.
+- Keep the `_node` choice in priority order—more specific constructs first.
 
 ### Step B: Write the external scanner (optional)
 
@@ -337,7 +337,7 @@ fn collect_prose_nodes(
 }
 ```
 
-A "first labelled child" lookup -- a command's `command_name`, a directive's
+A "first labeled child" lookup—a command's `command_name`, a directive's
 `type` -- is `shared::child_of_kind`, not a hand-written loop:
 
 ```rust
@@ -407,8 +407,8 @@ The token kind says what the checker should see in that range:
 
 | Kind | Stripped to | Use for |
 | --- | --- | --- |
-| `Separator` | a space | math, verbatim, code spans -- markup that keeps the words on either side apart, so `a $x$ b` is not read as `ab` |
-| `Elided` | nothing | command names, escapes, comments -- markup that is invisible in the rendered document, so `@em{a}b` is read as `ab` |
+| `Separator` | a space | math, verbatim, code spans—markup that keeps the words on either side apart, so `a $x$ b` is not read as `ab` |
+| `Elided` | nothing | command names, escapes, comments—markup that is invisible in the rendered document, so `@em{a}b` is read as `ab` |
 | `Barrier` | itself | block structure, where the two sides are different paragraphs and must not be joined at all |
 
 Every token also becomes an exclusion zone, blanked out of the text the checker
@@ -474,7 +474,7 @@ pub const SUPPORTED_LANGUAGE_IDS: &[&str] = &[
 ];
 ```
 
-**3. Language ID aliases** (optional) -- if VS Code or other editors use a
+**3. Language ID aliases** (optional)—if VS Code or other editors use a
 different name for your language, add an entry to `LANGUAGE_ID_ALIASES`:
 
 ```rust
@@ -497,7 +497,7 @@ for name in ["forester", "tinylang", "org", "typst"] {
 }
 ```
 
-A grammar with no external scanner gets its own block instead, as BibTeX does --
+A grammar with no external scanner gets its own block instead, as BibTeX does—
 the loop compiles `scanner.c` unconditionally.
 
 The library name `cc` is given must match the `tree_sitter_<name>` symbol the
@@ -653,16 +653,16 @@ these files:
 
 | File | Action |
 |------|--------|
-| `rust-core/tree-sitter-<lang>/grammar.js` | Create -- tree-sitter grammar |
-| `rust-core/tree-sitter-<lang>/package.json` | Create -- tree-sitter project metadata |
-| `rust-core/tree-sitter-<lang>/src/scanner.c` | Create (if needed) -- external scanner |
+| `rust-core/tree-sitter-<lang>/grammar.js` | Create—tree-sitter grammar |
+| `rust-core/tree-sitter-<lang>/package.json` | Create—tree-sitter project metadata |
+| `rust-core/tree-sitter-<lang>/src/scanner.c` | Create (if needed)—external scanner |
 | `rust-core/tree-sitter-<lang>/src/parser.c` | Generated -- `tree-sitter generate` |
-| `rust-core/tree-sitter-<lang>/src/*.json` | Generated -- grammar/node-types metadata |
-| `rust-core/tree-sitter-<lang>/src/tree_sitter/*.h` | Generated -- tree-sitter headers |
-| `rust-core/src/grammars.rs` | Edit -- add a `vendored_grammars!` entry |
-| `rust-core/src/prose/<lang>.rs` | Create -- AST walk plus one `gap::Syntax` function |
-| `rust-core/src/prose/mod.rs` | Edit -- add `mod <lang>;` and match arm |
-| `rust-core/src/languages.rs` | Edit -- extension mapping, supported IDs, `resolve_ts_language` arm |
-| `rust-core/build.rs` | Edit -- add the grammar name to the compile loop |
-| `extension/package.json` | Edit -- add `onLanguage:<lang>` activation event |
-| `extension/src/extension.ts` | Edit -- add to `supportedLanguages` array |
+| `rust-core/tree-sitter-<lang>/src/*.json` | Generated—grammar/node-types metadata |
+| `rust-core/tree-sitter-<lang>/src/tree_sitter/*.h` | Generated—tree-sitter headers |
+| `rust-core/src/grammars.rs` | Edit—add a `vendored_grammars!` entry |
+| `rust-core/src/prose/<lang>.rs` | Create—AST walk plus one `gap::Syntax` function |
+| `rust-core/src/prose/mod.rs` | Edit—add `mod <lang>;` and match arm |
+| `rust-core/src/languages.rs` | Edit—extension mapping, supported IDs, `resolve_ts_language` arm |
+| `rust-core/build.rs` | Edit—add the grammar name to the compile loop |
+| `extension/package.json` | Edit—add `onLanguage:<lang>` activation event |
+| `extension/src/extension.ts` | Edit—add to `supportedLanguages` array |

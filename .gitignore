@@ -44,3 +44,10 @@ spellcheck_wordlists.json
 .languagecheck.db
 **/.languagecheck.db
 .cache/
+
+# Prose checking for this repository's own docs. The Vale package is fetched
+# by `vale sync`, not vendored: 137 rule files would otherwise sit in the diff
+# of every unrelated change. `.languagecheck/` is the local dictionary and
+# ignore store, which is per-checkout state.
+.vale/styles/
+.languagecheck/

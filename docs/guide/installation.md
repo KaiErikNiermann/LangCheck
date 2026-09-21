@@ -13,7 +13,7 @@ On first activation, the extension will prompt you to download the core binary f
 
 ## VSCodium and other non-Microsoft builds
 
-VSCodium, Code — OSS, Cursor, Windsurf and similar builds cannot reach the Microsoft
+VSCodium, Code — OSS, Cursor, Windsurf, and similar builds cannot reach the Microsoft
 marketplace. The same extension is published to [Open VSX](https://open-vsx.org/extension/KaiErikNiermann/language-check),
 which those editors query by default:
 

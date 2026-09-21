@@ -16,8 +16,8 @@ is AGPL-3.0; the Latin dictionary is GPL. Neither belongs inside an MIT binary
 published to crates.io and the VS Code Marketplace.
 
 They are installed separately instead, into your own data directory, under
-their own licences — the same arrangement VS Code, Firefox and LibreOffice use
-for the same reason. The installer states a dictionary's licence and where its
+their own licenses — the same arrangement VS Code, Firefox and LibreOffice use
+for the same reason. The installer states a dictionary's license and where its
 words came from before fetching anything.
 
 ## Enabling it
@@ -45,7 +45,7 @@ available as a quick fix on the squiggle, under the lightbulb.
 ### From the command line
 
 ```bash
-language-check packs available        # what can be fetched, with its licence
+language-check packs available        # what can be fetched, with its license
 language-check packs install he       # fetch and verify one
 language-check packs list             # what is installed, and where it was found
 language-check packs verify he        # check an installed pack without touching it
@@ -59,7 +59,7 @@ A pack you already have is found without downloading a second copy. On Arch:
 sudo pacman -S hunspell-he
 ```
 
-Debian, Fedora and Homebrew carry the same dictionaries under similar names.
+Debian, Fedora, and Homebrew carry the same dictionaries under similar names.
 
 ### By hand
 
@@ -109,7 +109,7 @@ in.
 | `auto_install`     | `bool`              | `false` | Fetch a missing pack without asking                              |
 
 `auto_install` is off because a dictionary is a third-party download under its
-own licence, and that is a decision to put to you rather than make for you.
+own license, and that is a decision to put to you rather than make for you.
 
 ## What can go wrong
 
@@ -122,7 +122,7 @@ passing as clean, and the editor offers to install one where a download exists.
 **A pack that will not load.** Real dictionaries carry real defects: the 2013
 Latin pack has two lines reading `SFK` where `SFX` belongs, so its affix header
 promises 129 rows and the parser finds 2. Hunspell skips a line it does not
-recognise; the stricter parser here does not, which is why a pack can work in
+recognize; the stricter parser here does not, which is why a pack can work in
 LibreOffice and fail here. `language-check packs verify <lang>` says which file
 and which line.
 

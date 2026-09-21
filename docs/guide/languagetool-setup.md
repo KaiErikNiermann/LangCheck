@@ -270,7 +270,7 @@ When both Harper and LanguageTool are enabled, they run one after another and
 their diagnostics overlay. Findings that agree — the same rule over the same
 byte range — are merged into one report keeping the higher severity, with the
 suggestions interleaved so each engine's best guess comes before either
-engine's tail. The two tokenise independently, so a finding whose span differs
+engine's tail. The two tokenize independently, so a finding whose span differs
 even by a byte stays separate.
 
 ```yaml
@@ -293,6 +293,7 @@ curl -s -X POST "http://localhost:8010/v2/check" \
   -d "text=This is a test sentnce." | python3 -m json.tool
 ```
 
+<!-- lang-check-disable-next-line -->
 You should see a JSON response with a match for the misspelling "sentnce".
 
 In VS Code, open any Markdown file — diagnostics from both Harper and LanguageTool will now appear.

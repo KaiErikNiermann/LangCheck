@@ -188,7 +188,7 @@ These are the names accepted by `disabled`:
 | `mathematics`     | Mathematics, category theory, type theory, and mathematical physics |
 
 Set `bundled: false` to switch all five off at once; `disabled` turns off only the
-ones you name and is ignored when `bundled` is false. An unrecognised name is
+ones you name and is ignored when `bundled` is false. An unrecognized name is
 warned about in the server log and otherwise ignored, so a typo here never takes
 the other wordlists down with it.
 
@@ -232,7 +232,7 @@ morphology:
 Two switches because the two halves work differently, and can fail
 differently.
 
-### Prefixes and derivational suffixes are recognised
+### Prefixes and derivational suffixes are recognized
 
 A word that is flagged as a misspelling is re-read as a productive prefix
 (`sub-`, `semi-`, `non-`, `quasi-`, `counter-`, … — the full list is in
@@ -256,7 +256,7 @@ like any other entry.
 Generated, not stripped, because the spelling rules only run one way. `occur`
 plus `-ed` is `occurred`; a checker that instead removed `-ed` from `occured`
 would find `occur` and accept a misspelling. The same shape accepts `childs` and
-`mouses`, which is why plurals are never recognised by taking a word apart.
+`mouses`, which is why plurals are never recognized by taking a word apart.
 
 ### What keeps typos visible
 
@@ -293,15 +293,15 @@ A word is treated as a name only when **at least two independent signals** agree
 | `no-suggestions`| The engine offered no correction at all                            |
 | `repetition`    | The same spelling occurs more than once in the document            |
 | `context`       | A title, salutation, possessive or citation pattern surrounds it   |
-| `shape`         | Capitalised away from the start of a sentence                      |
+| `shape`         | Capitalized away from the start of a sentence                      |
 
 Requiring two signals is what keeps real misspellings visible. `Hoare` is suppressed
-because it is a known surname *and* capitalised mid-sentence; `thier` is not, because
+because it is a known surname *and* capitalized mid-sentence; `thier` is not, because
 it is lowercase and sits one edit from `their`. Raising `aggressiveness` lowers that
 bar and will eventually cost you real typos.
 
-Capitalisation is ignored as a signal for German (`de-*`), where every noun is
-capitalised and the shape carries no information.
+Capitalization is ignored as a signal for German (`de-*`), where every noun is
+capitalized and the shape carries no information.
 
 Use the **Names** tab in the Inspector to see exactly which words were suppressed and
 which signals fired for each.

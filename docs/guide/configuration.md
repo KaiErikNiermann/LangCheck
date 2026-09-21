@@ -153,7 +153,7 @@ morphology:
   inflections: true             # accept plurals and regular verb forms
 ```
 
-Prefixed and derived forms are recognised by taking the flagged word apart and
+Prefixed and derived forms are recognized by taking the flagged word apart and
 requiring what is left to be a real word — `subalgebra` yes, `subxyzzy` no.
 Inflections are generated instead, because the spelling rules only work
 forwards: `occur` plus `-ed` is `occurred`, and a checker that stripped `-ed`

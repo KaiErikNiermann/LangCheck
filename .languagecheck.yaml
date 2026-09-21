@@ -1,0 +1,101 @@
+# Prose checking for this repository's own documentation.
+#
+# Three engines, because they disagree usefully: Harper is fast and catches
+# ordinary spelling and grammar, LanguageTool reads a whole sentence, and Vale
+# enforces the house style in .vale.ini. CI runs this same file, so a finding
+# in the editor is a finding on the pull request.
+#
+# The bar for *blocking* is deliberately high. A style note that stops a docs
+# change is a style note people learn to route around, so only findings that
+# say the text is wrong -- a misspelling, a repeated word, a broken agreement
+# -- are left at warning. Everything else is a hint: visible while writing,
+# never a gate.
+engines:
+  harper:
+    enabled: true
+    dialect: "American"
+    linters:
+      # Headings here are sentence case, deliberately.
+      UseTitleCase: false
+      # Fires on every table cell, and on any paragraph whose first word sits
+      # inside a code span -- a code span is not prose, so the sentence reads
+      # as lowercase however it was written.
+      SentenceCapitalization: false
+      # `config`, `stdin` and `stdout` are the names of the things. This is
+      # documentation for the people who spell them that way.
+      ExpandConfiguration: false
+      ExpandStandardInputAndOutput: false
+      # "Plugin System" and "Plugin Discovery" are noun phrases in headings.
+      PhrasalVerbAsCompoundNoun: false
+      # "a finding", "an existing extractor": both are countable here.
+      MassNouns: false
+      # Fires on list items and table cells, which are not sentences.
+      MissingDeterminer: false
+      # `--` is the house spelling of an em dash in plain-text contexts, and
+      # an en dash is not what is meant.
+      Dashes: false
+      OxfordComma: false
+
+  languagetool:
+    enabled: true
+    url: "http://localhost:8010"
+    level: "default"
+    disabled_rules:
+      # Markdown tables are padded to align, and every padded cell reads as a
+      # repeated whitespace.
+      - WHITESPACE_RULE
+      # A third speller behind Harper and Vale, and the one that does worst on
+      # this vocabulary -- it reports the `R` of "R Sweave" as a misspelling.
+      - MORFOLOGIK_RULE_EN_US
+      # Fires on `a UTF-8`, where the following word is a code span.
+      - EN_A_VS_AN
+      # Asks whether the `fr` in a table of language codes means "franc".
+      - FR
+      # Both fire on link text and code spans rather than on prose.
+      - GITHUB
+      - MARKDOWN_NNP
+      - EN_SPECIFIC_CASE
+      - COMMA_COMPOUND_SENTENCE_2
+      - DASH_RULE
+
+  vale:
+    enabled: true
+    config: ".vale.ini"
+
+  spell_language: "en-US"
+
+# Names of things this project's documentation uses. One list, read by every
+# engine, so a term added here stops being reported by all three at once.
+dictionaries:
+  paths:
+    - ".languagecheck-words.txt"
+
+# This repository is mostly code. `include` names the prose, so adding a new
+# source directory does not quietly add it to the prose check, and the exclude
+# list below only has to deal with what lives *inside* those paths.
+include:
+  - "docs/**"
+  - "README.md"
+  - "CONTRIBUTING.md"
+
+file_types:
+  - "md"
+
+exclude:
+  - "docs/_build/**"
+  - "docs/locale/**"
+  # How to build the docs, aimed at whoever is editing them.
+  - "docs/README.md"
+
+rules:
+  # Every `ai-tells` finding lands here: Vale rules carry no category of their
+  # own, so the whole package resolves to `style.unknown`. They are worth
+  # reading while writing and worth nothing as a gate -- a docs change stopped
+  # by "consider a different verb" is a change that goes in with the check
+  # switched off.
+  style.unknown:
+    severity: "hint"
+  # CLAUDE.md, and the style this project is written in: an em dash is not an
+  # AI tell and is used normally.
+  vale.ai-tells.EmDashUsage:
+    severity: "off"

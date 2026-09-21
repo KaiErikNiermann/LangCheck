@@ -1,0 +1,120 @@
+# Vocabulary this project's own documentation uses.
+#
+# Names of things, mostly. A word belongs here when it is spelled correctly
+# and no general dictionary could reasonably be expected to hold it; a word
+# that is merely misspelled belongs fixed in the prose instead.
+#
+# Loaded through `dictionaries.paths` in .languagecheck.yaml, which means it
+# silences Harper, LanguageTool and Vale alike -- they all report spelling
+# under the same unified category.
+
+# This project
+LangCheck
+KaiErikNiermann
+Justfile
+VSIX
+VSX
+
+# Engines and the libraries behind them
+Hspell
+Hspell's
+Proselint's
+Extism
+PDK
+whatlang
+redb-backed
+semgrep
+clippy
+insta
+Vitest
+Lefthook
+prost-build
+doctest
+alex
+Flesch-Kincaid
+Kincaid
+
+# Markup formats and their grammars
+Typst
+Typst's
+typst
+Sweave
+MyST
+SLS
+TinyLang
+TinyLang's
+tikzpicture
+tree-sitter-bibtex
+tree-sitter-html
+tree-sitter-org
+tree-sitter-rst
+tree-sitter-typst
+rst
+latex
+
+# WASM toolchain
+AssemblyScript
+TinyGo
+Javy
+QuickJS
+Zig
+
+# Packaging and distribution
+Adoptium
+Temurin
+JRE
+AUR
+PKGBUILD
+winget
+winget-pkgs
+EclipseFdn
+AGPL-3
+gettext
+
+# Config type names, as the schema reference spells them
+HunspellConfig
+LanguageToolConfig
+
+# Editors
+nvim
+Neovim's
+
+# Words the tokeniser splits off something larger: Node.js, README.md, I/O,
+# N/A, .po files, R Sweave, `package.json`'s, de/es/fr, cargo fmt.
+js
+md
+po
+fmt
+de
+es
+ja
+I
+N
+R
+s
+OS
+N/A
+I/O
+LT
+MB
+UTF-8
+
+# The halves of hyphenated names. Harper tokenises on the hyphen, so
+# `prost-build` is looked up as `prost` and `build`.
+prost
+redb
+AGPL
+UTF
+Flesch
+
+# Ordinary English the bundled dictionary happens not to carry
+wordlist
+wordlists
+vendored
+severities
+sandboxed
+proxied
+unclosed
+unreasoned
+Pre-built
+re-read
