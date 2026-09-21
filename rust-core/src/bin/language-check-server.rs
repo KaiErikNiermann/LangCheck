@@ -261,8 +261,9 @@ async fn main() -> Result<()> {
                         let full_pattern = format!("{}/{}", root.to_string_lossy(), pattern_suffix);
                         if let Ok(entries) = glob(&full_pattern) {
                             for path in entries.flatten() {
-                                // Skip files matching exclude patterns
-                                if config.excludes(&path, &root) {
+                                // `include` selects and `exclude` subtracts;
+                                // the editor asks the same question below.
+                                if !config.checks(&path, &root) {
                                     continue;
                                 }
 
@@ -525,19 +526,20 @@ async fn main() -> Result<()> {
                         lang_check::languages::resolve_language_id(&req.language_id);
                     let file_path = req.file_path.as_deref().map(Path::new);
 
-                    // `exclude` is a statement about which files this project
-                    // checks, so it has to hold wherever a check is asked for.
-                    // It governed the background indexer alone, which meant a
-                    // file in `node_modules/**` was skipped by the indexer and
-                    // checked the moment someone opened it.
+                    // `include` and `exclude` are a statement about which
+                    // files this project checks, so they have to hold wherever
+                    // a check is asked for. They governed the background
+                    // indexer alone, which meant a file in `node_modules/**`
+                    // was skipped by the indexer and checked the moment
+                    // someone opened it.
                     if let Some(path) = file_path {
-                        let excluded = {
+                        let skipped = {
                             let cfg = config_arc.lock().await;
                             let root = workspace_root_arc.lock().await;
-                            root.as_ref().is_some_and(|root| cfg.excludes(path, root))
+                            root.as_ref().is_some_and(|root| !cfg.checks(path, root))
                         };
-                        if excluded {
-                            debug!(id = request_id, file = ?path, "CheckProse: excluded by config");
+                        if skipped {
+                            debug!(id = request_id, file = ?path, "CheckProse: not selected by config");
                             break 'check Some(response::Payload::CheckProse(
                                 CheckResponse::default(),
                             ));
