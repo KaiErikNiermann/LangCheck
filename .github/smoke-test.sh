@@ -12,7 +12,22 @@ set -euo pipefail
 
 BIN="$(realpath "${1:?Usage: smoke-test.sh <binary-path> [expected-version]}")"
 EXPECTED_VERSION="${2:-}"
-FIXTURES="$(cd "$(dirname "$0")/fixtures" && pwd)"
+
+# The fixtures are copied somewhere with no config and the run happens there.
+#
+# `language-check` reads `.languagecheck.yaml` from the working directory, so
+# running these from the repository root subjects a released binary to
+# whatever config this repository happens to carry. When the repo grew an
+# `include:` naming its own docs, every fixture under `.github/` fell outside
+# it and seven smoke tests failed on a binary that was fine -- reporting
+# "excluded by the config", which is correct and not what is being tested.
+#
+# The engine tests further down already do this. Now the whole file does.
+SMOKE_WORK="$(mktemp -d)"
+trap 'rm -rf "$SMOKE_WORK"' EXIT
+cp "$(dirname "$0")"/fixtures/* "$SMOKE_WORK/"
+FIXTURES="$SMOKE_WORK"
+cd "$SMOKE_WORK"
 
 passed=0
 failed=0
