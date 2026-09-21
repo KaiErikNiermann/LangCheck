@@ -1,5 +1,11 @@
 # Configuration file for the Sphinx documentation builder.
 
+import sys
+from pathlib import Path
+
+# Local extensions (docs/_ext) — the command palette index generator lives here.
+sys.path.insert(0, str(Path(__file__).parent / "_ext"))
+
 project = "Language Check"
 copyright = "2025, KaiErikNiermann"
 author = "KaiErikNiermann"
@@ -9,6 +15,7 @@ extensions = [
     "myst_parser",
     "sphinx_copybutton",
     "sphinx_design",
+    "command_palette",
 ]
 
 # MyST-Parser settings for Markdown support
