@@ -115,6 +115,43 @@ describe('config key spans', () => {
         expect(parsed.spans.size).toBe(0);
     });
 
+    it('covers exactly the quoted value, and not the comment after it', () => {
+        const source = 'engines:\n  languagetool:\n    url: "http://localhost:8010"  # the default\n';
+        expect(textAt(source, 'engines.languagetool.url')).toBe('"http://localhost:8010"');
+    });
+
+    it('covers a path that has spaces in it', () => {
+        // Windows, mostly. A span that stopped at the first space would
+        // underline half a path and read as a different mistake.
+        const source = 'engines:\n  vale:\n    config: "C:/Program Files/vale/.vale.ini"\n';
+        expect(textAt(source, 'engines.vale.config'))
+            .toBe('"C:/Program Files/vale/.vale.ini"');
+    });
+
+    it('is not thrown off by an em dash earlier on the line', () => {
+        // The offsets `yaml` reports are UTF-16 indices, which is what
+        // `positionAt` takes -- so a multi-byte character must not shift the
+        // span the way it did for Vale's rune columns.
+        const source = 'engines:\n  # dash — here\n  vale:\n    config: "café/.vale.ini"\n';
+        expect(textAt(source, 'engines.vale.config')).toBe('"café/.vale.ini"');
+    });
+
+    it('covers a value holding non-ASCII of its own', () => {
+        const source = 'engines:\n  spell_language: "de-DE"\n  vale:\n    config: "ü—ñ/.vale.ini"\n';
+        expect(textAt(source, 'engines.vale.config')).toBe('"ü—ñ/.vale.ini"');
+        expect(textAt(source, 'engines.spell_language')).toBe('"de-DE"');
+    });
+
+    it('covers an unquoted value exactly, stopping before the comment', () => {
+        const source = 'engines:\n  languagetool:\n    url: http://localhost:8010 # no quotes\n';
+        expect(textAt(source, 'engines.languagetool.url')).toBe('http://localhost:8010');
+    });
+
+    it('keeps the key span to the key when the value is long', () => {
+        const source = 'engines:\n  vale:\n    config: "a very long path with spaces/.vale.ini"\n';
+        expect(textAt(source, 'engines.vale.config', 'key')).toBe('config');
+    });
+
     it('reads JSON, since YAML 1.2 is a superset of it', () => {
         const source = '{"engines": {"harper": true, "spell_language": "de-DE"}}';
         expect(textAt(source, 'engines.spell_language')).toBe('"de-DE"');

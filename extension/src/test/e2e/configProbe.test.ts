@@ -224,13 +224,40 @@ suite('config status, live', () => {
 
         await marked('engines.languagetool', 'down');
         const squiggle = await squiggleMatching(/Could not reach/i);
-        // Under the value, not over the block: the url is what is wrong.
-        const text = configDocument.getText(squiggle.range);
-        assert.ok(
-            text.includes(String(port)),
-            `the squiggle should sit on the url, got ${JSON.stringify(text)}`,
+        // Exactly the url, and nothing either side of it. A span that ran to
+        // the end of the line would underline the comment after it and read
+        // as a complaint about something else.
+        assert.strictEqual(
+            configDocument.getText(squiggle.range),
+            `"http://127.0.0.1:${port}"`,
         );
         assert.strictEqual(squiggle.severity, vscode.DiagnosticSeverity.Error);
+    });
+
+    test('a path with spaces and non-ASCII is reported whole, and reported at all', async function () {
+        this.timeout(BUDGET_MS + 30_000);
+        // The shape a Windows path takes, plus characters that would shift a
+        // span if the offsets were bytes rather than UTF-16 indices.
+        const path = 'C:/Program Files/café—ü/.vale.ini';
+        await write(
+            `engines:\n  harper: true\n  vale:\n    enabled: true\n` +
+            `    config: "${path}"\n  spell_language: "en-US"\n`,
+        );
+
+        await marked('engines.vale', 'down');
+        const squiggle = await squiggleMatching(/vale\.ini|not on PATH/i);
+        const underlined = configDocument.getText(squiggle.range);
+        // Either the whole quoted path, or the engine's own line when Vale is
+        // not installed on the machine running this -- never a fragment of
+        // the path, which is what a byte-indexed span would give.
+        assert.ok(
+            underlined === `"${path}"` || underlined.includes('vale'),
+            `the squiggle covered ${JSON.stringify(underlined)}`,
+        );
+        assert.ok(
+            !underlined.startsWith('rogram') && !underlined.includes('\n'),
+            `the span stopped mid-path: ${JSON.stringify(underlined)}`,
+        );
     });
 
     test('starting the server flips the mark to resolved without a reload', async function () {

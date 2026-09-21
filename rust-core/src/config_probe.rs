@@ -828,6 +828,50 @@ mod tests {
     }
 
     #[test]
+    fn a_path_with_spaces_is_reported_whole() {
+        // The shape a Windows path takes. A message that stopped at the first
+        // space would name a file nobody wrote.
+        let probe = readable_file(
+            "engines.vale.config",
+            "vale",
+            "C:/Program Files/vale/.vale.ini",
+            "Vale config",
+        );
+        assert_eq!(probe.status, ProbeStatus::Down);
+        assert!(
+            probe.detail.contains("C:/Program Files/vale/.vale.ini"),
+            "{}",
+            probe.detail
+        );
+    }
+
+    #[test]
+    fn a_path_with_non_ascii_is_reported_whole() {
+        let probe = readable_file(
+            "engines.vale.config",
+            "vale",
+            "/tmp/café—ü/.vale.ini",
+            "Vale config",
+        );
+        assert_eq!(probe.status, ProbeStatus::Down);
+        assert!(probe.detail.contains("café—ü"), "{}", probe.detail);
+    }
+
+    #[tokio::test]
+    async fn a_config_whose_paths_are_odd_still_answers() {
+        // The probe has to report rather than fail: a path that cannot be
+        // opened is the ordinary case it exists to describe.
+        let config = config_from(
+            "engines:\n  vale:\n    enabled: true\n    config: \"C:/Program Files/x y/.vale.ini\"\n",
+        );
+        let probes = probe_config(&config, Path::new("/tmp")).await;
+        assert!(
+            probes.iter().any(|p| p.key == "engines.vale"),
+            "{probes:#?}"
+        );
+    }
+
+    #[test]
     fn a_config_path_that_is_a_directory_says_so() {
         let dir = tempfile::tempdir().expect("tempdir");
         let probe = readable_file(

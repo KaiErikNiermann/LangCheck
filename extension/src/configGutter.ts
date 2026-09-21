@@ -242,6 +242,10 @@ export class ConfigStatusView implements vscode.Disposable {
     ): void {
         const byLine = new Map<number, { status: ConfigStatus; details: string[]; key: string }>();
         const diagnostics: vscode.Diagnostic[] = [];
+        /** Block-level squiggles, held back until the leaves have spoken. */
+        const blockSquiggles: vscode.Diagnostic[] = [];
+        const blockEngines: string[] = [];
+        const enginesWithLeafSquiggle = new Set<string>();
 
         const lineOf = (span: KeySpan) => document.positionAt(span.keyStart).line;
 
@@ -286,14 +290,30 @@ export class ConfigStatusView implements vscode.Disposable {
             }
 
             if (status === 'down' || status === 'degraded') {
-                diagnostics.push(squiggle(
+                const isBlock = engine !== '' && key === `engines.${engine}`;
+                // The mark summarises and the squiggle localises. A block
+                // whose leaf already carries the same sentence would
+                // otherwise underline `languagetool:` and the URL under it
+                // with one message, and the reader has to work out that they
+                // are the same finding. A block with no leaf -- Vale missing
+                // from PATH -- still squiggles, on its key.
+                (isBlock ? blockSquiggles : diagnostics).push(squiggle(
                     document,
                     span,
                     detail,
                     status,
                     probe.blamesKey === true,
                 ));
+                if (!isBlock && engine !== '') enginesWithLeafSquiggle.add(engine);
+                if (isBlock) blockEngines.push(engine);
             }
+        }
+
+        // Added last, and only for engines whose leaves said nothing.
+        for (const [index, engine] of blockEngines.entries()) {
+            if (enginesWithLeafSquiggle.has(engine)) continue;
+            const diagnostic = blockSquiggles[index];
+            if (diagnostic) diagnostics.push(diagnostic);
         }
 
         // Text-decidable findings: a squiggle and no mark.
@@ -369,7 +389,19 @@ export class ConfigStatusView implements vscode.Disposable {
             parseError,
         });
 
-        this.diagnostics.set(document.uri, diagnostics);
+        // The block and the leaf can carry the same sentence -- a URL nothing
+        // answers on is reported against both -- and two identical underlines
+        // on one line is just a darker underline.
+        const seen = new Set<string>();
+        const unique = diagnostics.filter(d => {
+            const key = `${d.range.start.line}:${d.range.start.character}:`
+                + `${d.range.end.line}:${d.range.end.character}:${d.message}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+
+        this.diagnostics.set(document.uri, unique);
         this.renderAll();
     }
 
@@ -426,7 +458,15 @@ function squiggle(
 ): vscode.Diagnostic {
     // The value is what is wrong when a probe failed, and the key is what is
     // wrong when the key itself is not a setting.
-    const [start, end] = underlineKey
+    //
+    // A key whose value is a nested block is the third case: underlining the
+    // value there covers every line of the block, which reads as a complaint
+    // about all of it. `languagetool:` failing to connect is about the block,
+    // so the key is what carries it -- the URL inside gets its own squiggle
+    // on its own value.
+    const spansLines = document.positionAt(span.valueStart).line
+        !== document.positionAt(span.valueEnd).line;
+    const [start, end] = underlineKey || spansLines
         ? [span.keyStart, span.keyEnd]
         : [span.valueStart, span.valueEnd];
     const range = new vscode.Range(
