@@ -58,6 +58,16 @@ To regenerate this file from live dependency metadata, run:
 | [vite](https://www.npmjs.com/package/vite) | MIT | Frontend build tool |
 | [vitest](https://www.npmjs.com/package/vitest) | MIT | Test framework |
 
+## Documentation Dependencies
+
+Bundled into `docs/_static/vendor/ninja-keys.bundled.js` and served with the docs site. Rebuild it with `just docs-palette-bundle`.
+
+| Package | License | Description |
+|---------|---------|-------------|
+| [ninja-keys](https://github.com/KaiErikNiermann/ninja-keys) | MIT | Command palette web component (Ctrl+K) |
+| [lit](https://www.npmjs.com/package/lit) | BSD-3-Clause | Web component runtime, inlined by the bundle |
+| [hotkeys-js](https://www.npmjs.com/package/hotkeys-js) | MIT | Keyboard shortcut handling, inlined by the bundle |
+
 ## Optional Services
 
 | Service | License | Description |

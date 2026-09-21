@@ -112,6 +112,27 @@ docs-gettext: docs-venv
 docs-intl-update: docs-gettext
     cd docs && .venv/bin/sphinx-intl update -p _build/gettext -l fr -l es -l ja
 
+# Rebuild the vendored ninja-keys bundle behind the docs command palette from a
+# local checkout of https://github.com/KaiErikNiermann/ninja-keys. The bundle is
+# committed, so the docs build needs no Node toolchain.
+docs-palette-bundle checkout="~/Projects/web-tooling/ninja-keys":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    src=$(eval echo {{checkout}})
+    if [ ! -f "$src/package.json" ]; then
+      echo "No ninja-keys checkout at $src — pass one: just docs-palette-bundle /path/to/ninja-keys"
+      exit 1
+    fi
+    (cd "$src" && npm install --silent && npm run bundle)
+    version=$(python3 -c "import json; print(json.load(open('$src/package.json'))['version'])")
+    rev=$(git -C "$src" rev-parse --short HEAD)
+    {
+      printf '/*! ninja-keys %s (MIT) — https://github.com/KaiErikNiermann/ninja-keys @ %s\n' "$version" "$rev"
+      printf ' * Vendored build output. Regenerate with `just docs-palette-bundle`; do not edit. */\n'
+      cat "$src/dist/ninja-keys.bundled.js"
+    } > docs/_static/vendor/ninja-keys.bundled.js
+    echo "Vendored ninja-keys $version ($rev)"
+
 # Build docs for a specific language (e.g. just docs-lang fr)
 docs-lang lang: docs-venv
     cd docs && .venv/bin/sphinx-build -b html -D language={{lang}} . _build/html/{{lang}}
