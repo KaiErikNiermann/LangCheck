@@ -162,6 +162,53 @@ mod tests {
             .join("\n")
     }
 
+    /// The prose a paragraph hands an engine must not begin with the blanks
+    /// an exclusion left behind.
+    ///
+    /// An excluded span is replaced with spaces to keep byte offsets stable.
+    /// When the excluded span is the first thing in the paragraph, the text
+    /// that reaches the engine starts with a run of spaces -- and Harper then
+    /// reads the next hard line break as a sentence boundary, so the second
+    /// line of any wrapped paragraph is reported as a sentence that does not
+    /// start with a capital letter.
+    ///
+    /// Measured: the same paragraph on one line reports nothing, and the same
+    /// paragraph with a plain word in place of the code span reports nothing.
+    /// It is the leading blanks, and they are ours to remove.
+    #[test]
+    fn a_paragraph_does_not_start_with_the_blanks_an_exclusion_left() {
+        for markdown in [
+            "`examples` has a setup per format, a document, the\nbuild file it is written against.\n",
+            "[`examples`](examples.md) has a setup per format, a document, the\nbuild file it is written against.\n",
+            "**bold** has a setup per format, a document, the\nbuild file it is written against.\n",
+        ] {
+            let checked = checked_text(markdown);
+            assert!(
+                !checked.starts_with(' '),
+                "prose handed to the engines starts with blanks: {checked:?}"
+            );
+        }
+    }
+
+    /// A heading is the other place an exclusion can come first.
+    #[test]
+    fn a_heading_does_not_start_with_the_blanks_an_exclusion_left() {
+        let checked = checked_text("# `Config` and what it does\n");
+        assert!(!checked.starts_with(' '), "{checked:?}");
+    }
+
+    /// Only the leading run goes. A blank in the middle is what keeps the
+    /// offsets of everything after it correct.
+    #[test]
+    fn blanks_inside_a_paragraph_are_kept() {
+        let checked = checked_text("The `code` sits in the middle here.\n");
+        assert!(checked.starts_with("The "), "{checked:?}");
+        assert!(
+            checked.contains("      "),
+            "the inner blank run went: {checked:?}"
+        );
+    }
+
     #[test]
     fn emphasis_delimiters_do_not_reach_the_engine() {
         // `_réception_` sent whole is reported as a French misspelling, with

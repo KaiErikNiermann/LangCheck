@@ -63,7 +63,15 @@ impl ProseExtractor {
         // \p{…}) so a continuation isn't flagged as a new, uncapitalized
         // sentence. Honors explicit `lang-check-begin block` overrides.
         let force_regions = crate::ignore_rules::IgnoreParser::block_regions(text);
-        Ok(shared::merge_continuations(ranges, text, &force_regions))
+        let mut ranges = shared::merge_continuations(ranges, text, &force_regions);
+        // Here rather than only in the pipeline below, so the invariant holds
+        // for every producer of ranges: what reaches an engine must not open
+        // with the blanks an exclusion left behind.
+        for range in &mut ranges {
+            shared::trim_leading_blanks(range, text);
+        }
+        ranges.retain(|range| range.start_byte < range.end_byte);
+        Ok(ranges)
     }
 }
 
@@ -150,6 +158,12 @@ pub fn extract_with_range_limit(
     }
 
     apply_language_overrides(&mut ranges, &resolved.regions, &ScopeParser::parse(text));
+    // Before the split, so a chunk never begins with the blanks an exclusion
+    // left: the engines read a leading whitespace run as sentence structure.
+    for range in &mut ranges {
+        shared::trim_leading_blanks(range, text);
+    }
+    ranges.retain(|range| range.start_byte < range.end_byte);
     // Last, so a chunk inherits the language of the range it came from and a
     // split never lands inside an exclusion the extractors just installed.
     Ok(Extraction {

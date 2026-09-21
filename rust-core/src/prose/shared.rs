@@ -839,3 +839,50 @@ mod tests {
         );
     }
 }
+
+/// Move a range's start past anything that would reach an engine as blanks.
+///
+/// An excluded span is replaced with spaces so byte offsets stay stable, which
+/// is right in the middle of a paragraph and wrong at its start: the engines
+/// are then handed text that opens with a run of whitespace. Harper reads the
+/// next hard line break in such a run as a sentence boundary, so the second
+/// line of every wrapped paragraph that opens with a code span, a link whose
+/// text is one, or a bold word was reported as a sentence that does not start
+/// with a capital letter.
+///
+/// Only the leading run moves. A blank in the middle is what keeps the offsets
+/// of everything after it correct, and the trailing end is already trimmed by
+/// the callers that care.
+pub fn trim_leading_blanks(range: &mut crate::prose::ProseRange, text: &str) {
+    loop {
+        let start = range.start_byte;
+        if start >= range.end_byte {
+            return;
+        }
+        // An exclusion covering the first byte contributes only spaces.
+        if let Some(&(_, exc_end)) = range
+            .exclusions
+            .iter()
+            .find(|&&(exc_start, exc_end)| exc_start <= start && exc_end > start)
+        {
+            range.start_byte = exc_end.min(range.end_byte);
+            continue;
+        }
+        // Literal whitespace before the first word is not prose either, and a
+        // space left between an exclusion and the word after it would keep
+        // the run alive.
+        let rest = &text[start..range.end_byte];
+        let trimmed = rest.len() - rest.trim_start_matches([' ', '\t']).len();
+        if trimmed > 0 {
+            range.start_byte = start + trimmed;
+            continue;
+        }
+        break;
+    }
+    // Exclusions the start has moved past are no longer inside the range.
+    let start = range.start_byte;
+    range.exclusions.retain(|&(_, exc_end)| exc_end > start);
+    for exclusion in &mut range.exclusions {
+        exclusion.0 = exclusion.0.max(start);
+    }
+}
