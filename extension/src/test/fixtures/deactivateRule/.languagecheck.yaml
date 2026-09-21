@@ -1,0 +1,6 @@
+# Harper alone, so the rule ids in this test are stable and do not depend on
+# a server being up. The tests rewrite this file and the teardown puts it
+# back.
+engines:
+  harper: true
+  spell_language: "en-US"

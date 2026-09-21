@@ -22,6 +22,7 @@ import {
 import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth, InspectorEngineInfo, InspectorNameSpan } from './events';
 import { Logger } from './logger';
 import { ConfigStatusView } from './configGutter';
+import { classifyConfigChange, silencedBy } from './configRules';
 
 const GITHUB_REPO = 'KaiErikNiermann/LangCheck';
 
@@ -623,6 +624,38 @@ export async function activate(context: vscode.ExtensionContext) {
     // clear which packs the user refused: that is their standing answer, not
     // state derived from the config.
     reinitializeAndRecheckRef = reinitializeAndRecheck;
+
+    /**
+     * Apply a config change that can only remove diagnostics.
+     *
+     * Silencing a rule is applied by the core after the engines have run, so
+     * checking again produces the same findings and drops one more of them.
+     * The answer is already on screen; all that is needed is the same filter
+     * the core would apply, and the core told about the new config so the
+     * next check it runs for any other reason agrees.
+     *
+     * Re-checking instead is not merely slower. `reinitializeAndRecheck`
+     * clears every diagnostic first, so the whole file goes blank and fills
+     * back in -- for a rule the user silenced precisely because they did not
+     * want to look at it.
+     */
+    const applySilencedRules = async (newlyOff: ReadonlySet<string>) => {
+        log.info('Config silenced rules, filtering in place', { rules: [...newlyOff] });
+        for (const [uri, diagnostics] of diagnosticsMap) {
+            const remaining = diagnostics.filter(
+                d => !silencedBy(newlyOff, typeof d.code === 'string' ? d.code : undefined, d.unifiedId),
+            );
+            if (remaining.length === diagnostics.length) continue;
+            diagnosticsMap.set(uri, remaining);
+            diagnosticCollection.set(vscode.Uri.parse(uri), remaining);
+        }
+        inlayHintEmitter.fire();
+        updateSpeedFixDiagnostics();
+        updateInsightsStatusBar(vscode.window.activeTextEditor);
+        // Last, and without clearing anything: the core needs the new config
+        // for whatever it is asked next, but nothing on screen depends on it.
+        await initializeClient();
+    };
 
     /** Format an inlay hint label and apply-value for a diagnostic suggestion. */
     function formatInlayLabel(
@@ -1440,7 +1473,13 @@ export async function activate(context: vscode.ExtensionContext) {
                     : vscode.l10n.t('Rule "{0}" deactivated in project config', ruleId)
             );
 
-            await reinitializeAndRecheck();
+            // The diagnostics for this rule are already gone, filtered out
+            // just above. The core still has to learn about the new config,
+            // but nothing on screen is waiting on it -- and re-checking here
+            // would clear every diagnostic in the window to arrive back at
+            // what is already drawn. The file watcher reaches the same
+            // conclusion for a config edited by hand.
+            await initializeClient();
             suppressedRules.delete(ruleId);
         } catch (err) {
             vscode.window.showErrorMessage(vscode.l10n.t('Failed to deactivate rule: {0}', String(err)));
@@ -2134,7 +2173,17 @@ export async function activate(context: vscode.ExtensionContext) {
                 // Any edit, not only the spell language: the rest of the file
                 // decides the result just as much, and what is on screen has to
                 // match the config that produced it.
-                const changed = lastKnownConfigText !== undefined && raw !== lastKnownConfigText;
+                //
+                // Except when the only thing that changed is a rule being
+                // silenced, which the core applies after the engines have run.
+                // Then the findings on screen are already the right ones minus
+                // a filter, and re-checking would blank the file and fill it
+                // back in to reach the answer it is holding.
+                const previous = lastKnownConfigText;
+                const change = typeof previous === 'string'
+                    ? classifyConfigChange(previous, raw)
+                    : { kind: 'none' as const, newlyOff: new Set<string>() };
+                const changed = previous !== undefined && raw !== previous;
                 lastKnownConfigText = raw;
 
                 userSkipEnvs = parseSkipEnvironments(raw);
@@ -2142,7 +2191,10 @@ export async function activate(context: vscode.ExtensionContext) {
                 userProseEnvs = parseProseEnvironments(raw);
                 debounceMs = parseDebounceMs(raw);
                 inlayHintEmitter.fire();
-                if (changed) {
+                if (changed && change.kind === 'subtractive') {
+                    await applySilencedRules(change.newlyOff);
+                    configStatusView?.refresh();
+                } else if (changed) {
                     // Before the recheck: the config may have named a
                     // different wordlist, and the new one has to be watched
                     // from now on.
@@ -2835,6 +2887,14 @@ interface ExtendedDiagnostic extends vscode.Diagnostic {
     language?: string;
     /** Whether a dictionary pack for `language` can be fetched. */
     packInstallable?: boolean;
+    /**
+     * The category the core sorted this into, e.g. `typography.capitalization`.
+     *
+     * Kept because `rules:` may silence a diagnostic by its category instead
+     * of by the native id on `code`, and the editor has to be able to apply
+     * the same filter the core would.
+     */
+    unifiedId?: string;
 }
 
 const diagnosticsMap = new Map<string, ExtendedDiagnostic[]>();
@@ -3065,6 +3125,9 @@ async function runCheck(
                     diagnostic.language = d.language;
                 }
                 diagnostic.packInstallable = d.packInstallable === true;
+                if (d.unifiedId) {
+                    diagnostic.unifiedId = d.unifiedId;
+                }
                 return diagnostic;
             });
             timings.push({ name: 'Map diagnostics', durationMs: performance.now() - t2 });
