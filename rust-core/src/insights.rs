@@ -234,6 +234,7 @@ mod tests {
             end_byte: 54,
             exclusions: vec![],
             language: None,
+            language_span: None,
         }];
         let from_ranges = ProseInsights::analyze_ranges(doc, &ranges);
         let prose_only = ProseInsights::analyze(&doc[12..54]);

@@ -52,6 +52,7 @@ pub fn extract(
                 end_byte: capture.node.end_byte(),
                 exclusions,
                 language: None,
+                language_span: None,
             });
         }
     }

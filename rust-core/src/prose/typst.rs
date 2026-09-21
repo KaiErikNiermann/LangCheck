@@ -62,7 +62,7 @@ pub fn extract(text: &str, root: Node) -> Vec<ProseRange> {
 /// `#set text(lang: …)` or `#text(lang: …)[…]`. Typst scopes both lexically,
 /// so it is threaded down the walk and reset by each content block that
 /// declares its own.
-fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>, lang: Option<&str>) {
+fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>, lang: Option<&Declared>) {
     let kind = node.kind();
 
     if SKIP_NODES.contains(&kind) {
@@ -82,7 +82,7 @@ fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>, lang: Option
             // Only bridge into a range written in the same language, or the
             // two halves would be checked as one under whichever came first.
             if let Some(last) = out.last_mut()
-                && last.language.as_deref() == lang
+                && last.language.as_deref() == lang.map(|d| d.tag.as_str())
             {
                 let gap = &text[last.end_byte..start];
                 if is_bridgeable(gap) {
@@ -95,7 +95,8 @@ fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>, lang: Option
                 start_byte: start,
                 end_byte: end,
                 exclusions: Vec::new(),
-                language: lang.map(str::to_string),
+                language: lang.map(|d| d.tag.clone()),
+                language_span: lang.map(|d| d.span),
             });
         }
         return;
@@ -114,13 +115,13 @@ fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>, lang: Option
 
     // Recurse into children for container nodes. A `#set text(lang: …)` applies
     // to its later siblings, so the walk carries it forward from where it sits.
-    let mut declared: Option<String> = None;
+    let mut declared: Option<Declared> = None;
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        if let Some(tag) = set_rule_language(child, text) {
-            declared = Some(tag);
+        if let Some(found) = set_rule_language(child, text) {
+            declared = Some(found);
         }
-        collect_prose(child, text, out, declared.as_deref().or(lang));
+        collect_prose(child, text, out, declared.as_ref().or(lang));
     }
 }
 
@@ -131,12 +132,17 @@ fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>, lang: Option
 /// reachable by descending past the skipped `code` node. Everything that is
 /// not a content block — idents, numbers, strings, argument names — stays
 /// skipped, and [`OPAQUE_NODES`] subtrees are not descended into at all.
-fn collect_nested_content(node: Node, text: &str, out: &mut Vec<ProseRange>, lang: Option<&str>) {
+fn collect_nested_content(
+    node: Node,
+    text: &str,
+    out: &mut Vec<ProseRange>,
+    lang: Option<&Declared>,
+) {
     // `#text(lang: "en")[…]` parses as a `call` whose head is the `text` call
     // and whose body is the sibling `content`, so the language is read off the
     // node whose children are being walked.
     let declared = call_language(node, text);
-    let scope = declared.as_deref().or(lang);
+    let scope = declared.as_ref().or(lang);
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         let kind = child.kind();
@@ -148,6 +154,16 @@ fn collect_nested_content(node: Node, text: &str, out: &mut Vec<ProseRange>, lan
     }
 }
 
+/// A language Typst declared, and where it said so.
+///
+/// The span is what an unchecked-language report is placed on: a `#set
+/// text(lang: "he")` is the thing to change, and the prose under it is only
+/// where the consequence shows.
+struct Declared {
+    tag: String,
+    span: (usize, usize),
+}
+
 /// The BCP-47 tag a `text(…)` call names, if it names one.
 ///
 /// Typst spells the natural language `lang: "de"` with an optional
@@ -155,17 +171,29 @@ fn collect_nested_content(node: Node, text: &str, out: &mut Vec<ProseRange>, lan
 /// that already declares its language for hyphenation and quotation marks
 /// declares it for the checker too, with no second annotation to keep in sync.
 /// Only `text` is read: `lang` means something else on `#set page` and friends.
-fn call_language(node: Node, text: &str) -> Option<String> {
-    text_call_language(child_of_kind(node, "call")?, text)
+fn call_language(node: Node, text: &str) -> Option<Declared> {
+    let call = child_of_kind(node, "call")?;
+    let tag = text_call_language(call, text)?;
+    Some(Declared {
+        tag,
+        span: (call.start_byte(), call.end_byte()),
+    })
 }
 
 /// The tag named by `#set text(…)`, if `node` is that set rule.
 ///
 /// `#set text(lang: "fr")` parses as `code -> set -> call`, so the rule is one
 /// level below the `code` node the walk hands over.
-fn set_rule_language(node: Node, text: &str) -> Option<String> {
+fn set_rule_language(node: Node, text: &str) -> Option<Declared> {
     let set = child_of_kind(node, "set")?;
-    text_call_language(child_of_kind(set, "call")?, text)
+    let call = child_of_kind(set, "call")?;
+    let tag = text_call_language(call, text)?;
+    // The whole `#set text(lang: "de")`, not just the tag: that is the line a
+    // reader changes when nothing can read the language it names.
+    Some(Declared {
+        tag,
+        span: (node.start_byte(), node.end_byte()),
+    })
 }
 
 /// Read `lang:` and `region:` off a `text(…)` call node.

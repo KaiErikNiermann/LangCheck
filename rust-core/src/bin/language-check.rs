@@ -537,6 +537,9 @@ async fn check_file(
 
     for (range, mut diagnostics) in ranges.iter().zip(batch) {
         range.adopt_diagnostics(&text, &mut diagnostics);
+        // An unchecked-language report moves onto whatever declared the
+        // language, which the orchestrator cannot see.
+        prose::place_language_reports(range, &mut diagnostics);
         retain_visible(&mut diagnostics, &text, &suppression.context(&directives));
 
         for d in diagnostics {
@@ -636,6 +639,9 @@ async fn fix_file(
     let directives = InlineDirectives::parse(&text);
     for (range, mut diagnostics) in ranges.iter().zip(batch) {
         range.adopt_diagnostics(&text, &mut diagnostics);
+        // An unchecked-language report moves onto whatever declared the
+        // language, which the orchestrator cannot see.
+        prose::place_language_reports(range, &mut diagnostics);
         retain_visible(&mut diagnostics, &text, &suppression.context(&directives));
         all_diagnostics.extend(diagnostics);
     }

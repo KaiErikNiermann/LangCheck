@@ -95,6 +95,7 @@ fn collect_prose(node: Node, text: &str, out: &mut Vec<ProseRange>) {
                 end_byte: end,
                 exclusions: Vec::new(),
                 language: None,
+                language_span: None,
             });
         }
         return;
@@ -119,6 +120,7 @@ fn push_trimmed(node: Node, text: &str, out: &mut Vec<ProseRange>) {
             end_byte: end,
             exclusions: Vec::new(),
             language: None,
+            language_span: None,
         });
     }
 }

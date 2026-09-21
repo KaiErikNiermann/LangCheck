@@ -203,8 +203,13 @@ fn apply_language_overrides(
             .min_by_key(|region| region.byte_range.end - region.byte_range.start);
         if let Some(region) = innermost {
             range.language.clone_from(&region.options.language);
-        } else if let Some(language) = ScopeParser::language_at(scopes, range.start_byte) {
-            range.language = Some(language.to_string());
+            range.language_span = region.directive_range.as_ref().map(|r| (r.start, r.end));
+        } else if let Some(scope) = scopes
+            .iter()
+            .find(|s| s.byte_range.contains(&range.start_byte))
+        {
+            range.language = Some(scope.language.clone());
+            range.language_span = Some((scope.marker_range.start, scope.marker_range.end));
         }
     }
 }
@@ -280,6 +285,17 @@ pub struct ProseRange {
     /// own declaration such as Typst's `#set text(lang: "fr")`. `None` means the
     /// configured `spell_language` applies.
     pub language: Option<String>,
+    /// Where the language was declared, when something declared it.
+    ///
+    /// A `lang-check-begin lang:he`, a `<!-- lang: he -->` marker, or a Typst
+    /// `#set text(lang: "he")`. `None` means nothing said so and the
+    /// configured default applies.
+    ///
+    /// Carried because "nothing reads this language" is a finding about the
+    /// declaration when there is one: the comment is what the reader changes,
+    /// and the passage is only where the consequence shows. With no
+    /// declaration the prose is all there is to point at.
+    pub language_span: Option<(usize, usize)>,
 }
 
 impl ProseRange {
@@ -454,6 +470,31 @@ pub fn range_units(ranges: &[ProseRange], text: &str, default_language: &str) ->
             ),
         })
         .collect()
+}
+
+/// Move an unchecked-language report onto the declaration that caused it.
+///
+/// The orchestrator emits the report at the start of the passage, because
+/// that is all it can see -- it is handed text and a language, not a
+/// document. Where the language came from a comment, the comment is the thing
+/// to change, so the report is relocated here, after the offsets have been
+/// rebased onto the document.
+///
+/// A passage with no declaration keeps the report at its first word.
+pub fn place_language_reports(range: &ProseRange, diagnostics: &mut [crate::checker::Diagnostic]) {
+    let Some((start, end)) = range.language_span else {
+        return;
+    };
+    for diagnostic in diagnostics
+        .iter_mut()
+        .filter(|d| d.rule_id == "languagecheck.no-provider")
+    {
+        #[allow(clippy::cast_possible_truncation)]
+        {
+            diagnostic.start_byte = start as u32;
+            diagnostic.end_byte = end as u32;
+        }
+    }
 }
 
 /// How a diagnostic span sits relative to a range's skipped segments.
@@ -682,6 +723,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: Vec::new(),
             language: None,
+            language_span: None,
         };
         let out = range.extract_text(text);
         assert!(matches!(out, std::borrow::Cow::Borrowed(_)));
@@ -698,6 +740,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: vec![(x, x + 1)],
             language: None,
+            language_span: None,
         };
         let out = range.extract_text(text);
         assert_eq!(out, "café   tea");
@@ -715,6 +758,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: vec![(dash_start, dash_end)],
             language: None,
+            language_span: None,
         };
         let out = range.extract_text(text);
         assert_eq!(out, "a   b");
@@ -731,6 +775,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: vec![(dash, dash + '—'.len_utf8())],
             language: None,
+            language_span: None,
         };
         // " — " → space + 3 blanked em-dash bytes + space = 5 spaces.
         let out = range.extract_text(text);
@@ -744,6 +789,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: vec![(start, start + excluded.len())],
             language: None,
+            language_span: None,
         }
     }
 
@@ -802,6 +848,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: Vec::new(),
             language: None,
+            language_span: None,
         };
         // "two" is at range-local 4..7.
         let mut diagnostics = vec![diagnostic(4, 7, "spelling.typo")];
@@ -824,6 +871,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: vec![(4, 7)],
             language: None,
+            language_span: None,
         };
         // Overlapping the skip, and a non-spelling diagnostic beside it.
         let mut diagnostics = vec![
@@ -844,12 +892,14 @@ mod tests {
                 end_byte: 5,
                 exclusions: Vec::new(),
                 language: None,
+                language_span: None,
             },
             ProseRange {
                 start_byte: 6,
                 end_byte: text.len(),
                 exclusions: vec![(6, 10)],
                 language: None,
+                language_span: None,
             },
         ];
         let texts = range_texts(&ranges, text);
@@ -905,6 +955,7 @@ mod tests {
             end_byte: 300,
             exclusions: vec![(150, 200)],
             language: None,
+            language_span: None,
         };
 
         // Diagnostic entirely inside exclusion
@@ -926,6 +977,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: vec![(2, 6)],
             language: None,
+            language_span: None,
         };
         // "is" at [7, 9): one space after the skip → whitespace-adjacent.
         assert_eq!(
@@ -953,6 +1005,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: vec![(0, 4)],
             language: None,
+            language_span: None,
         };
         assert_eq!(
             range.exclusion_adjacency(text, 4, 6),
@@ -972,6 +1025,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: vec![(3, 6)],
             language: None,
+            language_span: None,
         };
         assert_eq!(
             range.exclusion_adjacency(text, 0, 3),
@@ -992,6 +1046,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: vec![(2, 6)],
             language: None,
+            language_span: None,
         };
         // Grammar/typography noise flanking the cut is suppressed...
         assert!(range.suppresses_diagnostic(text, 7, 10, "typography.capitalization"));
@@ -1010,6 +1065,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: vec![(1, 8), (11, 13)],
             language: None,
+            language_span: None,
         };
         assert_eq!(
             range.exclusion_adjacency(text, 8, 11),
@@ -1029,6 +1085,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: vec![(0, 3)],
             language: None,
+            language_span: None,
         };
         assert_eq!(
             range.exclusion_adjacency(text, 3, 5),
@@ -1047,6 +1104,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: vec![(0, 4)],
             language: None,
+            language_span: None,
         };
         assert!(range.suppresses_diagnostic(text, 4, 6, "spelling.typo"));
         // A real word with text between it and the skip is untouched.
@@ -1188,6 +1246,7 @@ Last paragraph after.";
             end_byte: 20,
             exclusions: vec![(5, 10)],
             language: None,
+            language_span: None,
         };
         // "text } rest" after blanking exclusion [5,10) -> "text      rest"
         // but if original is "text #{x+y} rest", after blanking the #{x+y}

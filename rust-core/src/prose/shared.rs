@@ -70,6 +70,7 @@ pub fn merge_ranges(words: &[(usize, usize)], text: &str, syntax: gap::Syntax) -
                 end_byte: chunk_end,
                 exclusions: std::mem::take(&mut exclusions),
                 language: None,
+                language_span: None,
             });
             chunk_start = start;
         }
@@ -81,6 +82,7 @@ pub fn merge_ranges(words: &[(usize, usize)], text: &str, syntax: gap::Syntax) -
         end_byte: chunk_end,
         exclusions,
         language: None,
+        language_span: None,
     });
 
     ranges
@@ -355,6 +357,7 @@ fn chunk_of(range: &ProseRange, start: usize, end: usize) -> ProseRange {
             .map(|&(es, ee)| (es.max(start), ee.min(end)))
             .collect(),
         language: range.language.clone(),
+        language_span: None,
     }
 }
 
@@ -505,6 +508,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: Vec::new(),
             language: None,
+            language_span: None,
         }];
         install_skip_exclusions(&mut ranges, &[(3, 7)], text.as_bytes());
         assert_eq!(ranges[0].exclusions, vec![(3, 7)]);
@@ -521,6 +525,7 @@ mod tests {
             end_byte: text.len(),
             exclusions: Vec::new(),
             language: None,
+            language_span: None,
         }];
         install_skip_exclusions(&mut ranges, &[(3, 5)], text.as_bytes());
         // Grows left over '\n' (byte 2) and right over '\n' (byte 5).
@@ -533,6 +538,7 @@ mod tests {
             end_byte: end,
             exclusions: Vec::new(),
             language: None,
+            language_span: None,
         }
     }
 
@@ -636,6 +642,7 @@ mod tests {
             end_byte: 100,
             exclusions: vec![(10, 30), (10, 25), (20, 40), (50, 60)],
             language: None,
+            language_span: None,
         }];
         dedup_exclusions(&mut ranges);
         assert_eq!(ranges[0].exclusions, vec![(10, 40), (50, 60)]);
@@ -648,6 +655,7 @@ mod tests {
             end_byte: 100,
             exclusions: vec![(10, 20), (20, 30)],
             language: None,
+            language_span: None,
         }];
         dedup_exclusions(&mut ranges);
         assert_eq!(ranges[0].exclusions, vec![(10, 30)]);
@@ -660,6 +668,7 @@ mod tests {
             end_byte: 50,
             exclusions: vec![(10, 50)],
             language: None,
+            language_span: None,
         };
         assert!(is_fully_excluded(&r));
     }
@@ -671,6 +680,7 @@ mod tests {
             end_byte: 50,
             exclusions: vec![(10, 30), (35, 50)],
             language: None,
+            language_span: None,
         };
         assert!(!is_fully_excluded(&r));
     }
@@ -682,6 +692,7 @@ mod tests {
             end_byte: 50,
             exclusions: vec![],
             language: None,
+            language_span: None,
         };
         assert!(!is_fully_excluded(&r));
     }
@@ -694,6 +705,7 @@ mod tests {
             end_byte: text.len(),
             exclusions,
             language: None,
+            language_span: None,
         };
         split_oversized(vec![range], text, limit)
             .iter()
@@ -760,6 +772,7 @@ mod tests {
                 end_byte: text.len(),
                 exclusions: vec![math],
                 language: None,
+                language_span: None,
             }],
             text,
             16,
@@ -781,6 +794,7 @@ mod tests {
                 end_byte: text.len(),
                 exclusions: vec![(6, 9), (22, 25), (40, 43)],
                 language: None,
+                language_span: None,
             }],
             text,
             20,
@@ -809,6 +823,7 @@ mod tests {
                 end_byte: text.len(),
                 exclusions: Vec::new(),
                 language: Some("fr".to_string()),
+                language_span: None,
             }],
             text,
             24,

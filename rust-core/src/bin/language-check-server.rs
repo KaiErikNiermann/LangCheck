@@ -684,6 +684,10 @@ async fn main() -> Result<()> {
                                     // is what both the cache and the
                                     // suppression pass below expect.
                                     range.adopt_diagnostics(&req.text, &mut diagnostics);
+                                    // And an unchecked-language report moves
+                                    // onto whatever declared the language,
+                                    // which the orchestrator cannot see.
+                                    prose::place_language_reports(range, &mut diagnostics);
                                     all_diagnostics.extend(diagnostics);
                                 }
                                 debug!(

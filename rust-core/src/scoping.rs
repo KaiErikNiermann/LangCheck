@@ -9,6 +9,12 @@ pub struct ScopedRegion {
     pub language: String,
     /// Byte range this scope covers (from the marker to the next marker or EOF).
     pub byte_range: Range<usize>,
+    /// The marker line itself, which is what declared the language.
+    ///
+    /// Reported against rather than the prose when nothing can read the
+    /// language: the marker is the thing to change, and the passage is only
+    /// where the consequence lands.
+    pub marker_range: Range<usize>,
 }
 
 /// Parses language scope annotations from document text.
@@ -29,7 +35,7 @@ impl ScopeParser {
     /// default language for those ranges.
     #[must_use]
     pub fn parse(text: &str) -> Vec<ScopedRegion> {
-        let mut markers: Vec<(usize, String)> = Vec::new();
+        let mut markers: Vec<(usize, String, Range<usize>)> = Vec::new();
         // A marker inside a fenced block is an example of a marker. The
         // language guide shows one in a ```markdown fence, and obeying it
         // switched the rest of that page to French.
@@ -48,13 +54,17 @@ impl ScopeParser {
                 } else {
                     scope_start
                 };
-                markers.push((scope_start, lang));
+                markers.push((
+                    scope_start,
+                    lang,
+                    line_start..line_start + line.trim_end().len(),
+                ));
             }
         }
 
         let mut regions = Vec::with_capacity(markers.len());
-        for (i, (start, lang)) in markers.iter().enumerate() {
-            let end = markers.get(i + 1).map_or(text.len(), |(next_start, _)| {
+        for (i, (start, lang, marker)) in markers.iter().enumerate() {
+            let end = markers.get(i + 1).map_or(text.len(), |(next_start, _, _)| {
                 // Walk back to before the marker line
                 text[..*next_start]
                     .rfind('\n')
@@ -68,6 +78,7 @@ impl ScopeParser {
                 regions.push(ScopedRegion {
                     language: lang.clone(),
                     byte_range: *start..end,
+                    marker_range: marker.clone(),
                 });
             }
         }

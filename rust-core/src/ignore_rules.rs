@@ -68,6 +68,8 @@ pub struct IgnoreRange {
 /// A resolved scoped region from `lang-check-begin` / `lang-check-end`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DirectiveRegion {
+    /// The `lang-check-begin` line itself, when one opened this region.
+    pub directive_range: Option<Range<usize>>,
     /// Byte range this region covers.
     pub byte_range: Range<usize>,
     /// Options carried from the `Begin` directive.
@@ -245,6 +247,7 @@ impl IgnoreParser {
                         let end = advance_n_lines(text, first_line, b);
                         if start < text.len() {
                             regions.push(DirectiveRegion {
+                                directive_range: Some(directive.line_start..directive.line_end),
                                 byte_range: start..end,
                                 options: opts,
                             });
@@ -260,6 +263,7 @@ impl IgnoreParser {
                         let end = directive.line_start;
                         if start < end {
                             regions.push(DirectiveRegion {
+                                directive_range: Some(begin.line_start..begin.line_end),
                                 byte_range: start..end,
                                 options: opts,
                             });
@@ -276,6 +280,7 @@ impl IgnoreParser {
             let start = next_line_start(text, begin.line_end);
             if start < text.len() {
                 regions.push(DirectiveRegion {
+                    directive_range: Some(begin.line_start..begin.line_end),
                     byte_range: start..text.len(),
                     options: opts,
                 });

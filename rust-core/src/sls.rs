@@ -202,6 +202,7 @@ fn merge_ranges(mut ranges: Vec<(usize, usize)>) -> Vec<ProseRange> {
                 end_byte: cur_end,
                 exclusions: vec![],
                 language: None,
+                language_span: None,
             });
             cur_start = start;
             cur_end = end;
@@ -212,6 +213,7 @@ fn merge_ranges(mut ranges: Vec<(usize, usize)>) -> Vec<ProseRange> {
         end_byte: cur_end,
         exclusions: vec![],
         language: None,
+        language_span: None,
     });
 
     merged
