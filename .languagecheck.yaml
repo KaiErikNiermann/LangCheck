@@ -66,6 +66,11 @@ engines:
 
 # Names of things this project's documentation uses. One list, read by every
 # engine, so a term added here stops being reported by all three at once.
+#
+# This is the list CI reads. "Add to dictionary" in the editor writes to
+# `.languagecheck/dictionary.txt`, which is per-checkout and not committed --
+# a word accepted there goes on being reported on the pull request. Put terms
+# the project uses here instead.
 dictionaries:
   paths:
     - ".languagecheck-words.txt"
