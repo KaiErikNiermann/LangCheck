@@ -25,6 +25,18 @@ pub struct Config {
     /// what else is in the tree.
     #[serde(default)]
     pub include: Vec<String>,
+    /// Which file types to check, as extensions without the leading dot.
+    ///
+    /// Empty means every type the grammars recognise, which is the default
+    /// and what this did before the key existed. `["md"]` restricts the whole
+    /// project to Markdown however wide `include` is, which is the common
+    /// case that `include` alone can only express by repeating the extension
+    /// in every pattern.
+    ///
+    /// Matched case-insensitively, and a leading dot is accepted and ignored,
+    /// because `.md` is how half of everyone will write it.
+    #[serde(default)]
+    pub file_types: Vec<String>,
     /// Paths not to check, as workspace-relative globs.
     ///
     /// The built-in list is always in force; anything written here is added
@@ -781,6 +793,27 @@ impl Config {
         self.include.is_empty() || matches_any(&self.include, path, workspace_root)
     }
 
+    /// Whether `file_types` admits this path's extension.
+    ///
+    /// An empty list admits everything, so a config that never mentions the
+    /// key behaves as it always did. A path with no extension is admitted
+    /// too: the list is a restriction on types, and a file that has no type
+    /// was never selected by one.
+    #[must_use]
+    pub fn admits_type(&self, path: &Path) -> bool {
+        if self.file_types.is_empty() {
+            return true;
+        }
+        let Some(extension) = path.extension().and_then(|e| e.to_str()) else {
+            return true;
+        };
+        self.file_types.iter().any(|wanted| {
+            wanted
+                .trim_start_matches('.')
+                .eq_ignore_ascii_case(extension)
+        })
+    }
+
     /// Whether this project checks this file at all.
     ///
     /// The one question the indexer, the CLI and the editor all have to
@@ -790,7 +823,9 @@ impl Config {
     /// however explicitly `include` names it.
     #[must_use]
     pub fn checks(&self, path: &Path, workspace_root: &Path) -> bool {
-        self.includes(path, workspace_root) && !self.excludes(path, workspace_root)
+        self.admits_type(path)
+            && self.includes(path, workspace_root)
+            && !self.excludes(path, workspace_root)
     }
 }
 
@@ -1031,6 +1066,7 @@ const KNOWN_TOP_LEVEL_KEYS: &[&str] = &[
     "engines",
     "rules",
     "include",
+    "file_types",
     "exclude",
     "auto_fix",
     "performance",
@@ -1106,6 +1142,7 @@ impl Default for Config {
             // Empty: a config that never mentions `include` checks
             // everything, which is what this did before the key existed.
             include: Vec::new(),
+            file_types: Vec::new(),
             exclude: default_exclude(),
             auto_fix: Vec::new(),
             performance: PerformanceConfig::default(),
@@ -1422,6 +1459,57 @@ dictionaries:
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn an_absent_file_types_list_admits_every_type() {
+        let config = Config::default();
+        let root = Path::new("/ws");
+        assert!(config.checks(&root.join("docs/a.md"), root));
+        assert!(config.checks(&root.join("docs/a.tex"), root));
+    }
+
+    #[test]
+    fn file_types_restricts_to_the_extensions_it_names() {
+        let config = Config {
+            file_types: vec!["md".to_string()],
+            exclude: Vec::new(),
+            ..Config::default()
+        };
+        let root = Path::new("/ws");
+        assert!(config.checks(&root.join("docs/a.md"), root));
+        assert!(!config.checks(&root.join("docs/a.tex"), root));
+        assert!(!config.checks(&root.join("docs/a.typ"), root));
+    }
+
+    #[test]
+    fn file_types_accepts_a_leading_dot_and_ignores_case() {
+        // `.md` is how half of everyone will write it, and `MD` is how the
+        // other half will write it on a case-insensitive filesystem.
+        let config = Config {
+            file_types: vec![".MD".to_string()],
+            exclude: Vec::new(),
+            ..Config::default()
+        };
+        let root = Path::new("/ws");
+        assert!(config.checks(&root.join("docs/a.md"), root));
+        assert!(!config.checks(&root.join("docs/a.rst"), root));
+    }
+
+    #[test]
+    fn file_types_and_include_both_have_to_admit_a_path() {
+        let config = Config {
+            file_types: vec!["md".to_string()],
+            include: vec!["docs/**".to_string()],
+            exclude: Vec::new(),
+            ..Config::default()
+        };
+        let root = Path::new("/ws");
+        assert!(config.checks(&root.join("docs/a.md"), root));
+        // Right type, wrong place.
+        assert!(!config.checks(&root.join("src/a.md"), root));
+        // Right place, wrong type.
+        assert!(!config.checks(&root.join("docs/a.tex"), root));
     }
 
     #[test]
@@ -2096,4 +2184,3 @@ engines:
         );
     }
 }
-

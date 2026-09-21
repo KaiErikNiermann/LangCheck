@@ -824,7 +824,9 @@ fn select_files(
             if config.checks(&found, root) {
                 selection.selected.push(found);
             } else if with_rejected {
-                let list = if config.includes(&found, root) {
+                let list = if !config.admits_type(&found) {
+                    "file_types"
+                } else if config.includes(&found, root) {
                     "exclude"
                 } else {
                     "include"
@@ -881,6 +883,13 @@ fn list_selected_files(target: &Path, show_skipped: bool, bare: bool) -> Result<
         );
     } else {
         println!("{} {}", style("include:").bold(), config.include.join(", "));
+    }
+    if !config.file_types.is_empty() {
+        println!(
+            "{} {}",
+            style("file_types:").bold(),
+            config.file_types.join(", ")
+        );
     }
     println!(
         "{} {} pattern(s)\n",
