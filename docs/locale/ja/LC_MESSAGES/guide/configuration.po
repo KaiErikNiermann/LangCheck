@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Language Check \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-03 16:38+0100\n"
+"POT-Creation-Date: 2026-09-22 06:27+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ja\n"
@@ -24,67 +24,173 @@ msgstr ""
 msgid "Configuration"
 msgstr ""
 
-#: ../../guide/configuration.md:3
+#: ../../guide/configuration.md:4
+msgid ""
+"The configuration format is still evolving. Backwards compatibility is "
+"maintained where possible, but some keys may change between minor versions. "
+"Check the [release notes](https://github.com/KaiErikNiermann/LangCheck/"
+"releases) when upgrading."
+msgstr ""
+
+#: ../../guide/configuration.md:7
 msgid ""
 "Language Check is configured via a `.languagecheck.yaml` file in your "
 "workspace root. YAML is preferred; `.languagecheck.yml` and "
 "`.languagecheck.json` are also supported."
 msgstr ""
 
-#: ../../guide/configuration.md:5
+#: ../../guide/configuration.md:9
 msgid "Engines"
 msgstr ""
 
-#: ../../guide/configuration.md:7
+#: ../../guide/configuration.md:11
 msgid "Control which checking engines are active:"
 msgstr ""
 
-#: ../../guide/configuration.md:17
+#: ../../guide/configuration.md:49
+#, python-brace-format
 msgid ""
-"When both Harper and LanguageTool are enabled, `english_engine` controls "
-"which one handles English content. Set it to `\"languagetool\"` to use "
-"LanguageTool for English and skip Harper entirely. The non-selected "
-"engine is automatically skipped for English text, avoiding duplicate "
-"diagnostics."
+"Both bool shorthand (`harper: true`) and nested config (`harper: { enabled: "
+"true, dialect: \"British\" }`) are supported. Use the shorthand when you "
+"only need to toggle an engine; use the nested form when you need engine-"
+"specific settings."
 msgstr ""
 
-#: ../../guide/configuration.md:19
+#: ../../guide/configuration.md:52
+msgid ""
+"**Harper** is built in and requires no external installation. "
+"**LanguageTool**, **Vale**, and **Proselint** are external tools that must "
+"be installed separately and available on your `$PATH`. See the dedicated "
+"setup guides:"
+msgstr ""
+
+#: ../../guide/configuration.md:54
+msgid "[LanguageTool Setup](languagetool-setup.md)"
+msgstr ""
+
+#: ../../guide/configuration.md:55
+msgid "[Vale Setup](vale-setup.md)"
+msgstr ""
+
+#: ../../guide/configuration.md:56
+msgid "[Proselint Setup](proselint-setup.md)"
+msgstr ""
+
+#: ../../guide/configuration.md:58
+msgid ""
+"The inspector health tab in VS Code shows whether each engine's binary was "
+"detected and provides install instructions when missing."
+msgstr ""
+
+#: ../../guide/configuration.md:61
+msgid ""
+"Enabled engines run one after another and their diagnostics overlay. (Each "
+"engine may work concurrently *inside* its own turn — LanguageTool overlaps "
+"its requests — but the engines themselves are sequential.)"
+msgstr ""
+
+#: ../../guide/configuration.md:65
+msgid ""
+"An engine is skipped when it does not handle the language being checked, or "
+"the markup the document is written in. Harper is English-only; an external "
+"provider or WASM plugin declares both through `languages` and `extensions`, "
+"and declaring neither means it takes everything. `spell_language` is the "
+"document *default* — a passage that declares its own language is checked in "
+"that one instead, and each language group goes only to the engines that "
+"claim it."
+msgstr ""
+
+#: ../../guide/configuration.md:72
+msgid ""
+"When two engines report the same rule over the same byte range, the reports "
+"are merged into one: the highest severity wins, and the suggestions are "
+"taken round-robin, one from each engine in turn, so the top of the list is "
+"every engine's best guess before any engine's tail. Spans that differ even "
+"by a byte are left as separate diagnostics."
+msgstr ""
+
+#: ../../guide/configuration.md:78
 msgid "Rule Overrides"
 msgstr ""
 
-#: ../../guide/configuration.md:21
+#: ../../guide/configuration.md:80
 msgid "Change severity or disable individual rules:"
 msgstr ""
 
-#: ../../guide/configuration.md:31
+#: ../../guide/configuration.md:90
 msgid "Exclude Patterns"
 msgstr ""
 
-#: ../../guide/configuration.md:33
+#: ../../guide/configuration.md:92
 msgid "Glob patterns to skip during workspace checking:"
 msgstr ""
 
-#: ../../guide/configuration.md:43
+#: ../../guide/configuration.md:102
 msgid "Auto-Fix Rules"
 msgstr ""
 
-#: ../../guide/configuration.md:45
+#: ../../guide/configuration.md:104
 msgid "Define custom find-and-replace rules applied automatically:"
 msgstr ""
 
-#: ../../guide/configuration.md:57
+#: ../../guide/configuration.md:116
 msgid "Performance"
 msgstr ""
 
-#: ../../guide/configuration.md:59
+#: ../../guide/configuration.md:118
 msgid "Tune performance for large workspaces:"
 msgstr ""
 
-#: ../../guide/configuration.md:68
+#: ../../guide/configuration.md:127
+msgid "Dictionaries"
+msgstr ""
+
+#: ../../guide/configuration.md:129
+msgid ""
+"Five domain wordlists ship with the checker — `software-terms`, "
+"`typescript`, `companies`, `jargon` and `mathematics` — and all of them load "
+"by default. Turn off the ones you do not want by name:"
+msgstr ""
+
+#: ../../guide/configuration.md:140
+msgid ""
+"Set `bundled: false` to switch all five off at once. See [Configuration "
+"Schema](../reference/config-schema.md#dictionaries) for the full field "
+"reference and how hyphenated words are matched."
+msgstr ""
+
+#: ../../guide/configuration.md:144
+msgid "Morphology"
+msgstr ""
+
+#: ../../guide/configuration.md:146
+msgid ""
+"One dictionary entry covers the words built on it, so you do not have to add "
+"`algebra`, `algebras`, `subalgebra` and `algebraicity` separately. This is "
+"on by default:"
+msgstr ""
+
+#: ../../guide/configuration.md:156
+msgid ""
+"Prefixed and derived forms are recognized by taking the flagged word apart "
+"and requiring what is left to be a real word — `subalgebra` yes, `subxyzzy` "
+"no. Inflections are generated instead, because the spelling rules only work "
+"forwards: `occur` plus `-ed` is `occurred`, and a checker that stripped `-"
+"ed` from `occured` would quietly accept a typo."
+msgstr ""
+
+#: ../../guide/configuration.md:162
+msgid ""
+"Misspellings stay visible because the engine's own correction overrides the "
+"analysis: if it can suggest something one edit away from what you typed, you "
+"still get a squiggle. See [Configuration Schema](../reference/config-"
+"schema.md#morphology)."
+msgstr ""
+
+#: ../../guide/configuration.md:167
 msgid "Full Example"
 msgstr ""
 
-#: ../../guide/configuration.md:70
+#: ../../guide/configuration.md:169
 msgid "Here's a `.languagecheck.yaml` putting it all together:"
 msgstr ""
-

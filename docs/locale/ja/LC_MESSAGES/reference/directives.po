@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Language Check \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-03 16:38+0100\n"
+"POT-Creation-Date: 2026-09-22 06:27+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ja\n"
@@ -26,9 +26,9 @@ msgstr ""
 
 #: ../../reference/directives.md:3
 msgid ""
-"lang-check supports inline comment directives that control checking "
-"behavior within specific regions of a document. Directives are placed "
-"inside comments using any of the four supported comment formats."
+"lang-check supports inline comment directives that control checking behavior "
+"within specific regions of a document. Directives are placed inside comments "
+"using any of the four supported comment formats."
 msgstr ""
 
 #: ../../reference/directives.md:7
@@ -89,7 +89,8 @@ msgid "Disable / Enable"
 msgstr ""
 
 #: ../../reference/directives.md:22
-msgid "Suppress all (or specific) diagnostics between a disable and enable pair:"
+msgid ""
+"Suppress all (or specific) diagnostics between a disable and enable pair:"
 msgstr ""
 
 #: ../../reference/directives.md:30 ../../reference/directives.md:50
@@ -114,8 +115,8 @@ msgstr ""
 
 #: ../../reference/directives.md:59
 msgid ""
-"The `lang-check-begin` / `lang-check-end` directives define scoped "
-"regions with richer options than basic disable/enable."
+"The `lang-check-begin` / `lang-check-end` directives define scoped regions "
+"with richer options than basic disable/enable."
 msgstr ""
 
 #: ../../reference/directives.md:68
@@ -136,14 +137,14 @@ msgstr ""
 
 #: ../../reference/directives.md:76
 msgid ""
-"Bare tokens (not matching any option prefix) are treated as rule IDs. "
-"Only those rules are suppressed within the region:"
+"Bare tokens (not matching any option prefix) are treated as rule IDs. Only "
+"those rules are suppressed within the region:"
 msgstr ""
 
 #: ../../reference/directives.md:85
 msgid ""
-"With no rule IDs and no language override, all diagnostics in the region "
-"are suppressed."
+"With no rule IDs and no language override, all diagnostics in the region are "
+"suppressed."
 msgstr ""
 
 #: ../../reference/directives.md:88
@@ -152,95 +153,167 @@ msgstr ""
 
 #: ../../reference/directives.md:90
 msgid ""
-"Override the natural language for the region. The checker uses this "
-"language instead of the document default. Takes precedence over `<!-- "
-"lang: xx -->` scope markers."
+"Check the region in another natural language. Every prose range that starts "
+"inside it is checked in that language; the rest of the document keeps "
+"`engines.spell_language`."
 msgstr ""
 
 #: ../../reference/directives.md:100
 msgid ""
-"A region with **only** a `lang:` option (no rule IDs) acts as a pure "
-"language override — it does not suppress any diagnostics."
+"A region with **only** a `lang:` option (no rule IDs) is a pure language "
+"override — it suppresses nothing."
 msgstr ""
 
 #: ../../reference/directives.md:103
+msgid ""
+"Regions nest, and the innermost one wins. A `lang:` directive also beats "
+"whatever the markup itself declares, which is how one quoted passage inside "
+"a `#set text(lang: \"de\")` document gets checked in another language "
+"without touching the typesetting."
+msgstr ""
+
+#: ../../reference/directives.md:108
+msgid ""
+"A tag with no region is resolved before it reaches the engines. It takes the "
+"document default's region when the language agrees — `lang:en` under an `en-"
+"GB` document means `en-GB` — and a known variant otherwise. This matters: "
+"LanguageTool accepts bare `en` and `de` and then reports no spelling errors "
+"at all in them, so an unresolved tag silently checks nothing."
+msgstr ""
+
+#: ../../reference/directives.md:114
+msgid ""
+"An engine that cannot read the language says so rather than passing the "
+"text. LanguageTool has no Hebrew, so a `lang:he` region produces a "
+"`languagecheck.no-provider` diagnostic naming the language, and the "
+"LanguageTool engine is *not* marked unhealthy for declining it."
+msgstr ""
+
+#: ../../reference/directives.md:119
 msgid "Line Slice (`check[a:b]`)"
 msgstr ""
 
-#: ../../reference/directives.md:105
+#: ../../reference/directives.md:121
 msgid ""
-"Auto-close the region using slice notation. No `lang-check-end` is "
-"needed. `a` and `b` are 0-indexed line offsets after the directive (like "
-"Python slicing):"
-msgstr ""
-
-#: ../../reference/directives.md:117
-msgid ""
-"`check[:5]` covers lines 0–4 (the first 5 lines). You can also start from"
-" an offset — `check[2:5]` would cover only lines 2–4:"
-msgstr ""
-
-#: ../../reference/directives.md:120
-msgid "Match Filter (`match:/PATTERN/`)"
-msgstr ""
-
-#: ../../reference/directives.md:122
-msgid "Only apply the directive to lines matching the given regex:"
-msgstr ""
-
-#: ../../reference/directives.md:131
-msgid "Exclude Filter (`exclude:/PATTERN/`)"
+"Auto-close the region using slice notation. No `lang-check-end` is needed. "
+"`a` and `b` are 0-indexed line offsets after the directive (like Python "
+"slicing):"
 msgstr ""
 
 #: ../../reference/directives.md:133
 msgid ""
-"Skip lines matching the given regex — the directive does not apply to "
-"them:"
+"`check[:5]` covers lines 0–4 (the first 5 lines). You can also start from an "
+"offset — `check[2:5]` would cover only lines 2–4:"
 msgstr ""
 
-#: ../../reference/directives.md:142
+#: ../../reference/directives.md:136
+msgid "Match Filter (`match:/PATTERN/`)"
+msgstr ""
+
+#: ../../reference/directives.md:138
+msgid "Only apply the directive to lines matching the given regex:"
+msgstr ""
+
+#: ../../reference/directives.md:147
+msgid "Exclude Filter (`exclude:/PATTERN/`)"
+msgstr ""
+
+#: ../../reference/directives.md:149
+msgid ""
+"Skip lines matching the given regex — the directive does not apply to them:"
+msgstr ""
+
+#: ../../reference/directives.md:158
 msgid "Type Override (`type:FORMAT`)"
 msgstr ""
 
-#: ../../reference/directives.md:144
+#: ../../reference/directives.md:160
 msgid ""
 "Re-parse the region using a different tree-sitter grammar. The content "
-"inside the region is extracted as if it were a standalone document of the"
-" specified format:"
+"inside the region is extracted as if it were a standalone document of the "
+"specified format:"
 msgstr ""
 
-#: ../../reference/directives.md:154
+#: ../../reference/directives.md:170
 msgid ""
 "The format must be a supported language ID (e.g. `latex`, `html`, `rst`, "
 "`org`). Unknown formats are skipped with a warning."
 msgstr ""
 
-#: ../../reference/directives.md:157
+#: ../../reference/directives.md:173
 msgid "Combining Options"
 msgstr ""
 
-#: ../../reference/directives.md:159
+#: ../../reference/directives.md:175
 msgid "Multiple options can be combined in a single directive:"
 msgstr ""
 
-#: ../../reference/directives.md:168
+#: ../../reference/directives.md:184
 msgid "Nesting"
 msgstr ""
 
-#: ../../reference/directives.md:170
+#: ../../reference/directives.md:186
 msgid ""
-"Begin/end regions can be nested. The inner `lang-check-end` closes the "
-"most recent `lang-check-begin` (stack semantics):"
+"Begin/end regions can be nested. The inner `lang-check-end` closes the most "
+"recent `lang-check-begin` (stack semantics):"
 msgstr ""
 
-#: ../../reference/directives.md:183
-msgid "Interaction with Legacy Scope Markers"
+#: ../../reference/directives.md:199
+msgid "Scope markers"
 msgstr ""
 
-#: ../../reference/directives.md:185
+#: ../../reference/directives.md:201
 msgid ""
-"The `<!-- lang: xx -->` scope markers from `scoping.rs` continue to work."
-" When both systems specify a language for the same position, the `lang-"
-"check-begin lang:xx` directive takes precedence."
+"A bare `lang:` marker on its own line switches the language from there until "
+"the next marker, with no closing directive:"
 msgstr ""
 
+#: ../../reference/directives.md:216
+msgid ""
+"The comment syntax follows the file: `<!-- lang: fr -->`, `// @lang: fr`, `/"
+"* @lang: fr */`, `% @lang: fr`. Prose before the first marker keeps "
+"`engines.spell_language`."
+msgstr ""
+
+#: ../../reference/directives.md:220
+msgid ""
+"Where both apply to the same position, `lang-check-begin lang:xx` wins — it "
+"names a region, the marker only names a point."
+msgstr ""
+
+#: ../../reference/directives.md:223
+msgid "Languages the markup declares itself"
+msgstr ""
+
+#: ../../reference/directives.md:225
+msgid ""
+"Some formats already carry the information, and it is read directly — no "
+"directive needed:"
+msgstr ""
+
+#: ../../reference/directives.md
+msgid "Declaration"
+msgstr ""
+
+#: ../../reference/directives.md
+msgid "Typst"
+msgstr ""
+
+#: ../../reference/directives.md
+msgid ""
+"`#set text(lang: \"fr\", region: \"CH\")` for the rest of the enclosing "
+"block, and `#text(lang: \"en\")[…]` for that content"
+msgstr ""
+
+#: ../../reference/directives.md:232
+msgid ""
+"Typst's `region:` becomes the BCP-47 subtag, so `lang: \"de\", region: "
+"\"CH\"` is checked as `de-CH`. Only `text` is read; `lang` means something "
+"else on other functions."
+msgstr ""
+
+#: ../../reference/directives.md:236
+msgid ""
+"A directive beats the markup, so a document can keep its typesetting "
+"language and still have one passage checked in another."
+msgstr ""

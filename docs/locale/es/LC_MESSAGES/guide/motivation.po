@@ -1,0 +1,134 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-18 00:56+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../../guide/motivation.md:1
+msgid "Why Language Check?"
+msgstr ""
+
+#: ../../guide/motivation.md:3
+msgid ""
+"Most prose linters either lock you into one checking engine, rely on "
+"fragile regex heuristics, or ship as slow Electron apps. Language Check "
+"takes a different approach."
+msgstr ""
+
+#: ../../guide/motivation.md:5
+msgid "Modern, accessible stack"
+msgstr ""
+
+#: ../../guide/motivation.md:7
+msgid ""
+"The core is written in Rust and communicates with editors over a "
+"lightweight protobuf protocol. The VS Code extension is TypeScript; the "
+"Neovim client is Lua. No Java runtime, no hidden Electron process, no "
+"language server protocol overhead for simple checks. If you can install a"
+" binary and an editor plugin, you're set."
+msgstr ""
+
+#: ../../guide/motivation.md:9
+msgid "Engine-agnostic by design"
+msgstr ""
+
+#: ../../guide/motivation.md:11
+msgid ""
+"Language Check is not tied to any single checking provider. "
+"[Harper](https://github.com/elijah-potter/harper) ships as the default "
+"offline engine, and [LanguageTool](https://languagetool.org/) integrates "
+"as an optional second engine. Beyond those, an [external provider "
+"protocol](../advanced/providers.md) and a [WASM plugin "
+"API](../advanced/plugins.md) let you plug in arbitrary checkers — a "
+"custom style guide enforcer, a domain glossary validator, or an engine "
+"that doesn't exist yet. Diagnostics from every active engine are merged "
+"into a single unified stream."
+msgstr ""
+
+#: ../../guide/motivation.md:13
+msgid "Fast because it should be"
+msgstr ""
+
+#: ../../guide/motivation.md:15
+msgid ""
+"Spell-checking is a background task that should never get in your way. "
+"The Rust core runs extraction and checking in parallel, keeps startup "
+"instant, and works fully offline by default. LanguageTool adds network "
+"latency when enabled, but Harper results appear immediately while LT "
+"results stream in behind them."
+msgstr ""
+
+#: ../../guide/motivation.md:17
+msgid "Tree-sitter grammars, not regex"
+msgstr ""
+
+#: ../../guide/motivation.md:19
+msgid ""
+"Every supported file format — Markdown, LaTeX, HTML, Typst, "
+"reStructuredText, Org mode, BibTeX, Forester, R Sweave — is parsed with a"
+" proper [tree-sitter](https://tree-sitter.github.io/tree-sitter/) "
+"grammar. The extractor walks the AST to collect prose nodes, skipping "
+"code blocks, math environments, macro arguments, and structural commands "
+"by the shape of the syntax tree rather than pattern-matching against raw "
+"text. This means fewer false positives from fragments that look like "
+"prose but aren't, and correct sentence boundaries even in complex "
+"documents with nested markup."
+msgstr ""
+
+#: ../../guide/motivation.md:21
+msgid ""
+"For formats that don't yet have a tree-sitter grammar, a regex-based SLS "
+"(Simple Language Support) fallback is available — but the goal is always "
+"to replace it with a proper grammar."
+msgstr ""
+
+#: ../../guide/motivation.md:23
+msgid "Inspectable internals"
+msgstr ""
+
+#: ../../guide/motivation.md:25
+msgid ""
+"The extension ships with a built-in **Inspector** panel that shows "
+"exactly what's happening under the hood: which prose ranges were "
+"extracted, what the clean text looks like after exclusions, per-engine "
+"latency, diagnostic summaries, engine health status, and a live event "
+"log. This isn't a debug-only feature — it's always available from the "
+"command palette. If a diagnostic seems wrong, you can open the Inspector "
+"and see exactly which text was sent to which engine and why."
+msgstr ""
+
+#: ../../guide/motivation.md:27
+msgid ""
+"**Protobuf tracing** can be toggled on to log every message between the "
+"extension and the core binary, making it straightforward to file a bug "
+"report with full reproduction context."
+msgstr ""
+
+#: ../../guide/motivation.md:29
+msgid "Workspace-scale checking"
+msgstr ""
+
+#: ../../guide/motivation.md:31
+msgid ""
+"Language Check can index and check an entire workspace in one pass. The "
+"**SpeedFix** panel lets you batch-process diagnostics across files with "
+"keyboard-driven navigation — fix, ignore, or add to dictionary without "
+"leaving the flow."
+msgstr ""
+

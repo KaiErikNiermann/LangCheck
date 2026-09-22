@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Language Check \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-03 16:38+0100\n"
+"POT-Creation-Date: 2026-09-18 00:56+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ja\n"
@@ -86,52 +86,59 @@ msgstr ""
 
 #: ../../advanced/plugins.md:69
 msgid ""
+"For a step-by-step tutorial, see the [WASM Plugin Guide](../guide-wasm-"
+"plugin.md). A complete reference implementation is available in `plugins"
+"/wordiness-check/`."
+msgstr ""
+
+#: ../../advanced/plugins.md:71
+msgid ""
 "Plugins can be built with the [Extism "
 "PDK](https://extism.org/docs/write-a-plugin/) in any language that "
 "compiles to WebAssembly:"
 msgstr ""
 
-#: ../../advanced/plugins.md:71
+#: ../../advanced/plugins.md:73
 msgid "**Rust**: `extism-pdk` crate"
 msgstr ""
 
-#: ../../advanced/plugins.md:72
+#: ../../advanced/plugins.md:74
 msgid "**Go**: `extism-pdk-go`"
 msgstr ""
 
-#: ../../advanced/plugins.md:73
+#: ../../advanced/plugins.md:75
 msgid "**JavaScript**: `@nicolo-ribaudo/extism-pdk`"
 msgstr ""
 
-#: ../../advanced/plugins.md:74
+#: ../../advanced/plugins.md:76
 msgid "**AssemblyScript**, **Zig**, **C/C++**, **Haskell**"
 msgstr ""
 
-#: ../../advanced/plugins.md:76
+#: ../../advanced/plugins.md:78
 msgid "Example (Rust)"
 msgstr ""
 
-#: ../../advanced/plugins.md:110
+#: ../../advanced/plugins.md:112
 msgid "Error Handling"
 msgstr ""
 
-#: ../../advanced/plugins.md:112
+#: ../../advanced/plugins.md:114
 msgid "Invalid WASM modules are logged and skipped during initialization."
 msgstr ""
 
-#: ../../advanced/plugins.md:113
+#: ../../advanced/plugins.md:115
 msgid "Runtime errors during `check()` calls return empty diagnostics."
 msgstr ""
 
-#: ../../advanced/plugins.md:114
+#: ../../advanced/plugins.md:116
 msgid "WASM plugins are skipped in High Performance Mode."
 msgstr ""
 
-#: ../../advanced/plugins.md:116
+#: ../../advanced/plugins.md:118
 msgid "Rule ID Namespacing"
 msgstr ""
 
-#: ../../advanced/plugins.md:118
+#: ../../advanced/plugins.md:120
 msgid ""
 "Rule IDs from WASM plugins are prefixed with `wasm.<plugin-name>.` for "
 "disambiguation."

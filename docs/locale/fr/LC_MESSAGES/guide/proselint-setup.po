@@ -1,0 +1,226 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-18 00:56+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../../guide/proselint-setup.md:1
+msgid "Proselint Setup"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:3
+msgid ""
+"[Proselint](https://github.com/amperser/proselint) is a linter for "
+"English prose that checks for common style and usage errors. Language "
+"Check integrates Proselint as an optional engine alongside Harper, "
+"LanguageTool, and Vale."
+msgstr ""
+
+#: ../../guide/proselint-setup.md:8
+msgid ""
+"Proselint only supports **English**. It is automatically skipped when "
+"`spell_language` is set to a non-English locale."
+msgstr ""
+
+#: ../../guide/proselint-setup.md:12
+msgid "Installing Proselint"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:14
+msgid ""
+"Proselint is a Python package. Install it so the `proselint` binary is on"
+" your `$PATH`."
+msgstr ""
+
+#: ../../guide/proselint-setup.md
+msgid "pip"
+msgstr ""
+
+#: ../../guide/proselint-setup.md
+msgid "pipx (recommended)"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:31
+msgid ""
+"pipx installs into an isolated environment and adds the binary to your "
+"PATH automatically."
+msgstr ""
+
+#: ../../guide/proselint-setup.md
+msgid "Homebrew (macOS/Linux)"
+msgstr ""
+
+#: ../../guide/proselint-setup.md
+msgid "System package"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:52
+msgid "Verify with:"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:59
+msgid ""
+"If the command is not found after installing, ensure the install location"
+" is on your `$PATH`. For pip, this is typically `~/.local/bin` on "
+"Linux/macOS or `%APPDATA%\\Python\\Scripts` on Windows. You may need to "
+"add it:"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:69
+msgid "Enabling Proselint"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:71
+msgid "Add `proselint: true` to your `.languagecheck.yaml`:"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:79
+msgid ""
+"Or use the **Language Check: Manage Engines** command from the VS Code "
+"command palette."
+msgstr ""
+
+#: ../../guide/proselint-setup.md:82
+msgid ""
+"The inspector health tab shows whether the `proselint` binary was "
+"detected and will display install instructions if it is missing."
+msgstr ""
+
+#: ../../guide/proselint-setup.md:85
+msgid "Proselint Configuration"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:87
+msgid ""
+"Proselint uses its own JSON config file. Language Check does **not** "
+"replace this — you manage Proselint's config separately."
+msgstr ""
+
+#: ../../guide/proselint-setup.md:90
+msgid "Config search order"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:92
+msgid "Proselint searches for configuration in this order:"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:94
+msgid "`proselint.json` in the current directory (and parents)"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:95
+msgid "`~/.config/proselint/config.json`"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:97
+msgid "Pointing to a custom config"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:99
+msgid "Specify a custom config path in `.languagecheck.yaml`:"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:108
+msgid "Example config"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:119
+msgid ""
+"See the [Proselint README](https://github.com/amperser/proselint) for the"
+" full list of available checks."
+msgstr ""
+
+#: ../../guide/proselint-setup.md:122
+msgid "How it Works"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:124
+msgid "Language Check sends document text to Proselint via stdin with:"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:130
+msgid ""
+"Proselint's JSON output is parsed and converted to Language Check "
+"diagnostics:"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:58
+msgid "Proselint field"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:58
+msgid "Language Check mapping"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:58
+msgid "`check_path`"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:58
+msgid "Rule ID prefixed with `proselint.`"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:58
+msgid "`message`"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:58
+msgid "Diagnostic message"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:58
+msgid "`span`"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:58
+msgid "Byte offsets (adjusted for padding)"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:58
+msgid "`replacements`"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:58
+msgid "Fix suggestions"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:139
+msgid "All Proselint diagnostics are mapped to **warning** severity."
+msgstr ""
+
+#: ../../guide/proselint-setup.md:141
+msgid "Rule Overrides"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:143
+msgid ""
+"Override Proselint rule severities in `.languagecheck.yaml` using the "
+"`proselint.<check_path>` format:"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:154
+msgid "High Performance Mode"
+msgstr ""
+
+#: ../../guide/proselint-setup.md:156
+msgid ""
+"Proselint is skipped when `performance.high_performance_mode` is enabled,"
+" since it requires spawning an external process."
+msgstr ""
+

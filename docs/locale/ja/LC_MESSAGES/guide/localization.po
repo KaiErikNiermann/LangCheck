@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Language Check \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-03 16:45+0100\n"
+"POT-Creation-Date: 2026-09-22 06:27+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ja\n"
@@ -26,43 +26,44 @@ msgstr ""
 
 #: ../../guide/localization.md:3
 msgid ""
-"Language Check uses [Crowdin](https://crowdin.com) for community "
-"translation management. This guide covers how to contribute translations "
-"for both the VS Code extension and the documentation."
+"Translations live in the repository next to the code and are contributed by "
+"pull request, the same as any other change. There is no translation platform "
+"to sign up for."
 msgstr ""
 
 #: ../../guide/localization.md:5
-msgid "Translating via Crowdin (Recommended)"
+msgid ""
+"There are two independent sets of files: the VS Code extension, which uses "
+"flat JSON, and the documentation, which uses gettext `.po` catalogs. Pick "
+"whichever you want to work on — they do not depend on each other."
 msgstr ""
 
 #: ../../guide/localization.md:7
-msgid ""
-"The easiest way to contribute translations is through the Crowdin web "
-"editor:"
+msgid "How to contribute"
 msgstr ""
 
 #: ../../guide/localization.md:9
-msgid ""
-"Visit the [Language Check Crowdin project](https://crowdin.com/project"
-"/language-check)"
+msgid "Fork the repository and branch off `main`."
 msgstr ""
 
 #: ../../guide/localization.md:10
-msgid "Select a target language"
+msgid "Edit the files described below."
 msgstr ""
 
 #: ../../guide/localization.md:11
-msgid "Browse the files and translate untranslated strings"
+msgid "Run `just check-l10n` to verify the extension files are still in sync."
 msgstr ""
 
 #: ../../guide/localization.md:12
-msgid "Your translations will be automatically submitted as a pull request"
+msgid "Open a pull request."
 msgstr ""
 
 #: ../../guide/localization.md:14
 msgid ""
-"No local setup is needed — Crowdin provides an in-browser editor with "
-"translation memory, glossaries, and machine translation suggestions."
+"Partial work is fine. For the documentation, leave `msgstr \"\"` on anything "
+"you have not translated and Sphinx falls back to English. For the extension, "
+"every key must be present (see [CI Checks](#ci-checks)), so copy the English "
+"string as the value for any key you skip."
 msgstr ""
 
 #: ../../guide/localization.md:16
@@ -125,8 +126,8 @@ msgstr ""
 
 #: ../../guide/localization.md:31
 msgid ""
-"Format: flat JSON with the English string as both key and value in the "
-"base file."
+"Format: flat JSON with the English string as both key and value in the base "
+"file."
 msgstr ""
 
 #: ../../guide/localization.md:39
@@ -176,12 +177,13 @@ msgstr ""
 
 #: ../../guide/localization.md:65
 msgid ""
-"Copy `extension/l10n/bundle.l10n.json` to "
-"`extension/l10n/bundle.l10n.<locale>.json`"
+"Copy `extension/l10n/bundle.l10n.json` to `extension/l10n/bundle.l10n."
+"<locale>.json`"
 msgstr ""
 
 #: ../../guide/localization.md:66
-msgid "Copy `extension/package.nls.json` to `extension/package.nls.<locale>.json`"
+msgid ""
+"Copy `extension/package.nls.json` to `extension/package.nls.<locale>.json`"
 msgstr ""
 
 #: ../../guide/localization.md:67
@@ -212,8 +214,8 @@ msgstr ""
 
 #: ../../guide/localization.md:86
 msgid ""
-"The documentation uses [Sphinx](https://www.sphinx-doc.org/) with gettext"
-" for internationalization."
+"The documentation uses [Sphinx](https://www.sphinx-doc.org/) with gettext "
+"for internationalization."
 msgstr ""
 
 #: ../../guide/localization.md:88
@@ -226,8 +228,8 @@ msgstr ""
 
 #: ../../guide/localization.md:91
 msgid ""
-"`sphinx-build -b gettext` extracts translatable strings into `.pot` "
-"template files"
+"`sphinx-build -b gettext` extracts translatable strings into `.pot` template "
+"files"
 msgstr ""
 
 #: ../../guide/localization.md:92
@@ -274,12 +276,12 @@ msgstr ""
 
 #: ../../guide/localization.md:133
 msgid ""
-"Preserve reStructuredText/MyST markup (links, admonitions, code "
-"references)"
+"Preserve reStructuredText/MyST markup (links, admonitions, code references)"
 msgstr ""
 
 #: ../../guide/localization.md:134
-msgid "Remove the `#, fuzzy` flag after reviewing a machine-suggested translation"
+msgid ""
+"Remove the `#, fuzzy` flag after reviewing a machine-suggested translation"
 msgstr ""
 
 #: ../../guide/localization.md:136
@@ -305,7 +307,7 @@ msgid "Translate the `.po` files"
 msgstr ""
 
 #: ../../guide/localization.md:156
-msgid "Submit a PR or contribute via Crowdin"
+msgid "Submit a PR"
 msgstr ""
 
 #: ../../guide/localization.md:158
@@ -314,18 +316,24 @@ msgstr ""
 
 #: ../../guide/localization.md:160
 msgid ""
-"A CI job verifies that all translation files have the same keys as their "
-"English base files. If you add a new translatable string to the "
-"extension, all existing translation files must be updated (you can use "
-"the English string as a placeholder and mark it for translation in "
-"Crowdin)."
+"A CI job verifies that every extension translation file has exactly the same "
+"keys as its English base, and that each file is valid JSON. A missing or "
+"extra key fails the build."
 msgstr ""
 
 #: ../../guide/localization.md:162
+msgid ""
+"So if you add a new translatable string to the extension, add that key to "
+"every existing translation file in the same pull request. Use the English "
+"string as the value where you cannot translate it; a later pull request can "
+"replace it."
+msgstr ""
+
+#: ../../guide/localization.md:164
 msgid "Run the check locally:"
 msgstr ""
 
-#: ../../guide/localization.md:168
+#: ../../guide/localization.md:170
 msgid "Current Languages"
 msgstr ""
 
@@ -376,4 +384,3 @@ msgstr ""
 #: ../../guide/localization.md
 msgid "—"
 msgstr ""
-

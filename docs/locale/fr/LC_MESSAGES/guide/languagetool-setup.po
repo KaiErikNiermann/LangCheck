@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Language Check \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-03 16:38+0100\n"
+"POT-Creation-Date: 2026-09-22 06:27+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
@@ -26,11 +26,10 @@ msgstr ""
 
 #: ../../guide/languagetool-setup.md:3
 msgid ""
-"Language Check ships with [Harper](https://github.com/elijah-"
-"potter/harper) for fast, offline grammar checking. For deeper analysis — "
-"advanced grammar rules, style suggestions, and multilingual support — you"
-" can optionally connect a [LanguageTool](https://languagetool.org/) "
-"server."
+"Language Check ships with [Harper](https://github.com/elijah-potter/harper) "
+"for fast, offline grammar checking. For deeper analysis — advanced grammar "
+"rules, style suggestions, and multilingual support — you can optionally "
+"connect a [LanguageTool](https://languagetool.org/) server."
 msgstr ""
 
 #: ../../guide/languagetool-setup.md:5
@@ -51,8 +50,8 @@ msgstr ""
 
 #: ../../guide/languagetool-setup.md:16
 msgid ""
-"LanguageTool is now running at `http://localhost:8010`. Skip to [Connect "
-"to Language Check](connect-to-language-check)."
+"LanguageTool is now running at `http://localhost:8010`. Skip to [Connect to "
+"Language Check](connect-to-language-check)."
 msgstr ""
 
 #: ../../guide/languagetool-setup.md:18
@@ -179,8 +178,8 @@ msgstr ""
 
 #: ../../guide/languagetool-setup.md:222
 msgid ""
-"The Docker method already handles this with `--restart unless-stopped`. "
-"To start it after a reboot, just make sure Docker itself starts on boot:"
+"The Docker method already handles this with `--restart unless-stopped`. To "
+"start it after a reboot, just make sure Docker itself starts on boot:"
 msgstr ""
 
 #: ../../guide/languagetool-setup.md:231
@@ -191,106 +190,127 @@ msgstr ""
 msgid "Once LanguageTool is running, enable it in your `.languagecheck.yaml`:"
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:242
+#: ../../guide/languagetool-setup.md:243
 msgid "Or change the URL in VS Code settings:"
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:244
+#: ../../guide/languagetool-setup.md:245
 msgid "Open Settings (`Ctrl+,`)"
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:245
+#: ../../guide/languagetool-setup.md:246
 msgid "Search for **Language Check**"
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:246
+#: ../../guide/languagetool-setup.md:247
 msgid "Set **Engines > LanguageTool** to `true`"
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:247
+#: ../../guide/languagetool-setup.md:248
 msgid "Set **Engines > LanguageTool URL** to `http://localhost:8010`"
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:249
-msgid "English Engine Toggle"
+#: ../../guide/languagetool-setup.md:250
+msgid "Request concurrency"
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:251
+#: ../../guide/languagetool-setup.md:252
 msgid ""
-"By default, Harper handles all English checking. If you prefer "
-"LanguageTool's deeper analysis for English, set `english_engine`:"
-msgstr ""
-
-#: ../../guide/languagetool-setup.md:260
-msgid ""
-"When set to `\"languagetool\"`, Harper is skipped entirely (since it only"
-" supports English). When set to `\"harper\"` (the default), LanguageTool "
-"is skipped for English content but still runs for other languages."
-msgstr ""
-
-#: ../../guide/languagetool-setup.md:262
-msgid "Verify the Connection"
+"A document is checked one prose range at a time, and a page of prose is "
+"hundreds of small ranges — so wall-clock is dominated by request latency "
+"rather than by LanguageTool's own work. Up to `max_concurrent_requests` "
+"(default `8`) checks are therefore in flight at once."
 msgstr ""
 
 #: ../../guide/languagetool-setup.md:264
+msgid ""
+"Lower it when pointing at a shared or rate-limited server — the public "
+"`api.languagetool.org` in particular. `1` restores strictly serial checking."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:267
+msgid "Multi-Engine Mode"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:269
+msgid ""
+"When both Harper and LanguageTool are enabled, they run one after another "
+"and their diagnostics overlay. Findings that agree — the same rule over the "
+"same byte range — are merged into one report keeping the higher severity, "
+"with the suggestions interleaved so each engine's best guess comes before "
+"either engine's tail. The two tokenize independently, so a finding whose "
+"span differs even by a byte stays separate."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:282
+msgid ""
+"For non-English languages (e.g. `spell_language: de-DE`), Harper is "
+"automatically skipped since it only supports English, and LanguageTool "
+"handles all checking."
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:286
+msgid "Verify the Connection"
+msgstr ""
+
+#: ../../guide/languagetool-setup.md:288
 msgid "Run a quick check to confirm everything is wired up:"
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:272
+#: ../../guide/languagetool-setup.md:297
 msgid ""
-"You should see a JSON response with a match for the misspelling "
-"\"sentnce\"."
+"You should see a JSON response with a match for the misspelling \"sentnce\"."
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:274
+#: ../../guide/languagetool-setup.md:299
 msgid ""
 "In VS Code, open any Markdown file — diagnostics from both Harper and "
 "LanguageTool will now appear."
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:276
+#: ../../guide/languagetool-setup.md:301
 msgid "Troubleshooting"
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:278
+#: ../../guide/languagetool-setup.md:303
 msgid "Connection refused"
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:279
+#: ../../guide/languagetool-setup.md:304
 msgid "Make sure the server is actually running on the expected port:"
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:285
+#: ../../guide/languagetool-setup.md:310
 msgid ""
 "If this fails, the server isn't running. Restart it using the method you "
 "chose above."
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:287
+#: ../../guide/languagetool-setup.md:312
 msgid "Slow first check"
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:288
+#: ../../guide/languagetool-setup.md:313
 msgid ""
-"LanguageTool loads language models on the first request. The first check "
-"can take 5-10 seconds; subsequent checks are fast."
+"LanguageTool loads language models on the first request. The first check can "
+"take 5-10 seconds; subsequent checks are fast."
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:290
+#: ../../guide/languagetool-setup.md:315
 msgid "Port conflict"
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:291
+#: ../../guide/languagetool-setup.md:316
 msgid ""
 "If port `8010` is taken, pick another port and update both the server "
 "command and your `.languagecheck.yaml`:"
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:303
+#: ../../guide/languagetool-setup.md:329
 msgid "Java version errors"
 msgstr ""
 
-#: ../../guide/languagetool-setup.md:304
-msgid "LanguageTool requires Java 11+. Check your version with `java -version`."
+#: ../../guide/languagetool-setup.md:330
+msgid ""
+"LanguageTool requires Java 11+. Check your version with `java -version`."
 msgstr ""
-

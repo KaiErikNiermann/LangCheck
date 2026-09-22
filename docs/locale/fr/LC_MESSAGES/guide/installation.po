@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Language Check \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-03 16:38+0100\n"
+"POT-Creation-Date: 2026-09-22 06:27+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
@@ -36,15 +36,15 @@ msgstr ""
 msgid "Open VS Code"
 msgstr ""
 
-#: ../../guide/installation.md:8
+#: ../../guide/installation.md:8 ../../guide/installation.md:21
 msgid "Press `Ctrl+Shift+X` (or `Cmd+Shift+X` on macOS)"
 msgstr ""
 
-#: ../../guide/installation.md:9
+#: ../../guide/installation.md:9 ../../guide/installation.md:22
 msgid "Search for **Language Check**"
 msgstr ""
 
-#: ../../guide/installation.md:10
+#: ../../guide/installation.md:10 ../../guide/installation.md:23
 msgid "Click **Install**"
 msgstr ""
 
@@ -55,56 +55,106 @@ msgid ""
 msgstr ""
 
 #: ../../guide/installation.md:14
-msgid "CLI Binary"
+msgid "VSCodium and other non-Microsoft builds"
 msgstr ""
 
 #: ../../guide/installation.md:16
+msgid ""
+"VSCodium, Code — OSS, Cursor, Windsurf, and similar builds cannot reach "
+"the Microsoft marketplace. The same extension is published to [Open "
+"VSX](https://open-vsx.org/extension/KaiErikNiermann/language-check), "
+"which those editors query by default:"
+msgstr ""
+
+#: ../../guide/installation.md:20
+msgid "Open VSCodium"
+msgstr ""
+
+#: ../../guide/installation.md:25
+msgid "Or from the command line:"
+msgstr ""
+
+#: ../../guide/installation.md:31
+msgid ""
+"The published VSIX is platform-independent — the core binary is fetched "
+"separately on first activation, so there is a single artifact for every "
+"editor and platform."
+msgstr ""
+
+#: ../../guide/installation.md:34
+msgid ""
+"If your editor is not wired to Open VSX, grab the `.vsix` from [GitHub "
+"Releases](https://github.com/KaiErikNiermann/LangCheck/releases) and "
+"install it directly:"
+msgstr ""
+
+#: ../../guide/installation.md:42
+msgid "Offline or proxied installs"
+msgstr ""
+
+#: ../../guide/installation.md:44
+msgid ""
+"The extension downloads `language-check-server` from GitHub Releases the "
+"first time it activates. On a machine without direct GitHub access, "
+"install the binary yourself (see [CLI Binary](#cli-binary) below) and "
+"point the extension at it:"
+msgstr ""
+
+#: ../../guide/installation.md:54
+msgid "With that set the extension never attempts a download."
+msgstr ""
+
+#: ../../guide/installation.md:56
+msgid "CLI Binary"
+msgstr ""
+
+#: ../../guide/installation.md:58
 msgid "Pre-built binaries"
 msgstr ""
 
-#: ../../guide/installation.md:18
+#: ../../guide/installation.md:60
 msgid ""
 "Download the latest release for your platform from [GitHub "
 "Releases](https://github.com/KaiErikNiermann/LangCheck/releases)."
 msgstr ""
 
-#: ../../guide/installation.md:20
+#: ../../guide/installation.md:62
 msgid "Available targets:"
 msgstr ""
 
-#: ../../guide/installation.md:21
+#: ../../guide/installation.md:63
 msgid "`x86_64-unknown-linux-gnu` — Linux x86_64"
 msgstr ""
 
-#: ../../guide/installation.md:22
+#: ../../guide/installation.md:64
 msgid "`aarch64-unknown-linux-gnu` — Linux ARM64"
 msgstr ""
 
-#: ../../guide/installation.md:23
+#: ../../guide/installation.md:65
 msgid "`x86_64-apple-darwin` — macOS Intel"
 msgstr ""
 
-#: ../../guide/installation.md:24
+#: ../../guide/installation.md:66
 msgid "`aarch64-apple-darwin` — macOS Apple Silicon"
 msgstr ""
 
-#: ../../guide/installation.md:25
+#: ../../guide/installation.md:67
 msgid "`x86_64-pc-windows-msvc.exe` — Windows x86_64"
 msgstr ""
 
-#: ../../guide/installation.md:27
+#: ../../guide/installation.md:69
 msgid "From source"
 msgstr ""
 
-#: ../../guide/installation.md:35
+#: ../../guide/installation.md:77
 msgid "The binary will be at `target/release/language-check-server`."
 msgstr ""
 
-#: ../../guide/installation.md:37
+#: ../../guide/installation.md:79
 msgid "Verify the download"
 msgstr ""
 
-#: ../../guide/installation.md:39
+#: ../../guide/installation.md:81
 msgid "Each release includes `.sha256` checksum files:"
 msgstr ""
 

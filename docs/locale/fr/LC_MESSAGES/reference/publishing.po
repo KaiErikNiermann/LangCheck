@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Language Check \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-03 16:38+0100\n"
+"POT-Creation-Date: 2026-09-22 06:27+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
@@ -57,68 +57,126 @@ msgid "Verify `README.md` is included via `readme` field"
 msgstr ""
 
 #: ../../reference/publishing.md:20
-msgid "Homebrew (macOS/Linux)"
+msgid "Open VSX (VSCodium)"
 msgstr ""
 
 #: ../../reference/publishing.md:22
-msgid "Formula"
+msgid ""
+"VSCodium, Code — OSS and other non-Microsoft builds cannot query the "
+"Microsoft marketplace; they read [Open VSX](https://open-vsx.org). The "
+"release workflow publishes the same VSIX to both registries, so no "
+"separate build is needed — the artifact is platform-independent and the "
+"core binary is fetched at first activation."
+msgstr ""
+
+#: ../../reference/publishing.md:27
+msgid "**One-time maintainer setup:**"
+msgstr ""
+
+#: ../../reference/publishing.md:29
+msgid ""
+"Sign in at [open-vsx.org](https://open-vsx.org) with the GitHub account "
+"that owns the repository, then create an access token under *Settings -> "
+"Access Tokens*."
+msgstr ""
+
+#: ../../reference/publishing.md:31
+msgid "Create the publisher namespace (it must exist before the first publish):"
+msgstr ""
+
+#: ../../reference/publishing.md:37
+msgid ""
+"Add the token as the `OVSX_PAT` repository secret in GitHub (*Settings ->"
+" Secrets and variables -> Actions*)."
+msgstr ""
+
+#: ../../reference/publishing.md:40
+msgid ""
+"Optionally, claim namespace ownership by opening an issue on [EclipseFdn"
+"/open-vsx.org](https://github.com/EclipseFdn/open-vsx.org/issues) — this "
+"removes the \"unverified publisher\" notice. Publishing works without it."
+msgstr ""
+
+#: ../../reference/publishing.md:44
+msgid ""
+"**Per release:** nothing. The `publish-vsix` job pushes to Open VSX "
+"whenever `OVSX_PAT` is set, and emits a workflow warning when it is not. "
+"To publish by hand:"
+msgstr ""
+
+#: ../../reference/publishing.md:52
+msgid ""
+"**Note on `engines.vscode`:** VSCodium lags upstream VS Code by days to "
+"weeks, and Open VSX serves the newest VSIX the client's version allows. "
+"Keep `extension/package.json`'s `engines.vscode` at the oldest API level "
+"the code actually compiles against (verify by pinning `@types/vscode` to "
+"the same version and running `pnpm typecheck`) rather than at the current"
+" VS Code release, or fresh versions become uninstallable on VSCodium."
+msgstr ""
+
+#: ../../reference/publishing.md:58
+msgid "Homebrew (macOS/Linux)"
 msgstr ""
 
 #: ../../reference/publishing.md:60
+msgid "Formula"
+msgstr ""
+
+#: ../../reference/publishing.md:98
 msgid "Tap setup"
 msgstr ""
 
-#: ../../reference/publishing.md:68
+#: ../../reference/publishing.md:106
 msgid "winget (Windows)"
 msgstr ""
 
-#: ../../reference/publishing.md:70
+#: ../../reference/publishing.md:108
 msgid "Manifest"
 msgstr ""
 
-#: ../../reference/publishing.md:72
+#: ../../reference/publishing.md:110
 msgid ""
 "Create `manifests/g/KaiErikNiermann/language-check/0.1.0/` in the "
 "[winget-pkgs](https://github.com/microsoft/winget-pkgs) repository:"
 msgstr ""
 
-#: ../../reference/publishing.md:74
+#: ../../reference/publishing.md:112
 msgid "**KaiErikNiermann.language-check.yaml:**"
 msgstr ""
 
-#: ../../reference/publishing.md:91
+#: ../../reference/publishing.md:129
 msgid "Submit via PR to `microsoft/winget-pkgs`."
 msgstr ""
 
-#: ../../reference/publishing.md:93
+#: ../../reference/publishing.md:131
 msgid "AUR (Arch Linux)"
 msgstr ""
 
-#: ../../reference/publishing.md:95
+#: ../../reference/publishing.md:133
 msgid "PKGBUILD"
 msgstr ""
 
-#: ../../reference/publishing.md:118
+#: ../../reference/publishing.md:156
 msgid "Publishing"
 msgstr ""
 
-#: ../../reference/publishing.md:131
+#: ../../reference/publishing.md:169
 msgid "Debian/Ubuntu (.deb)"
 msgstr ""
 
-#: ../../reference/publishing.md:133
+#: ../../reference/publishing.md:171
 msgid "Using cargo-deb"
 msgstr ""
 
-#: ../../reference/publishing.md:141
+#: ../../reference/publishing.md:179
 msgid "Add to `Cargo.toml`:"
 msgstr ""
 
-#: ../../reference/publishing.md:154
+#: ../../reference/publishing.md:192
 msgid "Release Automation"
 msgstr ""
 
-#: ../../reference/publishing.md:156
+#: ../../reference/publishing.md:194
 msgid "GitHub Actions workflow"
 msgstr ""
 

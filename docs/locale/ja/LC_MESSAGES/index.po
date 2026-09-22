@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Language Check \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-03 16:38+0100\n"
+"POT-Creation-Date: 2026-09-22 06:27+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ja\n"
@@ -20,19 +20,19 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: ../../index.md:9
+#: ../../index.md:27
 msgid "User Guide"
 msgstr ""
 
-#: ../../index.md:19
+#: ../../index.md:43
 msgid "Advanced"
 msgstr ""
 
-#: ../../index.md:28
+#: ../../index.md:52
 msgid "Extending"
 msgstr ""
 
-#: ../../index.md:37
+#: ../../index.md:62
 msgid "Reference"
 msgstr ""
 
@@ -41,14 +41,53 @@ msgid "Language Check"
 msgstr ""
 
 #: ../../index.md:3
-msgid "A fast, multi-engine prose linter for VS Code with a Rust core."
+msgid ""
+"A fast, multi-engine prose linter for VS Code and Neovim with a Rust core."
 msgstr ""
 
 #: ../../index.md:5
 msgid ""
 "Language Check catches grammar, spelling, and style issues in Markdown, "
 "HTML, LaTeX, Typst, reStructuredText, Org mode, BibTeX, Forester, and R "
-"Sweave files using [Harper](https://github.com/elijah-potter/harper) and "
-"optional [LanguageTool](https://languagetool.org/) integration."
+"Sweave files using [Harper](https://github.com/elijah-potter/harper), "
+"optional [LanguageTool](https://languagetool.org/), optional [Vale](https://"
+"vale.sh/), and optional [Proselint](https://github.com/amperser/proselint) "
+"integration."
 msgstr ""
 
+#: ../../index.md:10
+msgid "VS Code"
+msgstr ""
+
+#: ../../index.md:11
+msgid "![LangCheck in VS Code](/_static/vscode_example.png)"
+msgstr ""
+
+#: ../../index.md:11
+msgid "LangCheck in VS Code"
+msgstr ""
+
+#: ../../index.md:14
+msgid "Neovim"
+msgstr ""
+
+#: ../../index.md:15
+msgid "![LangCheck in Neovim](/_static/neovim_example.png)"
+msgstr ""
+
+#: ../../index.md:15
+msgid "LangCheck in Neovim"
+msgstr ""
+
+#: ../../index.md:19
+msgid "Early Development"
+msgstr ""
+
+#: ../../index.md:22
+msgid ""
+"Language Check is in active early development. Core checking is stable and "
+"usable, but you may encounter bugs — please [report them](https://github.com/"
+"KaiErikNiermann/LangCheck/issues) and they will be fixed promptly. The "
+"configuration format may change between minor versions; backwards "
+"compatibility is a goal but not yet guaranteed."
+msgstr ""

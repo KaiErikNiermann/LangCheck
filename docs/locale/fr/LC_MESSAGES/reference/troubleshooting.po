@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Language Check \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-03 16:38+0100\n"
+"POT-Creation-Date: 2026-09-18 00:56+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
@@ -44,8 +44,8 @@ msgstr ""
 
 #: ../../reference/troubleshooting.md:10
 msgid ""
-"Check the VS Code Output panel (View > Output > Language Check) for error"
-" messages."
+"Check the VS Code Output panel (View > Output > Language Check) for error "
+"messages."
 msgstr ""
 
 #: ../../reference/troubleshooting.md:11
@@ -70,8 +70,8 @@ msgstr ""
 
 #: ../../reference/troubleshooting.md:20
 msgid ""
-"Or download manually from [GitHub "
-"Releases](https://github.com/KaiErikNiermann/LangCheck/releases)."
+"Or download manually from [GitHub Releases](https://github.com/"
+"KaiErikNiermann/LangCheck/releases)."
 msgstr ""
 
 #: ../../reference/troubleshooting.md:21
@@ -91,7 +91,7 @@ msgid "Start a local LanguageTool server: `docker compose up -d`"
 msgstr ""
 
 #: ../../reference/troubleshooting.md:29
-msgid "Verify the URL in config: `engines.languagetool_url`"
+msgid "Verify the URL in config: `engines.languagetool.url`"
 msgstr ""
 
 #: ../../reference/troubleshooting.md:30
@@ -136,8 +136,8 @@ msgstr ""
 
 #: ../../reference/troubleshooting.md:49
 msgid ""
-"Enable message tracing to see all communication between the extension and"
-" core:"
+"Enable message tracing to see all communication between the extension and "
+"core:"
 msgstr ""
 
 #: ../../reference/troubleshooting.md:51
@@ -215,4 +215,3 @@ msgstr ""
 #: ../../reference/troubleshooting.md:80
 msgid "Minimal reproduction file"
 msgstr ""
-
