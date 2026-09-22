@@ -205,6 +205,15 @@ const PROSE_ENVS = new Set([
     "columns", "column",
 ]);
 
+// Sectioning and other structural commands contain prose in their arguments.
+// A spelling diagnostic inside one of these must not be mistaken for evidence
+// that the command itself should be skipped.
+const PROSE_COMMANDS = new Set([
+    "part", "chapter", "section", "subsection", "subsubsection",
+    "paragraph", "subparagraph", "subsubparagraph",
+    "title", "author", "date", "caption", "footnote",
+]);
+
 // User-configured skip_environments from .languagecheck.yaml
 let userSkipEnvs = new Set<string>();
 // User-configured prose_environments from .languagecheck.yaml (suppress inlay hints, keep checking)
@@ -802,7 +811,11 @@ export async function activate(context: vscode.ExtensionContext) {
                 let m: RegExpExecArray | null;
                 while ((m = re.exec(text)) !== null) {
                     const cmdName = m[1]!;
-                    if (BUILTIN_SKIP_COMMANDS.has(cmdName) || userSkipCommands.has(cmdName)) continue;
+                    if (
+                        BUILTIN_SKIP_COMMANDS.has(cmdName) ||
+                        userSkipCommands.has(cmdName) ||
+                        PROSE_COMMANDS.has(cmdName)
+                    ) continue;
                     // Find the closing brace to get the full argument span
                     const argStart = m.index + m[0].length - 1; // position of '{'
                     let depth = 1;
