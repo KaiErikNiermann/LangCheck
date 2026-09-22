@@ -183,7 +183,7 @@ the checker and no non-prose fragment does.
 
 ## Translating
 
-We use [Crowdin](https://crowdin.com/project/language-check) for managing translations of both the VS Code extension UI and the documentation. See the [localization guide](https://kaierikniermann.github.io/lang-check/guide/localization.html) for details on how to contribute translations, add new languages, or translate `.po` files locally.
+Translations are contributed by pull request. The VS Code extension UI uses flat JSON files under `extension/`, and the documentation uses gettext `.po` catalogs under `docs/locale/`. See the [localization guide](https://kaierikniermann.github.io/lang-check/guide/localization.html) for the file layout, how to add a new language, and how to preview translated docs locally.
 
 Run `just check-l10n` to verify translation files are in sync before submitting.
 

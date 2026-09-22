@@ -1,17 +1,17 @@
 # Contributing Translations
 
-Language Check uses [Crowdin](https://crowdin.com) for community translation management. This guide covers how to contribute translations for both the VS Code extension and the documentation.
+Translations live in the repository next to the code and are contributed by pull request, the same as any other change. There is no translation platform to sign up for.
 
-## Translating via Crowdin (Recommended)
+There are two independent sets of files: the VS Code extension, which uses flat JSON, and the documentation, which uses gettext `.po` catalogs. Pick whichever you want to work on — they do not depend on each other.
 
-The easiest way to contribute translations is through the Crowdin web editor:
+## How to contribute
 
-1. Visit the [Language Check Crowdin project](https://crowdin.com/project/language-check)
-2. Select a target language
-3. Browse the files and translate untranslated strings
-4. Your translations will be automatically submitted as a pull request
+1. Fork the repository and branch off `main`.
+2. Edit the files described below.
+3. Run `just check-l10n` to verify the extension files are still in sync.
+4. Open a pull request.
 
-No local setup is needed — Crowdin provides an in-browser editor with translation memory, glossaries, and machine translation suggestions.
+Partial work is fine. For the documentation, leave `msgstr ""` on anything you have not translated and Sphinx falls back to English. For the extension, every key must be present (see [CI Checks](#ci-checks)), so copy the English string as the value for any key you skip.
 
 ## Extension Localization
 
@@ -153,11 +153,13 @@ open docs/_build/html/fr/index.html
 1. Add the language code to the `languages` list in `docs/conf.py`
 2. Generate `.po` files: `just docs-intl-update` (add `-l <code>` to the `sphinx-intl` command in the Justfile)
 3. Translate the `.po` files
-4. Submit a PR or contribute via Crowdin
+4. Submit a PR
 
 ## CI Checks
 
-A CI job verifies that all translation files have the same keys as their English base files. If you add a new translatable string to the extension, all existing translation files must be updated (you can use the English string as a placeholder and mark it for translation in Crowdin).
+A CI job verifies that every extension translation file has exactly the same keys as its English base, and that each file is valid JSON. A missing or extra key fails the build.
+
+So if you add a new translatable string to the extension, add that key to every existing translation file in the same pull request. Use the English string as the value where you cannot translate it. A later pull request can replace it.
 
 Run the check locally:
 
