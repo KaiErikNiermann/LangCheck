@@ -9,6 +9,8 @@
  */
 import * as vscode from 'vscode';
 
+import type { DiagId } from '../diagnostics/diagnostic';
+
 import { commands as manifestCommands } from '../generated/meta';
 import type { UriKey } from '../shared/documents';
 
@@ -30,13 +32,13 @@ export type CommandId = (typeof COMMANDS)[keyof typeof COMMANDS];
 /** The arguments of each command that takes any. */
 interface CommandArgs {
     'language-check.addToDictionary': [word: string];
-    'language-check.applyFix': [diagnosticId: string, suggestion: string];
+    'language-check.applyFix': [diagnosticId: DiagId, suggestion: string];
     'language-check.configStatus': [uri?: string];
     'language-check.deactivateRule': [ruleId: string];
     'language-check.fixAllSpellingInFile': [uri: UriKey, word: string, replacement: string];
     'language-check.fixAllSpellingInWorkspace': [word: string, replacement: string];
     'language-check.hideLatexEnvHint': [envName: string];
-    'language-check.ignoreDiagnostic': [diagnosticId: string];
+    'language-check.ignoreDiagnostic': [diagnosticId: DiagId];
     'language-check.ignoreSelection': [uri?: UriKey, startOffset?: number, endOffset?: number];
     'language-check.installPack': [language: string];
     'language-check.skipLatexCommand': [cmdName: string];

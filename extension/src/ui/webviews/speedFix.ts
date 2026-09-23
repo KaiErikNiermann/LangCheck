@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 
 import { COMMANDS, executeCommand } from '../../commands/ids';
 import { getSetting } from '../../config/settings';
-import { diagId, parseDiagId, ruleIdOf, type ExtendedDiagnostic } from '../../diagnostics/diagnostic';
+import { diagId, parseDiagId, ruleIdOf, type ExtendedDiagnostic, type DiagId } from '../../diagnostics/diagnostic';
 import type { FixTarget } from '../../diagnostics/fixTarget';
 import type { DiagnosticStore } from '../../diagnostics/store';
 import { displayOriginalText, speedFixSuggestionLabel } from '../../shared/inlayLabels';
@@ -16,8 +16,8 @@ import { uriKey } from '../../shared/documents';
 
 /** What the panel's buttons do, which belongs to the diagnostic actions, not to the panel. */
 export interface SpeedFixActions {
-    applyFix(diagnosticId: string, suggestion: string): Promise<void>;
-    ignore(diagnosticId: string): Promise<void>;
+    applyFix(diagnosticId: DiagId, suggestion: string): Promise<void>;
+    ignore(diagnosticId: DiagId): Promise<void>;
     check(document: vscode.TextDocument): Promise<number>;
 }
 

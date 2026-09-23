@@ -11,7 +11,7 @@ import type { CoreService } from '../core/coreService';
 import type { Logger } from '../shared/logger';
 import type { InspectorLog } from '../ui/inspectorLog';
 import type { SpeedFixPanel } from '../ui/webviews/speedFix';
-import { addSuggestionEdit, ignoreRequest, parseDiagId } from './diagnostic';
+import { addSuggestionEdit, ignoreRequest, parseDiagId, type DiagId } from './diagnostic';
 import type { FixTarget } from './fixTarget';
 import type { DiagnosticStore } from './store';
 import { uriKey } from '../shared/documents';
@@ -29,7 +29,7 @@ export interface DiagnosticActionDeps {
 export class DiagnosticActions {
     constructor(private readonly deps: DiagnosticActionDeps) {}
 
-    async applyFix(diagnosticId: string, suggestion: string): Promise<void> {
+    async applyFix(diagnosticId: DiagId, suggestion: string): Promise<void> {
         const { checker, log, inspectorLog, store, fixTarget, speedFix } = this.deps;
         const editor = fixTarget.findEditor();
         if (!editor) return;
@@ -73,7 +73,7 @@ export class DiagnosticActions {
         }
     }
 
-    async ignore(diagnosticId: string): Promise<void> {
+    async ignore(diagnosticId: DiagId): Promise<void> {
         const { core, checker, inspectorLog, store, fixTarget, speedFix } = this.deps;
         const editor = fixTarget.findEditor();
         if (!editor || !core.client) return;

@@ -10,6 +10,7 @@ import {
     isSpellingRule,
     parseDiagId,
     ruleIdOf,
+    type DiagId,
     type ExtendedDiagnostic,
 } from '../diagnostics/diagnostic';
 import { coreByte } from '../checking/offsets';
@@ -70,7 +71,9 @@ describe('diag ids', () => {
     });
 
     it('parse anything else as NaN, the way parseInt does', () => {
-        expect(parseDiagId('nonsense')).toBeNaN();
+        // The type rules this out, but a webview message is JSON and could
+        // still carry anything, so the runtime answer stays pinned.
+        expect(parseDiagId('nonsense' as DiagId)).toBeNaN();
     });
 });
 

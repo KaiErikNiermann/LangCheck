@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 
 import { deactivateRule } from '../config/edits';
 import { readTextOrEmpty, resolveConfigForEdit, writeConfigText } from '../config/file';
-import { ignoreRequest, isSpellingOf, isSpellingRule, ruleIdOf } from '../diagnostics/diagnostic';
+import { ignoreRequest, isSpellingOf, isSpellingRule, ruleIdOf, type DiagId } from '../diagnostics/diagnostic';
 import { findOpenDocument, uriKey, type UriKey } from '../shared/documents';
 import { spanned } from '../shared/ignoreSpan';
 import type { App } from '../services';
@@ -13,7 +13,7 @@ export function diagnosticsCommands(app: App) {
     const { log, store, suppression, inspectorLog, fixTarget, core, checker, actions, speedFix } = app;
 
     return {
-        [COMMANDS.ignoreDiagnostic]: async (diagnosticId: string) => {
+        [COMMANDS.ignoreDiagnostic]: async (diagnosticId: DiagId) => {
             await actions.ignore(diagnosticId);
         },
         /**
@@ -231,7 +231,7 @@ export function diagnosticsCommands(app: App) {
                 vscode.window.showErrorMessage(vscode.l10n.t('Failed to deactivate rule: {0}', String(err)));
             }
         },
-        [COMMANDS.applyFix]: async (diagnosticId: string, suggestion: string) => {
+        [COMMANDS.applyFix]: async (diagnosticId: DiagId, suggestion: string) => {
             await actions.applyFix(diagnosticId, suggestion);
         },
     } satisfies CommandHandlers;

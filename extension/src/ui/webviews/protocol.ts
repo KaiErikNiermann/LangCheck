@@ -1,11 +1,12 @@
 import type { ByteOffset } from '../../checking/offsets';
+import type { DiagId } from '../../diagnostics/diagnostic';
 
 /** Shared type-safe events between extension host and webviews. */
 
 // ── SpeedFix ──
 
 export interface SpeedFixDiagnostic {
-    id: string;
+    id: DiagId;
     message: string;
     suggestions: string[];        // Raw replacement values (applied verbatim)
     suggestionLabels: string[];   // Human-readable label per suggestion (display only)
@@ -31,10 +32,10 @@ export type ExtensionToWebviewMessage =
 // Messages from SpeedFix webview → extension
 export type WebviewToExtensionMessage =
     | { type: 'ready' }
-    | { type: 'applyFix'; payload: { diagnosticId: string; suggestion: string } }
-    | { type: 'ignore'; payload: { diagnosticId: string } }
+    | { type: 'applyFix'; payload: { diagnosticId: DiagId; suggestion: string } }
+    | { type: 'ignore'; payload: { diagnosticId: DiagId } }
     | { type: 'addDictionary'; payload: { word: string } }
-    | { type: 'goToLocation'; payload: { diagnosticId: string } }
+    | { type: 'goToLocation'; payload: { diagnosticId: DiagId } }
     | { type: 'skip' }
     | { type: 'prev' }
     | { type: 'next' }

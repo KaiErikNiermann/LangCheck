@@ -65,13 +65,26 @@ export function isSpellingOf(document: vscode.TextDocument, diagnostic: vscode.D
     return isSpellingRule(ruleIdOf(diagnostic, '')) && getDiagnosticWord(document, diagnostic) === word;
 }
 
-/** The id a hint, a code action or a webview uses for the diagnostic at `index`. */
-export function diagId(index: number): string {
-    return `diag-${index}`;
+declare const diagIdBrand: unique symbol;
+
+/**
+ * The id a hint, a code action or a webview uses for one diagnostic: its
+ * position in the document's list, as `diag-N`.
+ *
+ * Only {@link diagId} makes one. Every id the extension receives back (a
+ * command argument, a webview message) is one it handed out, and typing it so
+ * keeps an unrelated string, say a rule id, from being passed where an index
+ * is meant.
+ */
+export type DiagId = string & { readonly [diagIdBrand]: true };
+
+/** The id for the diagnostic at `index`. */
+export function diagId(index: number): DiagId {
+    return `diag-${index}` as DiagId;
 }
 
 /** The index back out of a {@link diagId}. `NaN` for anything else, as `parseInt` gives. */
-export function parseDiagId(id: string): number {
+export function parseDiagId(id: DiagId): number {
     return parseInt(id.replace('diag-', ''));
 }
 
