@@ -7,7 +7,6 @@ import { LanguageClient } from './core/client';
 import { languagecheck } from './proto/checker';
 import { TraceLogger } from './shared/trace';
 import { createAPI } from './api';
-import { binaryExists, downloadBinary } from './core/downloader';
 import { formatSuggestionLabel, speedFixSuggestionLabel, displayOriginalText } from './shared/inlayLabels';
 import type { LanguageCheckDiagnostic } from './api';
 import { parseDictionaryPaths, wordsAdded } from './config/parsing';
@@ -61,37 +60,19 @@ import { CheckResults } from './checking/results';
 import { InspectorLog } from './ui/inspectorLog';
 import { COMMANDS, commandLink, executeCommand, registerCommand } from './commands/ids';
 import { getSetting, getUndeclaredSetting, settingId, updateSetting, type SettingValue } from './config/settings';
-import { GITHUB_REPO, openReleasesPage } from './shared/links';
+import { GITHUB_REPO } from './shared/links';
 import { BUILTIN_SKIP_COMMANDS, BUILTIN_SKIP_ENVS, PROSE_COMMANDS, PROSE_ENVS } from './providers/latexLists';
 import { SUPPORTED_LANGUAGES, supportedLanguageSelector } from './checking/languages';
 import { byteToCharConverter } from './checking/offsets';
 import { webviewHtml } from './ui/webviews/html';
 import { StatusBars } from './ui/statusBars';
+import { CoreService } from './core/coreService';
+import { bootstrapCore, downloadFailedMessage, downloadWithProgress, onDownloadFailedChoice } from './core/binary';
 import { WorkspaceConfigState } from './config/state';
 import { createServices } from './services';
 
-let client: LanguageClient | null = null;
+let core: CoreService;
 
-/**
- * Whether the core has finished its Initialize, not merely started.
- *
- * `client` is set the moment the process is spawned, but Initialize is what
- * loads the config, the user dictionary and the ignore store -- and the core
- * answers other requests while it is still doing that. A check that raced it
- * came back with the dictionary empty, so every word the user had added was
- * reported as a misspelling, on exactly the first check after opening a
- * window. Nothing retried it, because the answer was not an error.
- */
-let coreInitialized = false;
-
-/**
- * File extensions that only an SLS schema handles, as the core reports them.
- *
- * Asked for after each Initialize, because a schema added or edited while the
- * editor is open changes the answer.
- */
-let schemaExtensions = new Set<string>();
-let traceLogger: TraceLogger | null = null;
 let log: Logger;
 // Created in activate() by createServices(); see services.ts.
 let store: DiagnosticStore;
@@ -166,8 +147,6 @@ const packsOfferedThisSession = new Set<string>();
 let yamlOfferedThisSession = false;
 /** Set once on activation, so the pack code can reach global state. */
 let extensionContext: vscode.ExtensionContext | undefined;
-/** The core binary in use, which is where the CLI sits beside it. */
-let currentServerPath: string | undefined;
 /** Re-check after an install, without hoisting the whole closure out. */
 let reinitializeAndRecheckRef: (() => Promise<void>) | undefined;
 
@@ -227,137 +206,18 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(document => void suggestYamlExtension(document)));
     for (const document of vscode.workspace.textDocuments) void suggestYamlExtension(document);
 
-    const resolveBinaryPath = (channel?: string): string => {
-        const customPath = getSetting('core.binaryPath');
-        if (customPath) return customPath;
-
-        const selectedChannel = channel ?? getSetting('core.channel');
-
-        // Test counts as development here. The end-to-end tests run under
-        // ExtensionMode.Test, where the packaged `bin/` directory exists only
-        // in a release build -- so without this they would check nothing and
-        // pass, which is the failure mode they were written to catch.
-        if (context.extensionMode === vscode.ExtensionMode.Development
-            || context.extensionMode === vscode.ExtensionMode.Test) {
-            // Dev runs straight out of rust-core/target. Prefer the profile the
-            // channel asks for, but fall back to the other one: a checkout that
-            // only ran `cargo build` has no target/release, and pointing at a
-            // path that doesn't exist takes the core down for the whole session.
-            const targetDir = path.join(context.extensionPath, '..', 'rust-core', 'target');
-            const profiles = selectedChannel === 'debug' ? ['debug', 'release'] : ['release', 'debug'];
-            const candidates = profiles.map(p => path.join(targetDir, p, 'language-check-server'));
-            return candidates.find(candidate => fs.existsSync(candidate)) ?? candidates[0]!;
-        }
-
-        switch (selectedChannel) {
-            case 'canary':
-                return path.join(context.extensionPath, 'bin', 'language-check-server-canary');
-            case 'dev':
-                return path.join(context.extensionPath, 'bin', 'language-check-server-dev');
-            default:
-                return path.join(context.extensionPath, 'bin', 'language-check-server');
-        }
-    };
-
-    const initializeClient = async () => {
-        if (client && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-            const root = vscode.workspace.workspaceFolders[0]!.uri.fsPath;
-            const indexOnOpen = getSetting('workspace.indexOnOpen');
-            const dbPath = getSetting('workspace.dbPath') || null;
-            const detectNames = getSetting('names.enabled');
-            const dictionariesBundled = getSetting('dictionaries.bundled');
-            const dictionariesDisabled = getSetting('dictionaries.disabled');
-            const dictionariesPaths = getSetting('dictionaries.paths');
-            log.debug('Sending Initialize request', { workspaceRoot: root, indexOnOpen, dbPath, detectNames, dictionariesBundled, dictionariesDisabled, dictionariesPaths });
-            inspectorLog.push('info', 'initialize', `Initializing (indexOnOpen=${indexOnOpen}, detectNames=${detectNames})`);
-            const t0 = performance.now();
-            await client.sendRequest({
-                initialize: {
-                    workspaceRoot: root, indexOnOpen, dbPath, detectNames,
-                    dictionariesBundled, dictionariesDisabled, dictionariesPaths
-                }
-            });
-            inspectorLog.push('info', 'initialize', 'Server initialized', { durationMs: performance.now() - t0 });
-            log.debug('Initialize response received');
-        }
-        // Which extensions the schemas claim, which only the core knows and
-        // which a schema edit changes.
-        if (client) {
-            try {
-                const metadata = await client.sendRequest({ getMetadata: {} });
-                schemaExtensions = new Set(
-                    (metadata.getMetadata?.schemaExtensions ?? []).map(e => e.toLowerCase()),
-                );
-                log.debug('Schema extensions', { extensions: [...schemaExtensions] });
-            } catch (err) {
-                // Not fatal: without it only the built-in languages are
-                // checked, which is what happened before this existed.
-                log.warn('Could not read core metadata', { err: String(err) });
-            }
-        }
-        coreInitialized = true;
-    };
-
-
-    /** Surface a core that has stopped retrying. Until it is restarted nothing
-     *  will check, so say so plainly instead of leaving a silent dead client. */
-    const reportCoreFailure = async (reason: string, binaryPath: string) => {
-        log.error('Core unavailable', { reason, binary: binaryPath });
-        inspectorLog.push('error', 'core', reason, { details: binaryPath });
-        statusBars.setChecking(false);
-
-        const message = fs.existsSync(binaryPath)
-            ? vscode.l10n.t('Language Check core stopped responding: {0}', reason)
-            : vscode.l10n.t('Language Check core binary not found at {0}', binaryPath);
-        const restart = vscode.l10n.t('Restart Core');
-        const selection = await vscode.window.showErrorMessage(message, restart);
-        if (selection === restart) {
-            executeCommand(COMMANDS.restartLanguageServer);
-        }
-    };
-
-    const startClient = (channel?: string) => {
-        if (client) {
-            log.debug('Stopping existing client');
-            client.stop();
-        }
-        const binaryPath = resolveBinaryPath(channel);
-        currentServerPath = binaryPath;
-        log.info('Starting core', { binary: binaryPath, channel: channel ?? 'stable' });
-        coreInitialized = false;
-        client = new LanguageClient(binaryPath);
-        client.setLogger(log);
-        if (traceLogger) client.setTraceLogger(traceLogger);
-        client.onRestart(async () => {
-            await initializeClient();
+    const traceLogger = new TraceLogger();
+    context.subscriptions.push({ dispose: () => traceLogger.dispose() });
+    core = new CoreService(context, log, inspectorLog, statusBars, traceLogger, {
+        booted: () => {
             checkVisibleUnchecked();
-        });
-        client.onFailure(reason => reportCoreFailure(reason, binaryPath));
-        client.start();
-        traceLogger?.logEvent(`Core started: ${binaryPath} (channel: ${channel ?? 'stable'})`);
-    };
-
-    traceLogger = new TraceLogger();
-    context.subscriptions.push({ dispose: () => traceLogger?.dispose() });
-
-    // Ensure the core binary is available before starting the client.
-    // In development and test modes, the binary is whatever `cargo build` left
-    // in rust-core/target, so a missing one is a build step that was skipped.
-    // In production it is downloaded from GitHub Releases if missing --
-    // similar to how the Lean 4 extension bootstraps its server.
-    const binDir = path.join(context.extensionPath, 'bin');
-
-    /**
-     * Whether the core is a local build rather than a downloaded one.
-     *
-     * Test counts with Development, and has to: `resolveBinaryPath` returns a
-     * path under rust-core/target in both modes, so a download into `bin/`
-     * installs a binary the test run then never opens. It is not merely
-     * wasted -- it puts an unauthenticated api.github.com call in front of
-     * every one of the end-to-end launches, and a release whose assets are
-     * still uploading, or a rate-limited runner, failed all of them at once.
-     */
-    const usesLocalBuild = isDev || context.extensionMode === vscode.ExtensionMode.Test;
+            // The core is what answers a probe, so every config on screen is
+            // stale until it is up -- and stale again after a restart, which is
+            // why this is here rather than only at activation.
+            configStatusView?.refresh();
+        },
+        restarted: () => checkVisibleUnchecked(),
+    });
 
     /**
      * When a document is re-checked after its first check.
@@ -380,11 +240,11 @@ export async function activate(context: vscode.ExtensionContext) {
      * turned up the moment the Inspector was opened and not before.
      */
     const checkIfUnchecked = (document: vscode.TextDocument) => {
-        // Not `client` alone: a check sent between the process starting and
+        // Not a started client: a check sent between the process starting and
         // Initialize returning is answered with an empty dictionary. The
         // documents skipped here are picked up by `checkVisibleUnchecked` as
         // soon as Initialize returns.
-        if (!client || !coreInitialized) return;
+        if (!core.ready()) return;
         if (!isCheckable(document)) return;
         if (store.has(document.uri.toString())) return;
         checkDocument(document);
@@ -405,22 +265,11 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     };
 
-    /**
-     * Ask the core what the config's external references resolve to.
-     *
-     * Returns null when there is no core to ask, which the view draws as
-     * nothing rather than as a failure: "the server is not running" is not an
-     * answer about the user's config.
-     */
-    const probeConfig = async (text: string, filePath: string, format: string) => {
-        if (!client || !coreInitialized) return null;
-        const response = await client.sendRequest({
-            probeConfig: { text, filePath, format },
-        });
-        return response.probeConfig ?? null;
-    };
-
-    configStatusView = new ConfigStatusView(context.extensionUri, probeConfig, log);
+    configStatusView = new ConfigStatusView(
+        context.extensionUri,
+        (text, filePath, format) => core.probeConfig(text, filePath, format),
+        log,
+    );
     configStatusView.activate();
     context.subscriptions.push(configStatusView);
 
@@ -438,77 +287,8 @@ export async function activate(context: vscode.ExtensionContext) {
             : configStatusView?.snapshot(uri) ?? undefined,
     ));
 
-    const bootClient = async () => {
-        startClient();
-        await initializeClient();
-        checkVisibleUnchecked();
-        // The core is what answers a probe, so every config on screen is
-        // stale until it is up -- and stale again after a restart, which is
-        // why this is here rather than only at activation.
-        configStatusView?.refresh();
-    };
-
-    if (usesLocalBuild) {
-        const localBinaryPath = resolveBinaryPath();
-        if (!fs.existsSync(localBinaryPath)) {
-            const target = getSetting('core.channel') === 'debug' ? 'debug' : 'release';
-            log.error('Local core binary not found', { expected: localBinaryPath });
-            // Not awaited. Nothing dismisses a notification in a test run, and
-            // an activation that waits for a click never returns -- which is
-            // how a missing binary turned into every suite timing out in its
-            // `suiteSetup` with a message that named neither the binary nor
-            // the reason.
-            void vscode.window.showWarningMessage(
-                vscode.l10n.t(
-                    'Language Check: core binary not found. Build it with `cargo build{0}` in rust-core/, or download a release.',
-                    target === 'release' ? ' --release' : '',
-                ),
-                vscode.l10n.t('Download Release'),
-            ).then(selection => {
-                if (selection === vscode.l10n.t('Download Release')) {
-                    openReleasesPage();
-                }
-            });
-        } else {
-            bootClient();
-        }
-    } else if (!binaryExists(binDir)) {
-        const result = await vscode.window.withProgress(
-            {
-                location: vscode.ProgressLocation.Notification,
-                title: vscode.l10n.t('Language Check'),
-                cancellable: false,
-            },
-            async (progress) => {
-                try {
-                    await downloadBinary(binDir, progress, context.extension.packageJSON.version);
-                    return { ok: true as const };
-                } catch (err) {
-                    return { ok: false as const, error: String(err) };
-                }
-            },
-        );
-        if (result.ok) {
-            bootClient();
-        } else {
-            // Not awaited, for the same reason as above: activation reports
-            // the failure and finishes. Waiting on the click left the
-            // extension stuck in `activate` with no core and no way to retry.
-            void vscode.window.showErrorMessage(
-                vscode.l10n.t('Failed to install core binary: {0}', result.error),
-                vscode.l10n.t('Retry'),
-                vscode.l10n.t('Download Manually'),
-            ).then(selection => {
-                if (selection === vscode.l10n.t('Retry')) {
-                    executeCommand(COMMANDS.downloadBinary);
-                } else if (selection === vscode.l10n.t('Download Manually')) {
-                    openReleasesPage();
-                }
-            });
-        }
-    } else {
-        bootClient();
-    }
+    const downloading = bootstrapCore(context, log, () => core.boot());
+    if (downloading) await downloading;
 
     // Status bars: spell-check language, and prose insights (word count, reading level)
     statusBars.create(context.subscriptions);
@@ -529,13 +309,13 @@ export async function activate(context: vscode.ExtensionContext) {
     const isCheckable = (document: vscode.TextDocument): boolean => {
         if (SUPPORTED_LANGUAGES.includes(document.languageId)) return true;
         const extension = path.extname(document.fileName).replace(/^\./, '').toLowerCase();
-        return extension.length > 0 && schemaExtensions.has(extension);
+        return extension.length > 0 && core.schemaExtensions.has(extension);
     };
 
     /** Re-initialize the server, clear stale diagnostics, and recheck open documents. */
     const reinitializeAndRecheck = async () => {
         log.info('Reinitializing and rechecking');
-        await initializeClient();
+        await core.initialize();
         store.clear();
         // The inspector reports which language each range was checked in. Under
         // a new config that answer may have changed, and showing the old one is
@@ -580,7 +360,7 @@ export async function activate(context: vscode.ExtensionContext) {
         statusBars.updateInsights(vscode.window.activeTextEditor);
         // Last, and without clearing anything: the core needs the new config
         // for whatever it is asked next, but nothing on screen depends on it.
-        await initializeClient();
+        await core.initialize();
     };
 
     /** Format an inlay hint label and apply-value for a diagnostic suggestion. */
@@ -969,36 +749,11 @@ export async function activate(context: vscode.ExtensionContext) {
     ));
 
     context.subscriptions.push(registerCommand(COMMANDS.downloadBinary, async () => {
-        const dir = path.join(context.extensionPath, 'bin');
-        const result = await vscode.window.withProgress(
-            {
-                location: vscode.ProgressLocation.Notification,
-                title: vscode.l10n.t('Language Check'),
-                cancellable: false,
-            },
-            async (progress) => {
-                try {
-                    await downloadBinary(dir, progress, context.extension.packageJSON.version);
-                    return { ok: true as const };
-                } catch (err) {
-                    return { ok: false as const, error: String(err) };
-                }
-            },
-        );
+        const result = await downloadWithProgress(context);
         if (result.ok) {
-            startClient();
-            initializeClient();
+            core.restart();
         } else {
-            const selection = await vscode.window.showErrorMessage(
-                vscode.l10n.t('Failed to install core binary: {0}', result.error),
-                vscode.l10n.t('Retry'),
-                vscode.l10n.t('Download Manually'),
-            );
-            if (selection === vscode.l10n.t('Retry')) {
-                executeCommand(COMMANDS.downloadBinary);
-            } else if (selection === vscode.l10n.t('Download Manually')) {
-                openReleasesPage();
-            }
+            onDownloadFailedChoice(await downloadFailedMessage(result.error));
         }
     }));
 
@@ -1070,8 +825,7 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(registerCommand(COMMANDS.restartLanguageServer, () => {
         log.info('Restarting language server');
         inspectorLog.push('info', 'restartServer', 'Restarting language server');
-        startClient();
-        initializeClient();
+        core.restart();
         vscode.window.showInformationMessage(vscode.l10n.t('Language Check server restarted'));
     }));
 
@@ -1149,7 +903,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 ? vscode.window.activeTextEditor
                 : vscode.window.visibleTextEditors.find(e => e.document.uri.toString() === uriText)
                     ?? vscode.window.activeTextEditor;
-            if (!editor || !client) return;
+            if (!editor || !core.client) return;
 
             const document = editor.document;
             const uri = document.uri.toString();
@@ -1177,7 +931,7 @@ export async function activate(context: vscode.ExtensionContext) {
             for (const { index } of chosen) {
                 const diagnostic = diagnostics[index];
                 if (!diagnostic) continue;
-                await client.sendRequest(ignoreRequest(diagnostic, document, text));
+                await core.client.sendRequest(ignoreRequest(diagnostic, document, text));
             }
 
             const silenced = new Set(chosen.map(c => c.index));
@@ -1253,15 +1007,14 @@ export async function activate(context: vscode.ExtensionContext) {
     }));
 
     context.subscriptions.push(registerCommand(COMMANDS.toggleTrace, () => {
-        if (!traceLogger) return;
-        const enabled = traceLogger.toggle();
+        const enabled = core.traceLogger.toggle();
         vscode.window.showInformationMessage(
             vscode.l10n.t('Protobuf trace {0}', enabled ? vscode.l10n.t('enabled') : vscode.l10n.t('disabled'))
         );
     }));
 
     context.subscriptions.push(registerCommand(COMMANDS.showTrace, () => {
-        traceLogger?.show();
+        core.traceLogger.show();
     }));
 
     context.subscriptions.push(registerCommand(COMMANDS.switchCore, async () => {
@@ -1285,8 +1038,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         await updateSetting('core.channel', selected.channel, vscode.ConfigurationTarget.Global);
 
-        startClient(selected.channel);
-        initializeClient();
+        core.restart(selected.channel);
 
         vscode.window.showInformationMessage(
             vscode.l10n.t('Switched to {0} core', selected.label)
@@ -1298,13 +1050,13 @@ export async function activate(context: vscode.ExtensionContext) {
     }));
 
     context.subscriptions.push(registerCommand(COMMANDS.addToDictionary, async (word: string) => {
-        if (!client) return;
+        if (!core.client) return;
         sendSpeedFixLoading(true);
         const t0 = performance.now();
         log.debug('addToDictionary', { word });
         inspectorLog.push('info', 'addToDictionary', `Sending request for "${word}"`);
         try {
-            const response = await client.sendRequest({
+            const response = await core.client.sendRequest({
                 addDictionaryWord: { word }
             });
             const rpcMs = performance.now() - t0;
@@ -1393,7 +1145,7 @@ export async function activate(context: vscode.ExtensionContext) {
             // would clear every diagnostic in the window to arrive back at
             // what is already drawn. The file watcher reaches the same
             // conclusion for a config edited by hand.
-            await initializeClient();
+            await core.initialize();
             suppression.rules.delete(ruleId);
         } catch (err) {
             vscode.window.showErrorMessage(vscode.l10n.t('Failed to deactivate rule: {0}', String(err)));
@@ -1810,7 +1562,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // ── Initial check on reload ──
     // An editor open before the extension activated raises no open event, so
-    // it is checked here. `bootClient` does the same once the core is ready;
+    // it is checked here. `core.boot()` does the same once the core is ready;
     // whichever runs second finds the document already in the store and
     // does nothing, so the two cannot double-check it.
     checkVisibleUnchecked();
@@ -1872,7 +1624,7 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async event => {
         if (CORE_PROCESS_SETTINGS.some(key => event.affectsConfiguration(key))) {
             log.info('Core binary setting changed, restarting');
-            await bootClient();
+            await core.boot();
             return;
         }
         if (CORE_SETTINGS.some(key => event.affectsConfiguration(key))) {
@@ -2014,7 +1766,7 @@ export async function activate(context: vscode.ExtensionContext) {
             }
             store.notify();
         }
-        await initializeClient();
+        await core.initialize();
         // No clear: `checkDocument` replaces a document's diagnostics in one
         // go when it finishes, so there is no window in which the file looks
         // clean.
@@ -2118,15 +1870,15 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Expose public API for other extensions
     const api = createAPI(
-        client!,
+        core.client!,
         async (uri: vscode.Uri): Promise<LanguageCheckDiagnostic[]> => {
-            if (!client) return [];
+            if (!core.client) return [];
             const document = await vscode.workspace.openTextDocument(uri);
             const text = document.getText();
             const languageId = document.languageId;
 
             try {
-                const response = await client.sendRequest({
+                const response = await core.client.sendRequest({
                     checkProse: { text, languageId, filePath: uri.fsPath }
                 });
                 if (!response.checkProse?.diagnostics) return [];
@@ -2276,7 +2028,7 @@ async function installDictionaryPack(
 
 /** `language-check`, beside whichever `language-check-server` is in use. */
 function resolveCliPath(): string | null {
-    const server = currentServerPath;
+    const server = core.currentServerPath;
     if (!server) return null;
     const cli = path.join(path.dirname(server), process.platform === 'win32' ? 'language-check.exe' : 'language-check');
     return fs.existsSync(cli) ? cli : null;
@@ -2539,7 +2291,7 @@ async function applyFix(diagnosticId: string, suggestion: string) {
 
 async function ignoreDiagnostic(diagnosticId: string) {
     const editor = findEditorWithDiagnostics();
-    if (!editor || !client) return;
+    if (!editor || !core.client) return;
 
     const uri = editor.document.uri.toString();
     const diagnostics = store.get(uri);
@@ -2554,7 +2306,7 @@ async function ignoreDiagnostic(diagnosticId: string) {
         inspectorLog.push('info', 'ignoreDiagnostic', `Ignoring "${ignoredText}" (${diagnostic.message})`);
         // Send ignore request to core with full document text + original byte
         // offsets so the fingerprint matches the one created during checkProse.
-        await client.sendRequest(ignoreRequest(diagnostic, editor.document, editor.document.getText()));
+        await core.client.sendRequest(ignoreRequest(diagnostic, editor.document, editor.document.getText()));
 
         // Optimistic removal: remove the ignored diagnostic immediately
         const remaining = diagnostics.filter((_, i) => i !== index);
@@ -2688,8 +2440,8 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
     // A client that has given up restarting can never answer. Bail out before
     // taking a concurrency slot, or a down core starves the slots for a full
     // request timeout each and every queued check backs up behind it.
-    if (!client?.isRunning) {
-        const reason = client?.lastFailure;
+    if (!core.client?.isRunning) {
+        const reason = core.client?.lastFailure;
         if (reason) {
             inspectorLog.push('error', 'checkDocument', `Core unavailable: ${reason}`, {
                 details: path.basename(document.fileName),
@@ -2709,7 +2461,7 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
         return inFlight.result;
     }
 
-    const result = runCheck(document, client, textContent, readMs);
+    const result = runCheck(document, core.client, textContent, readMs);
     inFlightChecks.set(uri, { text: textContent, result });
     try {
         return await result;
@@ -3017,8 +2769,5 @@ export function deactivate() {
     }
     debounceTimers.clear();
 
-    if (client) {
-        client.stop();
-        client = null;
-    }
+    core?.stop();
 }
