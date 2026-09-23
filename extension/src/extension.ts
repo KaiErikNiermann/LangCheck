@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { execFile, execSync } from 'child_process';
+import { execFile } from 'child_process';
 import { TraceLogger } from './shared/trace';
 import { createAPI } from './api';
 import { formatSuggestionLabel } from './shared/inlayLabels';
@@ -16,7 +16,6 @@ import {
     uncheckedLanguages,
 } from './core/packPrompt';
 import { YAML_EXTENSION_ID, declineYamlSuggestion, shouldSuggestYaml } from './config/yamlSuggestion';
-import type { InspectorToExtensionMessage, InspectorDiagnosticSummary, InspectorEngineInfo } from './ui/webviews/protocol';
 import { Logger } from './shared/logger';
 import { ConfigStatusView } from './config/gutter';
 import { classifyConfigChange, silencedBy } from './config/rules';
@@ -56,19 +55,17 @@ import { CheckResults } from './checking/results';
 import { InspectorLog } from './ui/inspectorLog';
 import { COMMANDS, commandLink, executeCommand, registerCommand } from './commands/ids';
 import { getSetting, getUndeclaredSetting, settingId, updateSetting, type SettingValue } from './config/settings';
-import { GITHUB_REPO } from './shared/links';
 import { BUILTIN_SKIP_COMMANDS, BUILTIN_SKIP_ENVS, PROSE_COMMANDS, PROSE_ENVS } from './providers/latexLists';
 import { SUPPORTED_LANGUAGES, supportedLanguageSelector } from './checking/languages';
-import { byteToCharConverter } from './checking/offsets';
-import { webviewHtml } from './ui/webviews/html';
 import { StatusBars } from './ui/statusBars';
 import { CoreService } from './core/coreService';
 import { Checker, type CheckOutcome } from './checking/checker';
 import { Debouncer } from './checking/scheduler';
-import { hasDockerCompose, restartLanguageToolDocker } from './core/languagetool';
+import { restartLanguageToolDocker } from './core/languagetool';
 import type { FixTarget } from './diagnostics/fixTarget';
 import { SpeedFixPanel } from './ui/webviews/speedFix';
 import { DiagnosticActions } from './diagnostics/actions';
+import { InspectorPanel } from './ui/webviews/inspector';
 import { bootstrapCore, downloadFailedMessage, downloadWithProgress, onDownloadFailedChoice } from './core/binary';
 import { WorkspaceConfigState } from './config/state';
 import { createServices } from './services';
@@ -88,12 +85,11 @@ let inlayHintEmitter: vscode.EventEmitter<void>;
 let fixTarget: FixTarget;
 let speedFix: SpeedFixPanel;
 let actions: DiagnosticActions;
-let inspectorPanel: vscode.WebviewPanel | null = null;
+let inspector: InspectorPanel;
 let configStatusView: ConfigStatusView | null = null;
 
 
 // Engine health tracking
-let engineInfoState: InspectorEngineInfo[] = [];
 
 // Inlay hint invalidation
 let inlayHintsEnabled = true;
@@ -144,6 +140,10 @@ export async function activate(context: vscode.ExtensionContext) {
     // What every diagnostics change refreshes, in this order.
     store.onChange(() => inlayHintEmitter.fire());
     store.onChange(() => speedFix.update());
+    inspector = new InspectorPanel({
+        context, store, results, fixTarget, inspectorLog,
+        check: document => checker.check(document),
+    });
     log.info('Language Check extension activated', { mode: isDev ? 'dev' : 'prod' });
 
     // First-run onboarding: show welcome notification once
@@ -204,28 +204,8 @@ export async function activate(context: vscode.ExtensionContext) {
     checker = new Checker({
         core, log, store, suppression, results, statusBars, inspectorLog,
         observer: {
-            // Update inspector if open
-            checkRecorded: timings => {
-                if (inspectorPanel) {
-                    inspectorPanel.webview.postMessage({
-                        type: 'setLatency',
-                        payload: { stages: timings },
-                    });
-                    inspectorPanel.webview.postMessage({
-                        type: 'setCheckInfo',
-                        payload: results.info,
-                    });
-                }
-            },
-            // Post health to Inspector
-            healthUpdated: () => {
-                if (inspectorPanel) {
-                    inspectorPanel.webview.postMessage({
-                        type: 'setEngineHealth',
-                        payload: results.engineHealth,
-                    });
-                }
-            },
+            checkRecorded: timings => inspector.checkRecorded(timings),
+            healthUpdated: () => inspector.healthUpdated(),
             diagnosticsPublished: diagnostics => void offerMissingPacks(diagnostics),
         },
     });
@@ -333,7 +313,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // a new config that answer may have changed, and showing the old one is
         // worse than showing none, so it goes until the re-check replaces it.
         results.clearDocuments();
-        await updateInspectorData();
+        await inspector.update();
         const editors = vscode.window.visibleTextEditors.filter(e => isCheckable(e.document));
         log.debug('Rechecking visible editors', { count: editors.length });
         for (const editor of editors) {
@@ -1296,110 +1276,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(registerCommand(COMMANDS.openSpeedFix, () => speedFix.open()));
 
-    context.subscriptions.push(registerCommand(COMMANDS.openInspector, () => {
-        // Capture the active editor before creating the panel, since the
-        // webview will steal focus and make activeTextEditor undefined.
-        const originEditor = vscode.window.activeTextEditor;
-
-        if (inspectorPanel) {
-            inspectorPanel.reveal(vscode.ViewColumn.Beside);
-            updateInspectorData();
-            return;
-        }
-
-        inspectorPanel = vscode.window.createWebviewPanel(
-            'inspector',
-            'Inspector',
-            vscode.ViewColumn.Beside,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [
-                    vscode.Uri.file(path.join(context.extensionPath, 'webview', 'dist')),
-                ]
-            }
-        );
-
-        inspectorLog.attach(inspectorPanel.webview);
-        inspectorPanel.webview.html = webviewHtml(inspectorPanel.webview, context.extensionPath, { script: 'inspector', title: 'Inspector' });
-
-        inspectorPanel.webview.onDidReceiveMessage(async (message: InspectorToExtensionMessage) => {
-            switch (message.type) {
-                case 'inspectorReady': {
-                    // Use the editor captured before the panel stole focus.
-                    const editorForCheck = originEditor ?? vscode.window.activeTextEditor;
-                    if (editorForCheck && !store.has(editorForCheck.document.uri.toString())) {
-                        await checker.check(editorForCheck.document);
-                    }
-                    await updateInspectorData();
-                    inspectorPanel?.webview.postMessage({ type: 'setDockerAvailable', payload: hasDockerCompose() });
-                    const extVersion = (context.extension.packageJSON as { version?: string }).version ?? 'unknown';
-                    inspectorPanel?.webview.postMessage({ type: 'setExtensionVersion', payload: extVersion });
-                    break;
-                }
-                case 'highlightRange': {
-                    const editor = vscode.window.activeTextEditor;
-                    if (editor) {
-                        const byteToChar = byteToCharConverter(editor.document.getText());
-                        const start = editor.document.positionAt(byteToChar(message.payload.startByte));
-                        const end = editor.document.positionAt(byteToChar(message.payload.endByte));
-                        editor.selection = new vscode.Selection(start, end);
-                        editor.revealRange(new vscode.Range(start, end));
-                    }
-                    break;
-                }
-                case 'healthCheckLT': {
-                    const editor = vscode.window.activeTextEditor;
-                    if (editor) {
-                        await checker.check(editor.document);
-                    }
-                    break;
-                }
-                case 'restartLTDocker': {
-                    executeCommand(COMMANDS.restartLTDocker);
-                    break;
-                }
-                case 'openIssue': {
-                    const confirm = await vscode.window.showWarningMessage(
-                        vscode.l10n.t('The report includes file names, diagnostics, and timing data (not document text). This will be publicly visible on GitHub. Continue?'),
-                        { modal: true },
-                        vscode.l10n.t('Open Issue')
-                    );
-                    if (!confirm) break;
-                    const issueUrl = `https://github.com/${GITHUB_REPO}/issues/new`;
-                    const title = encodeURIComponent('Inspector bug report');
-                    const encodedBody = encodeURIComponent(message.payload.body);
-                    const fullUrl = `${issueUrl}?title=${title}&body=${encodedBody}`;
-                    if (fullUrl.length < 6000) {
-                        vscode.env.openExternal(vscode.Uri.parse(fullUrl));
-                    } else {
-                        await vscode.env.clipboard.writeText(message.payload.body);
-                        vscode.env.openExternal(vscode.Uri.parse(issueUrl));
-                        vscode.window.showInformationMessage(
-                            vscode.l10n.t('Report copied to clipboard — paste it in the issue body.')
-                        );
-                    }
-                    break;
-                }
-                case 'copyReport': {
-                    await vscode.env.clipboard.writeText(message.payload.body);
-                    vscode.window.showInformationMessage(
-                        vscode.l10n.t('Report copied to clipboard.')
-                    );
-                    break;
-                }
-            }
-        }, undefined, context.subscriptions);
-
-        inspectorPanel.onDidDispose(() => {
-            inspectorPanel = null;
-            inspectorLog.detach();
-        }, null, context.subscriptions);
-    }));
+    context.subscriptions.push(registerCommand(COMMANDS.openInspector, () => inspector.open()));
 
     // Update inspector when active editor changes
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(async () => {
-        await updateInspectorData();
+        await inspector.update();
     }));
 
     // ── Auto-check on document open ──
@@ -1446,7 +1327,7 @@ export async function activate(context: vscode.ExtensionContext) {
             // Cancel any pending debounce for this doc since we're checking now
             debouncer.cancel(document.uri.toString());
             await checker.check(document);
-            await updateInspectorData();
+            await inspector.update();
         }
     });
 
@@ -1908,166 +1789,7 @@ function severityToString(severity: number | null | undefined): 'error' | 'warni
 }
 
 
-/** Detect engine binaries and config files, updating `engineInfoState`. */
-async function detectEngineInfo(): Promise<void> {
-    const folder = vscode.workspace.workspaceFolders?.[0];
 
-    // Read .languagecheck config to determine enabled state
-    const found = folder ? await readFirstConfig(folder) : undefined;
-    const configContent = found?.text ?? '';
-    const configFilePath = found?.uri.fsPath ?? '';
-
-    const isEnabled = (key: string, defaultVal: boolean) => engineEnabled(configContent, key, defaultVal);
-
-    /** Check if a binary exists in PATH. */
-    function binaryInPath(name: string): boolean {
-        try {
-            execSync(`command -v ${name}`, { stdio: 'pipe' });
-            return true;
-        } catch { return false; }
-    }
-
-    /** Find an engine-specific config file. */
-    function findConfig(candidates: string[]): string {
-        if (!folder) return '';
-        for (const name of candidates) {
-            const p = path.join(folder.uri.fsPath, name);
-            if (fs.existsSync(p)) return p;
-        }
-        return '';
-    }
-
-    const infos: InspectorEngineInfo[] = [
-        {
-            name: 'harper',
-            enabled: isEnabled('harper', true),
-            type: 'builtin',
-            binaryDetected: true,
-            configPath: configFilePath ? `${configFilePath} (engines.harper)` : '',
-        },
-        {
-            name: 'languagetool',
-            enabled: isEnabled('languagetool', false),
-            type: 'external',
-            binaryDetected: true, // server-based, not a binary — always "available"
-            configPath: configFilePath ? `${configFilePath} (engines.languagetool)` : '',
-        },
-        {
-            name: 'vale',
-            enabled: isEnabled('vale', false),
-            type: 'external',
-            binaryDetected: binaryInPath('vale'),
-            configPath: findConfig(['.vale.ini', '.vale.yaml', '.vale.yml']),
-        },
-        {
-            name: 'proselint',
-            enabled: isEnabled('proselint', false),
-            type: 'external',
-            binaryDetected: binaryInPath('proselint'),
-            configPath: findConfig(['proselint.json', '.proselintrc']),
-        },
-    ];
-
-    engineInfoState = infos;
-}
-
-async function updateInspectorData() {
-    if (!inspectorPanel) return;
-
-    // Prefer active editor, fall back to a visible editor with diagnostics.
-    // When the inspector panel has focus, activeTextEditor is undefined.
-    const editor = vscode.window.activeTextEditor
-        ?? fixTarget.findEditor()
-        ?? vscode.window.visibleTextEditors[0];
-    if (!editor) return;
-
-    const document = editor.document;
-    const uri = document.uri.toString();
-    const fileName = path.basename(document.uri.fsPath);
-
-    // Send real extraction data from cache.
-    //
-    // Everything here comes from one CheckProse response, so the syntax and the
-    // per-range language always describe the boxes shown beside them. When the
-    // cache has been dropped — a config change invalidates it — there is
-    // nothing to show until the re-check lands, which is the point: a language
-    // from the previous config is worse than an empty panel.
-    const cached = results.extraction.get(uri);
-    inspectorPanel.webview.postMessage({
-        type: 'setExtraction',
-        payload: {
-            prose: cached?.prose ?? [],
-            fileName,
-            languageId: cached?.languageId ?? document.languageId,
-            syntax: cached?.syntax ?? '',
-            maxRangeBytes: cached?.maxRangeBytes ?? 0,
-        },
-    });
-
-    // Send words the name filter silenced
-    inspectorPanel.webview.postMessage({
-        type: 'setNames',
-        payload: { names: results.names.get(uri) ?? [] },
-    });
-
-    // Send real benchmark timings if available
-    if (results.timings.length > 0) {
-        inspectorPanel.webview.postMessage({
-            type: 'setLatency',
-            payload: { stages: results.timings },
-        });
-    }
-
-    // Send check info if available
-    if (results.info) {
-        inspectorPanel.webview.postMessage({
-            type: 'setCheckInfo',
-            payload: results.info,
-        });
-    }
-
-    // Send diagnostic summary
-    const diags = store.get(uri);
-    if (diags && diags.length > 0) {
-        const byRule = new Map<string, number>();
-        const bySeverity = new Map<string, number>();
-        for (const d of diags) {
-            const rule = ruleIdOf(d, 'unknown');
-            byRule.set(rule, (byRule.get(rule) || 0) + 1);
-            const sev = d.severity === vscode.DiagnosticSeverity.Error ? 'error' :
-                        d.severity === vscode.DiagnosticSeverity.Warning ? 'warning' :
-                        d.severity === vscode.DiagnosticSeverity.Hint ? 'hint' : 'info';
-            bySeverity.set(sev, (bySeverity.get(sev) || 0) + 1);
-        }
-        const summary: InspectorDiagnosticSummary = {
-            total: diags.length,
-            byRule: [...byRule.entries()]
-                .map(([ruleId, count]) => ({ ruleId, count }))
-                .sort((a, b) => b.count - a.count),
-            bySeverity: [...bySeverity.entries()]
-                .map(([severity, count]) => ({ severity, count })),
-        };
-        inspectorPanel.webview.postMessage({
-            type: 'setDiagnosticSummary',
-            payload: summary,
-        });
-    }
-
-    // Send engine health state
-    if (results.engineHealth.length > 0) {
-        inspectorPanel.webview.postMessage({
-            type: 'setEngineHealth',
-            payload: results.engineHealth,
-        });
-    }
-
-    // Send engine info (binary detection, config paths)
-    await detectEngineInfo();
-    inspectorPanel.webview.postMessage({
-        type: 'setEngineInfo',
-        payload: engineInfoState,
-    });
-}
 
 
 
