@@ -324,6 +324,7 @@
     ]
   },
   "scripts": {
+    "gen:meta": "vscode-ext-gen --output src/generated/meta.ts",
     "proto:gen": "mkdir -p src/proto && pbjs -t static-module -w commonjs -o src/proto/checker.js ../proto/checker.proto && pbts -o src/proto/checker.d.ts src/proto/checker.js",
     "prepare": "pnpm run proto:gen",
     "pretypecheck": "pnpm run proto:gen",
@@ -369,7 +370,8 @@
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.0",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.1",
+    "vscode-ext-gen": "^1.6.0"
   },
   "pnpm": {
     "overrides": {

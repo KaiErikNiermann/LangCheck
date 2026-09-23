@@ -35,6 +35,6 @@ export default tseslint.config(
         },
     },
     {
-        ignores: ["out/", "webview/", "src/proto/"],
+        ignores: ["out/", "webview/", "src/proto/", "src/generated/"],
     },
 );
