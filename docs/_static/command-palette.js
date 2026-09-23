@@ -120,6 +120,61 @@ const wireSearchBox = (palette) => {
   }
 };
 
+const wireExampleImagePreview = () => {
+  const images = document.querySelectorAll(
+    '#language-check img[src$="vscode_example.png"], #language-check img[src$="neovim_example.png"]',
+  );
+  if (!images.length) {
+    return;
+  }
+
+  const dialog = document.createElement('dialog');
+  dialog.className = 'lc-image-preview';
+  dialog.setAttribute('aria-label', 'Image preview');
+
+  const close = document.createElement('button');
+  close.className = 'lc-image-preview-close';
+  close.type = 'button';
+  close.setAttribute('aria-label', 'Close image preview');
+  close.addEventListener('click', () => dialog.close());
+
+  const preview = document.createElement('img');
+  dialog.append(close, preview);
+  document.body.append(dialog);
+
+  let opener;
+  const open = (image) => {
+    opener = image;
+    preview.src = image.currentSrc || image.src;
+    preview.alt = image.alt;
+    dialog.showModal();
+    close.focus();
+  };
+
+  dialog.addEventListener('click', (event) => {
+    if (event.target === dialog) {
+      dialog.close();
+    }
+  });
+  dialog.addEventListener('close', () => {
+    preview.removeAttribute('src');
+    opener?.focus();
+  });
+
+  for (const image of images) {
+    image.setAttribute('role', 'button');
+    image.setAttribute('tabindex', '0');
+    image.setAttribute('aria-label', `Enlarge ${image.alt}`);
+    image.addEventListener('click', () => open(image));
+    image.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        open(image);
+      }
+    });
+  }
+};
+
 const init = async () => {
   const response = await fetch(INDEX_URL);
   if (!response.ok) {
@@ -139,6 +194,7 @@ const init = async () => {
   document.body.append(palette);
 
   wireSearchBox(palette);
+  wireExampleImagePreview();
 };
 
 init().catch((error) => {

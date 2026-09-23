@@ -471,3 +471,84 @@ ninja-keys {
   --ninja-modal-shadow: 0 16px 70px
     color-mix(in srgb, var(--color-foreground-primary) 28%, transparent);
 }
+
+body {
+  --lc-image-preview-background: var(--color-background-primary);
+  --lc-image-preview-border: var(--color-background-border);
+  --lc-image-preview-radius: 8px;
+  --lc-image-preview-shadow: 0 16px 70px
+    color-mix(in srgb, var(--color-foreground-primary) 28%, transparent);
+  --lc-image-preview-close-arm: 52%;
+  --lc-image-preview-close-stroke: 2px;
+  --lc-image-preview-close-angle: 45deg;
+  --lc-image-preview-close-negative-angle: -45deg;
+}
+
+.lc-image-preview {
+  max-inline-size: 92vw;
+  max-block-size: 92vh;
+  padding: var(--lc-kbd-pad-block);
+  border: 1px solid var(--lc-image-preview-border);
+  border-radius: var(--lc-image-preview-radius);
+  background: var(--lc-image-preview-background);
+  box-shadow: var(--lc-image-preview-shadow);
+}
+
+.lc-image-preview::backdrop {
+  background: color-mix(
+    in srgb,
+    var(--color-background-primary) 72%,
+    transparent
+  );
+}
+
+.lc-image-preview img {
+  display: block;
+  max-inline-size: 88vw;
+  max-block-size: 86vh;
+  object-fit: contain;
+}
+
+.lc-image-preview-close {
+  position: absolute;
+  inset-block-start: var(--lc-kbd-pad-block);
+  inset-inline-end: var(--lc-kbd-pad-block);
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  inline-size: var(--lc-kbd-min-size);
+  block-size: var(--lc-kbd-min-size);
+  border: 0;
+  background: transparent;
+  color: var(--color-foreground-primary);
+  cursor: pointer;
+  appearance: none;
+  font: inherit;
+  line-height: 1;
+  padding: 0;
+  text-align: center;
+}
+
+.lc-image-preview-close::before,
+.lc-image-preview-close::after {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  inline-size: var(--lc-image-preview-close-arm);
+  block-size: var(--lc-image-preview-close-stroke);
+  background: currentcolor;
+  content: "";
+  pointer-events: none;
+}
+
+.lc-image-preview-close::before {
+  transform: translate(-50%, -50%) rotate(var(--lc-image-preview-close-angle));
+}
+
+.lc-image-preview-close::after {
+  transform: translate(-50%, -50%) rotate(var(--lc-image-preview-close-negative-angle));
+}
+
+#language-check .sd-card-text img {
+  cursor: zoom-in;
+}
