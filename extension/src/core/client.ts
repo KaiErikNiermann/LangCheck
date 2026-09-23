@@ -6,10 +6,21 @@ import type { Logger } from '../shared/logger';
 const REQUEST_TIMEOUT_MS = 120_000;
 const MAX_RESTART_ATTEMPTS = 3;
 const RESTART_DELAY_MS = 1000;
+/**
+ * The longest response the client will wait for. A megabyte of prose comes
+ * back as a few megabytes, so a length past this is not a response: it is
+ * four bytes read from somewhere a length never was, and waiting for that
+ * many would hold the extension host's memory hostage to it.
+ */
+const MAX_FRAME_BYTES = 256 * 1024 * 1024;
 
 export class LanguageClient {
     private process: cp.ChildProcess | null = null;
-    private buffer: Buffer = Buffer.alloc(0);
+    /** What has arrived of the frame being read, kept apart until it is complete. */
+    private chunks: Buffer[] = [];
+    private buffered = 0;
+    /** The body length of the frame being read, once its header is in. */
+    private frameLength: number | null = null;
     private nextId = 1;
     private pendingRequests = new Map<number, {
         resolve: (res: languagecheck.Response) => void;
@@ -67,7 +78,7 @@ export class LanguageClient {
     public start() {
         this.stopped = false;
         this.failureReason = null;
-        this.buffer = Buffer.alloc(0);
+        this.resetFraming();
         this.detach(this.process);
 
         this.process = cp.spawn(this.binaryPath, [], {
@@ -180,19 +191,52 @@ export class LanguageClient {
         pending.reject(err);
     }
 
+    private resetFraming() {
+        this.chunks = [];
+        this.buffered = 0;
+        this.frameLength = null;
+    }
+
+    /**
+     * Remove and return the first `n` buffered bytes.
+     *
+     * The chunks are joined here, once per frame, rather than on every
+     * arrival: joining per chunk copied everything received so far each
+     * time, which made a large response quadratic to receive.
+     */
+    private take(n: number): Buffer {
+        const all = this.chunks.length === 1 ? this.chunks[0] as Buffer : Buffer.concat(this.chunks, this.buffered);
+        const rest = all.subarray(n);
+        this.chunks = rest.length > 0 ? [rest] : [];
+        this.buffered = rest.length;
+        return all.subarray(0, n);
+    }
+
     private handleData(data: Buffer) {
-        this.buffer = Buffer.concat([this.buffer, data]);
+        this.chunks.push(data);
+        this.buffered += data.length;
 
-        while (this.buffer.length >= 4) {
-            const length = this.buffer.readUInt32BE(0);
-            if (this.buffer.length < 4 + length) {
-                break;
+        for (;;) {
+            if (this.frameLength === null) {
+                if (this.buffered < 4) return;
+                const length = this.take(4).readUInt32BE(0);
+                if (length > MAX_FRAME_BYTES) {
+                    this.protocolFailure(`a response claimed to be ${length} bytes long`);
+                    return;
+                }
+                this.frameLength = length;
             }
+            if (this.buffered < this.frameLength) return;
+            const frame = this.take(this.frameLength);
+            this.frameLength = null;
 
-            const msgData = this.buffer.subarray(4, 4 + length);
-            this.buffer = this.buffer.subarray(4 + length);
-
-            const response = languagecheck.Response.decode(msgData);
+            let response: languagecheck.Response;
+            try {
+                response = languagecheck.Response.decode(frame);
+            } catch (err) {
+                this.protocolFailure(`a response did not decode: ${String(err)}`);
+                return;
+            }
             const id = typeof response.id === 'number' ? response.id : Number(response.id);
             const pending = this.pendingRequests.get(id);
             if (pending) {
@@ -201,8 +245,32 @@ export class LanguageClient {
                 this.trace?.logResponse(response, durationMs);
                 pending.resolve(response);
                 this.pendingRequests.delete(id);
+            } else {
+                // A request that timed out, or an error the core could not
+                // tie to any request.
+                this.log?.debug('Response matched no pending request', { id });
             }
         }
+    }
+
+    /**
+     * The stream from the core stopped making sense.
+     *
+     * Nothing after this point can be trusted: each length is read from where
+     * the last frame ended, so one bad frame misreads every frame after it.
+     * Decoding used to throw out of the data handler into the extension host,
+     * and a request whose answer was lost waited out its whole timeout. Now
+     * everything in flight fails at once, the old process's output is no
+     * longer read, and the process is replaced, which the exit handler does
+     * as it would after a crash -- including giving up after repeated ones.
+     */
+    private protocolFailure(reason: string) {
+        this.log?.error('Core protocol error', { reason });
+        this.trace?.logEvent(`Protocol error: ${reason}`);
+        this.resetFraming();
+        this.rejectAllPending(`language-check core sent something unreadable: ${reason}`);
+        this.process?.stdout?.removeAllListeners('data');
+        this.process?.kill();
     }
 
     public sendRequest(requestData: languagecheck.IRequest): Promise<languagecheck.Response> {

@@ -211,6 +211,60 @@ describe('LanguageClient', () => {
         });
     });
 
+    describe('an unreadable stream from the core', () => {
+        // A request's answer lost in a stream that no longer parses used to
+        // wait out the whole timeout, after a decode error thrown out of the
+        // data handler into the extension host.
+        function frameOf(body: Buffer): Buffer {
+            const length = Buffer.alloc(4);
+            length.writeUInt32BE(body.length, 0);
+            return Buffer.concat([length, body]);
+        }
+
+        it('fails what is in flight at once and replaces the process on a frame that does not decode', async () => {
+            client.start();
+            const pending = client.sendRequest({ getMetadata: {} });
+            expect(() => mock.mockStdout.emit('data', frameOf(Buffer.from([0xff, 0xff, 0xff, 0xff, 0x0f])))).not.toThrow();
+            await expect(pending).rejects.toThrow(/unreadable/);
+            expect(mock.mockProcess.kill).toHaveBeenCalled();
+        });
+
+        it('does not buffer toward a length no response could have', async () => {
+            client.start();
+            const pending = client.sendRequest({ getMetadata: {} });
+            // "2026" read as a length: what a stray line on stdout would be.
+            mock.mockStdout.emit('data', Buffer.from('2026-09-23 log line on the wrong stream\n'));
+            await expect(pending).rejects.toThrow(/claimed to be \d+ bytes/);
+            expect(mock.mockProcess.kill).toHaveBeenCalled();
+        });
+
+        it('stops reading the old process once it has given up on it', async () => {
+            client.start();
+            const pending = client.sendRequest({ getMetadata: {} });
+            mock.mockStdout.emit('data', Buffer.from('garbage!'));
+            await expect(pending).rejects.toThrow(/unreadable/);
+            expect(mock.mockStdout.listenerCount('data')).toBe(0);
+        });
+
+        it('assembles a response delivered one byte at a time', async () => {
+            client.start();
+            const pending = client.sendRequest({ getMetadata: {} });
+            const frame = encodeResponse({ id: 1, getMetadata: { name: 'core', version: '1' } });
+            for (const byte of frame) mock.mockStdout.emit('data', Buffer.from([byte]));
+            expect((await pending).getMetadata?.name).toBe('core');
+            expect(mock.mockProcess.kill).not.toHaveBeenCalled();
+        });
+
+        it('ignores a well-formed response that matches no request', async () => {
+            client.start();
+            const pending = client.sendRequest({ getMetadata: {} });
+            mock.mockStdout.emit('data', encodeResponse({ id: 999, ok: {} }));
+            mock.mockStdout.emit('data', encodeResponse({ id: 1, ok: {} }));
+            await expect(pending).resolves.toBeTruthy();
+            expect(mock.mockProcess.kill).not.toHaveBeenCalled();
+        });
+    });
+
     describe('error handling', () => {
         it('should reject with error when process not started', async () => {
             await expect(client.sendRequest({ getMetadata: {} })).rejects.toThrow(
