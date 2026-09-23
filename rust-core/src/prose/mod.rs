@@ -2,6 +2,7 @@ mod bibtex;
 mod forester;
 pub mod gap;
 pub mod latex;
+mod markdown_depth;
 mod org;
 mod query;
 mod rst;
@@ -11,6 +12,7 @@ mod tinylang;
 mod typst;
 
 use anyhow::{Result, anyhow};
+use std::borrow::Cow;
 use std::ops::Range;
 use std::path::Path;
 use tracing::warn;
@@ -25,13 +27,21 @@ use crate::sls::SchemaRegistry;
 pub struct ProseExtractor {
     parser: Parser,
     language: Language,
+    /// Whether this is tree-sitter-md's block grammar, whose scanner aborts
+    /// the process on deep enough nesting (see [`markdown_depth`]).
+    is_markdown: bool,
 }
 
 impl ProseExtractor {
     pub fn new(language: Language) -> Result<Self> {
         let mut parser = Parser::new();
         parser.set_language(&language)?;
-        Ok(Self { parser, language })
+        let is_markdown = language == tree_sitter_md::LANGUAGE.into();
+        Ok(Self {
+            parser,
+            language,
+            is_markdown,
+        })
     }
 
     pub fn extract(
@@ -40,9 +50,17 @@ impl ProseExtractor {
         lang_id: &str,
         latex_extras: &latex::LatexExtras,
     ) -> Result<Vec<ProseRange>> {
+        // What the parser reads, which only differs from `text` for Markdown
+        // nested past what its scanner survives; same length either way, so
+        // the tree's offsets are offsets into `text`.
+        let parsed = if self.is_markdown {
+            markdown_depth::defang(text)
+        } else {
+            Cow::Borrowed(text)
+        };
         let tree = self
             .parser
-            .parse(text, None)
+            .parse(parsed.as_ref(), None)
             .ok_or_else(|| anyhow!("Failed to parse text"))?;
 
         let root = tree.root_node();
@@ -773,6 +791,32 @@ fn reseat_quotes_across_blanks(bytes: &mut [u8], blanked: &[(usize, usize)]) {
 mod tests {
     use super::*;
     use latex::LatexExtras;
+
+    /// Markdown nested past what tree-sitter-md's scanner survives, which
+    /// aborted the process: a test run dies here, rather than failing, if the
+    /// guard in `markdown_depth` stops working. Both containers, and the
+    /// unknown language that falls back to the Markdown grammar.
+    #[test]
+    fn markdown_nested_past_the_scanner_limit_is_extracted_not_aborted() {
+        let quotes = format!("{} Deep quoted prose.\n", ">".repeat(1000));
+        let list = (0..400)
+            .map(|depth| format!("{}- item number {depth}\n", "  ".repeat(depth)))
+            .collect::<Vec<_>>()
+            .concat();
+        let mixed = format!("{} Deep mixed prose.\n", "> - ".repeat(300));
+        for (lang, text) in [
+            ("markdown", &quotes),
+            ("markdown", &list),
+            ("markdown", &mixed),
+            ("no-such-language", &quotes),
+        ] {
+            let ranges = extract_with_fallback(text, lang, None, None, &LatexExtras::default())
+                .unwrap_or_else(|e| panic!("{lang}: {e}"));
+            for range in &ranges {
+                assert!(range.start_byte <= range.end_byte && range.end_byte <= text.len());
+            }
+        }
+    }
 
     // ---- extract_text byte-blanking (FFI-free; also exercised under Miri) ----
 
