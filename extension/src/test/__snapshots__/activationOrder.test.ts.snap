@@ -60,6 +60,7 @@ exports[`activation order > in production, when the core has to be downloaded fi
   "window.onDidChangeActiveTextEditor(function)",
   "workspace.onDidChangeTextDocument(function)",
   "workspace.onDidSaveTextDocument(function)",
+  "workspace.onDidCloseTextDocument(function)",
   "workspace.onDidChangeConfiguration(function)",
   "workspace.createFileSystemWatcher("**/.languagecheck.{yaml,yml,json}")",
   "workspace.createFileSystemWatcher.onDidChange()",
@@ -75,7 +76,7 @@ exports[`activation order > in production, when the core has to be downloaded fi
   "workspace.createFileSystemWatcher.onDidDelete()",
   "languages.onDidChangeDiagnostics(function)",
   "--- activated ---",
-  "--- 52 subscriptions ---",
+  "--- 53 subscriptions ---",
 ]
 `;
 
@@ -149,6 +150,7 @@ exports[`activation order > under the test host, with a local core build 1`] = `
   "window.onDidChangeActiveTextEditor(function)",
   "workspace.onDidChangeTextDocument(function)",
   "workspace.onDidSaveTextDocument(function)",
+  "workspace.onDidCloseTextDocument(function)",
   "workspace.onDidChangeConfiguration(function)",
   "workspace.createFileSystemWatcher("**/.languagecheck.{yaml,yml,json}")",
   "workspace.createFileSystemWatcher.onDidChange()",
@@ -165,7 +167,7 @@ exports[`activation order > under the test host, with a local core build 1`] = `
   "workspace.createFileSystemWatcher.onDidDelete()",
   "languages.onDidChangeDiagnostics(function)",
   "--- activated ---",
-  "--- 52 subscriptions ---",
+  "--- 53 subscriptions ---",
 ]
 `;
 
@@ -240,6 +242,7 @@ exports[`activation order > under the test host, with no local core build 1`] = 
   "window.onDidChangeActiveTextEditor(function)",
   "workspace.onDidChangeTextDocument(function)",
   "workspace.onDidSaveTextDocument(function)",
+  "workspace.onDidCloseTextDocument(function)",
   "workspace.onDidChangeConfiguration(function)",
   "workspace.createFileSystemWatcher("**/.languagecheck.{yaml,yml,json}")",
   "workspace.createFileSystemWatcher.onDidChange()",
@@ -256,7 +259,7 @@ exports[`activation order > under the test host, with no local core build 1`] = 
   "workspace.createFileSystemWatcher.onDidDelete()",
   "languages.onDidChangeDiagnostics(function)",
   "--- activated ---",
-  "--- 52 subscriptions ---",
+  "--- 53 subscriptions ---",
 ]
 `;
 

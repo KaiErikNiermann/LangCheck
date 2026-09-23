@@ -50,3 +50,16 @@ describe('StatusBars health indicator', () => {
         expect(insights.backgroundColor).toBeUndefined();
     });
 });
+
+describe('CheckResults.forget', () => {
+    it('drops a closed document, and only it', () => {
+        const results = new CheckResults();
+        for (const uri of ['file:///a.md', 'file:///b.md']) {
+            results.extraction.set(uri, { prose: [], languageId: 'markdown', syntax: 'markdown', maxRangeBytes: 0, version: 1 });
+            results.names.set(uri, []);
+        }
+        results.forget('file:///a.md');
+        expect([...results.extraction.keys()]).toEqual(['file:///b.md']);
+        expect([...results.names.keys()]).toEqual(['file:///b.md']);
+    });
+});

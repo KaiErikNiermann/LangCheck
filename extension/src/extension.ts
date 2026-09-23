@@ -28,6 +28,7 @@ import { registerCodeActions } from './providers/codeActions';
 import { registerInlayHints } from './providers/inlayHints';
 import { registerInlineCompletions } from './providers/inlineCompletions';
 import { createServices } from './services';
+import { uriKey } from './shared/documents';
 import { Logger } from './shared/logger';
 import { TraceLogger } from './shared/trace';
 import { registerOnboarding, warnAboutOtherCopies } from './ui/onboarding';
@@ -155,6 +156,7 @@ export async function activate(context: vscode.ExtensionContext) {
         await inspector.update();
     }));
     triggers.register(context.subscriptions);
+    context.subscriptions.push(vscode.workspace.onDidCloseTextDocument(document => results.forget(uriKey(document.uri))));
     await new ConfigWatchers({
         log, core, store, checker, statusBars, configState, inlayHintEmitter, reloader, configStatusView, isCheckable,
     }).start(context.subscriptions);

@@ -44,6 +44,20 @@ export class CheckResults {
      */
     servedFromCache = false;
 
+    /**
+     * Forget one document, when it closes.
+     *
+     * Kept only for the Inspector and the insights status bar, which both
+     * describe an open document; a closed one is checked again when it
+     * reopens. Nothing removed an entry before, so a workspace check left a
+     * copy of every file's prose -- twice over, with the checked text -- held
+     * for the rest of the session.
+     */
+    forget(uri: string): void {
+        this.extraction.delete(uri);
+        this.names.delete(uri);
+    }
+
     /** Forget what the checks said about each document, before a re-check under a new config. */
     clearDocuments(): void {
         this.extraction.clear();
