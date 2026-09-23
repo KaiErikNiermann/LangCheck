@@ -22,6 +22,12 @@ export class StatusBars {
     private insights!: vscode.StatusBarItem;
     /** While a check runs, the insights item shows a spinner and nothing may overwrite it. */
     private checking = false;
+    /**
+     * The insights text without the health suffix: the spinner, or the word
+     * count. Kept apart so the suffix is added exactly once, whichever of the
+     * two is showing.
+     */
+    private base = '';
 
     constructor(private readonly results: CheckResults) {}
 
@@ -47,32 +53,47 @@ export class StatusBars {
     setChecking(active: boolean): void {
         this.checking = active;
         if (active) {
-            this.insights.text = `$(sync~spin) Checking...`;
+            this.base = `$(sync~spin) Checking...`;
+            this.render();
         } else {
             this.updateInsights(vscode.window.activeTextEditor);
         }
     }
 
     updateHealth(): void {
-        const ltHealth = this.results.engineHealth.find(e => e.name === 'languagetool');
-        if (!ltHealth || ltHealth.status === 'ok') {
-            // Remove any health suffix — let updateInsights handle the text
-            this.insights.backgroundColor = undefined;
-            return;
-        }
-        if (ltHealth.status === 'degraded') {
-            this.insights.text += ' $(warning) LT degraded';
-            this.insights.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-        } else {
-            this.insights.text += ' $(error) LT down';
-            this.insights.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
-        }
+        const status = this.languageToolStatus();
+        this.insights.backgroundColor = status === 'degraded'
+            ? new vscode.ThemeColor('statusBarItem.warningBackground')
+            : status === 'down'
+                ? new vscode.ThemeColor('statusBarItem.errorBackground')
+                : undefined;
+        this.render();
+    }
+
+    private languageToolStatus(): 'ok' | 'degraded' | 'down' | undefined {
+        return this.results.engineHealth.find(e => e.name === 'languagetool')?.status;
+    }
+
+    /**
+     * The insights text, plus LanguageTool's state when it is not fine.
+     *
+     * The suffix used to be appended to whatever text was there, so the next
+     * word-count update erased it -- which, during a check, was the very next
+     * thing to happen -- and a second health report appended it twice.
+     */
+    private render(): void {
+        const status = this.languageToolStatus();
+        const suffix = status === 'degraded' ? ' $(warning) LT degraded'
+            : status === 'down' ? ' $(error) LT down'
+            : '';
+        this.insights.text = this.base + suffix;
     }
 
     updateInsights(editor?: vscode.TextEditor): void {
         if (this.checking) return; // Don't overwrite spinner
 
         if (!editor) {
+            this.base = '';
             this.insights.text = '';
             this.insights.hide();
             return;
@@ -88,7 +109,8 @@ export class StatusBars {
         const { wordCount, sentenceCount, charCount, readingLevel } = proseMetrics(proseText);
 
         const rlLabel = readingLevel > 0 ? ` | ARI ${readingLevel.toFixed(1)}` : '';
-        this.insights.text = `$(pencil) ${wordCount} words${rlLabel}`;
+        this.base = `$(pencil) ${wordCount} words${rlLabel}`;
+        this.render();
         this.insights.tooltip = `Words: ${wordCount} | Sentences: ${sentenceCount} | Characters: ${charCount} | Reading Level (ARI): ${readingLevel.toFixed(1)}`;
         this.insights.show();
     }

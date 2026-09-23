@@ -237,7 +237,25 @@ const message =
         return Promise.resolve(undefined);
     };
 
+/** Every status bar item handed out, so a test can read what was drawn on it. */
+export const __statusBarItems: { text: string; tooltip: string | undefined; backgroundColor: unknown; visible: boolean }[] = [];
+
 export const window = namespace('window', {
+    createStatusBarItem(...args: unknown[]) {
+        record('window.createStatusBarItem', args);
+        const item = {
+            text: '',
+            visible: false,
+            command: undefined as unknown,
+            tooltip: undefined as string | undefined,
+            backgroundColor: undefined as unknown,
+            show() { item.visible = true; },
+            hide() { item.visible = false; },
+            dispose() {},
+        };
+        __statusBarItems.push(item);
+        return item;
+    },
     showWarningMessage: message('showWarningMessage'),
     showErrorMessage: message('showErrorMessage'),
     showInformationMessage: message('showInformationMessage'),
