@@ -68,6 +68,7 @@ import { byteToCharConverter } from './checking/offsets';
 import { webviewHtml } from './ui/webviews/html';
 import { StatusBars } from './ui/statusBars';
 import { WorkspaceConfigState } from './config/state';
+import { createServices } from './services';
 
 let client: LanguageClient | null = null;
 
@@ -92,8 +93,14 @@ let coreInitialized = false;
 let schemaExtensions = new Set<string>();
 let traceLogger: TraceLogger | null = null;
 let log: Logger;
-const store = new DiagnosticStore();
-const suppression = new Suppression();
+// Created in activate() by createServices(); see services.ts.
+let store: DiagnosticStore;
+let suppression: Suppression;
+let results: CheckResults;
+let statusBars: StatusBars;
+let configState: WorkspaceConfigState;
+let inspectorLog: InspectorLog;
+let inlayHintEmitter: vscode.EventEmitter<void>;
 let speedFixPanel: vscode.WebviewPanel | null = null;
 let inspectorPanel: vscode.WebviewPanel | null = null;
 let configStatusView: ConfigStatusView | null = null;
@@ -107,10 +114,6 @@ let engineInfoState: InspectorEngineInfo[] = [];
 let ltDownNotificationShown = false;
 
 // Inlay hint invalidation
-const inlayHintEmitter = new vscode.EventEmitter<void>();
-// What every diagnostics change refreshes, in this order.
-store.onChange(() => inlayHintEmitter.fire());
-store.onChange(() => updateSpeedFixDiagnostics());
 let inlayHintsEnabled = true;
 
 /**
@@ -152,10 +155,6 @@ function releaseCheckSlot() {
     }
 }
 
-const results = new CheckResults();
-const statusBars = new StatusBars(results);
-
-const configState = new WorkspaceConfigState();
 /**
  * Languages offered this session.
  *
@@ -173,16 +172,16 @@ let currentServerPath: string | undefined;
 let reinitializeAndRecheckRef: (() => Promise<void>) | undefined;
 
 
-
-
-
-const inspectorLog = new InspectorLog();
-
 export async function activate(context: vscode.ExtensionContext) {
     extensionContext = context;
     const isDev = context.extensionMode === vscode.ExtensionMode.Development;
     log = new Logger(isDev);
     context.subscriptions.push({ dispose: () => log.dispose() });
+
+    ({ store, suppression, results, statusBars, configState, inspectorLog, inlayHintEmitter } = createServices());
+    // What every diagnostics change refreshes, in this order.
+    store.onChange(() => inlayHintEmitter.fire());
+    store.onChange(() => updateSpeedFixDiagnostics());
     log.info('Language Check extension activated', { mode: isDev ? 'dev' : 'prod' });
 
     // First-run onboarding: show welcome notification once

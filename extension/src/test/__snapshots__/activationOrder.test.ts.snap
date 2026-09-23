@@ -2,9 +2,9 @@
 
 exports[`activation order > in production, when the core has to be downloaded first 1`] = `
 [
-  "languages.createDiagnosticCollection("language-check")",
   "--- activate ---",
   "window.createOutputChannel("Language Check")",
+  "languages.createDiagnosticCollection("language-check")",
   "window.showInformationMessage("Welcome to Language Check! Open the Get Started walkthrough to learn the basics.", "Open Walkthrough")",
   "workspace.onDidOpenTextDocument(function)",
   "window.createOutputChannel("Language Check: Protobuf Trace")",
@@ -93,9 +93,9 @@ exports[`activation order > in production, when the core has to be downloaded fi
 
 exports[`activation order > under the test host, with a local core build 1`] = `
 [
-  "languages.createDiagnosticCollection("language-check")",
   "--- activate ---",
   "window.createOutputChannel("Language Check")",
+  "languages.createDiagnosticCollection("language-check")",
   "window.showInformationMessage("Welcome to Language Check! Open the Get Started walkthrough to learn the basics.", "Open Walkthrough")",
   "workspace.onDidOpenTextDocument(function)",
   "window.createOutputChannel("Language Check: Protobuf Trace")",
@@ -183,9 +183,9 @@ exports[`activation order > under the test host, with a local core build 2`] = `
 
 exports[`activation order > under the test host, with no local core build 1`] = `
 [
-  "languages.createDiagnosticCollection("language-check")",
   "--- activate ---",
   "window.createOutputChannel("Language Check")",
+  "languages.createDiagnosticCollection("language-check")",
   "window.showInformationMessage("Welcome to Language Check! Open the Get Started walkthrough to learn the basics.", "Open Walkthrough")",
   "workspace.onDidOpenTextDocument(function)",
   "window.createOutputChannel("Language Check: Protobuf Trace")",
