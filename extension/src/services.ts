@@ -9,12 +9,20 @@
  */
 import * as vscode from 'vscode';
 
+import type { Checker } from './checking/checker';
+import type { Reloader } from './checking/reload';
 import { CheckResults } from './checking/results';
+import type { CoreService } from './core/coreService';
+import type { Packs } from './core/packs';
+import type { DiagnosticActions } from './diagnostics/actions';
 import { WorkspaceConfigState } from './config/state';
 import { FixTarget } from './diagnostics/fixTarget';
 import { DiagnosticStore, Suppression } from './diagnostics/store';
 import { InspectorLog } from './ui/inspectorLog';
+import type { Logger } from './shared/logger';
 import { StatusBars } from './ui/statusBars';
+import type { InspectorPanel } from './ui/webviews/inspector';
+import type { SpeedFixPanel } from './ui/webviews/speedFix';
 import { InlayHintSwitch } from './providers/inlayHints';
 
 export interface Services {
@@ -28,6 +36,24 @@ export interface Services {
     /** Fired whenever an inlay hint provider's answer may have changed. */
     readonly inlayHintEmitter: vscode.EventEmitter<void>;
     readonly inlayHintSwitch: InlayHintSwitch;
+}
+
+/**
+ * Everything the commands and later features reach: the shared state above
+ * plus the parts built from it during activation.
+ */
+export interface App extends Services {
+    readonly context: vscode.ExtensionContext;
+    readonly log: Logger;
+    /** Running from a development host, which offers the local debug core. */
+    readonly isDev: boolean;
+    readonly core: CoreService;
+    readonly checker: Checker;
+    readonly actions: DiagnosticActions;
+    readonly speedFix: SpeedFixPanel;
+    readonly inspector: InspectorPanel;
+    readonly packs: Packs;
+    readonly reloader: Reloader;
 }
 
 export function createServices(): Services {

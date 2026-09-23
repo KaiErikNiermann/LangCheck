@@ -44,6 +44,12 @@ interface CommandArgs {
 
 export type ArgsOf<C extends CommandId> = C extends keyof CommandArgs ? CommandArgs[C] : [];
 
+/** A handler for every command, typed by its arguments. */
+export type AllCommandHandlers = { [C in CommandId]: (...args: ArgsOf<C>) => unknown };
+
+/** Some of the handlers: what one group of commands provides. */
+export type CommandHandlers = Partial<AllCommandHandlers>;
+
 export function registerCommand<C extends CommandId>(id: C, handler: (...args: ArgsOf<C>) => unknown): vscode.Disposable {
     return vscode.commands.registerCommand(id, handler as (...args: unknown[]) => unknown);
 }
