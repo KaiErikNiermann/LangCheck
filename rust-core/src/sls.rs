@@ -314,31 +314,32 @@ impl SchemaRegistry {
     /// grammar takes precedence over a schema anyway.
     #[must_use]
     pub fn fallback_extensions(&self) -> Vec<String> {
-        let mut extensions = BTreeSet::new();
-        for schema in &self.schemas {
-            for ext in &schema.extensions {
-                if crate::languages::builtin_language_for_extension(ext).is_none() {
-                    extensions.insert(ext.clone());
-                }
-            }
-        }
-        extensions.into_iter().collect()
+        self.schema_only_extensions()
+            .map(|(_, ext)| ext.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
     }
 
     /// Glob patterns for extensions handled only by SLS, preserving built-in precedence.
     #[must_use]
     pub fn fallback_file_patterns(&self) -> Vec<(String, String)> {
-        let mut patterns = BTreeSet::new();
+        self.schema_only_extensions()
+            .map(|(schema, ext)| (format!("**/*.{ext}"), schema.name.clone()))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
 
-        for schema in &self.schemas {
-            for ext in &schema.extensions {
-                if crate::languages::builtin_language_for_extension(ext).is_none() {
-                    patterns.insert((format!("**/*.{ext}"), schema.name.clone()));
-                }
-            }
-        }
-
-        patterns.into_iter().collect()
+    /// Every `(schema, extension)` pair no built-in grammar claims.
+    fn schema_only_extensions(&self) -> impl Iterator<Item = (&CompiledSchema, &String)> {
+        self.schemas.iter().flat_map(|schema| {
+            schema
+                .extensions
+                .iter()
+                .filter(|ext| crate::languages::builtin_language_for_extension(ext).is_none())
+                .map(move |ext| (schema, ext))
+        })
     }
 }
 

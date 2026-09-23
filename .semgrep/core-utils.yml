@@ -278,3 +278,28 @@ rules:
       - pattern-not-inside: |
           mod tests { ... }
 
+  - id: schema-fallback-through-schema-only-extensions
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      Walk the extensions that only a schema handles through `SchemaRegistry::schema_only_extensions`.
+      "a built-in grammar takes precedence over a schema" is one rule, and the editor learns it
+      twice -- once as the extensions to send and once as the file patterns to watch -- so two
+      filters that drift apart make the extension forward documents the core then ignores.
+      `fallback_extensions` and `fallback_file_patterns` each held the nested loop; run against
+      b526abd, the revision before they were converted, this rule reports 2 findings, which is
+      the answer it must keep finding if the shape comes back.
+    paths:
+      include:
+        - "**/rust-core/src/sls.rs"
+    patterns:
+      - pattern-either:
+          - pattern: builtin_language_for_extension($E)
+          - pattern: crate::languages::builtin_language_for_extension($E)
+      - pattern-either:
+          - pattern-inside: |
+              for $S in &$R.schemas { ... }
+          - pattern-inside: $R.schemas.iter(). ... 
+      - pattern-not-inside: |
+          fn schema_only_extensions(...) -> $T { ... }
+
