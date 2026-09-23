@@ -28,7 +28,7 @@ import {
     uncheckedLanguages,
 } from './core/packPrompt';
 import { YAML_EXTENSION_ID, declineYamlSuggestion, shouldSuggestYaml } from './config/yamlSuggestion';
-import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorEvent, InspectorEngineInfo, InspectorNameSpan } from './ui/webviews/protocol';
+import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorEngineInfo, InspectorNameSpan } from './ui/webviews/protocol';
 import { Logger } from './shared/logger';
 import { ConfigStatusView } from './config/gutter';
 import { classifyConfigChange, silencedBy } from './config/rules';
@@ -66,6 +66,7 @@ import {
 import { findOpenDocument } from './shared/documents';
 import { DiagnosticStore, Suppression } from './diagnostics/store';
 import { CheckResults } from './checking/results';
+import { InspectorLog } from './ui/inspectorLog';
 import { COMMANDS, commandLink, executeCommand, registerCommand } from './commands/ids';
 import { getSetting, getUndeclaredSetting, settingId, updateSetting, type SettingValue } from './config/settings';
 import { GITHUB_REPO, openReleasesPage } from './shared/links';
@@ -211,13 +212,7 @@ let userSkipCommands = new Set<string>();
 
 
 
-/** Push a timestamped event to the Inspector event log (if open). */
-function pushInspectorEvent(level: InspectorEvent['level'], source: string, message: string, extra?: { durationMs?: number; details?: string }) {
-    const evt: InspectorEvent = { timestamp: Date.now(), level, source, message };
-    if (extra?.durationMs !== undefined) evt.durationMs = extra.durationMs;
-    if (extra?.details !== undefined) evt.details = extra.details;
-    inspectorPanel?.webview.postMessage({ type: 'pushEvent', payload: evt });
-}
+const inspectorLog = new InspectorLog();
 
 export async function activate(context: vscode.ExtensionContext) {
     extensionContext = context;
@@ -311,7 +306,7 @@ export async function activate(context: vscode.ExtensionContext) {
             const dictionariesDisabled = getSetting('dictionaries.disabled');
             const dictionariesPaths = getSetting('dictionaries.paths');
             log.debug('Sending Initialize request', { workspaceRoot: root, indexOnOpen, dbPath, detectNames, dictionariesBundled, dictionariesDisabled, dictionariesPaths });
-            pushInspectorEvent('info', 'initialize', `Initializing (indexOnOpen=${indexOnOpen}, detectNames=${detectNames})`);
+            inspectorLog.push('info', 'initialize', `Initializing (indexOnOpen=${indexOnOpen}, detectNames=${detectNames})`);
             const t0 = performance.now();
             await client.sendRequest({
                 initialize: {
@@ -319,7 +314,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     dictionariesBundled, dictionariesDisabled, dictionariesPaths
                 }
             });
-            pushInspectorEvent('info', 'initialize', 'Server initialized', { durationMs: performance.now() - t0 });
+            inspectorLog.push('info', 'initialize', 'Server initialized', { durationMs: performance.now() - t0 });
             log.debug('Initialize response received');
         }
         // Which extensions the schemas claim, which only the core knows and
@@ -345,7 +340,7 @@ export async function activate(context: vscode.ExtensionContext) {
      *  will check, so say so plainly instead of leaving a silent dead client. */
     const reportCoreFailure = async (reason: string, binaryPath: string) => {
         log.error('Core unavailable', { reason, binary: binaryPath });
-        pushInspectorEvent('error', 'core', reason, { details: binaryPath });
+        inspectorLog.push('error', 'core', reason, { details: binaryPath });
         setCheckingSpinner(false);
 
         const message = fs.existsSync(binaryPath)
@@ -1122,7 +1117,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(registerCommand(COMMANDS.restartLanguageServer, () => {
         log.info('Restarting language server');
-        pushInspectorEvent('info', 'restartServer', 'Restarting language server');
+        inspectorLog.push('info', 'restartServer', 'Restarting language server');
         startClient();
         initializeClient();
         vscode.window.showInformationMessage(vscode.l10n.t('Language Check server restarted'));
@@ -1237,7 +1232,7 @@ export async function activate(context: vscode.ExtensionContext) {
             const remaining = diagnostics.filter((_, index) => !silenced.has(index));
             store.write(uri, document.uri, remaining);
             store.notify();
-            pushInspectorEvent(
+            inspectorLog.push(
                 'info',
                 'ignoreSelection',
                 `Ignoring ${chosen.length} issue(s) over the selection`,
@@ -1355,14 +1350,14 @@ export async function activate(context: vscode.ExtensionContext) {
         sendSpeedFixLoading(true);
         const t0 = performance.now();
         log.debug('addToDictionary', { word });
-        pushInspectorEvent('info', 'addToDictionary', `Sending request for "${word}"`);
+        inspectorLog.push('info', 'addToDictionary', `Sending request for "${word}"`);
         try {
             const response = await client.sendRequest({
                 addDictionaryWord: { word }
             });
             const rpcMs = performance.now() - t0;
             if (response.ok) {
-                pushInspectorEvent('info', 'addToDictionary', `Server confirmed "${word}"`, { durationMs: rpcMs });
+                inspectorLog.push('info', 'addToDictionary', `Server confirmed "${word}"`, { durationMs: rpcMs });
                 // Suppress this word in any in-flight check results until the re-check completes
                 const wordLower = word.toLowerCase();
                 suppression.words.add(wordLower);
@@ -1385,21 +1380,21 @@ export async function activate(context: vscode.ExtensionContext) {
                         store.write(uri, editor.document.uri, remaining);
                         store.notify();
                     }
-                    pushInspectorEvent('debug', 'addToDictionary', `Removed ${removedCount} diagnostics, re-checking`);
+                    inspectorLog.push('debug', 'addToDictionary', `Removed ${removedCount} diagnostics, re-checking`);
                     // Full re-check for consistency (dictionary is now server-side updated)
                     await checkDocument(editor.document);
                     suppression.words.delete(wordLower);
                 }
                 const extra = removedCount > 1 ? vscode.l10n.t(' ({0} occurrences resolved)', removedCount) : '';
                 vscode.window.showInformationMessage(vscode.l10n.t('Added "{0}" to dictionary', word) + extra);
-                pushInspectorEvent('info', 'addToDictionary', `Done`, { durationMs: performance.now() - t0 });
+                inspectorLog.push('info', 'addToDictionary', `Done`, { durationMs: performance.now() - t0 });
             } else if (response.error) {
-                pushInspectorEvent('error', 'addToDictionary', `Server error: ${response.error.message}`, { durationMs: rpcMs });
+                inspectorLog.push('error', 'addToDictionary', `Server error: ${response.error.message}`, { durationMs: rpcMs });
                 vscode.window.showErrorMessage(vscode.l10n.t('Failed to add word: {0}', response.error.message ?? ''));
             }
         } catch (err) {
             const errStr = String(err);
-            pushInspectorEvent('error', 'addToDictionary', errStr, { durationMs: performance.now() - t0 });
+            inspectorLog.push('error', 'addToDictionary', errStr, { durationMs: performance.now() - t0 });
             log.error('addToDictionary failed', { word, error: errStr });
             vscode.window.showErrorMessage(vscode.l10n.t('Failed to add word: {0}', errStr));
         } finally {
@@ -1760,6 +1755,7 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         );
 
+        inspectorLog.attach(inspectorPanel.webview);
         inspectorPanel.webview.html = webviewHtml(inspectorPanel.webview, context.extensionPath, { script: 'inspector', title: 'Inspector' });
 
         inspectorPanel.webview.onDidReceiveMessage(async (message: InspectorToExtensionMessage) => {
@@ -1832,6 +1828,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         inspectorPanel.onDidDispose(() => {
             inspectorPanel = null;
+            inspectorLog.detach();
         }, null, context.subscriptions);
     }));
 
@@ -2316,7 +2313,7 @@ async function installDictionaryPack(
                 void vscode.window.showInformationMessage(
                     vscode.l10n.t('Installed the {0} dictionary.', language)
                 );
-                pushInspectorEvent('info', 'packs', `Installed ${language}`, {
+                inspectorLog.push('info', 'packs', `Installed ${language}`, {
                     details: result.output.trim().split('\n').at(-1) ?? '',
                 });
                 await reinitializeAndRecheckRef?.();
@@ -2326,7 +2323,7 @@ async function installDictionaryPack(
                 void vscode.window.showErrorMessage(
                     vscode.l10n.t('Could not install the {0} dictionary: {1}', language, result.output.trim())
                 );
-                pushInspectorEvent('error', 'packs', `Install failed for ${language}`, {
+                inspectorLog.push('error', 'packs', `Install failed for ${language}`, {
                     details: result.output.trim(),
                 });
             }
@@ -2579,7 +2576,7 @@ async function applyFix(diagnosticId: string, suggestion: string) {
     const t0 = performance.now();
     const origText = editor.document.getText(diagnostic.range);
     log.debug('applyFix', { diagnosticId, suggestion, original: origText });
-    pushInspectorEvent('info', 'applyFix', `"${origText}" → "${suggestion}"`);
+    inspectorLog.push('info', 'applyFix', `"${origText}" → "${suggestion}"`);
     sendSpeedFixLoading(true);
 
     try {
@@ -2597,7 +2594,7 @@ async function applyFix(diagnosticId: string, suggestion: string) {
         store.notify();
 
         // Background re-check for full consistency
-        pushInspectorEvent('debug', 'applyFix', 'Re-checking after fix', { durationMs: performance.now() - t0 });
+        inspectorLog.push('debug', 'applyFix', 'Re-checking after fix', { durationMs: performance.now() - t0 });
         checkDocument(editor.document);
     } finally {
         sendSpeedFixLoading(false);
@@ -2620,7 +2617,7 @@ async function ignoreDiagnostic(diagnosticId: string) {
         sendSpeedFixLoading(true);
         const t0 = performance.now();
         const ignoredText = editor.document.getText(diagnostic.range);
-        pushInspectorEvent('info', 'ignoreDiagnostic', `Ignoring "${ignoredText}" (${diagnostic.message})`);
+        inspectorLog.push('info', 'ignoreDiagnostic', `Ignoring "${ignoredText}" (${diagnostic.message})`);
         // Send ignore request to core with full document text + original byte
         // offsets so the fingerprint matches the one created during checkProse.
         await client.sendRequest(ignoreRequest(diagnostic, editor.document, editor.document.getText()));
@@ -2630,7 +2627,7 @@ async function ignoreDiagnostic(diagnosticId: string) {
         store.write(uri, editor.document.uri, remaining);
         store.notify();
         sendSpeedFixLoading(false);
-        pushInspectorEvent('info', 'ignoreDiagnostic', 'Ignore confirmed, re-checking', { durationMs: performance.now() - t0 });
+        inspectorLog.push('info', 'ignoreDiagnostic', 'Ignore confirmed, re-checking', { durationMs: performance.now() - t0 });
 
         // Background re-check for full consistency
         checkDocument(editor.document);
@@ -2760,7 +2757,7 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
     if (!client?.isRunning) {
         const reason = client?.lastFailure;
         if (reason) {
-            pushInspectorEvent('error', 'checkDocument', `Core unavailable: ${reason}`, {
+            inspectorLog.push('error', 'checkDocument', `Core unavailable: ${reason}`, {
                 details: path.basename(document.fileName),
             });
         }
@@ -2774,7 +2771,7 @@ async function checkDocument(document: vscode.TextDocument): Promise<number> {
     const uri = document.uri.toString();
     const inFlight = inFlightChecks.get(uri);
     if (inFlight && inFlight.text === textContent) {
-        pushInspectorEvent('debug', 'checkDocument', `Joining in-flight check for ${path.basename(document.fileName)}`);
+        inspectorLog.push('debug', 'checkDocument', `Joining in-flight check for ${path.basename(document.fileName)}`);
         return inFlight.result;
     }
 
@@ -2800,7 +2797,7 @@ async function runCheck(
 ): Promise<number> {
     const shortName = path.basename(document.fileName);
     log.debug('checkDocument', { file: document.fileName, lang: document.languageId });
-    pushInspectorEvent('info', 'checkDocument', `Checking ${shortName} (${document.languageId})`);
+    inspectorLog.push('info', 'checkDocument', `Checking ${shortName} (${document.languageId})`);
 
     // Wait for a concurrency slot so we don't flood the server
     await acquireCheckSlot();
@@ -2812,7 +2809,7 @@ async function runCheck(
         timings.push({ name: 'Read document', durationMs: readMs });
 
         const t1 = performance.now();
-        pushInspectorEvent('debug', 'checkDocument', `Sending CheckProse RPC (${textContent.length} chars)`);
+        inspectorLog.push('debug', 'checkDocument', `Sending CheckProse RPC (${textContent.length} chars)`);
         const response = await client.sendRequest({
             checkProse: {
                 text: textContent,
@@ -2823,7 +2820,7 @@ async function runCheck(
         });
         const rpcMs = performance.now() - t1;
         timings.push({ name: 'Core RPC (checkProse)', durationMs: rpcMs });
-        pushInspectorEvent('info', 'checkDocument', `RPC response received`, { durationMs: rpcMs });
+        inspectorLog.push('info', 'checkDocument', `RPC response received`, { durationMs: rpcMs });
 
         if (response.checkProse) {
             const t2 = performance.now();
@@ -3037,17 +3034,17 @@ async function runCheck(
                 }
             }
 
-            pushInspectorEvent('info', 'checkDocument', `${extendedDiagnostics.length} issues in ${shortName}`, { durationMs: performance.now() - t0 });
+            inspectorLog.push('info', 'checkDocument', `${extendedDiagnostics.length} issues in ${shortName}`, { durationMs: performance.now() - t0 });
             return extendedDiagnostics.length;
         } else if (response.error) {
-            pushInspectorEvent('error', 'checkDocument', `Server error: ${response.error.message}`);
+            inspectorLog.push('error', 'checkDocument', `Server error: ${response.error.message}`);
             vscode.window.showErrorMessage(vscode.l10n.t('Language Check Error: {0}', response.error.message ?? ''));
             return -1;
         }
     } catch (err) {
         const errStr = String(err);
         log.error('checkDocument failed', { error: errStr, file: document.fileName });
-        pushInspectorEvent('error', 'checkDocument', errStr, { details: document.fileName });
+        inspectorLog.push('error', 'checkDocument', errStr, { details: document.fileName });
         if (errStr.includes('timed out')) {
             log.warn('Request timed out — the core process may be busy or the LanguageTool server unresponsive');
         } else {
