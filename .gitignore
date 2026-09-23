@@ -39,6 +39,8 @@ out.xml
 # change a setting from inside the window the way the e2e suites do.
 !extension/src/test/fixtures/uiInspectorLive/.vscode/
 refs/
+# Notes on bugs found in dependencies, until they are filed upstream.
+.upstream-issues/
 test.md
 test.txt
 .serena/
