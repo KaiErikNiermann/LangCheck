@@ -68,3 +68,18 @@ jobs:
       - name: Run the end-to-end tests
         run: xvfb-run -a pnpm exec vscode-test
         working-directory: extension
+
+      # The webviews, which the suite above cannot see into: Playwright drives
+      # a real VS Code window and types into SpeedFix. Reuses the VS Code build
+      # and the webview bundle the steps above produced.
+      - name: Run the webview UI tests
+        run: xvfb-run -a pnpm exec playwright test
+        working-directory: extension
+
+      - name: Upload UI test traces
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-test-traces
+          path: extension/.vscode-test/ui-results
+          retention-days: 7
