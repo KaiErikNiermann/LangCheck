@@ -11,7 +11,8 @@ use anyhow::Result;
 use bytes::{Buf, BytesMut};
 use checker::{
     CheckResponse, ConfigIssue, ErrorResponse, ExtractionExclusion, ExtractionInfo,
-    ExtractionProseRange, MetadataResponse, ProbeConfigResponse, Request, Response, response,
+    ExtractionProseRange, ListConfigFilesResponse, MetadataResponse, ProbeConfigResponse, Request,
+    Response, SkippedFile, response,
 };
 use config::Config;
 use dictionary::Dictionary;
@@ -374,6 +375,7 @@ async fn main() -> Result<()> {
             Some(checker::request::Payload::Ignore(_)) => "Ignore",
             Some(checker::request::Payload::AddDictionaryWord(_)) => "AddDictionaryWord",
             Some(checker::request::Payload::ProbeConfig(_)) => "ProbeConfig",
+            Some(checker::request::Payload::ListConfigFiles(_)) => "ListConfigFiles",
             None => "Empty",
         };
         debug!(id = request_id, kind = payload_kind, "Request received");
@@ -870,6 +872,29 @@ async fn main() -> Result<()> {
                         })),
                     }
                 }
+                Some(checker::request::Payload::ListConfigFiles(_)) => {
+                    let root = workspace_root_arc
+                        .lock()
+                        .await
+                        .clone()
+                        .unwrap_or_else(|| PathBuf::from("."));
+                    // A glob walk over the workspace: off the runtime, so a
+                    // large tree does not hold up the checks queued behind it.
+                    match tokio::task::spawn_blocking(move || list_config_files(&root)).await {
+                        Ok(listing) => {
+                            debug!(
+                                id = request_id,
+                                selected = listing.selected.len(),
+                                skipped = listing.skipped.len(),
+                                "ListConfigFiles: answered"
+                            );
+                            Some(response::Payload::ListConfigFiles(listing))
+                        }
+                        Err(e) => Some(response::Payload::Error(ErrorResponse {
+                            message: format!("Listing the config's files failed: {e}"),
+                        })),
+                    }
+                }
                 Some(checker::request::Payload::Ignore(req)) => {
                     debug!(id = request_id, "Ignore: adding fingerprint");
                     let mut ignore_store = ignore_store_arc.lock().await;
@@ -929,4 +954,106 @@ async fn main() -> Result<()> {
     indexing_handle.abort();
 
     Ok(())
+}
+
+/// Which config is in force under `root`, and which files it selects.
+///
+/// The same answer `language-check config files --skipped` prints, from the
+/// same function, so the editor and the CLI cannot disagree about a file.
+fn list_config_files(root: &Path) -> ListConfigFilesResponse {
+    let (config, load_error) = match Config::load(root) {
+        Ok(config) => (config, String::new()),
+        Err(e) => (Config::default(), e.to_string()),
+    };
+    let selection = lang_check::selection::select_files(&config, root, root, true);
+    let relative = |p: &Path| -> String {
+        p.strip_prefix(root)
+            .unwrap_or(p)
+            .to_string_lossy()
+            .replace('\\', "/")
+    };
+    ListConfigFilesResponse {
+        config_path: Config::file_in(root)
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        selected: selection.selected.iter().map(|p| relative(p)).collect(),
+        skipped: selection
+            .rejected
+            .iter()
+            .map(|(p, by)| SkippedFile {
+                path: relative(p),
+                rejected_by: by.key().to_string(),
+            })
+            .collect(),
+        include: config.include,
+        exclude: config.exclude,
+        file_types: config.file_types,
+        load_error,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lists_the_config_in_force_and_what_it_selects() {
+        let dir = tempfile::tempdir().unwrap();
+        for file in ["docs/a.md", "docs/drafts/b.md", "notes.md"] {
+            let path = dir.path().join(file);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, "Some prose.\n").unwrap();
+        }
+        let config = dir.path().join(".languagecheck.yml");
+        std::fs::write(
+            &config,
+            "include: [\"docs/**\"]\nexclude: [\"docs/drafts/**\"]\n",
+        )
+        .unwrap();
+
+        let listing = list_config_files(dir.path());
+
+        assert_eq!(listing.config_path, config.to_string_lossy());
+        assert_eq!(listing.load_error, "");
+        assert_eq!(listing.include, ["docs/**"]);
+        assert!(listing.exclude.contains(&"docs/drafts/**".to_string()));
+        assert_eq!(listing.selected, ["docs/a.md"]);
+        let skipped: Vec<(&str, &str)> = listing
+            .skipped
+            .iter()
+            .map(|s| (s.path.as_str(), s.rejected_by.as_str()))
+            .collect();
+        assert_eq!(
+            skipped,
+            [("docs/drafts/b.md", "exclude"), ("notes.md", "include")]
+        );
+    }
+
+    #[test]
+    fn a_workspace_without_a_config_lists_under_the_defaults() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.md"), "Some prose.\n").unwrap();
+
+        let listing = list_config_files(dir.path());
+
+        assert_eq!(listing.config_path, "");
+        assert_eq!(listing.selected, ["a.md"]);
+    }
+
+    #[test]
+    fn an_unreadable_config_is_reported_and_the_defaults_listed() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.md"), "Some prose.\n").unwrap();
+        std::fs::write(
+            dir.path().join(".languagecheck.yaml"),
+            "include: [unclosed\n",
+        )
+        .unwrap();
+
+        let listing = list_config_files(dir.path());
+
+        assert!(listing.config_path.ends_with(".languagecheck.yaml"));
+        assert_ne!(listing.load_error, "");
+        assert_eq!(listing.selected, ["a.md"]);
+    }
 }

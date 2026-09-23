@@ -11,6 +11,7 @@ message Request {
     InitializeRequest initialize = 5;
     AddDictionaryWordRequest add_dictionary_word = 6;
     ProbeConfigRequest probe_config = 7;
+    ListConfigFilesRequest list_config_files = 8;
   }
 }
 
@@ -56,6 +57,7 @@ message Response {
     ErrorResponse error = 4;
     OkResponse ok = 5;
     ProbeConfigResponse probe_config = 6;
+    ListConfigFilesResponse list_config_files = 7;
   }
 }
 
@@ -72,6 +74,8 @@ service CheckerProvider {
   rpc GetMetadata(MetadataRequest) returns (MetadataResponse);
   // Resolve every config reference that points outside the file
   rpc ProbeConfig(ProbeConfigRequest) returns (ProbeConfigResponse);
+  // Which config is in force, and which files it selects for checking
+  rpc ListConfigFiles(ListConfigFilesRequest) returns (ListConfigFilesResponse);
 }
 
 message CheckRequest {
@@ -261,4 +265,34 @@ message ConfigIssue {
   string key = 1;
   string message = 2;
   Severity severity = 3;
+}
+
+// Which config is in force and which files it selects, as the CLI's
+// `config files --skipped` prints it.
+//
+// Read from disk rather than from a buffer: the question is what a check
+// would use, and that is the saved file.
+message ListConfigFilesRequest {}
+
+message ListConfigFilesResponse {
+  // Absolute path of the config file in force. Empty when there is none and
+  // the defaults apply.
+  string config_path = 1;
+  repeated string include = 2;
+  // The default excludes included, since they reject files just the same.
+  repeated string exclude = 3;
+  repeated string file_types = 4;
+  // Workspace-relative, `/`-separated, sorted.
+  repeated string selected = 5;
+  repeated SkippedFile skipped = 6;
+  // Set when the config file could not be read. The lists then describe the
+  // defaults, which is what the core falls back to.
+  string load_error = 7;
+}
+
+message SkippedFile {
+  // Workspace-relative, `/`-separated.
+  string path = 1;
+  // The config key that turned it away: "include", "exclude" or "file_types".
+  string rejected_by = 2;
 }
