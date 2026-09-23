@@ -128,3 +128,22 @@ test('the Health tab re-check button checks the inspected document', async () =>
     await showTab(panel, 'Events');
     await expect(panel.locator('.event-source', { hasText: 'checkDocument' }).first()).toBeVisible();
 });
+
+test('a narrow panel scrolls its tabs rather than squeezing or clipping them', async () => {
+    window = await launchVSCode('uiInspector', 'doc.md');
+    await waitForSquiggles(window.page);
+    // Before the panel opens: with it focused, the palette's keys reach it.
+    await runCommand(window.page, 'View: Close Secondary Side Bar');
+    await runCommand(window.page, 'View: Close Primary Side Bar');
+    await window.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(700, 700));
+    const panel = await openInspector(window.page);
+    const bar = panel.locator('.tab-bar');
+    const heights = await panel.locator('.tab').evaluateAll(tabs => tabs.map(t => t.getBoundingClientRect().height));
+    expect(new Set(heights).size, `tab heights ${heights.join(', ')}`).toBe(1);
+    expect(await bar.evaluate(b => b.scrollWidth > b.clientWidth)).toBe(true);
+    const last = panel.locator('.tab', { hasText: 'Health' });
+    await last.scrollIntoViewIfNeeded();
+    expect(await bar.evaluate(b => b.scrollLeft)).toBeGreaterThan(0);
+    await last.click();
+    await expect(last).toHaveClass(/active/);
+});

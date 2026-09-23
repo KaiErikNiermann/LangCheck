@@ -100,6 +100,18 @@
   const vscode = (window as any).acquireVsCodeApi();
 
   /**
+   * A mouse wheel scrolls the tab strip when it overflows, as VS Code's own
+   * editor tabs do; without it only a trackpad or shift+wheel could reach
+   * the tabs past the edge.
+   */
+  function scrollTabs(event: WheelEvent) {
+    const bar = event.currentTarget as HTMLElement;
+    if (bar.scrollWidth <= bar.clientWidth || event.deltaX !== 0) return;
+    event.preventDefault();
+    bar.scrollLeft += event.deltaY;
+  }
+
+  /**
    * A range is one cache key and one engine request, so its size is what
    * decides whether a keystroke re-checks a paragraph or the whole document.
    * Anything past the split size is a range that could not be divided.
@@ -464,7 +476,7 @@
 
 <main class="panel-root">
   <!-- Tab bar -->
-  <nav class="tab-bar">
+  <nav class="tab-bar" onwheel={scrollTabs}>
     <button class="tab" class:active={activeTab === 'extraction'} onclick={() => activeTab = 'extraction'}>
       Extraction
     </button>
@@ -965,15 +977,21 @@
   }
 
   /* -- Tab bar -- */
+  /* Scrolls sideways rather than squeezing: seven tabs do not fit a panel
+     split beside an editor, and clipping them hid the last three. */
   .tab-bar {
     display: flex;
     align-items: stretch;
+    overflow-x: auto;
+    scrollbar-width: thin;
     border-bottom: 1px solid var(--vscode-panel-border, transparent);
     background: var(--vscode-titleBar-activeBackground, var(--vscode-editor-background));
     flex-shrink: 0;
   }
 
   .tab {
+    flex: none;
+    white-space: nowrap;
     padding: 8px 16px;
     border: none;
     border-bottom: 2px solid transparent;
@@ -998,6 +1016,8 @@
   }
 
   .tab-filename {
+    flex: none;
+    max-width: 30ch;
     margin-left: auto;
     padding: 8px 16px;
     font-size: 11px;
