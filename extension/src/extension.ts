@@ -12,12 +12,14 @@ import * as vscode from 'vscode';
 
 import { apiCheckDocument, createAPI } from './api';
 import { Checker } from './checking/checker';
+import { LanguageToolRecovery } from './checking/languageToolRecovery';
 import { Reloader } from './checking/reload';
 import { CheckTriggers } from './checking/triggers';
 import { registerCommands } from './commands';
 import { COMMANDS, registerCommand } from './commands/ids';
 import { ConfigStatusView } from './config/gutter';
 import { ConfigWatchers } from './config/watchers';
+import { getSetting } from './config/settings';
 import { bootstrapCore } from './core/binary';
 import { CoreService } from './core/coreService';
 import { Packs } from './core/packs';
@@ -80,7 +82,10 @@ export async function activate(context: vscode.ExtensionContext) {
         core, log, store, suppression, results, statusBars, inspectorLog,
         observer: {
             checkRecorded: (document, timings) => inspector.checkRecorded(document, timings),
-            healthUpdated: () => inspector.healthUpdated(),
+            healthUpdated: () => {
+                inspector.healthUpdated();
+                recovery.healthUpdated();
+            },
             diagnosticsPublished: diagnostics => void packs.offer(diagnostics),
         },
     });
@@ -120,6 +125,21 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => statusBars.updateInsights(editor)));
 
     const isCheckable = (document: vscode.TextDocument) => triggers.isCheckable(document);
+    const recovery = new LanguageToolRecovery({
+        log, results,
+        probe: () => core.probeConfig('', '', ''),
+        // Not a document with unsaved edits under onSave: checking it here
+        // would report on text the user has not asked to have checked.
+        recheck: () => {
+            const onSave = getSetting('check.trigger') === 'onSave';
+            for (const editor of vscode.window.visibleTextEditors) {
+                if (isCheckable(editor.document) && !(onSave && editor.document.isDirty)) {
+                    void checker.check(editor.document);
+                }
+            }
+        },
+    });
+    context.subscriptions.push(recovery);
     const reloader = new Reloader({ log, core, store, results, statusBars, inspector, checker, isCheckable });
 
     registerInlayHints(context.subscriptions, { store, configState, log, emitter: inlayHintEmitter, hintSwitch: inlayHintSwitch });
