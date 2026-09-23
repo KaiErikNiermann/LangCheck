@@ -64,8 +64,13 @@ import {
     type ExtendedDiagnostic,
 } from './diagnostics/diagnostic';
 import { findOpenDocument } from './shared/documents';
-
-const GITHUB_REPO = 'KaiErikNiermann/LangCheck';
+import { GITHUB_REPO, openReleasesPage } from './shared/links';
+import { BUILTIN_SKIP_COMMANDS, BUILTIN_SKIP_ENVS, PROSE_COMMANDS, PROSE_ENVS } from './providers/latexLists';
+import { SUPPORTED_LANGUAGES, supportedLanguageSelector } from './checking/languages';
+import { byteToCharConverter } from './checking/offsets';
+import { webviewHtml } from './ui/webviews/html';
+import { proseMetrics } from './ui/readability';
+import { languageStatusText } from './ui/statusBars';
 
 let client: LanguageClient | null = null;
 
@@ -171,8 +176,6 @@ const extractionCache = new Map<string, { prose: InspectorProseRange[]; language
 /** Words the name filter silenced on the last check, per document. */
 const detectedNamesCache = new Map<string, InspectorNameSpan[]>();
 
-// Tracked spell_language from config (for status bar + change detection)
-let lastKnownSpellLanguage: string | undefined;
 /**
  * The config file as last seen, so any edit to it triggers a re-check.
  *
@@ -207,63 +210,10 @@ let currentServerPath: string | undefined;
 /** Re-check after an install, without hoisting the whole closure out. */
 let reinitializeAndRecheckRef: (() => Promise<void>) | undefined;
 
-// Built-in LaTeX environments that the checker always skips (mirrors SKIP_GENERIC_ENVS in latex.rs)
-const BUILTIN_SKIP_ENVS = new Set([
-    "algorithm", "algorithmic", "lstlisting",
-    "equation", "equation*", "align", "align*",
-    "gather", "gather*", "multline", "multline*",
-    "flalign", "flalign*", "split",
-    "mathpar", "mathpar*",
-    "IEEEeqnarray", "IEEEeqnarray*",
-    "tikzpicture", "pgfpicture", "forest",
-    "tabular", "tabular*", "array",
-    "matrix", "bmatrix", "pmatrix", "vmatrix", "Bmatrix", "Vmatrix",
-    "cases", "bnf",
-]);
-
-// Standard prose-bearing environments — never suggest skipping these since they
-// obviously contain text that should be checked.
-const PROSE_ENVS = new Set([
-    "document",
-    "abstract", "acknowledgments", "acknowledgements",
-    "itemize", "enumerate", "description",
-    "figure", "figure*", "table", "table*",
-    "minipage", "center", "flushleft", "flushright",
-    "quote", "quotation", "verse",
-    "theorem", "lemma", "proposition", "corollary", "definition",
-    "example", "exercise", "remark", "note", "proof",
-    "assumption", "conjecture", "observation", "claim", "fact",
-    "notation", "convention",
-    "frame", "block", "alertblock", "exampleblock",
-    "columns", "column",
-]);
-
-// Sectioning and other structural commands contain prose in their arguments.
-// A spelling diagnostic inside one of these must not be mistaken for evidence
-// that the command itself should be skipped.
-const PROSE_COMMANDS = new Set([
-    "part", "chapter", "section", "subsection", "subsubsection",
-    "paragraph", "subparagraph", "subsubparagraph",
-    "title", "author", "date", "caption", "footnote",
-]);
-
 // User-configured skip_environments from .languagecheck.yaml
 let userSkipEnvs = new Set<string>();
 // User-configured prose_environments from .languagecheck.yaml (suppress inlay hints, keep checking)
 let userProseEnvs = new Set<string>();
-
-// Built-in LaTeX commands whose arguments the checker always skips (mirrors SKIP_GENERIC_COMMANDS in latex.rs)
-const BUILTIN_SKIP_COMMANDS = new Set([
-    "thispagestyle", "pagestyle", "bibliographystyle", "bibliography",
-    "setcounter", "addtocounter", "setlength", "addtolength",
-    "newcommand", "renewcommand", "newenvironment", "renewenvironment",
-    "DeclareMathOperator", "definecolor", "hypersetup", "geometry",
-    "input", "include", "hfill", "vfill", "hspace", "vspace",
-    "smallskip", "medskip", "bigskip", "hrule", "vrule",
-    "newpage", "clearpage", "maketitle",
-    "tableofcontents", "listoffigures", "listoftables",
-    "texttt", "verb", "lstinline", "mintinline", "url", "href", "path",
-]);
 
 // User-configured skip_commands from .languagecheck.yaml
 let userSkipCommands = new Set<string>();
@@ -571,7 +521,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.l10n.t('Download Release'),
             ).then(selection => {
                 if (selection === vscode.l10n.t('Download Release')) {
-                    vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${GITHUB_REPO}/releases`));
+                    openReleasesPage();
                 }
             });
         } else {
@@ -607,7 +557,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 if (selection === vscode.l10n.t('Retry')) {
                     vscode.commands.executeCommand('language-check.downloadBinary');
                 } else if (selection === vscode.l10n.t('Download Manually')) {
-                    vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${GITHUB_REPO}/releases`));
+                    openReleasesPage();
                 }
             });
         }
@@ -618,7 +568,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // Status bar: spell-check language
     languageStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     languageStatusBarItem.command = 'language-check.selectLanguage';
-    languageStatusBarItem.text = '$(book) en-US';
+    languageStatusBarItem.text = languageStatusText('en-US');
     languageStatusBarItem.tooltip = 'Language Check: Click to change language';
     languageStatusBarItem.show();
     context.subscriptions.push(languageStatusBarItem);
@@ -632,10 +582,6 @@ export async function activate(context: vscode.ExtensionContext) {
     // Update insights when active editor changes
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(updateInsightsStatusBar));
 
-    // Canonical language IDs with built-in tree-sitter support, plus
-    // known VS Code language ID aliases that map to a canonical ID.
-    const supportedLanguages = ['markdown', 'html', 'latex', 'forester', 'tinylang', 'rst', 'sweave', 'bibtex', 'org', 'typst', 'mdx', 'xhtml'];
-
     /**
      * Whether this extension should check a document.
      *
@@ -647,7 +593,7 @@ export async function activate(context: vscode.ExtensionContext) {
      * asked.
      */
     const isCheckable = (document: vscode.TextDocument): boolean => {
-        if (supportedLanguages.includes(document.languageId)) return true;
+        if (SUPPORTED_LANGUAGES.includes(document.languageId)) return true;
         const extension = path.extname(document.fileName).replace(/^\./, '').toLowerCase();
         return extension.length > 0 && schemaExtensions.has(extension);
     };
@@ -719,7 +665,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Register Inlay Hints Provider with invalidation support
     context.subscriptions.push(vscode.languages.registerInlayHintsProvider(
-        supportedLanguages.map(lang => ({ language: lang })),
+        supportedLanguageSelector(),
         {
             onDidChangeInlayHints: inlayHintEmitter.event,
             provideInlayHints(document, _range, _token) {
@@ -904,7 +850,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Register Inline Completion Provider (ghost text suggestions)
     context.subscriptions.push(vscode.languages.registerInlineCompletionItemProvider(
-        supportedLanguages.map(lang => ({ language: lang })),
+        supportedLanguageSelector(),
         {
             provideInlineCompletionItems(document, position, _context, _token) {
                 const diagnostics = diagnosticsMap.get(document.uri.toString());
@@ -930,7 +876,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Register Code Action Provider (quickfix lightbulb)
     context.subscriptions.push(vscode.languages.registerCodeActionsProvider(
-        supportedLanguages.map(lang => ({ language: lang })),
+        supportedLanguageSelector(),
         {
             provideCodeActions(document, range, context) {
                 const diagnostics = diagnosticsMap.get(document.uri.toString());
@@ -1163,7 +1109,7 @@ export async function activate(context: vscode.ExtensionContext) {
             if (selection === vscode.l10n.t('Retry')) {
                 vscode.commands.executeCommand('language-check.downloadBinary');
             } else if (selection === vscode.l10n.t('Download Manually')) {
-                vscode.env.openExternal(vscode.Uri.parse(`https://github.com/${GITHUB_REPO}/releases`));
+                openReleasesPage();
             }
         }
     }));
@@ -1621,8 +1567,7 @@ export async function activate(context: vscode.ExtensionContext) {
         try {
             const content = setSpellLanguage(await readConfigText(targetUri), selected.label);
             await writeConfigText(targetUri, content);
-            languageStatusBarItem.text = `$(book) ${selected.label}`;
-            lastKnownSpellLanguage = selected.label;
+            languageStatusBarItem.text = languageStatusText(selected.label);
             vscode.window.showInformationMessage(
                 vscode.l10n.t('Spell-check language set to "{0}". Reloading...', selected.label)
             );
@@ -1787,7 +1732,7 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         );
 
-        speedFixPanel.webview.html = getWebviewContent(speedFixPanel.webview, context.extensionPath);
+        speedFixPanel.webview.html = webviewHtml(speedFixPanel.webview, context.extensionPath, { script: 'index', title: 'SpeedFix' });
 
         speedFixPanel.webview.onDidReceiveMessage(async (message: WebviewToExtensionMessage) => {
             switch (message.type) {
@@ -1889,7 +1834,7 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         );
 
-        inspectorPanel.webview.html = getInspectorContent(inspectorPanel.webview, context.extensionPath);
+        inspectorPanel.webview.html = webviewHtml(inspectorPanel.webview, context.extensionPath, { script: 'inspector', title: 'Inspector' });
 
         inspectorPanel.webview.onDidReceiveMessage(async (message: InspectorToExtensionMessage) => {
             switch (message.type) {
@@ -1908,9 +1853,9 @@ export async function activate(context: vscode.ExtensionContext) {
                 case 'highlightRange': {
                     const editor = vscode.window.activeTextEditor;
                     if (editor) {
-                        const buf = Buffer.from(editor.document.getText(), 'utf8');
-                        const start = editor.document.positionAt(buf.subarray(0, message.payload.startByte).toString('utf8').length);
-                        const end = editor.document.positionAt(buf.subarray(0, message.payload.endByte).toString('utf8').length);
+                        const byteToChar = byteToCharConverter(editor.document.getText());
+                        const start = editor.document.positionAt(byteToChar(message.payload.startByte));
+                        const end = editor.document.positionAt(byteToChar(message.payload.endByte));
                         editor.selection = new vscode.Selection(start, end);
                         editor.revealRange(new vscode.Range(start, end));
                     }
@@ -2014,7 +1959,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Always re-check on save (regardless of trigger mode)
     vscode.workspace.onDidSaveTextDocument(async (document) => {
-        if (supportedLanguages.includes(document.languageId)) {
+        if (SUPPORTED_LANGUAGES.includes(document.languageId)) {
             // Cancel any pending debounce for this doc since we're checking now
             const uri = document.uri.toString();
             const existing = debounceTimers.get(uri);
@@ -2079,8 +2024,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 const raw = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
 
                 const currentLang = spellLanguageOf(raw);
-                languageStatusBarItem.text = `$(book) ${currentLang}`;
-                lastKnownSpellLanguage = currentLang;
+                languageStatusBarItem.text = languageStatusText(currentLang);
 
                 // Any edit, not only the spell language: the rest of the file
                 // decides the result just as much, and what is on screen has to
@@ -2127,8 +2071,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // hint keeps skipping a LaTeX environment the config no longer names.
         const hadOne = lastKnownConfigText !== undefined && lastKnownConfigText !== null;
         lastKnownConfigText = null;
-        lastKnownSpellLanguage = 'en-US';
-        languageStatusBarItem.text = '$(book) en-US';
+        languageStatusBarItem.text = languageStatusText('en-US');
         userSkipEnvs = new Set<string>();
         userSkipCommands = new Set<string>();
         userProseEnvs = new Set<string>();
@@ -2290,16 +2233,12 @@ export async function activate(context: vscode.ExtensionContext) {
         const found = folder ? await readFirstConfig(folder) : undefined;
         if (found) {
             const raw = found.text;
-            lastKnownSpellLanguage = spellLanguageOf(raw);
             lastKnownConfigText = raw;
-            languageStatusBarItem.text = `$(book) ${lastKnownSpellLanguage}`;
+            languageStatusBarItem.text = languageStatusText(spellLanguageOf(raw));
             userSkipEnvs = parseSkipEnvironments(raw);
             userSkipCommands = parseSkipCommands(raw);
             userProseEnvs = parseProseEnvironments(raw);
             debounceMs = parseDebounceMs(raw);
-        }
-        if (lastKnownSpellLanguage === undefined) {
-            lastKnownSpellLanguage = 'en-US';
         }
     }
 
@@ -2520,44 +2459,6 @@ function setCheckingSpinner(active: boolean) {
     } else {
         updateInsightsStatusBar(vscode.window.activeTextEditor);
     }
-}
-
-function getWebviewContent(webview: vscode.Webview, extensionPath: string): string {
-    const scriptUri = webview.asWebviewUri(vscode.Uri.file(path.join(extensionPath, 'webview', 'dist', 'assets', 'index.js')));
-    const cssUri = webview.asWebviewUri(vscode.Uri.file(path.join(extensionPath, 'webview', 'dist', 'assets', 'index.css')));
-
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="${cssUri}">
-    <title>SpeedFix</title>
-</head>
-<body>
-    <div id="app"></div>
-    <script type="module" src="${scriptUri}"></script>
-</body>
-</html>`;
-}
-
-function getInspectorContent(webview: vscode.Webview, extensionPath: string): string {
-    const scriptUri = webview.asWebviewUri(vscode.Uri.file(path.join(extensionPath, 'webview', 'dist', 'assets', 'inspector.js')));
-    const cssUri = webview.asWebviewUri(vscode.Uri.file(path.join(extensionPath, 'webview', 'dist', 'assets', 'inspector.css')));
-
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="${cssUri}">
-    <title>Inspector</title>
-</head>
-<body>
-    <div id="app"></div>
-    <script type="module" src="${scriptUri}"></script>
-</body>
-</html>`;
 }
 
 /** Detect engine binaries and config files, updating `engineInfoState`. */
@@ -3015,10 +2916,7 @@ async function runCheck(
         if (response.checkProse) {
             const t2 = performance.now();
             // Core returns UTF-8 byte offsets; positionAt expects char offsets.
-            // Pre-compute the UTF-8 buffer once so we can convert efficiently.
-            const textBuf = Buffer.from(textContent, 'utf8');
-            const byteToChar = (byteOff: number) =>
-                textBuf.subarray(0, byteOff).toString('utf8').length;
+            const byteToChar = byteToCharConverter(textContent);
             const extendedDiagnostics: ExtendedDiagnostic[] = response.checkProse.diagnostics!.map(d => {
                 const start = document.positionAt(byteToChar(d.startByte as number));
                 const end = document.positionAt(byteToChar(d.endByte as number));
@@ -3303,18 +3201,7 @@ function updateInsightsStatusBar(editor?: vscode.TextEditor) {
         ? cached.prose.map(r => r.cleanText).join(' ')
         : editor.document.getText();
 
-    const wordCount = proseText.split(/\s+/).filter(w => w.length > 0 && /[a-zA-Z0-9]/.test(w)).length;
-    const charCount = proseText.replace(/[^a-zA-Z0-9'\u2019\-\u2013\u2014]/g, '').length;
-    // Sentence detection: split on sentence-ending punctuation followed by
-    // whitespace or end-of-string, collapsing runs like "..." or "?!"
-    const sentenceCount = (proseText.match(/[.!?]+(?:\s|["')\u201D](?:\s|$)|$)/g) ?? []).length
-        || (wordCount > 0 ? 1 : 0);
-
-    // ARI (Automated Readability Index)
-    let readingLevel = 0;
-    if (wordCount > 0 && sentenceCount > 0) {
-        readingLevel = 4.71 * (charCount / wordCount) + 0.5 * (wordCount / sentenceCount) - 21.43;
-    }
+    const { wordCount, sentenceCount, charCount, readingLevel } = proseMetrics(proseText);
 
     const rlLabel = readingLevel > 0 ? ` | ARI ${readingLevel.toFixed(1)}` : '';
     insightsStatusBarItem.text = `$(pencil) ${wordCount} words${rlLabel}`;

@@ -413,3 +413,33 @@ rules:
         - "**/extension/src/shared/documents.ts"
         - "**/extension/src/test/"
     pattern-regex: 'textDocuments\.find\(\s*\w+\s*=>\s*\w+\.uri\.toString\(\)\s*==='
+
+  - id: extension-leaf-helpers
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      Use the shared helper instead of writing it out: `byteToCharConverter` (checking/offsets.ts)
+      for core byte offsets, `webviewHtml` (ui/webviews/html.ts) for a webview shell,
+      `openReleasesPage` (shared/links.ts) for the releases link, `supportedLanguageSelector`
+      (checking/languages.ts) for the provider selector, `languageStatusText` (ui/statusBars.ts) for
+      the language item. Each was repeated in extension.ts; run against 8b9a812, the revision
+      before they were extracted, this rule reports 18 findings (17 in extension.ts and the
+      second GITHUB_REPO in downloader.ts), which is the answer it
+      must keep finding if the shape comes back.
+    paths:
+      include:
+        - "**/extension/src/"
+      exclude:
+        - "**/extension/src/checking/offsets.ts"
+        - "**/extension/src/ui/webviews/html.ts"
+        - "**/extension/src/shared/links.ts"
+        - "**/extension/src/checking/languages.ts"
+        - "**/extension/src/ui/statusBars.ts"
+        - "**/extension/src/test/"
+    pattern-either:
+      - pattern-regex: "subarray\\(0,[^)]*\\)\\.toString\\('utf8'\\)\\.length"
+      - pattern-regex: '<div id="app"></div>'
+      - pattern-regex: 'openExternal\(vscode\.Uri\.parse\(`https://github\.com/\$\{GITHUB_REPO\}/releases`'
+      - pattern-regex: "const GITHUB_REPO = '"
+      - pattern-regex: '\.map\(\s*\w+\s*=>\s*\(\{\s*language:\s*\w+\s*\}\)\)'
+      - pattern-regex: '\$\(book\) '
