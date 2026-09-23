@@ -1,0 +1,4 @@
+# Harper only, so every finding and suggestion in the SpeedFix UI tests is
+# deterministic and needs no server.
+engines:
+  harper: true

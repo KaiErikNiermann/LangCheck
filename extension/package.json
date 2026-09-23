@@ -343,7 +343,8 @@
     "vsce:ls": "vsce ls --no-dependencies",
     "compile:e2e": "tsc -p tsconfig.test.json",
     "pretest:e2e": "rm -rf .vscode-test/user-data-decline && pnpm run build:dev && pnpm run compile:e2e",
-    "test:e2e": "vscode-test"
+    "test:e2e": "vscode-test",
+    "test:ui": "playwright test"
   },
   "keywords": [],
   "author": "",
@@ -356,6 +357,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@types/long": "^5.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^26.6.1",

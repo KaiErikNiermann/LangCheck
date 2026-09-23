@@ -46,5 +46,5 @@
   },
   // src/test/e2e needs mocha globals and is type-checked by tsconfig.test.json,
   // which is what compiles it for the VS Code test runner.
-  "exclude": ["node_modules", ".vscode-test", "webview", "vitest.config.ts", "eslint.config.mjs", "src/test/e2e"]
+  "exclude": ["node_modules", ".vscode-test", "webview", "vitest.config.ts", "playwright.config.ts", "eslint.config.mjs", "src/test/e2e"]
 }
