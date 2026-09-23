@@ -36,11 +36,21 @@ import { engines as enginesBehind, spanned } from './ignoreSpan';
 import {
     addLatexListEntry,
     deactivateRule,
+    type LatexList,
     engineEnabled,
     setEngineEnabled,
     setSpellLanguage,
     spellLanguageOf,
 } from './config/edits';
+import {
+    CONFIG_FILE_NAMES,
+    readConfigText,
+    readFirstConfig,
+    resolveConfigForEdit,
+    showConfigUpdateError,
+    workspaceFolderOrWarn,
+    writeConfigText,
+} from './config/file';
 
 const GITHUB_REPO = 'KaiErikNiermann/LangCheck';
 
@@ -1551,32 +1561,13 @@ export async function activate(context: vscode.ExtensionContext) {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) return;
 
-        // Find or create config file
-        const configNames = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
-        let configUri: vscode.Uri | undefined;
-        for (const name of configNames) {
-            const uri = vscode.Uri.joinPath(workspaceFolder.uri, name);
-            try {
-                await vscode.workspace.fs.stat(uri);
-                configUri = uri;
-                break;
-            } catch { /* not found */ }
-        }
-        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
+        const targetUri = await resolveConfigForEdit(workspaceFolder);
 
         try {
-            let content: string;
-            try {
-                const raw = await vscode.workspace.fs.readFile(targetUri);
-                content = Buffer.from(raw).toString('utf8');
-            } catch {
-                content = '';
-            }
-
-            const edit = deactivateRule(content, ruleId);
+            const edit = deactivateRule(await readConfigText(targetUri), ruleId);
             const alreadyDeactivated = edit.alreadyDeactivated;
             if (!alreadyDeactivated) {
-                await vscode.workspace.fs.writeFile(targetUri, Buffer.from(edit.content, 'utf8'));
+                await writeConfigText(targetUri, edit.content);
             }
 
             // Suppress this rule in any in-flight check results
@@ -1650,37 +1641,13 @@ export async function activate(context: vscode.ExtensionContext) {
         });
         if (!selected) return;
 
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            vscode.window.showWarningMessage(vscode.l10n.t('No workspace folder open.'));
-            return;
-        }
+        const workspaceFolder = workspaceFolderOrWarn();
+        if (!workspaceFolder) return;
 
-        // Find existing config file
-        const configNames = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
-        let configUri: vscode.Uri | undefined;
-        for (const name of configNames) {
-            const uri = vscode.Uri.joinPath(workspaceFolder.uri, name);
-            try {
-                await vscode.workspace.fs.stat(uri);
-                configUri = uri;
-                break;
-            } catch { /* not found */ }
-        }
-
-        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
+        const targetUri = await resolveConfigForEdit(workspaceFolder);
         try {
-            let content: string;
-            try {
-                const raw = await vscode.workspace.fs.readFile(targetUri);
-                content = Buffer.from(raw).toString('utf8');
-            } catch {
-                content = '';
-            }
-
-            content = setSpellLanguage(content, selected.label);
-
-            await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
+            const content = setSpellLanguage(await readConfigText(targetUri), selected.label);
+            await writeConfigText(targetUri, content);
             languageStatusBarItem.text = `$(book) ${selected.label}`;
             lastKnownSpellLanguage = selected.label;
             vscode.window.showInformationMessage(
@@ -1688,36 +1655,16 @@ export async function activate(context: vscode.ExtensionContext) {
             );
             await reinitializeAndRecheck();
         } catch (err) {
-            vscode.window.showErrorMessage(vscode.l10n.t('Failed to update config: {0}', String(err)));
+            showConfigUpdateError(err);
         }
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.manageEngines', async () => {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            vscode.window.showWarningMessage(vscode.l10n.t('No workspace folder open.'));
-            return;
-        }
+        const workspaceFolder = workspaceFolderOrWarn();
+        if (!workspaceFolder) return;
 
-        const configNames = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
-        let configUri: vscode.Uri | undefined;
-        for (const name of configNames) {
-            const uri = vscode.Uri.joinPath(workspaceFolder.uri, name);
-            try {
-                await vscode.workspace.fs.stat(uri);
-                configUri = uri;
-                break;
-            } catch { /* not found */ }
-        }
-
-        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
-        let content: string;
-        try {
-            const raw = await vscode.workspace.fs.readFile(targetUri);
-            content = Buffer.from(raw).toString('utf8');
-        } catch {
-            content = '';
-        }
+        const targetUri = await resolveConfigForEdit(workspaceFolder);
+        let content = await readConfigText(targetUri);
 
         // Determine current language to show language-support hints
         const spellLang = spellLanguageOf(content);
@@ -1761,139 +1708,50 @@ export async function activate(context: vscode.ExtensionContext) {
                 content = setEngineEnabled(content, e.key, enabledKeys.has(e.key));
             }
 
-            await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
+            await writeConfigText(targetUri, content);
             const names = selected.map(s => s.label).join(', ');
             vscode.window.showInformationMessage(
                 vscode.l10n.t('Engines updated: {0}. Reloading...', names)
             );
             await reinitializeAndRecheck();
         } catch (err) {
-            vscode.window.showErrorMessage(vscode.l10n.t('Failed to update config: {0}', String(err)));
+            showConfigUpdateError(err);
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.skipLatexEnv', async (envName: string) => {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            vscode.window.showWarningMessage(vscode.l10n.t('No workspace folder open.'));
-            return;
-        }
+    /**
+     * Add a name to one of the `languages.latex` lists, then refresh the hints.
+     *
+     * Behind the three LaTeX inlay-hint actions. The set is updated here as
+     * well as in the file, so the hint goes before the config watcher has
+     * re-read anything.
+     */
+    const appendToLatexList = async (list: LatexList, name: string, message: string, userSet: Set<string>) => {
+        const workspaceFolder = workspaceFolderOrWarn();
+        if (!workspaceFolder) return;
 
-        const configNames = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
-        let configUri: vscode.Uri | undefined;
-        for (const name of configNames) {
-            const uri = vscode.Uri.joinPath(workspaceFolder.uri, name);
-            try {
-                await vscode.workspace.fs.stat(uri);
-                configUri = uri;
-                break;
-            } catch { /* not found */ }
-        }
-
-        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
+        const targetUri = await resolveConfigForEdit(workspaceFolder);
         try {
-            let content: string;
-            try {
-                const raw = await vscode.workspace.fs.readFile(targetUri);
-                content = Buffer.from(raw).toString('utf8');
-            } catch {
-                content = '';
-            }
-
-            content = addLatexListEntry(content, 'skip_environments', envName);
-
-            await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
-            vscode.window.showInformationMessage(
-                vscode.l10n.t('Added "{0}" to skip list. Rechecking...', envName)
-            );
-            userSkipEnvs.add(envName);
+            await writeConfigText(targetUri, addLatexListEntry(await readConfigText(targetUri), list, name));
+            vscode.window.showInformationMessage(message);
+            userSet.add(name);
             inlayHintEmitter.fire();
         } catch (err) {
-            vscode.window.showErrorMessage(vscode.l10n.t('Failed to update config: {0}', String(err)));
+            showConfigUpdateError(err);
         }
-    }));
+    };
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.hideLatexEnvHint', async (envName: string) => {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            vscode.window.showWarningMessage(vscode.l10n.t('No workspace folder open.'));
-            return;
-        }
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.skipLatexEnv', (envName: string) =>
+        appendToLatexList('skip_environments', envName,
+            vscode.l10n.t('Added "{0}" to skip list. Rechecking...', envName), userSkipEnvs)));
 
-        const configNames = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
-        let configUri: vscode.Uri | undefined;
-        for (const name of configNames) {
-            const uri = vscode.Uri.joinPath(workspaceFolder.uri, name);
-            try {
-                await vscode.workspace.fs.stat(uri);
-                configUri = uri;
-                break;
-            } catch { /* not found */ }
-        }
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.hideLatexEnvHint', (envName: string) =>
+        appendToLatexList('prose_environments', envName,
+            vscode.l10n.t('Hint hidden for "{0}". Checking continues.', envName), userProseEnvs)));
 
-        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
-        try {
-            let content: string;
-            try {
-                const raw = await vscode.workspace.fs.readFile(targetUri);
-                content = Buffer.from(raw).toString('utf8');
-            } catch {
-                content = '';
-            }
-
-            content = addLatexListEntry(content, 'prose_environments', envName);
-
-            await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
-            vscode.window.showInformationMessage(
-                vscode.l10n.t('Hint hidden for "{0}". Checking continues.', envName)
-            );
-            userProseEnvs.add(envName);
-            inlayHintEmitter.fire();
-        } catch (err) {
-            vscode.window.showErrorMessage(vscode.l10n.t('Failed to update config: {0}', String(err)));
-        }
-    }));
-
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.skipLatexCommand', async (cmdName: string) => {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            vscode.window.showWarningMessage(vscode.l10n.t('No workspace folder open.'));
-            return;
-        }
-
-        const configNames = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
-        let configUri: vscode.Uri | undefined;
-        for (const name of configNames) {
-            const uri = vscode.Uri.joinPath(workspaceFolder.uri, name);
-            try {
-                await vscode.workspace.fs.stat(uri);
-                configUri = uri;
-                break;
-            } catch { /* not found */ }
-        }
-
-        const targetUri = configUri ?? vscode.Uri.joinPath(workspaceFolder.uri, '.languagecheck.yaml');
-        try {
-            let content: string;
-            try {
-                const raw = await vscode.workspace.fs.readFile(targetUri);
-                content = Buffer.from(raw).toString('utf8');
-            } catch {
-                content = '';
-            }
-
-            content = addLatexListEntry(content, 'skip_commands', cmdName);
-
-            await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
-            vscode.window.showInformationMessage(
-                vscode.l10n.t('Added "{0}" to skip_commands. Rechecking...', cmdName)
-            );
-            userSkipCommands.add(cmdName);
-            inlayHintEmitter.fire();
-        } catch (err) {
-            vscode.window.showErrorMessage(vscode.l10n.t('Failed to update config: {0}', String(err)));
-        }
-    }));
+    context.subscriptions.push(vscode.commands.registerCommand('language-check.skipLatexCommand', (cmdName: string) =>
+        appendToLatexList('skip_commands', cmdName,
+            vscode.l10n.t('Added "{0}" to skip_commands. Rechecking...', cmdName), userSkipCommands)));
 
     context.subscriptions.push(vscode.commands.registerCommand('language-check.checkDocument', async (): Promise<CheckOutcome | undefined> => {
         const editor = vscode.window.activeTextEditor;
@@ -2240,7 +2098,9 @@ export async function activate(context: vscode.ExtensionContext) {
     const checkConfigChange = async () => {
         const folder = vscode.workspace.workspaceFolders?.[0];
         if (!folder) return;
-        for (const name of ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json']) {
+        // Not readFirstConfig: this try also covers everything done with the
+        // text below, and an exception there moves on to the next name.
+        for (const name of CONFIG_FILE_NAMES) {
             const uri = vscode.Uri.joinPath(folder.uri, name);
             try {
                 const raw = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
@@ -2456,21 +2316,16 @@ export async function activate(context: vscode.ExtensionContext) {
     // even if the config was modified before the extension activated.
     {
         const folder = vscode.workspace.workspaceFolders?.[0];
-        if (folder) {
-            for (const name of ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json']) {
-                const uri = vscode.Uri.joinPath(folder.uri, name);
-                try {
-                    const raw = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
-                    lastKnownSpellLanguage = spellLanguageOf(raw);
-                    lastKnownConfigText = raw;
-                    languageStatusBarItem.text = `$(book) ${lastKnownSpellLanguage}`;
-                    userSkipEnvs = parseSkipEnvironments(raw);
-                    userSkipCommands = parseSkipCommands(raw);
-                    userProseEnvs = parseProseEnvironments(raw);
-                    debounceMs = parseDebounceMs(raw);
-                    break;
-                } catch { /* not found, try next */ }
-            }
+        const found = folder ? await readFirstConfig(folder) : undefined;
+        if (found) {
+            const raw = found.text;
+            lastKnownSpellLanguage = spellLanguageOf(raw);
+            lastKnownConfigText = raw;
+            languageStatusBarItem.text = `$(book) ${lastKnownSpellLanguage}`;
+            userSkipEnvs = parseSkipEnvironments(raw);
+            userSkipCommands = parseSkipCommands(raw);
+            userProseEnvs = parseProseEnvironments(raw);
+            debounceMs = parseDebounceMs(raw);
         }
         if (lastKnownSpellLanguage === undefined) {
             lastKnownSpellLanguage = 'en-US';
@@ -2739,18 +2594,9 @@ async function detectEngineInfo(): Promise<void> {
     const folder = vscode.workspace.workspaceFolders?.[0];
 
     // Read .languagecheck config to determine enabled state
-    let configContent = '';
-    let configFilePath = '';
-    if (folder) {
-        for (const name of ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json']) {
-            const uri = vscode.Uri.joinPath(folder.uri, name);
-            try {
-                configContent = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
-                configFilePath = uri.fsPath;
-                break;
-            } catch { /* not found */ }
-        }
-    }
+    const found = folder ? await readFirstConfig(folder) : undefined;
+    const configContent = found?.text ?? '';
+    const configFilePath = found?.uri.fsPath ?? '';
 
     const isEnabled = (key: string, defaultVal: boolean) => engineEnabled(configContent, key, defaultVal);
 

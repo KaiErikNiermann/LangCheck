@@ -353,3 +353,22 @@ rules:
       - pattern-regex: '(?:/\^?|RegExp\(`[^`]*?)(?:spell_language|skip_environments|prose_environments|skip_commands|engines|latex|languages|rules):'
       - pattern-regex: 'enabled:\\+s\*\(true\|false\)'
       - pattern-regex: "includes\\('(?:spell_language|engines):'\\)"
+
+  - id: config-file-through-config-file
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      Find, read and write the `.languagecheck` config through `config/file.ts`:
+      `CONFIG_FILE_NAMES`, `resolveConfigForEdit` (first that exists, else a new .yaml — for
+      commands that write) and `readFirstConfig` (first that reads — for callers that only look).
+      The two lookups differ on purpose, and nine hand-copied loops had started to blur them.
+      Run against 8b9a812, the revision before they were extracted, this rule reports 10
+      findings (nine in extension.ts, one in configGutter.ts), which is the answer it must keep finding if the
+      shape comes back.
+    paths:
+      include:
+        - "**/extension/src/"
+      exclude:
+        - "**/extension/src/config/file.ts"
+        - "**/extension/src/test/"
+    pattern-regex: "\\[\\s*'\\.languagecheck\\.yaml',\\s*'\\.languagecheck\\.yml'"

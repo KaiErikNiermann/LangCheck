@@ -15,6 +15,7 @@
  */
 import * as vscode from 'vscode';
 
+import { CONFIG_FILE_NAMES } from './config/file';
 import { languagecheck } from './proto/checker';
 import { parseConfigKeys, spanForKey, type KeySpan } from './configKeys';
 import type { Logger } from './logger';
@@ -74,12 +75,9 @@ function statusFromWire(status: languagecheck.ProbeStatus | number): ConfigStatu
  */
 const PROBE_DEBOUNCE_MS = 600;
 
-/** Config file names, as the core looks for them. */
-const CONFIG_NAMES = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'];
-
 export function isConfigDocument(document: vscode.TextDocument): boolean {
     const name = document.uri.path.split('/').pop() ?? '';
-    return CONFIG_NAMES.includes(name);
+    return (CONFIG_FILE_NAMES as readonly string[]).includes(name);
 }
 
 type ProbeFn = (
