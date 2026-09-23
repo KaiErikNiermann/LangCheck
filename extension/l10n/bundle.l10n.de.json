@@ -95,5 +95,6 @@
   "Could not install the {0} dictionary: {1}": "Das Wörterbuch für {0} konnte nicht installiert werden: {1}",
   "Set up LanguageTool": "LanguageTool einrichten",
   "None of your enabled checkers read {0}. Install the Hunspell dictionary for it?": "Keine Ihrer aktiven Prüfungen liest {0}. Das Hunspell-Wörterbuch dafür installieren?",
-  "None of your enabled checkers read {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.": "Keine Ihrer aktiven Prüfungen liest {0}. Hunspell ergänzt die Rechtschreibung, LanguageTool zusätzlich Grammatik und Stil."
+  "None of your enabled checkers read {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.": "Keine Ihrer aktiven Prüfungen liest {0}. Hunspell ergänzt die Rechtschreibung, LanguageTool zusätzlich Grammatik und Stil.",
+  "Install the Red Hat YAML extension for completion and validation in .languagecheck.yaml?": "Die Red-Hat-YAML-Erweiterung für Vervollständigung und Prüfung in .languagecheck.yaml installieren?"
 }

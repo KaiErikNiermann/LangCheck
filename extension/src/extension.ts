@@ -27,6 +27,7 @@ import {
     shouldPrompt,
     uncheckedLanguages,
 } from './packPrompt';
+import { YAML_EXTENSION_ID, declineYamlSuggestion, shouldSuggestYaml } from './yamlSuggestion';
 import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth, InspectorEngineInfo, InspectorNameSpan } from './events';
 import { Logger } from './logger';
 import { ConfigStatusView } from './configGutter';
@@ -167,6 +168,7 @@ let lastKnownConfigText: string | null | undefined;
  * should not re-fire on the next keystroke either.
  */
 const packsOfferedThisSession = new Set<string>();
+let yamlOfferedThisSession = false;
 /** Set once on activation, so the pack code can reach global state. */
 let extensionContext: vscode.ExtensionContext | undefined;
 /** The core binary in use, which is where the CLI sits beside it. */
@@ -281,6 +283,27 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
     }
+
+    const suggestYamlExtension = async (document: vscode.TextDocument): Promise<void> => {
+        const installed = vscode.extensions.getExtension(YAML_EXTENSION_ID) !== undefined;
+        if (!shouldSuggestYaml(context.globalState, yamlOfferedThisSession, installed, document.uri.fsPath)) return;
+        yamlOfferedThisSession = true;
+        const install = vscode.l10n.t('Install');
+        const never = vscode.l10n.t("Don't ask again");
+        const choice = await vscode.window.showInformationMessage(
+            vscode.l10n.t('Install the Red Hat YAML extension for completion and validation in .languagecheck.yaml?'),
+            install,
+            vscode.l10n.t('Not now'),
+            never,
+        );
+        if (choice === install) {
+            await vscode.commands.executeCommand('workbench.extensions.installExtension', YAML_EXTENSION_ID);
+        } else if (choice === never) {
+            await declineYamlSuggestion(context.globalState);
+        }
+    };
+    context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(document => void suggestYamlExtension(document)));
+    for (const document of vscode.workspace.textDocuments) void suggestYamlExtension(document);
 
     const resolveBinaryPath = (channel?: string): string => {
         const config = vscode.workspace.getConfiguration('languageCheck');

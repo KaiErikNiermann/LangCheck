@@ -198,6 +198,15 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 60_000 },
     },
     {
+        // Without --disable-extensions, which would switch off the one
+        // extension this suite exists to exercise.
+        label: 'config-schema-yaml',
+        files: 'out/test/e2e/configSchemaYaml.test.js',
+        workspaceFolder: './src/test/fixtures/configSchemaYaml',
+        installExtensions: ['redhat.vscode-yaml'],
+        mocha: { ui: 'tdd', timeout: 120_000 },
+    },
+    {
         label: 'decline-phase1',
         files: 'out/test/e2e/declinePhase1.test.js',
         workspaceFolder: './src/test/fixtures/packs',
