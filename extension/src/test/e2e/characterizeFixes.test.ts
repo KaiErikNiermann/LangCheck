@@ -239,6 +239,30 @@ suite('characterization: diagnostic actions', () => {
             spans(document).includes('Anothr') ? true : undefined, BUDGET_MS);
     });
 
+    test('SpeedFix and the Inspector open over a checked document without an error', async function () {
+        this.timeout(BUDGET_MS + 15_000);
+        const document = await checked('actions.md', ['recieve']);
+        const errors: string[] = [];
+        const original = vscode.window.showErrorMessage;
+        (vscode.window as unknown as Record<string, unknown>).showErrorMessage = (message: string) => {
+            errors.push(message);
+            return Promise.resolve(undefined);
+        };
+        try {
+            await vscode.commands.executeCommand('language-check.openSpeedFix');
+            await vscode.commands.executeCommand('language-check.openInspector');
+            // Opening either again reveals the existing panel rather than making a second.
+            await vscode.commands.executeCommand('language-check.openSpeedFix');
+            await new Promise(resolve => setTimeout(resolve, 2_000));
+        } finally {
+            (vscode.window as unknown as Record<string, unknown>).showErrorMessage = original;
+            await vscode.commands.executeCommand('workbench.action.closeEditorsInOtherGroups');
+        }
+        assert.deepStrictEqual(errors, []);
+        await vscode.window.showTextDocument(document);
+        assert.deepStrictEqual(spans(document), ['recieve'], 'the panels changed what is on screen');
+    });
+
     test('restarting the core leaves it able to check', async function () {
         this.timeout(BUDGET_MS + 30_000);
         await checked('actions.md', ['recieve']);
