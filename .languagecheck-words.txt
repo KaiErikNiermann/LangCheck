@@ -28,6 +28,7 @@ PDK
 whatlang
 redb-backed
 semgrep
+ESLint's
 clippy
 insta
 Vitest
@@ -82,6 +83,7 @@ LanguageToolConfig
 # Editors
 nvim
 Neovim's
+modeline
 
 # Words the tokeniser splits off something larger: Node.js, README.md, I/O,
 # N/A, .po files, R Sweave, `package.json`'s, de/es/fr, cargo fmt.
