@@ -64,8 +64,11 @@ export async function runCommand(page: Page, title: string): Promise<void> {
     await page.keyboard.press('Enter');
 }
 
-/** The document inside the SpeedFix webview: VS Code's host iframe, then the page it loads. */
-export function speedFix(page: Page): FrameLocator {
+/**
+ * The document inside the open webview: VS Code's host iframe, then the page
+ * it loads. The tests open one panel at a time, so there is only one.
+ */
+export function webview(page: Page): FrameLocator {
     return page.frameLocator('iframe.webview.ready').frameLocator('iframe#active-frame');
 }
 
@@ -77,9 +80,22 @@ export function speedFix(page: Page): FrameLocator {
  */
 export async function openSpeedFix(page: Page): Promise<FrameLocator> {
     await runCommand(page, 'Language Check: Open SpeedFix');
-    const panel = speedFix(page);
+    const panel = webview(page);
     await panel.locator('.shortcuts').click({ timeout: 30_000 });
     return panel;
+}
+
+/** Open the Inspector and wait for its tab bar. */
+export async function openInspector(page: Page): Promise<FrameLocator> {
+    await runCommand(page, 'Language Check: Open Inspector');
+    const panel = webview(page);
+    await panel.locator('.tab-bar').waitFor({ timeout: 30_000 });
+    return panel;
+}
+
+/** What is on the system clipboard, read in VS Code's main process. */
+export async function clipboardText(window: VSCodeWindow): Promise<string> {
+    return window.app.evaluate(({ clipboard }) => clipboard.readText());
 }
 
 /** The text of the first editor, as rendered (blank lines collapse). */

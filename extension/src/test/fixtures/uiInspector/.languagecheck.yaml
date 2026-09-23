@@ -1,0 +1,6 @@
+# Harper, plus name detection so the Inspector's Names tab has something in
+# it. The UI tests read what the Inspector shows about doc.md.
+engines:
+  harper: true
+names:
+  enabled: true
