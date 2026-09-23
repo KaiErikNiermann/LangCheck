@@ -110,11 +110,18 @@ lang-check/
 │   └── doc/              Vim help file
 ├── extension/          VS Code extension (TypeScript)
 │   ├── src/
-│   │   ├── extension.ts    Activation, commands, providers
-│   │   ├── client.ts       Protobuf IPC client
+│   │   ├── extension.ts    Composition root: builds and wires everything
+│   │   ├── services.ts     Shared state created once per activation
 │   │   ├── api.ts          Public API for other extensions
-│   │   ├── downloader.ts   Core binary auto-download
-│   │   └── trace.ts        Protobuf message tracing
+│   │   ├── core/           The core process: IPC client, binary download, packs
+│   │   ├── checking/       Running checks: triggers, scheduling, response mapping
+│   │   ├── diagnostics/    The diagnostics on screen and the actions on them
+│   │   ├── providers/      Inlay hints, inline completions, quick fixes
+│   │   ├── commands/       Every command, registered from one typed table
+│   │   ├── config/         Settings, the config file, its watchers and edits
+│   │   ├── ui/             Status bars, SpeedFix and Inspector webviews
+│   │   ├── shared/         Logging, tracing, small helpers
+│   │   └── generated/      Types generated from package.json (gen:meta)
 │   ├── webview/            SpeedFix + Inspector UIs (Svelte 5 + Tailwind)
 │   ├── l10n/               Runtime localization bundles
 │   └── package.nls.*.json  Command/setting translations

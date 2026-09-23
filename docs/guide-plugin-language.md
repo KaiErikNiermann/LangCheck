@@ -542,17 +542,18 @@ activates when a file of your language is opened:
 ]
 ```
 
-**2. `extension/src/extension.ts`** -- add your language ID to the
-`supportedLanguages` array:
+**2. `extension/src/checking/languages.ts`** -- add your language ID to
+the `SUPPORTED_LANGUAGES` array:
 
 ```typescript
-const supportedLanguages = [
-    'markdown', 'html', 'latex', 'forester', 'tinylang', 'mdx', 'xhtml'
+export const SUPPORTED_LANGUAGES: readonly string[] = [
+    'markdown', 'html', 'latex', 'forester', 'tinylang', 'rst', 'sweave', 'bibtex', 'org', 'typst', 'mdx', 'xhtml',
 ];
 ```
 
-This array controls which VS Code language IDs trigger the on-change
-diagnostic handler. The server-side `resolve_language_id` handles any
+This array controls which VS Code language IDs the extension checks, and
+which ones its inlay hint, inline completion and quick fix providers
+register for. The server-side `resolve_language_id` handles any
 alias resolution.
 
 ---
@@ -665,4 +666,4 @@ these files:
 | `rust-core/src/languages.rs` | Edit—extension mapping, supported IDs, `resolve_ts_language` arm |
 | `rust-core/build.rs` | Edit—add the grammar name to the compile loop |
 | `extension/package.json` | Edit—add `onLanguage:<lang>` activation event |
-| `extension/src/extension.ts` | Edit—add to `supportedLanguages` array |
+| `extension/src/checking/languages.ts` | Edit—add to `SUPPORTED_LANGUAGES` |

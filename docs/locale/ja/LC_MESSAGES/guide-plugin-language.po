@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Language Check \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-22 06:27+0200\n"
+"POT-Creation-Date: 2026-09-23 11:41+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ja\n"
@@ -36,8 +36,7 @@ msgid "Overview"
 msgstr ""
 
 #: ../../guide-plugin-language.md:8
-msgid ""
-"The plugin path gives a language first-class integration with lang-check:"
+msgid "The plugin path gives a language first-class integration with lang-check:"
 msgstr ""
 
 #: ../../guide-plugin-language.md:10
@@ -49,30 +48,31 @@ msgstr ""
 
 #: ../../guide-plugin-language.md:13
 msgid ""
-"**Math exclusion zones** -- inline and display math are recognized by the "
-"grammar and either skipped entirely or replaced with spaces (preserving byte "
-"offsets so diagnostics map back correctly)."
+"**Math exclusion zones** -- inline and display math are recognized by the"
+" grammar and either skipped entirely or replaced with spaces (preserving "
+"byte offsets so diagnostics map back correctly)."
 msgstr ""
 
 #: ../../guide-plugin-language.md:16
 msgid ""
-"**One description of the markup between words** -- what may appear in the "
-"gap between two prose words is written once, as a `gap::Syntax` function, "
-"and both the \"do these words join up\" test and the exclusion zones are "
-"derived from it."
+"**One description of the markup between words** -- what may appear in the"
+" gap between two prose words is written once, as a `gap::Syntax` "
+"function, and both the \"do these words join up\" test and the exclusion "
+"zones are derived from it."
 msgstr ""
 
 #: ../../guide-plugin-language.md:19
 msgid ""
-"**Code block / comment skipping** -- fenced code, inline code, and comments "
-"are pruned from the AST walk so they never reach the grammar checker."
+"**Code block / comment skipping** -- fenced code, inline code, and "
+"comments are pruned from the AST walk so they never reach the grammar "
+"checker."
 msgstr ""
 
 #: ../../guide-plugin-language.md:21
 msgid ""
-"**Structural command filtering** -- commands whose arguments are identifiers "
-"or metadata (e.g. `@import`, `@ref`) are distinguished from commands whose "
-"arguments are prose (e.g. `@title`, `@note`)."
+"**Structural command filtering** -- commands whose arguments are "
+"identifiers or metadata (e.g. `@import`, `@ref`) are distinguished from "
+"commands whose arguments are prose (e.g. `@title`, `@note`)."
 msgstr ""
 
 #: ../../guide-plugin-language.md:25
@@ -106,8 +106,8 @@ msgstr ""
 
 #: ../../guide-plugin-language.md:37
 msgid ""
-"Throughout this guide, replace `tinylang` / `TinyLang` / `.tiny` with your "
-"language's name and file extension."
+"Throughout this guide, replace `tinylang` / `TinyLang` / `.tiny` with "
+"your language's name and file extension."
 msgstr ""
 
 #: ../../guide-plugin-language.md:42
@@ -132,8 +132,8 @@ msgstr ""
 
 #: ../../guide-plugin-language.md:73
 msgid ""
-"Give non-prose constructs their own node kinds (`code_block`, `inline_math`, "
-"`comment`, etc.) so the Rust extractor can skip them."
+"Give non-prose constructs their own node kinds (`code_block`, "
+"`inline_math`, `comment`, etc.) so the Rust extractor can skip them."
 msgstr ""
 
 #: ../../guide-plugin-language.md:75
@@ -158,13 +158,12 @@ msgstr ""
 
 #: ../../guide-plugin-language.md:143
 msgid ""
-"Use `prec.right(...)` for constructs that should consume as much as possible "
-"(headings, commands)."
+"Use `prec.right(...)` for constructs that should consume as much as "
+"possible (headings, commands)."
 msgstr ""
 
 #: ../../guide-plugin-language.md:145
-msgid ""
-"Keep the `_node` choice in priority order—more specific constructs first."
+msgid "Keep the `_node` choice in priority order—more specific constructs first."
 msgstr ""
 
 #: ../../guide-plugin-language.md:147
@@ -173,9 +172,9 @@ msgstr ""
 
 #: ../../guide-plugin-language.md:149
 msgid ""
-"If your language has constructs that cannot be expressed with tree-sitter's "
-"regex engine (e.g. cross-line delimited blocks), write an external scanner "
-"in C."
+"If your language has constructs that cannot be expressed with tree-"
+"sitter's regex engine (e.g. cross-line delimited blocks), write an "
+"external scanner in C."
 msgstr ""
 
 #: ../../guide-plugin-language.md:152
@@ -188,8 +187,8 @@ msgstr ""
 
 #: ../../guide-plugin-language.md:216
 msgid ""
-"The five `tree_sitter_<name>_external_scanner_*` functions are mandatory. If "
-"your scanner is stateless (like this one), the serialize/deserialize "
+"The five `tree_sitter_<name>_external_scanner_*` functions are mandatory."
+" If your scanner is stateless (like this one), the serialize/deserialize "
 "functions can be empty."
 msgstr ""
 
@@ -223,8 +222,8 @@ msgstr ""
 
 #: ../../guide-plugin-language.md:236
 msgid ""
-"Commit all generated files. They are vendored so that building the project "
-"does not require the tree-sitter CLI."
+"Commit all generated files. They are vendored so that building the "
+"project does not require the tree-sitter CLI."
 msgstr ""
 
 #: ../../guide-plugin-language.md:239
@@ -233,16 +232,17 @@ msgstr ""
 
 #: ../../guide-plugin-language.md:241
 msgid ""
-"All vendored grammars share one module, `rust-core/src/grammars.rs`. Add a "
-"line to the `vendored_grammars!` invocation there:"
+"All vendored grammars share one module, `rust-core/src/grammars.rs`. Add "
+"a line to the `vendored_grammars!` invocation there:"
 msgstr ""
 
 #: ../../guide-plugin-language.md:254
 msgid ""
-"The macro writes the `extern \"C\"` declaration and the `LanguageFn` that "
-"wraps it. The symbol name **must** follow the convention "
+"The macro writes the `extern \"C\"` declaration and the `LanguageFn` that"
+" wraps it. The symbol name **must** follow the convention "
 "`tree_sitter_<grammar_name>`, where `<grammar_name>` matches the `name` "
-"field in `grammar.js` -- that is the symbol the compiled `parser.c` exports."
+"field in `grammar.js` -- that is the symbol the compiled `parser.c` "
+"exports."
 msgstr ""
 
 #: ../../guide-plugin-language.md:259
@@ -257,8 +257,8 @@ msgstr ""
 
 #: ../../guide-plugin-language.md:264
 msgid ""
-"Create `rust-core/src/prose/tinylang.rs`. The module answers two questions, "
-"and they are separate:"
+"Create `rust-core/src/prose/tinylang.rs`. The module answers two "
+"questions, and they are separate:"
 msgstr ""
 
 #: ../../guide-plugin-language.md:267
@@ -269,14 +269,14 @@ msgstr ""
 
 #: ../../guide-plugin-language.md:269
 msgid ""
-"**What is in the space between two of them?** That space is a *gap*, and a "
-"single function describes what markup can appear there."
+"**What is in the space between two of them?** That space is a *gap*, and "
+"a single function describes what markup can appear there."
 msgstr ""
 
 #: ../../guide-plugin-language.md:272
 msgid ""
-"**1. Configuration constants** -- node kinds and command names that control "
-"what the walk skips:"
+"**1. Configuration constants** -- node kinds and command names that "
+"control what the walk skips:"
 msgstr ""
 
 #: ../../guide-plugin-language.md:292
@@ -287,8 +287,9 @@ msgstr ""
 
 #: ../../guide-plugin-language.md:340
 msgid ""
-"A \"first labeled child\" lookup—a command's `command_name`, a directive's "
-"`type` -- is `shared::child_of_kind`, not a hand-written loop:"
+"A \"first labeled child\" lookup—a command's `command_name`, a "
+"directive's `type` -- is `shared::child_of_kind`, not a hand-written "
+"loop:"
 msgstr ""
 
 #: ../../guide-plugin-language.md:350
@@ -298,10 +299,11 @@ msgstr ""
 #: ../../guide-plugin-language.md:352
 msgid ""
 "A gap is the source between two prose words, and it decides two things: "
-"whether those words belong to the same prose block, and which byte ranges "
-"the checker must not see. Both come from the same question -- *what token "
-"starts here?* -- so the language answers it once, as a `gap::Syntax` "
-"function, and `gap::strip` and `gap::exclusions` derive the rest:"
+"whether those words belong to the same prose block, and which byte ranges"
+" the checker must not see. Both come from the same question -- *what "
+"token starts here?* -- so the language answers it once, as a "
+"`gap::Syntax` function, and `gap::strip` and `gap::exclusions` derive the"
+" rest:"
 msgstr ""
 
 #: ../../guide-plugin-language.md:392
@@ -316,15 +318,16 @@ msgstr ""
 
 #: ../../guide-plugin-language.md:396
 msgid ""
-"**Match on `b[i..]`, not on indices.** The slice pattern carries the bounds "
-"check, so there is no `i + 1 < len` to forget. `[b'/', b'/', ..]` needs two "
-"bytes present; a lone trailing `/` falls through to `_` on its own."
+"**Match on `b[i..]`, not on indices.** The slice pattern carries the "
+"bounds check, so there is no `i + 1 < len` to forget. `[b'/', b'/', ..]` "
+"needs two bytes present; a lone trailing `/` falls through to `_` on its "
+"own."
 msgstr ""
 
 #: ../../guide-plugin-language.md:399
 msgid ""
-"**Order the arms longest-prefix first.** `$$` before `$`, `//` before a bare "
-"marker. The first matching arm wins."
+"**Order the arms longest-prefix first.** `$$` before `$`, `//` before a "
+"bare marker. The first matching arm wins."
 msgstr ""
 
 #: ../../guide-plugin-language.md:401
@@ -364,8 +367,8 @@ msgstr ""
 
 #: ../../guide-plugin-language.md
 msgid ""
-"math, verbatim, code spans—markup that keeps the words on either side apart, "
-"so `a $x$ b` is not read as `ab`"
+"math, verbatim, code spans—markup that keeps the words on either side "
+"apart, so `a $x$ b` is not read as `ab`"
 msgstr ""
 
 #: ../../guide-plugin-language.md
@@ -379,8 +382,8 @@ msgstr ""
 #: ../../guide-plugin-language.md
 #, python-brace-format
 msgid ""
-"command names, escapes, comments—markup that is invisible in the rendered "
-"document, so `@em{a}b` is read as `ab`"
+"command names, escapes, comments—markup that is invisible in the rendered"
+" document, so `@em{a}b` is read as `ab`"
 msgstr ""
 
 #: ../../guide-plugin-language.md
@@ -393,8 +396,8 @@ msgstr ""
 
 #: ../../guide-plugin-language.md
 msgid ""
-"block structure, where the two sides are different paragraphs and must not "
-"be joined at all"
+"block structure, where the two sides are different paragraphs and must "
+"not be joined at all"
 msgstr ""
 
 #: ../../guide-plugin-language.md:414
@@ -403,8 +406,8 @@ msgid ""
 "checker receives so its bytes are never reported as a mistake. "
 "`gap::exclusions` guarantees those ranges come out sorted and disjoint, "
 "clamping a token that reaches back for the whitespace before it (LaTeX "
-"display math does this, so that blanking a formula does not leave a double "
-"space mid-sentence)."
+"display math does this, so that blanking a formula does not leave a "
+"double space mid-sentence)."
 msgstr ""
 
 #: ../../guide-plugin-language.md:420
@@ -458,22 +461,23 @@ msgid "Step F: Wire into the dispatch (`prose/mod.rs`)"
 msgstr ""
 
 #: ../../guide-plugin-language.md:431
-msgid ""
-"Register the new module and add a match arm in `ProseExtractor::extract`:"
+msgid "Register the new module and add a match arm in `ProseExtractor::extract`:"
 msgstr ""
 
 #: ../../guide-plugin-language.md:448
 msgid ""
 "`extract` then runs `shared::merge_continuations` over whatever the arm "
-"returned, which rejoins a sentence that was split across a markup boundary. "
-"That happens for every language, so an extractor does not do it itself."
+"returned, which rejoins a sentence that was split across a markup "
+"boundary. That happens for every language, so an extractor does not do it"
+" itself."
 msgstr ""
 
 #: ../../guide-plugin-language.md:452
 msgid ""
-"Languages that do not have a dedicated extractor module fall through to the "
-"generic `query`-based extractor (the `lang` catch-all arm). The plugin path "
-"exists for when you need more control than the query path provides."
+"Languages that do not have a dedicated extractor module fall through to "
+"the generic `query`-based extractor (the `lang` catch-all arm). The "
+"plugin path exists for when you need more control than the query path "
+"provides."
 msgstr ""
 
 #: ../../guide-plugin-language.md:456
@@ -504,21 +508,21 @@ msgstr ""
 
 #: ../../guide-plugin-language.md:490
 msgid ""
-"`build.rs` compiles the vendored parsers in one loop. Add the grammar's name "
-"to the list:"
+"`build.rs` compiles the vendored parsers in one loop. Add the grammar's "
+"name to the list:"
 msgstr ""
 
 #: ../../guide-plugin-language.md:500
 msgid ""
-"A grammar with no external scanner gets its own block instead, as BibTeX does"
-"— the loop compiles `scanner.c` unconditionally."
+"A grammar with no external scanner gets its own block instead, as BibTeX "
+"does— the loop compiles `scanner.c` unconditionally."
 msgstr ""
 
 #: ../../guide-plugin-language.md:503
 msgid ""
-"The library name `cc` is given must match the `tree_sitter_<name>` symbol "
-"the binding in Step D declares, which is why both are keyed on the grammar "
-"name."
+"The library name `cc` is given must match the `tree_sitter_<name>` symbol"
+" the binding in Step D declares, which is why both are keyed on the "
+"grammar name."
 msgstr ""
 
 #: ../../guide-plugin-language.md:506
@@ -527,15 +531,15 @@ msgstr ""
 
 #: ../../guide-plugin-language.md:508
 msgid ""
-"`languages::resolve_ts_language` maps a canonical language ID to its tree-"
-"sitter `Language`. Both binaries and the LSP server go through it, so there "
-"is one arm to add, not one per binary:"
+"`languages::resolve_ts_language` maps a canonical language ID to its "
+"tree-sitter `Language`. Both binaries and the LSP server go through it, "
+"so there is one arm to add, not one per binary:"
 msgstr ""
 
 #: ../../guide-plugin-language.md:525
 msgid ""
-"An unknown ID falls back to Markdown rather than failing, so a misconfigured "
-"extension still gets sensible prose extraction."
+"An unknown ID falls back to Markdown rather than failing, so a "
+"misconfigured extension still gets sensible prose extraction."
 msgstr ""
 
 #: ../../guide-plugin-language.md:528
@@ -548,124 +552,125 @@ msgstr ""
 
 #: ../../guide-plugin-language.md:532
 msgid ""
-"**1. `extension/package.json`** -- add an activation event so the extension "
-"activates when a file of your language is opened:"
+"**1. `extension/package.json`** -- add an activation event so the "
+"extension activates when a file of your language is opened:"
 msgstr ""
 
 #: ../../guide-plugin-language.md:545
 msgid ""
-"**2. `extension/src/extension.ts`** -- add your language ID to the "
-"`supportedLanguages` array:"
+"**2. `extension/src/checking/languages.ts`** -- add your language ID to "
+"the `SUPPORTED_LANGUAGES` array:"
 msgstr ""
 
 #: ../../guide-plugin-language.md:554
 msgid ""
-"This array controls which VS Code language IDs trigger the on-change "
-"diagnostic handler. The server-side `resolve_language_id` handles any alias "
+"This array controls which VS Code language IDs the extension checks, and "
+"which ones its inlay hint, inline completion and quick fix providers "
+"register for. The server-side `resolve_language_id` handles any alias "
 "resolution."
 msgstr ""
 
-#: ../../guide-plugin-language.md:560
+#: ../../guide-plugin-language.md:561
 msgid "Testing Strategy"
 msgstr ""
 
-#: ../../guide-plugin-language.md:562
+#: ../../guide-plugin-language.md:563
 msgid "Unit tests (prose extraction)"
 msgstr ""
 
-#: ../../guide-plugin-language.md:564
+#: ../../guide-plugin-language.md:565
 msgid ""
 "Add tests directly in `rust-core/src/prose/mod.rs` under the existing "
-"`#[cfg(test)] mod tests` block. Each test creates a `ProseExtractor`, feeds "
-"it a sample document, and asserts on the extracted prose ranges."
+"`#[cfg(test)] mod tests` block. Each test creates a `ProseExtractor`, "
+"feeds it a sample document, and asserts on the extracted prose ranges."
 msgstr ""
 
-#: ../../guide-plugin-language.md:568
+#: ../../guide-plugin-language.md:569
 msgid "Typical test cases:"
 msgstr ""
 
-#: ../../guide-plugin-language.md:608
+#: ../../guide-plugin-language.md:609
 msgid "Cover at least:"
 msgstr ""
 
-#: ../../guide-plugin-language.md:610
+#: ../../guide-plugin-language.md:611
 msgid "Plain prose extraction"
 msgstr ""
 
-#: ../../guide-plugin-language.md:611
+#: ../../guide-plugin-language.md:612
 msgid "Code block exclusion"
 msgstr ""
 
-#: ../../guide-plugin-language.md:612
+#: ../../guide-plugin-language.md:613
 msgid "Code span exclusion"
 msgstr ""
 
-#: ../../guide-plugin-language.md:613
+#: ../../guide-plugin-language.md:614
 msgid "Comment exclusion"
 msgstr ""
 
-#: ../../guide-plugin-language.md:614
+#: ../../guide-plugin-language.md:615
 msgid "Inline math exclusion"
 msgstr ""
 
-#: ../../guide-plugin-language.md:615
+#: ../../guide-plugin-language.md:616
 msgid "Display math exclusion zones (verify `extract_text` blanks the math)"
 msgstr ""
 
-#: ../../guide-plugin-language.md:616
+#: ../../guide-plugin-language.md:617
 msgid "Structural vs. prose command distinction"
 msgstr ""
 
-#: ../../guide-plugin-language.md:617
+#: ../../guide-plugin-language.md:618
 msgid "Sentence bridging across inline math and formatting commands"
 msgstr ""
 
-#: ../../guide-plugin-language.md:618
+#: ../../guide-plugin-language.md:619
 msgid "Paragraph splitting on `\\n\\n`"
 msgstr ""
 
-#: ../../guide-plugin-language.md:620
+#: ../../guide-plugin-language.md:621
 msgid "End-to-end CLI test"
 msgstr ""
 
-#: ../../guide-plugin-language.md:622
+#: ../../guide-plugin-language.md:623
 msgid "Create a sample `.tiny` file and run the CLI:"
 msgstr ""
 
-#: ../../guide-plugin-language.md:628
+#: ../../guide-plugin-language.md:629
 msgid "Verify that:"
 msgstr ""
 
-#: ../../guide-plugin-language.md:630
+#: ../../guide-plugin-language.md:631
 msgid "Diagnostics appear for intentional typos in prose"
 msgstr ""
 
-#: ../../guide-plugin-language.md:631
+#: ../../guide-plugin-language.md:632
 msgid "No diagnostics appear for code blocks, comments, or math"
 msgstr ""
 
-#: ../../guide-plugin-language.md:632
+#: ../../guide-plugin-language.md:633
 msgid "Line/column positions are correct"
 msgstr ""
 
-#: ../../guide-plugin-language.md:634
+#: ../../guide-plugin-language.md:635
 msgid "Language registry tests"
 msgstr ""
 
-#: ../../guide-plugin-language.md:636
+#: ../../guide-plugin-language.md:637
 msgid ""
-"Tests for `detect_language` and friends already exist in `rust-core/src/"
-"languages.rs`. Add a case for your new extension:"
+"Tests for `detect_language` and friends already exist in `rust-"
+"core/src/languages.rs`. Add a case for your new extension:"
 msgstr ""
 
-#: ../../guide-plugin-language.md:649
+#: ../../guide-plugin-language.md:650
 msgid "Files Checklist"
 msgstr ""
 
-#: ../../guide-plugin-language.md:651
+#: ../../guide-plugin-language.md:652
 msgid ""
-"When adding a new language via the plugin path, you will touch (or create) "
-"these files:"
+"When adding a new language via the plugin path, you will touch (or "
+"create) these files:"
 msgstr ""
 
 #: ../../guide-plugin-language.md
@@ -773,9 +778,30 @@ msgid "Edit—add `onLanguage:<lang>` activation event"
 msgstr ""
 
 #: ../../guide-plugin-language.md
-msgid "`extension/src/extension.ts`"
+msgid "`extension/src/checking/languages.ts`"
 msgstr ""
 
 #: ../../guide-plugin-language.md
-msgid "Edit—add to `supportedLanguages` array"
+msgid "Edit—add to `SUPPORTED_LANGUAGES`"
 msgstr ""
+
+#~ msgid ""
+#~ "**2. `extension/src/extension.ts`** -- add "
+#~ "your language ID to the "
+#~ "`supportedLanguages` array:"
+#~ msgstr ""
+
+#~ msgid ""
+#~ "This array controls which VS Code "
+#~ "language IDs trigger the on-change "
+#~ "diagnostic handler. The server-side "
+#~ "`resolve_language_id` handles any alias "
+#~ "resolution."
+#~ msgstr ""
+
+#~ msgid "`extension/src/extension.ts`"
+#~ msgstr ""
+
+#~ msgid "Edit—add to `supportedLanguages` array"
+#~ msgstr ""
+
