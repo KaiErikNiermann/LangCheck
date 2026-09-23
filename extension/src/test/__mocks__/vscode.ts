@@ -145,6 +145,16 @@ export class WorkspaceEdit {
     }
 }
 
+export class Diagnostic {
+    source: string | undefined;
+    code: string | number | undefined;
+    constructor(
+        public range: Range,
+        public message: string,
+        public severity: number,
+    ) {}
+}
+
 export class RelativePattern {
     constructor(
         readonly base: unknown,

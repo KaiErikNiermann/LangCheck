@@ -1,10 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as http from 'http';
 import { execFile, execSync } from 'child_process';
-import { LanguageClient } from './core/client';
-import { languagecheck } from './proto/checker';
 import { TraceLogger } from './shared/trace';
 import { createAPI } from './api';
 import { formatSuggestionLabel, speedFixSuggestionLabel, displayOriginalText } from './shared/inlayLabels';
@@ -19,7 +16,7 @@ import {
     uncheckedLanguages,
 } from './core/packPrompt';
 import { YAML_EXTENSION_ID, declineYamlSuggestion, shouldSuggestYaml } from './config/yamlSuggestion';
-import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorEngineInfo, InspectorNameSpan } from './ui/webviews/protocol';
+import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorDiagnosticSummary, InspectorEngineInfo } from './ui/webviews/protocol';
 import { Logger } from './shared/logger';
 import { ConfigStatusView } from './config/gutter';
 import { classifyConfigChange, silencedBy } from './config/rules';
@@ -67,11 +64,15 @@ import { byteToCharConverter } from './checking/offsets';
 import { webviewHtml } from './ui/webviews/html';
 import { StatusBars } from './ui/statusBars';
 import { CoreService } from './core/coreService';
+import { Checker, type CheckOutcome } from './checking/checker';
+import { Debouncer } from './checking/scheduler';
+import { hasDockerCompose, restartLanguageToolDocker } from './core/languagetool';
 import { bootstrapCore, downloadFailedMessage, downloadWithProgress, onDownloadFailedChoice } from './core/binary';
 import { WorkspaceConfigState } from './config/state';
 import { createServices } from './services';
 
 let core: CoreService;
+let checker: Checker;
 
 let log: Logger;
 // Created in activate() by createServices(); see services.ts.
@@ -92,7 +93,6 @@ let speedFixTargetUri: string | null = null;
 
 // Engine health tracking
 let engineInfoState: InspectorEngineInfo[] = [];
-let ltDownNotificationShown = false;
 
 // Inlay hint invalidation
 let inlayHintsEnabled = true;
@@ -108,33 +108,7 @@ let inlayHintsEnabled = true;
 const HINT_CONFIDENCE_FLOOR = 0.8;
 
 // Check-on-change debounce timer per document
-const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-// Concurrency limiter: max simultaneous CheckProse RPCs to avoid flooding
-// the server (each LT check holds the orchestrator mutex for seconds).
-const MAX_CONCURRENT_CHECKS = 3;
-let activeChecks = 0;
-const checkQueue: Array<() => void> = [];
-
-/** Acquire a check slot. Resolves immediately if under the limit, otherwise
- *  waits until a slot frees up. */
-function acquireCheckSlot(): Promise<void> {
-    if (activeChecks < MAX_CONCURRENT_CHECKS) {
-        activeChecks++;
-        return Promise.resolve();
-    }
-    return new Promise(resolve => checkQueue.push(resolve));
-}
-
-/** Release a check slot and wake the next queued caller, if any. */
-function releaseCheckSlot() {
-    const next = checkQueue.shift();
-    if (next) {
-        next(); // slot stays occupied — transferred to the next waiter
-    } else {
-        activeChecks--;
-    }
-}
+const debouncer = new Debouncer();
 
 /**
  * Languages offered this session.
@@ -218,6 +192,34 @@ export async function activate(context: vscode.ExtensionContext) {
         },
         restarted: () => checkVisibleUnchecked(),
     });
+    checker = new Checker({
+        core, log, store, suppression, results, statusBars, inspectorLog,
+        observer: {
+            // Update inspector if open
+            checkRecorded: timings => {
+                if (inspectorPanel) {
+                    inspectorPanel.webview.postMessage({
+                        type: 'setLatency',
+                        payload: { stages: timings },
+                    });
+                    inspectorPanel.webview.postMessage({
+                        type: 'setCheckInfo',
+                        payload: results.info,
+                    });
+                }
+            },
+            // Post health to Inspector
+            healthUpdated: () => {
+                if (inspectorPanel) {
+                    inspectorPanel.webview.postMessage({
+                        type: 'setEngineHealth',
+                        payload: results.engineHealth,
+                    });
+                }
+            },
+            diagnosticsPublished: diagnostics => void offerMissingPacks(diagnostics),
+        },
+    });
 
     /**
      * When a document is re-checked after its first check.
@@ -247,7 +249,7 @@ export async function activate(context: vscode.ExtensionContext) {
         if (!core.ready()) return;
         if (!isCheckable(document)) return;
         if (store.has(document.uri.toString())) return;
-        checkDocument(document);
+        checker.check(document);
     };
 
     /**
@@ -325,7 +327,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const editors = vscode.window.visibleTextEditors.filter(e => isCheckable(e.document));
         log.debug('Rechecking visible editors', { count: editors.length });
         for (const editor of editors) {
-            checkDocument(editor.document);
+            checker.check(editor.document);
         }
     };
     // A config change rebuilds the client and clears the caches. It must not
@@ -829,59 +831,8 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage(vscode.l10n.t('Language Check server restarted'));
     }));
 
-    context.subscriptions.push(registerCommand(COMMANDS.restartLTDocker, async () => {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders || workspaceFolders.length === 0) {
-            vscode.window.showErrorMessage(vscode.l10n.t('No workspace folder open'));
-            return;
-        }
-        const rootPath = workspaceFolders[0]!.uri.fsPath;
-        const composePath = path.join(rootPath, 'docker-compose.yml');
-        if (!fs.existsSync(composePath)) {
-            vscode.window.showErrorMessage(vscode.l10n.t('No docker-compose.yml found in workspace root'));
-            return;
-        }
-
-        await vscode.window.withProgress(
-            { location: vscode.ProgressLocation.Notification, title: 'Restarting LanguageTool Docker…', cancellable: false },
-            async (progress) => {
-                const MAX_ATTEMPTS = 2;
-                for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-                    progress.report({ message: `Attempt ${attempt}/${MAX_ATTEMPTS}: stopping…` });
-                    try {
-                        execSync('docker compose down', { cwd: rootPath, timeout: 30_000, stdio: 'pipe' });
-                    } catch { /* ignore stop errors */ }
-
-                    progress.report({ message: `Attempt ${attempt}/${MAX_ATTEMPTS}: starting…` });
-                    try {
-                        execSync('docker compose up -d', { cwd: rootPath, timeout: 30_000, stdio: 'pipe' });
-                    } catch (e) {
-                        if (attempt === MAX_ATTEMPTS) {
-                            vscode.window.showErrorMessage(`Failed to start LanguageTool Docker: ${e}`);
-                            return;
-                        }
-                        continue;
-                    }
-
-                    // Poll for readiness
-                    progress.report({ message: `Waiting for LanguageTool to be ready…` });
-                    const ready = await pollLTReady(15_000);
-                    if (ready) {
-                        vscode.window.showInformationMessage(vscode.l10n.t('LanguageTool Docker restarted successfully'));
-                        // Re-check active document to refresh health
-                        const editor = vscode.window.activeTextEditor;
-                        if (editor) {
-                            checkDocument(editor.document);
-                        }
-                        return;
-                    }
-                    if (attempt === MAX_ATTEMPTS) {
-                        vscode.window.showErrorMessage(vscode.l10n.t('LanguageTool Docker started but not responding after 15s'));
-                    }
-                }
-            },
-        );
-    }));
+    context.subscriptions.push(registerCommand(COMMANDS.restartLTDocker, () =>
+        restartLanguageToolDocker(document => checker.check(document))));
 
     context.subscriptions.push(registerCommand(COMMANDS.ignoreDiagnostic, async (diagnosticId: string) => {
         await ignoreDiagnostic(diagnosticId);
@@ -968,7 +919,7 @@ export async function activate(context: vscode.ExtensionContext) {
         store.notify();
 
         // Re-check for consistency
-        await checkDocument(document);
+        await checker.check(document);
     }));
 
     context.subscriptions.push(registerCommand(COMMANDS.fixAllSpellingInWorkspace, async (word: string, replacement: string) => {
@@ -1001,7 +952,7 @@ export async function activate(context: vscode.ExtensionContext) {
         for (const uri of affectedUris) {
             const document = findOpenDocument(uri);
             if (document) {
-                await checkDocument(document);
+                await checker.check(document);
             }
         }
     }));
@@ -1086,7 +1037,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     }
                     inspectorLog.push('debug', 'addToDictionary', `Removed ${removedCount} diagnostics, re-checking`);
                     // Full re-check for consistency (dictionary is now server-side updated)
-                    await checkDocument(editor.document);
+                    await checker.check(editor.document);
                     suppression.words.delete(wordLower);
                 }
                 const extra = removedCount > 1 ? vscode.l10n.t(' ({0} occurrences resolved)', removedCount) : '';
@@ -1300,7 +1251,7 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(registerCommand(COMMANDS.checkDocument, async (): Promise<CheckOutcome | undefined> => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) return undefined;
-        const result = await checkDocument(editor.document);
+        const result = await checker.check(editor.document);
         // Show feedback when invoked manually
         if (result === 0) {
             vscode.window.showInformationMessage(vscode.l10n.t('No language issues found.'));
@@ -1328,7 +1279,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 progress.report({ increment: (1 / files.length) * 100, message: vscode.l10n.t('Checking {0}', path.basename(file.fsPath)) });
 
                 const document = await vscode.workspace.openTextDocument(file);
-                await checkDocument(document);
+                await checker.check(document);
             }
         });
     }));
@@ -1375,7 +1326,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     const editorForCheck = originEditor ?? vscode.window.activeTextEditor;
                     if (editorForCheck && !store.has(editorForCheck.document.uri.toString())) {
                         sendSpeedFixLoading(true);
-                        checkDocument(editorForCheck.document).then(() => {
+                        checker.check(editorForCheck.document).then(() => {
                             sendSpeedFixLoading(false);
                         });
                     }
@@ -1414,7 +1365,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     const editor = findEditorWithDiagnostics() ?? vscode.window.activeTextEditor;
                     if (editor) {
                         sendSpeedFixLoading(true);
-                        await checkDocument(editor.document);
+                        await checker.check(editor.document);
                         sendSpeedFixLoading(false);
                     }
                     break;
@@ -1468,7 +1419,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     // Use the editor captured before the panel stole focus.
                     const editorForCheck = originEditor ?? vscode.window.activeTextEditor;
                     if (editorForCheck && !store.has(editorForCheck.document.uri.toString())) {
-                        await checkDocument(editorForCheck.document);
+                        await checker.check(editorForCheck.document);
                     }
                     await updateInspectorData();
                     inspectorPanel?.webview.postMessage({ type: 'setDockerAvailable', payload: hasDockerCompose() });
@@ -1490,7 +1441,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 case 'healthCheckLT': {
                     const editor = vscode.window.activeTextEditor;
                     if (editor) {
-                        await checkDocument(editor.document);
+                        await checker.check(editor.document);
                     }
                     break;
                 }
@@ -1573,28 +1524,18 @@ export async function activate(context: vscode.ExtensionContext) {
         const trigger = checkTrigger();
         if (trigger !== 'onChange') return;
 
-        const uri = event.document.uri.toString();
-        const existing = debounceTimers.get(uri);
-        if (existing) clearTimeout(existing);
-
         const doc = event.document;
-        debounceTimers.set(uri, setTimeout(() => {
-            debounceTimers.delete(uri);
-            checkDocument(doc);
-        }, configState.debounceMs));
+        debouncer.schedule(doc.uri.toString(), configState.debounceMs, () => {
+            checker.check(doc);
+        });
     }));
 
     // Always re-check on save (regardless of trigger mode)
     vscode.workspace.onDidSaveTextDocument(async (document) => {
         if (SUPPORTED_LANGUAGES.includes(document.languageId)) {
             // Cancel any pending debounce for this doc since we're checking now
-            const uri = document.uri.toString();
-            const existing = debounceTimers.get(uri);
-            if (existing) {
-                clearTimeout(existing);
-                debounceTimers.delete(uri);
-            }
-            await checkDocument(document);
+            debouncer.cancel(document.uri.toString());
+            await checker.check(document);
             await updateInspectorData();
         }
     });
@@ -1772,7 +1713,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // go when it finishes, so there is no window in which the file looks
         // clean.
         for (const editor of vscode.window.visibleTextEditors) {
-            if (isCheckable(editor.document)) checkDocument(editor.document);
+            if (isCheckable(editor.document)) checker.check(editor.document);
         }
     };
 
@@ -2060,13 +2001,6 @@ function sendSpeedFixLoading(loading: boolean) {
     speedFixPanel?.webview.postMessage({ type: 'loading', payload: loading });
 }
 
-/** Check if a docker-compose.yml exists in the workspace root. */
-function hasDockerCompose(): boolean {
-    const folders = vscode.workspace.workspaceFolders;
-    if (!folders || folders.length === 0) return false;
-    return fs.existsSync(path.join(folders[0]!.uri.fsPath, 'docker-compose.yml'));
-}
-
 /** Detect engine binaries and config files, updating `engineInfoState`. */
 async function detectEngineInfo(): Promise<void> {
     const folder = vscode.workspace.workspaceFolders?.[0];
@@ -2282,7 +2216,7 @@ async function applyFix(diagnosticId: string, suggestion: string) {
 
         // Background re-check for full consistency
         inspectorLog.push('debug', 'applyFix', 'Re-checking after fix', { durationMs: performance.now() - t0 });
-        checkDocument(editor.document);
+        checker.check(editor.document);
     } finally {
         sendSpeedFixLoading(false);
         // Refocus the SpeedFix panel so the user can continue through issues
@@ -2317,7 +2251,7 @@ async function ignoreDiagnostic(diagnosticId: string) {
         inspectorLog.push('info', 'ignoreDiagnostic', 'Ignore confirmed, re-checking', { durationMs: performance.now() - t0 });
 
         // Background re-check for full consistency
-        checkDocument(editor.document);
+        checker.check(editor.document);
     }
 }
 
@@ -2410,365 +2344,9 @@ function sendWorkspaceProgress() {
     });
 }
 
-/** Checks currently running, keyed by document URI, with the text they cover. */
-const inFlightChecks = new Map<string, { text: string; result: Promise<number> }>();
-
-/**
- * Check a document, joining a check already running over the exact same text
- * instead of starting a second one. Returns the number of issues found, or -1
- * on error.
- *
- * Many things ask for a re-check — an edit, a save, a just-applied fix, the
- * SpeedFix or Inspector panel opening — and on a large document a check takes
- * seconds. Without coalescing, those requests pile up behind the concurrency
- * limiter and each one re-derives an answer that is already on its way, so the
- * latency the user sees is the queue depth times the real cost.
- */
-/** What a check did, for the caller that asked for it. */
-interface CheckOutcome {
-    /** How many diagnostics the document ended up with. */
-    diagnostics: number;
-    /**
-     * Whether the engines ran, or the core served the result it already had.
-     *
-     * Reported by the core rather than guessed from elapsed time: "fast" and
-     * "cached" are not the same claim, and only one of them is checkable.
-     */
-    servedFromCache: boolean;
-}
-
-async function checkDocument(document: vscode.TextDocument): Promise<number> {
-    // A client that has given up restarting can never answer. Bail out before
-    // taking a concurrency slot, or a down core starves the slots for a full
-    // request timeout each and every queued check backs up behind it.
-    if (!core.client?.isRunning) {
-        const reason = core.client?.lastFailure;
-        if (reason) {
-            inspectorLog.push('error', 'checkDocument', `Core unavailable: ${reason}`, {
-                details: path.basename(document.fileName),
-            });
-        }
-        return -1;
-    }
-
-    const t0 = performance.now();
-    const textContent = document.getText();
-    const readMs = performance.now() - t0;
-
-    const uri = document.uri.toString();
-    const inFlight = inFlightChecks.get(uri);
-    if (inFlight && inFlight.text === textContent) {
-        inspectorLog.push('debug', 'checkDocument', `Joining in-flight check for ${path.basename(document.fileName)}`);
-        return inFlight.result;
-    }
-
-    const result = runCheck(document, core.client, textContent, readMs);
-    inFlightChecks.set(uri, { text: textContent, result });
-    try {
-        return await result;
-    } finally {
-        // Clear only our own entry: if the text changed mid-flight a newer check
-        // has already claimed the slot and must stay joinable.
-        if (inFlightChecks.get(uri)?.result === result) {
-            inFlightChecks.delete(uri);
-        }
-    }
-}
-
-/** The check itself, once {@link checkDocument} has decided one is needed. */
-async function runCheck(
-    document: vscode.TextDocument,
-    client: LanguageClient,
-    textContent: string,
-    readMs: number,
-): Promise<number> {
-    const shortName = path.basename(document.fileName);
-    log.debug('checkDocument', { file: document.fileName, lang: document.languageId });
-    inspectorLog.push('info', 'checkDocument', `Checking ${shortName} (${document.languageId})`);
-
-    // Wait for a concurrency slot so we don't flood the server
-    await acquireCheckSlot();
-    statusBars.setChecking(true);
-    const timings: { name: string; durationMs: number }[] = [];
-
-    try {
-        const t0 = performance.now();
-        timings.push({ name: 'Read document', durationMs: readMs });
-
-        const t1 = performance.now();
-        inspectorLog.push('debug', 'checkDocument', `Sending CheckProse RPC (${textContent.length} chars)`);
-        const response = await client.sendRequest({
-            checkProse: {
-                text: textContent,
-                languageId: document.languageId,
-                settings: {},
-                filePath: document.uri.fsPath
-            }
-        });
-        const rpcMs = performance.now() - t1;
-        timings.push({ name: 'Core RPC (checkProse)', durationMs: rpcMs });
-        inspectorLog.push('info', 'checkDocument', `RPC response received`, { durationMs: rpcMs });
-
-        if (response.checkProse) {
-            const t2 = performance.now();
-            // Core returns UTF-8 byte offsets; positionAt expects char offsets.
-            const byteToChar = byteToCharConverter(textContent);
-            const extendedDiagnostics: ExtendedDiagnostic[] = response.checkProse.diagnostics!.map(d => {
-                const start = document.positionAt(byteToChar(d.startByte as number));
-                const end = document.positionAt(byteToChar(d.endByte as number));
-                const range = new vscode.Range(start, end);
-
-                let severity = vscode.DiagnosticSeverity.Information;
-                switch (d.severity) {
-                    case languagecheck.Severity.SEVERITY_ERROR: severity = vscode.DiagnosticSeverity.Error; break;
-                    case languagecheck.Severity.SEVERITY_WARNING: severity = vscode.DiagnosticSeverity.Warning; break;
-                    case languagecheck.Severity.SEVERITY_HINT: severity = vscode.DiagnosticSeverity.Hint; break;
-                }
-
-                const diagnostic: ExtendedDiagnostic = new vscode.Diagnostic(range, d.message as string, severity);
-                diagnostic.source = 'language-check';
-                if (d.ruleId) {
-                    diagnostic.code = d.ruleId;
-                }
-                diagnostic.suggestions = d.suggestions || [];
-                diagnostic.coreStartByte = d.startByte as number;
-                diagnostic.coreEndByte = d.endByte as number;
-                if (d.confidence !== null && d.confidence !== undefined) {
-                    diagnostic.confidence = d.confidence;
-                }
-                if (d.language) {
-                    diagnostic.language = d.language;
-                }
-                diagnostic.packInstallable = d.packInstallable === true;
-                if (d.unifiedId) {
-                    diagnostic.unifiedId = d.unifiedId;
-                }
-                return diagnostic;
-            });
-            timings.push({ name: 'Map diagnostics', durationMs: performance.now() - t2 });
-
-            // Filter out diagnostics for suppressed words / deactivated rules
-            if (suppression.words.size > 0 || suppression.rules.size > 0) {
-                const filtered = extendedDiagnostics.filter(d => {
-                    const ruleId = ruleIdOf(d, '');
-                    if (suppression.rules.size > 0 && ruleId && suppression.rules.has(ruleId)) return false;
-                    if (suppression.words.size > 0 && isSpellingRule(ruleId)) {
-                        const word = document.getText(d.range).toLowerCase();
-                        if (suppression.words.has(word)) return false;
-                    }
-                    return true;
-                });
-                extendedDiagnostics.length = 0;
-                extendedDiagnostics.push(...filtered);
-            }
-
-            const t3 = performance.now();
-            results.servedFromCache = response.checkProse.servedFromCache === true;
-            store.publishCheck(document.uri, extendedDiagnostics);
-            store.notify();
-            timings.push({ name: 'Update UI', durationMs: performance.now() - t3 });
-
-            statusBars.updateInsights(vscode.window.activeTextEditor);
-            void offerMissingPacks(extendedDiagnostics);
-
-            // Cache extraction data from real Rust core response
-            const protoRanges = response.checkProse.extraction?.proseRanges ?? [];
-            const inspectorRanges: InspectorProseRange[] = protoRanges.map(pr => {
-                const startByte = pr.startByte as number;
-                const endByte = pr.endByte as number;
-                const rawText = textContent.substring(
-                    byteToChar(startByte),
-                    byteToChar(endByte),
-                );
-
-                const exclusions: InspectorExclusion[] = (pr.exclusions ?? []).map(exc => {
-                    const excStartByte = exc.startByte as number;
-                    const excEndByte = exc.endByte as number;
-                    // Convert document-level byte offsets to char offsets within the range text
-                    const excStartChar = byteToChar(excStartByte) - byteToChar(startByte);
-                    const excEndChar = byteToChar(excEndByte) - byteToChar(startByte);
-                    const excText = rawText.substring(excStartChar, excEndChar);
-
-                    // Infer exclusion kind heuristically from content.
-                    // Trim leading/trailing whitespace since install_skip_exclusions
-                    // extends exclusion ranges to cover surrounding whitespace.
-                    const trimmed = excText.trim();
-                    let kind = 'unknown';
-                    if (trimmed.startsWith('##{') || trimmed.startsWith('\\[')) kind = 'display_math';
-                    else if (trimmed.startsWith('#{') || trimmed.startsWith('$')) kind = 'inline_math';
-                    else if (/^\\[a-zA-Z]/.test(trimmed)) kind = 'command';
-                    else if (trimmed.startsWith('\\')) kind = 'escape';
-                    else if (trimmed.startsWith('%')) kind = 'comment';
-                    else if (/^\[.*\]\(.*\)$/.test(trimmed)) kind = 'link';
-                    else if (trimmed.startsWith('[[') && trimmed.endsWith(']]')) kind = 'link';
-                    else if (/^[{}[\]()]+$/.test(trimmed)) kind = 'delimiter';
-                    else if (trimmed === '') kind = 'whitespace';
-
-                    return { startChar: excStartChar, endChar: excEndChar, kind, text: excText };
-                });
-
-                // Build clean text: replace exclusion zones with spaces
-                let cleanText = rawText;
-                if (exclusions.length > 0) {
-                    const chars = [...cleanText];
-                    for (const exc of exclusions) {
-                        for (let i = exc.startChar; i < exc.endChar && i < chars.length; i++) {
-                            chars[i] = ' ';
-                        }
-                    }
-                    cleanText = chars.join('');
-                }
-
-                return {
-                    startByte,
-                    endByte,
-                    text: rawText,
-                    cleanText,
-                    exclusions,
-                    language: pr.language ?? '',
-                };
-            });
-
-            results.extraction.set(document.uri.toString(), {
-                prose: inspectorRanges,
-                languageId: document.languageId,
-                syntax: response.checkProse.extraction?.syntax ?? '',
-                maxRangeBytes: (response.checkProse.extraction?.maxRangeBytes as number) ?? 0,
-            });
-
-            // Words the core silenced as names. Surfaced so the suppression is visible
-            // rather than a silent behaviour change.
-            const nameSpans: InspectorNameSpan[] = (response.checkProse.extraction?.names ?? []).map(n => {
-                const startByte = n.startByte as number;
-                const endByte = n.endByte as number;
-                const startChar = byteToChar(startByte);
-                return {
-                    startByte,
-                    endByte,
-                    text: textContent.substring(startChar, byteToChar(endByte)),
-                    confidence: (n.confidence as number) ?? 0,
-                    signals: (n.signals ?? '').split(',').filter(Boolean),
-                    line: document.positionAt(startChar).line + 1,
-                };
-            });
-            results.names.set(document.uri.toString(), nameSpans);
-
-            // Store timings and check info for inspector
-            results.timings = timings;
-            const totalProseBytes = inspectorRanges.reduce((sum, r) => sum + (r.endByte - r.startByte), 0);
-            results.info = {
-                fileName: path.basename(document.uri.fsPath),
-                fileSize: new TextEncoder().encode(textContent).length,
-                languageId: document.languageId,
-                proseRangeCount: inspectorRanges.length,
-                totalProseBytes,
-                diagnosticCount: extendedDiagnostics.length,
-                englishEngine: 'multi', // All enabled engines run concurrently
-            };
-            // Update inspector if open
-            if (inspectorPanel) {
-                inspectorPanel.webview.postMessage({
-                    type: 'setLatency',
-                    payload: { stages: timings },
-                });
-                inspectorPanel.webview.postMessage({
-                    type: 'setCheckInfo',
-                    payload: results.info,
-                });
-            }
-
-            // Process engine health from response
-            const protoHealth = response.checkProse.engineHealth ?? [];
-            if (protoHealth.length > 0) {
-                results.engineHealth = protoHealth.map(h => ({
-                    name: h.name as string,
-                    status: (h.status as string) as 'ok' | 'degraded' | 'down',
-                    consecutiveFailures: (h.consecutiveFailures as number) ?? 0,
-                    lastError: (h.lastError as string) ?? '',
-                    lastSuccessEpochMs: Number(h.lastSuccessEpochMs ?? 0),
-                }));
-
-                // Post health to Inspector
-                if (inspectorPanel) {
-                    inspectorPanel.webview.postMessage({
-                        type: 'setEngineHealth',
-                        payload: results.engineHealth,
-                    });
-                }
-
-                // Update status bar with health indicator
-                statusBars.updateHealth();
-
-                // Show warning notification on first LT down detection
-                const ltHealth = results.engineHealth.find(e => e.name === 'languagetool');
-                if (ltHealth && ltHealth.status === 'down' && !ltDownNotificationShown) {
-                    ltDownNotificationShown = true;
-                    const hasDocker = hasDockerCompose();
-                    const actions = hasDocker
-                        ? ['Restart Docker', 'Open Inspector', 'Dismiss']
-                        : ['Open Inspector', 'Dismiss'];
-                    const action = await vscode.window.showWarningMessage(
-                        vscode.l10n.t('LanguageTool engine is down: {0}', ltHealth.lastError),
-                        ...actions,
-                    );
-                    if (action === 'Restart Docker') {
-                        executeCommand(COMMANDS.restartLTDocker);
-                    } else if (action === 'Open Inspector') {
-                        executeCommand(COMMANDS.openInspector);
-                    }
-                } else if (ltHealth && ltHealth.status === 'ok') {
-                    ltDownNotificationShown = false;
-                }
-            }
-
-            inspectorLog.push('info', 'checkDocument', `${extendedDiagnostics.length} issues in ${shortName}`, { durationMs: performance.now() - t0 });
-            return extendedDiagnostics.length;
-        } else if (response.error) {
-            inspectorLog.push('error', 'checkDocument', `Server error: ${response.error.message}`);
-            vscode.window.showErrorMessage(vscode.l10n.t('Language Check Error: {0}', response.error.message ?? ''));
-            return -1;
-        }
-    } catch (err) {
-        const errStr = String(err);
-        log.error('checkDocument failed', { error: errStr, file: document.fileName });
-        inspectorLog.push('error', 'checkDocument', errStr, { details: document.fileName });
-        if (errStr.includes('timed out')) {
-            log.warn('Request timed out — the core process may be busy or the LanguageTool server unresponsive');
-        } else {
-            vscode.window.showErrorMessage(vscode.l10n.t('Failed to communicate with language-check core: {0}', errStr));
-        }
-        return -1;
-    } finally {
-        releaseCheckSlot();
-        statusBars.setChecking(false);
-    }
-
-    return 0;
-}
-
-async function pollLTReady(timeoutMs: number): Promise<boolean> {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-        const ok = await new Promise<boolean>(resolve => {
-            const req = http.get('http://localhost:8010/v2/languages', { timeout: 2000 }, (res) => {
-                resolve(res.statusCode === 200);
-                res.resume();
-            });
-            req.on('error', () => resolve(false));
-            req.on('timeout', () => { req.destroy(); resolve(false); });
-        });
-        if (ok) return true;
-        await new Promise(r => setTimeout(r, 2000));
-    }
-    return false;
-}
-
 export function deactivate() {
     // Clean up debounce timers
-    for (const timer of debounceTimers.values()) {
-        clearTimeout(timer);
-    }
-    debounceTimers.clear();
+    debouncer.cancelAll();
 
     core?.stop();
 }
