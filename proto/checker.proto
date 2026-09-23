@@ -58,6 +58,7 @@ message Response {
     OkResponse ok = 5;
     ProbeConfigResponse probe_config = 6;
     ListConfigFilesResponse list_config_files = 7;
+    InitializeResponse initialize = 8;
   }
 }
 
@@ -295,4 +296,28 @@ message SkippedFile {
   string path = 1;
   // The config key that turned it away: "include", "exclude" or "file_types".
   string rejected_by = 2;
+}
+
+// The answer to Initialize.
+//
+// Initialize used to answer Ok, or an error the editor never read. A part
+// that did not come up -- the workspace index, the SLS schemas -- now leaves
+// the rest running and is reported here instead.
+message InitializeResponse {
+  // Each part that could not be set up, as a sentence for the user. Checking
+  // works without every one of them.
+  repeated string warnings = 1;
+  // Another server holding this workspace's index, as it recorded itself.
+  // Unset when there is none, or when it left no record.
+  optional ServerIdentity other_server = 2;
+  // This server, so the editor can name both of them.
+  ServerIdentity this_server = 3;
+}
+
+// Enough to find a server process: to kill it, or to delete its binary.
+message ServerIdentity {
+  uint32 pid = 1;
+  string version = 2;
+  // Absolute path of the executable. Empty when the process could not tell.
+  string executable = 3;
 }

@@ -11,8 +11,8 @@ use anyhow::Result;
 use bytes::{Buf, BytesMut};
 use checker::{
     CheckResponse, ConfigIssue, ErrorResponse, ExtractionExclusion, ExtractionInfo,
-    ExtractionProseRange, ListConfigFilesResponse, MetadataResponse, ProbeConfigResponse, Request,
-    Response, SkippedFile, response,
+    ExtractionProseRange, InitializeResponse, ListConfigFilesResponse, MetadataResponse,
+    ProbeConfigResponse, Request, Response, ServerIdentity, SkippedFile, response,
 };
 use config::Config;
 use dictionary::Dictionary;
@@ -33,7 +33,7 @@ use tokio::fs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Mutex, Notify};
 use tracing::{debug, error, info, warn};
-use workspace::WorkspaceIndex;
+use workspace::{IndexOwner, IndexUnavailable, WorkspaceIndex};
 
 /// Shared handles a background indexing task needs.
 ///
@@ -500,44 +500,71 @@ async fn main() -> Result<()> {
                         }
                     }
 
+                    // Each part below is optional to checking, so a part that
+                    // does not come up is a warning in the answer and the rest
+                    // carries on. A broken schema used to fail Initialize
+                    // outright -- skipping the index with it -- and the editor
+                    // never read the error.
+                    let mut warnings = Vec::new();
                     match SchemaRegistry::from_workspace(&root_path) {
                         Ok(schema_registry) => {
                             info!(count = schema_registry.len(), "Loaded SLS schemas");
                             *schema_registry_arc.lock().await = schema_registry;
+                        }
+                        Err(e) => warnings.push(format!(
+                            "The SLS schemas could not be loaded, so none are in use: {e}"
+                        )),
+                    }
 
-                            let db_path = req
-                                .db_path
-                                .as_deref()
-                                .filter(|p| !p.is_empty())
-                                .or(config.workspace.db_path.as_deref())
-                                .map(PathBuf::from);
-                            match WorkspaceIndex::new(&root_path, db_path.as_deref()) {
-                                Ok(index) => {
-                                    let mut idx_lock = workspace_index_arc.lock().await;
-                                    *idx_lock = Some(index);
-                                    let should_index = config.workspace.index_on_open
-                                        || req.index_on_open.unwrap_or(false);
-                                    if should_index {
-                                        info!(
-                                            "Workspace indexing enabled — starting background index"
-                                        );
-                                        indexing_notify.notify_one();
-                                    } else {
-                                        debug!(
-                                            "Workspace indexing disabled (workspace.index_on_open = false)"
-                                        );
-                                    }
-                                    Some(response::Payload::Ok(checker::OkResponse {}))
-                                }
-                                Err(e) => Some(response::Payload::Error(ErrorResponse {
-                                    message: e.to_string(),
-                                })),
+                    let db_path = req
+                        .db_path
+                        .as_deref()
+                        .filter(|p| !p.is_empty())
+                        .or(config.workspace.db_path.as_deref())
+                        .map(PathBuf::from);
+                    // Let go of this server's own handle first: a re-initialize
+                    // opens the same file again, and the lock would take the
+                    // old handle for another server.
+                    *workspace_index_arc.lock().await = None;
+                    let mut other_server = None;
+                    match WorkspaceIndex::open(&root_path, db_path.as_deref()) {
+                        Ok(opened) => {
+                            if let Some(aside) = opened.set_aside {
+                                warnings.push(format!(
+                                    "The workspace index could not be read, so it was moved to {} and a new one started.",
+                                    aside.display()
+                                ));
+                            }
+                            *workspace_index_arc.lock().await = Some(opened.index);
+                            let should_index = config.workspace.index_on_open
+                                || req.index_on_open.unwrap_or(false);
+                            if should_index {
+                                info!("Workspace indexing enabled — starting background index");
+                                indexing_notify.notify_one();
+                            } else {
+                                debug!(
+                                    "Workspace indexing disabled (workspace.index_on_open = false)"
+                                );
                             }
                         }
-                        Err(e) => Some(response::Payload::Error(ErrorResponse {
-                            message: format!("Failed to load SLS schemas: {e}"),
-                        })),
+                        Err(unavailable) => {
+                            warn!("Running without the workspace index: {unavailable}");
+                            if let IndexUnavailable::HeldByAnotherServer { owner: Some(owner) } =
+                                &unavailable
+                            {
+                                other_server = Some(server_identity(owner));
+                            }
+                            warnings.push(format!(
+                                "{}, so this one runs without it: results are neither shared nor kept between sessions.",
+                                capitalized(&unavailable.to_string()),
+                            ));
+                        }
                     }
+                    Some(response::Payload::Initialize(InitializeResponse {
+                        warnings,
+                        other_server,
+                        this_server: Some(server_identity(&IndexOwner::this_process())),
+                    }))
                 }
                 Some(checker::request::Payload::CheckProse(req)) => 'check: {
                     let canonical_lang =
@@ -1029,6 +1056,22 @@ fn list_config_files(root: &Path) -> ListConfigFilesResponse {
         file_types: config.file_types,
         load_error,
     }
+}
+
+fn server_identity(owner: &IndexOwner) -> ServerIdentity {
+    ServerIdentity {
+        pid: owner.pid,
+        version: owner.version.clone(),
+        executable: owner.executable.clone(),
+    }
+}
+
+/// A sentence built from an error message that starts in lower case.
+fn capitalized(text: &str) -> String {
+    let mut chars = text.chars();
+    chars.next().map_or_else(String::new, |first| {
+        first.to_uppercase().chain(chars).collect()
+    })
 }
 
 /// The longest request the server will wait for. A document is the largest

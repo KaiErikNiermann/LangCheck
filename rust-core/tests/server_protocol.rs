@@ -4,13 +4,16 @@
 //! request: an undecodable one is answered under its own id, so the editor
 //! fails that request at once, and a length no request could have ends the
 //! process, so the editor starts a fresh one instead of waiting on a stream
-//! that is out of step.
+//! that is out of step. And a second server on a workspace whose index is
+//! taken says so, and by which process, rather than failing Initialize.
 
 use std::io::{Read, Write};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-use lang_check::checker::{MetadataRequest, Request, Response, request, response};
+use lang_check::checker::{
+    InitializeRequest, InitializeResponse, MetadataRequest, Request, Response, request, response,
+};
 use prost::Message;
 
 fn server() -> Child {
@@ -103,4 +106,92 @@ fn a_length_no_request_could_have_ends_the_process() {
         );
         std::thread::sleep(Duration::from_millis(20));
     }
+}
+
+fn initialize(
+    child: &mut Child,
+    root: &std::path::Path,
+    db: &std::path::Path,
+) -> InitializeResponse {
+    let request = Request {
+        id: 1,
+        payload: Some(request::Payload::Initialize(InitializeRequest {
+            workspace_root: root.to_string_lossy().into_owned(),
+            db_path: Some(db.to_string_lossy().into_owned()),
+            ..Default::default()
+        })),
+    };
+    send_frame(child, &request.encode_to_vec());
+    match read_response(child).payload {
+        Some(response::Payload::Initialize(answer)) => answer,
+        other => panic!("Initialize answered {other:?}"),
+    }
+}
+
+#[test]
+fn a_second_server_on_a_workspace_names_the_first() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db = dir.path().join("index.redb");
+    let mut first = server();
+    let mut second = server();
+
+    let first_answer = initialize(&mut first, dir.path(), &db);
+    assert_eq!(first_answer.warnings, Vec::<String>::new());
+    assert_eq!(first_answer.other_server, None);
+    let first_pid = first.id();
+    assert_eq!(
+        first_answer.this_server.expect("names itself").pid,
+        first_pid
+    );
+
+    let second_answer = initialize(&mut second, dir.path(), &db);
+    let other = second_answer
+        .other_server
+        .expect("names the server holding the index");
+    assert_eq!(other.pid, first_pid);
+    assert!(
+        !other.executable.is_empty(),
+        "the path is what tells two copies apart"
+    );
+    assert_eq!(
+        second_answer.this_server.expect("names itself").pid,
+        second.id()
+    );
+    assert_eq!(
+        second_answer.warnings.len(),
+        1,
+        "{:?}",
+        second_answer.warnings
+    );
+    assert!(second_answer.warnings[0].contains(&first_pid.to_string()));
+
+    first.kill().ok();
+    second.kill().ok();
+}
+
+#[test]
+fn a_server_initialized_twice_does_not_mistake_itself_for_another() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db = dir.path().join("index.redb");
+    let mut child = server();
+    initialize(&mut child, dir.path(), &db);
+    let again = initialize(&mut child, dir.path(), &db);
+    assert_eq!(again.warnings, Vec::<String>::new());
+    assert_eq!(again.other_server, None);
+    child.kill().ok();
+}
+
+#[test]
+fn an_unreadable_index_is_replaced_and_said_so() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db = dir.path().join("index.redb");
+    std::fs::write(&db, b"not a database".repeat(200)).expect("write");
+    let mut child = server();
+    let answer = initialize(&mut child, dir.path(), &db);
+    assert_eq!(answer.warnings.len(), 1, "{:?}", answer.warnings);
+    assert!(
+        answer.warnings[0].contains("unreadable")
+            || answer.warnings[0].contains("could not be read")
+    );
+    child.kill().ok();
 }

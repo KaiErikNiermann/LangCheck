@@ -1,11 +1,13 @@
 use crate::checker::Diagnostic;
 use crate::insights::ProseInsights;
 use anyhow::Result;
-use redb::{Database, ReadableDatabase, TableDefinition};
+use redb::{Database, DatabaseError, ReadableDatabase, StorageError, TableDefinition};
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
+use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+use tracing::warn;
 
 /// Every table in the index maps a file path to an opaque byte blob, so one
 /// pair of accessors serves all three.
@@ -98,12 +100,122 @@ pub struct CachedCheck {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+/// Who has a workspace index open, as the server that opened it wrote down.
+///
+/// The version and the path are what tell an old copy of the server, left in
+/// another folder, from the one the editor meant to start.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IndexOwner {
+    pub pid: u32,
+    pub version: String,
+    pub executable: String,
+}
+
+impl IndexOwner {
+    /// This process, as it records itself.
+    #[must_use]
+    pub fn this_process() -> Self {
+        Self {
+            pid: std::process::id(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            executable: std::env::current_exe()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default(),
+        }
+    }
+
+    fn file_for(db: &Path) -> PathBuf {
+        let mut name = db.as_os_str().to_owned();
+        name.push(".owner.json");
+        PathBuf::from(name)
+    }
+
+    fn read(db: &Path) -> Option<Self> {
+        let text = std::fs::read_to_string(Self::file_for(db)).ok()?;
+        serde_json::from_str(&text).ok()
+    }
+
+    /// Best effort: without the record a second server can still say that
+    /// the index is taken, only not by whom.
+    fn write(&self, db: &Path) {
+        if let Ok(text) = serde_json::to_string(self)
+            && let Err(e) = std::fs::write(Self::file_for(db), text)
+        {
+            warn!(path = %db.display(), "Could not record the index owner: {e}");
+        }
+    }
+}
+
+impl fmt::Display for IndexOwner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "version {}, process {}", self.version, self.pid)?;
+        if !self.executable.is_empty() {
+            write!(f, ", at {}", self.executable)?;
+        }
+        Ok(())
+    }
+}
+
+/// Why a workspace index could not be used.
+#[derive(Debug)]
+pub enum IndexUnavailable {
+    /// Another process holds the index's lock; `owner` is what it recorded.
+    HeldByAnotherServer {
+        owner: Option<IndexOwner>,
+    },
+    Failed(anyhow::Error),
+}
+
+impl fmt::Display for IndexUnavailable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::HeldByAnotherServer { owner: Some(owner) } => {
+                write!(
+                    f,
+                    "another language-check server ({owner}) is using this workspace's index"
+                )
+            }
+            Self::HeldByAnotherServer { owner: None } => {
+                write!(
+                    f,
+                    "another language-check server is using this workspace's index"
+                )
+            }
+            Self::Failed(e) => write!(f, "the workspace index could not be opened: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for IndexUnavailable {}
+
+/// An opened index, and where the unreadable file it replaced was moved.
+pub struct OpenedIndex {
+    pub index: WorkspaceIndex,
+    pub set_aside: Option<PathBuf>,
+}
+
+/// Where an unreadable index is moved: beside it, named for when.
+fn aside_path(db: &Path) -> PathBuf {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let mut name = db.as_os_str().to_owned();
+    name.push(format!(".unreadable-{stamp}"));
+    PathBuf::from(name)
+}
+
 pub struct WorkspaceIndex {
     db: Database,
     root_path: PathBuf,
 }
 
 impl WorkspaceIndex {
+    /// Create or open a workspace index, failing on anything short of an
+    /// index that is ready to use. See [`Self::open`] for why it failed.
+    pub fn new(workspace_root: &Path, db_path: Option<&Path>) -> Result<Self> {
+        Ok(Self::open(workspace_root, db_path)?.index)
+    }
+
     /// Create or open a workspace index.
     ///
     /// If `db_path` is provided, the database is created at that exact path.
@@ -112,30 +224,82 @@ impl WorkspaceIndex {
     ///  `~/Library/Application Support/language-check/dbs/` on macOS,
     ///  `%APPDATA%/language-check/dbs/` on Windows),
     /// named by a hash of the workspace root to avoid collisions.
-    pub fn new(workspace_root: &Path, db_path: Option<&Path>) -> Result<Self> {
-        let resolved_path = match db_path {
+    ///
+    /// The index is only a cache, so a file that cannot be read as one --
+    /// corrupted, or from an older format -- is moved aside and a new one
+    /// started, rather than failing every session after it. Once the lock is
+    /// held, who holds it is written next to the database: the lock turns a
+    /// second server away, and the record is how that server says which one
+    /// is already running.
+    pub fn open(
+        workspace_root: &Path,
+        db_path: Option<&Path>,
+    ) -> Result<OpenedIndex, IndexUnavailable> {
+        let path = match db_path {
             Some(p) => p.to_path_buf(),
-            None => default_db_path(workspace_root)?,
+            None => default_db_path(workspace_root).map_err(IndexUnavailable::Failed)?,
+        };
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| IndexUnavailable::Failed(e.into()))?;
+        }
+
+        let mut set_aside = None;
+        let db = match Database::create(&path) {
+            Ok(db) => db,
+            Err(DatabaseError::DatabaseAlreadyOpen) => {
+                return Err(IndexUnavailable::HeldByAnotherServer {
+                    owner: IndexOwner::read(&path),
+                });
+            }
+            // A file that is not a redb database at all is reported as I/O
+            // of kind InvalidData; any other I/O error -- permissions, a full
+            // disk -- is not the file's fault, and it is left where it is.
+            Err(
+                DatabaseError::Storage(StorageError::Corrupted(_))
+                | DatabaseError::UpgradeRequired(_)
+                | DatabaseError::RepairAborted,
+            ) => Self::replace_unreadable(&path, &mut set_aside)?,
+            Err(DatabaseError::Storage(StorageError::Io(e)))
+                if e.kind() == std::io::ErrorKind::InvalidData =>
+            {
+                Self::replace_unreadable(&path, &mut set_aside)?
+            }
+            Err(e) => return Err(IndexUnavailable::Failed(e.into())),
         };
 
-        if let Some(parent) = resolved_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
+        let tables = || -> Result<()> {
+            let write_txn = db.begin_write()?;
+            {
+                let _table = write_txn.open_table(DIAGNOSTICS_TABLE)?;
+                let _table = write_txn.open_table(INSIGHTS_TABLE)?;
+                let _table = write_txn.open_table(FILE_HASHES_TABLE)?;
+            }
+            write_txn.commit()?;
+            Ok(())
+        };
+        tables().map_err(IndexUnavailable::Failed)?;
 
-        let db = Database::create(&resolved_path)?;
-
-        let write_txn = db.begin_write()?;
-        {
-            let _table = write_txn.open_table(DIAGNOSTICS_TABLE)?;
-            let _table = write_txn.open_table(INSIGHTS_TABLE)?;
-            let _table = write_txn.open_table(FILE_HASHES_TABLE)?;
-        }
-        write_txn.commit()?;
-
-        Ok(Self {
-            db,
-            root_path: workspace_root.to_path_buf(),
+        IndexOwner::this_process().write(&path);
+        Ok(OpenedIndex {
+            index: Self {
+                db,
+                root_path: workspace_root.to_path_buf(),
+            },
+            set_aside,
         })
+    }
+
+    /// Move an unreadable index aside, kept for anyone who wants to look, and
+    /// start a new one in its place.
+    fn replace_unreadable(
+        path: &Path,
+        set_aside: &mut Option<PathBuf>,
+    ) -> Result<Database, IndexUnavailable> {
+        let aside = aside_path(path);
+        std::fs::rename(path, &aside).map_err(|e| IndexUnavailable::Failed(e.into()))?;
+        warn!(path = %path.display(), aside = %aside.display(), "Workspace index unreadable; set aside and starting a new one");
+        *set_aside = Some(aside);
+        Database::create(path).map_err(|e| IndexUnavailable::Failed(e.into()))
     }
 
     #[must_use]
@@ -350,6 +514,50 @@ mod tests {
         let (idx, dir) = temp_workspace("create");
         assert_eq!(idx.get_root_path().unwrap(), &dir);
         cleanup(&dir);
+    }
+
+    #[test]
+    fn a_second_opener_is_turned_away_and_told_who_holds_the_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("index.redb");
+        let first = WorkspaceIndex::open(dir.path(), Some(&db)).expect("the first opener gets it");
+        match WorkspaceIndex::open(dir.path(), Some(&db)) {
+            Err(IndexUnavailable::HeldByAnotherServer { owner: Some(owner) }) => {
+                assert_eq!(owner, IndexOwner::this_process());
+            }
+            Err(other) => panic!("turned away for the wrong reason: {other}"),
+            Ok(_) => panic!("two openers of one index"),
+        }
+        drop(first);
+        assert!(
+            WorkspaceIndex::open(dir.path(), Some(&db)).is_ok(),
+            "released with its holder"
+        );
+    }
+
+    #[test]
+    fn an_unreadable_index_is_set_aside_and_replaced() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("index.redb");
+        std::fs::write(
+            &db,
+            b"this was never a database, and it is long enough to be read as one's header"
+                .repeat(64),
+        )
+        .unwrap();
+        let opened = WorkspaceIndex::open(dir.path(), Some(&db))
+            .expect("a cache that cannot be read is replaced");
+        let aside = opened
+            .set_aside
+            .expect("the unreadable file is kept, not deleted");
+        assert!(aside.exists() && db.exists());
+        drop(opened.index);
+        assert!(
+            WorkspaceIndex::open(dir.path(), Some(&db))
+                .unwrap()
+                .set_aside
+                .is_none()
+        );
     }
 
     #[test]
