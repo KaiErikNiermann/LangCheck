@@ -40,7 +40,17 @@ static GAZETTEER: LazyLock<Option<Set<&'static [u8]>>> =
     LazyLock::new(|| Set::new(NAME_FST_BYTES).ok());
 
 /// How much corroboration is required before a diagnostic is dropped.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Aggressiveness {
     /// Only suppress when the evidence is overwhelming.

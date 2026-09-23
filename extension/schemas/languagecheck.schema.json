@@ -1,0 +1,963 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "Aggressiveness": {
+      "description": "How much corroboration is required before a diagnostic is dropped.",
+      "markdownDescription": "How much corroboration is required before a diagnostic is dropped.",
+      "oneOf": [
+        {
+          "const": "conservative",
+          "description": "Only suppress when the evidence is overwhelming.",
+          "markdownDescription": "Only suppress when the evidence is overwhelming.",
+          "type": "string"
+        },
+        {
+          "const": "balanced",
+          "description": "Default: a gazetteer hit plus one corroborating signal, or equivalent.",
+          "markdownDescription": "Default: a gazetteer hit plus one corroborating signal, or equivalent.",
+          "type": "string"
+        },
+        {
+          "const": "aggressive",
+          "description": "Suppress on weaker evidence. Expect occasional real typos to be missed.",
+          "markdownDescription": "Suppress on weaker evidence. Expect occasional real typos to be missed.",
+          "type": "string"
+        }
+      ]
+    },
+    "AutoFixRule": {
+      "additionalProperties": false,
+      "description": "A user-defined find->replace auto-fix rule.",
+      "markdownDescription": "A user-defined find->replace auto-fix rule.",
+      "properties": {
+        "context": {
+          "default": null,
+          "description": "Optional context filter: only apply when surrounding text matches.",
+          "markdownDescription": "Optional context filter: only apply when surrounding text matches.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "default": null,
+          "description": "Optional description for the rule.",
+          "markdownDescription": "Optional description for the rule.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "find": {
+          "description": "Pattern to find (plain text, case-sensitive).",
+          "markdownDescription": "Pattern to find (plain text, case-sensitive).",
+          "type": "string"
+        },
+        "replace": {
+          "description": "Replacement text.",
+          "markdownDescription": "Replacement text.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "find",
+        "replace"
+      ],
+      "type": "object"
+    },
+    "DictionaryConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for bundled and additional wordlist dictionaries.",
+      "markdownDescription": "Configuration for bundled and additional wordlist dictionaries.",
+      "properties": {
+        "bundled": {
+          "default": true,
+          "description": "Whether to load the bundled domain-specific dictionaries (software terms,\nTypeScript, companies, jargon, mathematics). Default: true.",
+          "markdownDescription": "Whether to load the bundled domain-specific dictionaries (software terms,\nTypeScript, companies, jargon, mathematics). Default: true.",
+          "type": "boolean"
+        },
+        "disabled": {
+          "default": [],
+          "description": "Names of individual bundled dictionaries to skip, e.g.\n`[\"companies\", \"mathematics\"]`. Every set loads by default; listing one\nhere turns off just that one. Ignored when `bundled` is false.",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Names of individual bundled dictionaries to skip, e.g.\n`[\"companies\", \"mathematics\"]`. Every set loads by default; listing one\nhere turns off just that one. Ignored when `bundled` is false.",
+          "type": "array"
+        },
+        "paths": {
+          "default": [],
+          "description": "Paths to additional wordlist files (one word per line, `#` comments).\nRelative paths are resolved from the workspace root.",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Paths to additional wordlist files (one word per line, `#` comments).\nRelative paths are resolved from the workspace root.",
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "EngineConfig": {
+      "additionalProperties": false,
+      "description": "Checking engines. Each one takes `true`/`false` or a table of its settings.",
+      "markdownDescription": "Checking engines. Each one takes `true`/`false` or a table of its settings.",
+      "properties": {
+        "external": {
+          "default": [],
+          "items": {
+            "$ref": "#/definitions/ExternalProvider"
+          },
+          "type": "array"
+        },
+        "harper": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/HarperConfigOrBool"
+            }
+          ],
+          "default": {
+            "dialect": "American",
+            "enabled": true,
+            "linters": {}
+          }
+        },
+        "hunspell": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/HunspellConfigOrBool"
+            }
+          ],
+          "default": {
+            "auto_install": false,
+            "dictionary_paths": {},
+            "enabled": false,
+            "languages": [],
+            "search_paths": []
+          }
+        },
+        "languagetool": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/LanguageToolConfigOrBool"
+            }
+          ],
+          "default": {
+            "disabled_categories": [],
+            "disabled_rules": [],
+            "enabled": false,
+            "enabled_categories": [],
+            "enabled_rules": [],
+            "level": "default",
+            "max_concurrent_requests": 8,
+            "max_request_bytes": 4096,
+            "mother_tongue": null,
+            "url": "http://localhost:8010"
+          }
+        },
+        "languagetool_url": {
+          "default": null,
+          "deprecated": true,
+          "deprecationMessage": "Use `engines.languagetool.url`.",
+          "description": "Deprecated alias for `engines.languagetool.url`.",
+          "markdownDescription": "Deprecated alias for `engines.languagetool.url`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "proselint": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ProselintConfigOrBool"
+            }
+          ],
+          "default": {
+            "config": null,
+            "enabled": false
+          }
+        },
+        "spell_language": {
+          "default": "en-US",
+          "type": "string"
+        },
+        "vale": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ValeConfigOrBool"
+            }
+          ],
+          "default": {
+            "config": null,
+            "enabled": false
+          }
+        },
+        "vale_config": {
+          "default": null,
+          "deprecated": true,
+          "deprecationMessage": "Use `engines.vale.config`.",
+          "description": "Deprecated alias for `engines.vale.config`.",
+          "markdownDescription": "Deprecated alias for `engines.vale.config`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "wasm_plugins": {
+          "default": [],
+          "items": {
+            "$ref": "#/definitions/WasmPlugin"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "ExternalProvider": {
+      "additionalProperties": false,
+      "description": "An external checker binary that communicates via stdin/stdout JSON.\n\nThe binary receives `{\"text\": \"...\", \"language_id\": \"...\"}` on stdin\nand returns `[{\"start_byte\": N, \"end_byte\": N, \"message\": \"...\", ...}]` on stdout.",
+      "markdownDescription": "An external checker binary that communicates via stdin/stdout JSON.\n\nThe binary receives `{\"text\": \"...\", \"language_id\": \"...\"}` on stdin\nand returns `[{\"start_byte\": N, \"end_byte\": N, \"message\": \"...\", ...}]` on stdout.",
+      "properties": {
+        "args": {
+          "default": [],
+          "description": "Optional arguments to pass to the command.",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Optional arguments to pass to the command.",
+          "type": "array"
+        },
+        "command": {
+          "description": "Path to the executable.",
+          "markdownDescription": "Path to the executable.",
+          "type": "string"
+        },
+        "extensions": {
+          "default": [],
+          "description": "File extensions this provider parses, without the dot (empty = all).\n\nThe markup it understands, which is a different question from the\nlanguage it speaks.",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "File extensions this provider parses, without the dot (empty = all).\n\nThe markup it understands, which is a different question from the\nlanguage it speaks.",
+          "type": "array"
+        },
+        "languages": {
+          "default": [],
+          "description": "BCP-47 tags this provider checks (empty = all).\n\nWithout this a provider claims every language, including ones it has\nno idea what to do with -- and claiming a language suppresses the\nreport that says nothing could check it.",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "BCP-47 tags this provider checks (empty = all).\n\nWithout this a provider claims every language, including ones it has\nno idea what to do with -- and claiming a language suppresses the\nreport that says nothing could check it.",
+          "type": "array"
+        },
+        "name": {
+          "description": "Display name for this provider.",
+          "markdownDescription": "Display name for this provider.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "command"
+      ],
+      "type": "object"
+    },
+    "HarperConfig": {
+      "additionalProperties": false,
+      "description": "Harper engine configuration.",
+      "markdownDescription": "Harper engine configuration.",
+      "properties": {
+        "dialect": {
+          "default": "American",
+          "description": "Harper dialect: `American`, `British`, `Canadian` or `Australian`.",
+          "enum": [
+            "American",
+            "British",
+            "Canadian",
+            "Australian"
+          ],
+          "markdownDescription": "Harper dialect: `American`, `British`, `Canadian` or `Australian`.",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "linters": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "default": {},
+          "description": "Per-rule toggles. Key is the rule name (e.g. `LongSentences`), value\nis `true`/`false`. Omitted rules use the curated default.",
+          "markdownDescription": "Per-rule toggles. Key is the rule name (e.g. `LongSentences`), value\nis `true`/`false`. Omitted rules use the curated default.",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "HarperConfigOrBool": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/HarperConfig"
+        },
+        {
+          "description": "`true` or `false`: turn the engine on or off with its default settings.",
+          "markdownDescription": "`true` or `false`: turn the engine on or off with its default settings.",
+          "type": "boolean"
+        }
+      ],
+      "description": "An engine written either as a bool shorthand or as its full settings table.",
+      "markdownDescription": "An engine written either as a bool shorthand or as its full settings table."
+    },
+    "HunspellConfig": {
+      "additionalProperties": false,
+      "description": "Hunspell: spelling for the languages the other engines do not read.\n\n```yaml\nengines:\n  hunspell:\n    enabled: true\n    languages: [\"he\", \"la\"]\n    dictionary_paths:\n      la: /opt/dictionaries/latin\n```",
+      "markdownDescription": "Hunspell: spelling for the languages the other engines do not read.\n\n```yaml\nengines:\n  hunspell:\n    enabled: true\n    languages: [\"he\", \"la\"]\n    dictionary_paths:\n      la: /opt/dictionaries/latin\n```",
+      "properties": {
+        "auto_install": {
+          "default": false,
+          "description": "Fetch a missing pack without being asked.\n\nOff by default: a dictionary is a third-party download under its own\nlicence -- Hspell is AGPL-3.0, the Latin pack GPL -- and that is a\ndecision to put to the user rather than to make for them.",
+          "markdownDescription": "Fetch a missing pack without being asked.\n\nOff by default: a dictionary is a third-party download under its own\nlicence -- Hspell is AGPL-3.0, the Latin pack GPL -- and that is a\ndecision to put to the user rather than to make for them.",
+          "type": "boolean"
+        },
+        "dictionary_paths": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Per-language override: a directory, an `.aff`/`.dic` stem, or either\nfile of the pair. Beats every search path, so a pinned dictionary is\ndefinitely the one in use.",
+          "markdownDescription": "Per-language override: a directory, an `.aff`/`.dic` stem, or either\nfile of the pair. Beats every search path, so a pinned dictionary is\ndefinitely the one in use.",
+          "type": "object"
+        },
+        "enabled": {
+          "default": false,
+          "description": "Off by default, like every engine that needs something installed.",
+          "markdownDescription": "Off by default, like every engine that needs something installed.",
+          "type": "boolean"
+        },
+        "languages": {
+          "default": [],
+          "description": "Languages to check with Hunspell, as BCP-47 tags.\n\nNaming them ahead of time is what lets a pack be fetched before it is\nneeded rather than mid-document, and what keeps this engine to the gaps\n-- leave English out and Harper keeps it. Empty means any language with\na pack behind it, which is the discovery mode and not the tidy one.",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Languages to check with Hunspell, as BCP-47 tags.\n\nNaming them ahead of time is what lets a pack be fetched before it is\nneeded rather than mid-document, and what keeps this engine to the gaps\n-- leave English out and Harper keeps it. Empty means any language with\na pack behind it, which is the discovery mode and not the tidy one.",
+          "type": "array"
+        },
+        "search_paths": {
+          "default": [],
+          "description": "Extra directories to search, before the platform's own.",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Extra directories to search, before the platform's own.",
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "HunspellConfigOrBool": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/HunspellConfig"
+        },
+        {
+          "description": "`true` or `false`: turn the engine on or off with its default settings.",
+          "markdownDescription": "`true` or `false`: turn the engine on or off with its default settings.",
+          "type": "boolean"
+        }
+      ],
+      "description": "An engine written either as a bool shorthand or as its full settings table.",
+      "markdownDescription": "An engine written either as a bool shorthand or as its full settings table."
+    },
+    "LaTeXConfig": {
+      "additionalProperties": false,
+      "description": "LaTeX-specific configuration.\n\n```yaml\nlanguages:\n  latex:\n    skip_environments:\n      - prooftree\n      - mycustomenv\n```",
+      "markdownDescription": "LaTeX-specific configuration.\n\n```yaml\nlanguages:\n  latex:\n    skip_environments:\n      - prooftree\n      - mycustomenv\n```",
+      "properties": {
+        "skip_commands": {
+          "default": [],
+          "description": "Extra command names whose arguments should be skipped during prose\nextraction. These are checked in addition to the built-in skip list\n(which includes `texttt`, `verb`, `url`, etc.).",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Extra command names whose arguments should be skipped during prose\nextraction. These are checked in addition to the built-in skip list\n(which includes `texttt`, `verb`, `url`, etc.).",
+          "type": "array"
+        },
+        "skip_environments": {
+          "default": [],
+          "description": "Extra environment names to skip during prose extraction.\nThese are checked in addition to the built-in skip list.",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Extra environment names to skip during prose extraction.\nThese are checked in addition to the built-in skip list.",
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "LanguageConfig": {
+      "additionalProperties": false,
+      "description": "Language extension aliasing configuration.\n\nMaps canonical language IDs to additional file extensions.\nBuilt-in extensions (e.g. `.md` → markdown, `.htm` → html) are always\nincluded; entries here add to them.\n\n```yaml\nlanguages:\n  extensions:\n    markdown: [mdx, Rmd]\n    latex: [sty]\n```",
+      "markdownDescription": "Language extension aliasing configuration.\n\nMaps canonical language IDs to additional file extensions.\nBuilt-in extensions (e.g. `.md` → markdown, `.htm` → html) are always\nincluded; entries here add to them.\n\n```yaml\nlanguages:\n  extensions:\n    markdown: [mdx, Rmd]\n    latex: [sty]\n```",
+      "properties": {
+        "extensions": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "default": {},
+          "description": "Additional file extensions per language ID (without leading dots).",
+          "markdownDescription": "Additional file extensions per language ID (without leading dots).",
+          "type": "object"
+        },
+        "latex": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/LaTeXConfig"
+            }
+          ],
+          "default": {
+            "skip_commands": [],
+            "skip_environments": []
+          },
+          "description": "LaTeX-specific settings.",
+          "markdownDescription": "LaTeX-specific settings."
+        }
+      },
+      "type": "object"
+    },
+    "LanguageToolConfig": {
+      "additionalProperties": false,
+      "description": "`LanguageTool` engine configuration.",
+      "markdownDescription": "`LanguageTool` engine configuration.",
+      "properties": {
+        "disabled_categories": {
+          "default": [],
+          "description": "Category IDs to disable.",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Category IDs to disable.",
+          "type": "array"
+        },
+        "disabled_rules": {
+          "default": [],
+          "description": "Rule IDs to disable (e.g. `[\"WHITESPACE_RULE\"]`).",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Rule IDs to disable (e.g. `[\"WHITESPACE_RULE\"]`).",
+          "type": "array"
+        },
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "enabled_categories": {
+          "default": [],
+          "description": "Category IDs to enable.",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Category IDs to enable.",
+          "type": "array"
+        },
+        "enabled_rules": {
+          "default": [],
+          "description": "Rule IDs to enable beyond defaults.",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Rule IDs to enable beyond defaults.",
+          "type": "array"
+        },
+        "level": {
+          "default": "default",
+          "description": "Checking level: `default` or `picky` (enables stricter rules).",
+          "enum": [
+            "default",
+            "picky"
+          ],
+          "markdownDescription": "Checking level: `default` or `picky` (enables stricter rules).",
+          "type": "string"
+        },
+        "max_concurrent_requests": {
+          "default": 8,
+          "description": "How many `/v2/check` requests may be in flight at once.\n\nLower this when pointing at a shared or rate-limited server; `1`\nrestores serial checking.",
+          "format": "uint",
+          "markdownDescription": "How many `/v2/check` requests may be in flight at once.\n\nLower this when pointing at a shared or rate-limited server; `1`\nrestores serial checking.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_request_bytes": {
+          "default": 4096,
+          "description": "How much prose to put in one `/v2/check`, in bytes.\n\nProse ranges are packed up to this size before being sent. A range that\nexceeds it on its own still gets a request of its own; `0` disables\npacking and restores one request per range.",
+          "format": "uint",
+          "markdownDescription": "How much prose to put in one `/v2/check`, in bytes.\n\nProse ranges are packed up to this size before being sent. A range that\nexceeds it on its own still gets a request of its own; `0` disables\npacking and restores one request per range.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mother_tongue": {
+          "default": null,
+          "description": "User's native language for false-friends detection (BCP-47 tag).",
+          "markdownDescription": "User's native language for false-friends detection (BCP-47 tag).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "url": {
+          "default": "http://localhost:8010",
+          "description": "`LanguageTool` server URL.",
+          "markdownDescription": "`LanguageTool` server URL.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "LanguageToolConfigOrBool": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/LanguageToolConfig"
+        },
+        {
+          "description": "`true` or `false`: turn the engine on or off with its default settings.",
+          "markdownDescription": "`true` or `false`: turn the engine on or off with its default settings.",
+          "type": "boolean"
+        }
+      ],
+      "description": "An engine written either as a bool shorthand or as its full settings table.",
+      "markdownDescription": "An engine written either as a bool shorthand or as its full settings table."
+    },
+    "MorphologyConfig": {
+      "additionalProperties": false,
+      "description": "Accept words built by affixation on known words: `subalgebra` is accepted because `algebra` is a word.",
+      "markdownDescription": "Accept words built by affixation on known words: `subalgebra` is accepted because `algebra` is a word.",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Accept a flagged token that decomposes into a known root.",
+          "markdownDescription": "Accept a flagged token that decomposes into a known root.",
+          "type": "boolean"
+        },
+        "inflections": {
+          "default": true,
+          "description": "Generate the regular inflections of every dictionary word and accept those too.",
+          "markdownDescription": "Generate the regular inflections of every dictionary word and accept those too.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "NameConfig": {
+      "additionalProperties": false,
+      "description": "Opt-in suppression of spelling diagnostics on human names.\n\nOff by default: the failure mode is silently hiding a real misspelling, which is\nmuch harder to notice than a stray squiggle on a surname.\n\n```yaml\nnames:\n  enabled: true\n  aggressiveness: balanced   # conservative | balanced | aggressive\n```",
+      "markdownDescription": "Opt-in suppression of spelling diagnostics on human names.\n\nOff by default: the failure mode is silently hiding a real misspelling, which is\nmuch harder to notice than a stray squiggle on a surname.\n\n```yaml\nnames:\n  enabled: true\n  aggressiveness: balanced   # conservative | balanced | aggressive\n```",
+      "properties": {
+        "aggressiveness": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/Aggressiveness"
+            }
+          ],
+          "default": "balanced",
+          "description": "How much corroborating evidence a name needs before its diagnostic is dropped.\nDefault: `balanced`.",
+          "markdownDescription": "How much corroborating evidence a name needs before its diagnostic is dropped.\nDefault: `balanced`."
+        },
+        "enabled": {
+          "default": false,
+          "description": "Whether to drop spelling diagnostics on tokens detected as human names.",
+          "markdownDescription": "Whether to drop spelling diagnostics on tokens detected as human names.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "PerformanceConfig": {
+      "additionalProperties": false,
+      "description": "Performance tuning options. High Performance Mode (HPM) disables\nexpensive engines and external providers, using only harper-core.",
+      "markdownDescription": "Performance tuning options. High Performance Mode (HPM) disables\nexpensive engines and external providers, using only harper-core.",
+      "properties": {
+        "debounce_ms": {
+          "default": 500,
+          "description": "How long after the last keystroke a check runs, in milliseconds.\n\nRead by the editor clients, which own the typing loop; the core checks\nwhatever it is handed, whenever it is handed it.",
+          "format": "uint64",
+          "markdownDescription": "How long after the last keystroke a check runs, in milliseconds.\n\nRead by the editor clients, which own the typing loop; the core checks\nwhatever it is handed, whenever it is handed it.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "high_performance_mode": {
+          "default": false,
+          "description": "Enable High Performance Mode (only harper, no LT/externals).",
+          "markdownDescription": "Enable High Performance Mode (only harper, no LT/externals).",
+          "type": "boolean"
+        },
+        "max_file_size": {
+          "default": 0,
+          "description": "Maximum file size in bytes to check (0 = unlimited).",
+          "format": "uint",
+          "markdownDescription": "Maximum file size in bytes to check (0 = unlimited).",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_range_bytes": {
+          "default": 2048,
+          "description": "Longest prose range handed on, in bytes; longer ones are split at\nsentence boundaries. `0` disables splitting.\n\nA range is one cache key and one box in the inspector, so a document\nwritten without blank lines between paragraphs otherwise becomes a\nsingle range and neither the cache nor the inspector can say anything\nuseful about it.",
+          "format": "uint",
+          "markdownDescription": "Longest prose range handed on, in bytes; longer ones are split at\nsentence boundaries. `0` disables splitting.\n\nA range is one cache key and one box in the inspector, so a document\nwritten without blank lines between paragraphs otherwise becomes a\nsingle range and neither the cache nor the inspector can say anything\nuseful about it.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "result_cache_entries": {
+          "default": 4096,
+          "description": "How many engine answers to keep, keyed by the prose that produced them.\n\nA keystroke re-checks the whole document although one prose range\nchanged, so the cache is what keeps a long file responsive. `0`\ndisables it and re-checks every range on every keystroke.",
+          "format": "uint",
+          "markdownDescription": "How many engine answers to keep, keyed by the prose that produced them.\n\nA keystroke re-checks the whole document although one prose range\nchanged, so the cache is what keeps a long file responsive. `0`\ndisables it and re-checks every range on every keystroke.",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ProselintConfig": {
+      "additionalProperties": false,
+      "description": "Proselint engine configuration.",
+      "markdownDescription": "Proselint engine configuration.",
+      "properties": {
+        "config": {
+          "default": null,
+          "description": "Path to `proselint.json` config. When empty, proselint uses its own search logic.",
+          "markdownDescription": "Path to `proselint.json` config. When empty, proselint uses its own search logic.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "ProselintConfigOrBool": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ProselintConfig"
+        },
+        {
+          "description": "`true` or `false`: turn the engine on or off with its default settings.",
+          "markdownDescription": "`true` or `false`: turn the engine on or off with its default settings.",
+          "type": "boolean"
+        }
+      ],
+      "description": "An engine written either as a bool shorthand or as its full settings table.",
+      "markdownDescription": "An engine written either as a bool shorthand or as its full settings table."
+    },
+    "RuleConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "severity": {
+          "description": "Severity to report this rule at, or `off` to drop it. Case-insensitive.",
+          "enum": [
+            "error",
+            "warning",
+            "info",
+            "hint",
+            "off",
+            null
+          ],
+          "markdownDescription": "Severity to report this rule at, or `off` to drop it. Case-insensitive.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ValeConfig": {
+      "additionalProperties": false,
+      "description": "Vale engine configuration.",
+      "markdownDescription": "Vale engine configuration.",
+      "properties": {
+        "config": {
+          "default": null,
+          "description": "Path to `.vale.ini`. When empty, Vale uses its own search logic.",
+          "markdownDescription": "Path to `.vale.ini`. When empty, Vale uses its own search logic.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "ValeConfigOrBool": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ValeConfig"
+        },
+        {
+          "description": "`true` or `false`: turn the engine on or off with its default settings.",
+          "markdownDescription": "`true` or `false`: turn the engine on or off with its default settings.",
+          "type": "boolean"
+        }
+      ],
+      "description": "An engine written either as a bool shorthand or as its full settings table.",
+      "markdownDescription": "An engine written either as a bool shorthand or as its full settings table."
+    },
+    "WasmPlugin": {
+      "additionalProperties": false,
+      "description": "A WASM plugin loaded via Extism.\n\nPlugins must export a `check` function that receives a JSON string\n`{\"text\": \"...\", \"language_id\": \"...\"}` and returns a JSON array of diagnostics.",
+      "markdownDescription": "A WASM plugin loaded via Extism.\n\nPlugins must export a `check` function that receives a JSON string\n`{\"text\": \"...\", \"language_id\": \"...\"}` and returns a JSON array of diagnostics.",
+      "properties": {
+        "extensions": {
+          "default": [],
+          "description": "File extensions this plugin parses, without the dot (empty = all).",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "File extensions this plugin parses, without the dot (empty = all).",
+          "type": "array"
+        },
+        "languages": {
+          "default": [],
+          "description": "BCP-47 tags this plugin checks (empty = all).",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "BCP-47 tags this plugin checks (empty = all).",
+          "type": "array"
+        },
+        "name": {
+          "description": "Display name for this plugin.",
+          "markdownDescription": "Display name for this plugin.",
+          "type": "string"
+        },
+        "path": {
+          "description": "Path to the `.wasm` file (relative to workspace root or absolute).",
+          "markdownDescription": "Path to the `.wasm` file (relative to workspace root or absolute).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "path"
+      ],
+      "type": "object"
+    },
+    "WorkspaceConfig": {
+      "additionalProperties": false,
+      "description": "Workspace-level settings.\n\n```yaml\nworkspace:\n  index_on_open: true\n```",
+      "markdownDescription": "Workspace-level settings.\n\n```yaml\nworkspace:\n  index_on_open: true\n```",
+      "properties": {
+        "db_path": {
+          "default": null,
+          "description": "Custom path for the workspace database file. When empty (default),\ndatabases are stored in the user data directory.",
+          "markdownDescription": "Custom path for the workspace database file. When empty (default),\ndatabases are stored in the user data directory.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "index_on_open": {
+          "default": false,
+          "description": "Whether to run a full workspace index when the project is opened.\nDefault: false (only check documents on open/change).",
+          "markdownDescription": "Whether to run a full workspace index when the project is opened.\nDefault: false (only check documents on open/change).",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "properties": {
+    "auto_fix": {
+      "default": [],
+      "items": {
+        "$ref": "#/definitions/AutoFixRule"
+      },
+      "type": "array"
+    },
+    "dictionaries": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/DictionaryConfig"
+        }
+      ],
+      "default": {
+        "bundled": true,
+        "disabled": [],
+        "paths": []
+      }
+    },
+    "engines": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/EngineConfig"
+        }
+      ],
+      "default": {
+        "external": [],
+        "harper": {
+          "dialect": "American",
+          "enabled": true,
+          "linters": {}
+        },
+        "hunspell": {
+          "auto_install": false,
+          "dictionary_paths": {},
+          "enabled": false,
+          "languages": [],
+          "search_paths": []
+        },
+        "languagetool": {
+          "disabled_categories": [],
+          "disabled_rules": [],
+          "enabled": false,
+          "enabled_categories": [],
+          "enabled_rules": [],
+          "level": "default",
+          "max_concurrent_requests": 8,
+          "max_request_bytes": 4096,
+          "mother_tongue": null,
+          "url": "http://localhost:8010"
+        },
+        "proselint": {
+          "config": null,
+          "enabled": false
+        },
+        "spell_language": "en-US",
+        "vale": {
+          "config": null,
+          "enabled": false
+        },
+        "wasm_plugins": []
+      }
+    },
+    "exclude": {
+      "default": [
+        "**/node_modules/**",
+        "**/.git/**",
+        "**/target/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/.next/**",
+        "**/.nuxt/**",
+        "**/vendor/**",
+        "**/__pycache__/**",
+        "**/.venv/**",
+        "**/venv/**",
+        "**/.tox/**",
+        "**/.mypy_cache/**",
+        "*.min.js",
+        "*.min.css",
+        "*.bundle.js",
+        "package-lock.json",
+        "yarn.lock",
+        "pnpm-lock.yaml"
+      ],
+      "description": "Paths not to check, as workspace-relative globs.\n\nThe built-in list is always in force; anything written here is added\nto it. Replacing it instead was the obvious reading and the wrong one:\na config that excluded one directory of its own silently stopped\nexcluding `node_modules/**`, so adding a single pattern could multiply\nthe work by a hundred with nothing to say it had.",
+      "items": {
+        "type": "string"
+      },
+      "markdownDescription": "Paths not to check, as workspace-relative globs.\n\nThe built-in list is always in force; anything written here is added\nto it. Replacing it instead was the obvious reading and the wrong one:\na config that excluded one directory of its own silently stopped\nexcluding `node_modules/**`, so adding a single pattern could multiply\nthe work by a hundred with nothing to say it had.",
+      "type": "array"
+    },
+    "file_types": {
+      "default": [],
+      "description": "Which file types to check, as extensions without the leading dot.\n\nEmpty means every type the grammars recognise, which is the default\nand what this did before the key existed. `[\"md\"]` restricts the whole\nproject to Markdown however wide `include` is, which is the common\ncase that `include` alone can only express by repeating the extension\nin every pattern.\n\nMatched case-insensitively, and a leading dot is accepted and ignored,\nbecause `.md` is how half of everyone will write it.",
+      "items": {
+        "type": "string"
+      },
+      "markdownDescription": "Which file types to check, as extensions without the leading dot.\n\nEmpty means every type the grammars recognise, which is the default\nand what this did before the key existed. `[\"md\"]` restricts the whole\nproject to Markdown however wide `include` is, which is the common\ncase that `include` alone can only express by repeating the extension\nin every pattern.\n\nMatched case-insensitively, and a leading dot is accepted and ignored,\nbecause `.md` is how half of everyone will write it.",
+      "type": "array"
+    },
+    "include": {
+      "default": [],
+      "description": "Which files this project checks, as workspace-relative globs.\n\nEmpty means every file the editor opens and every file the indexer\nfinds, which is the behaviour this had before the key existed and the\nright default for a repository that is mostly prose. It is the wrong\none for a repository that is mostly code with a `docs/` in it: there\nthe exclude list has to name every directory that is *not* prose, and\nit silently stops being right the moment someone adds another one.\n\n`include` and `exclude` compose the way a type-checker's do -- include\nselects, exclude subtracts from the selection -- so narrowing to\n`docs/**` and then dropping `docs/_build/**` needs no knowledge of\nwhat else is in the tree.",
+      "items": {
+        "type": "string"
+      },
+      "markdownDescription": "Which files this project checks, as workspace-relative globs.\n\nEmpty means every file the editor opens and every file the indexer\nfinds, which is the behaviour this had before the key existed and the\nright default for a repository that is mostly prose. It is the wrong\none for a repository that is mostly code with a `docs/` in it: there\nthe exclude list has to name every directory that is *not* prose, and\nit silently stops being right the moment someone adds another one.\n\n`include` and `exclude` compose the way a type-checker's do -- include\nselects, exclude subtracts from the selection -- so narrowing to\n`docs/**` and then dropping `docs/_build/**` needs no knowledge of\nwhat else is in the tree.",
+      "type": "array"
+    },
+    "languages": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/LanguageConfig"
+        }
+      ],
+      "default": {
+        "extensions": {},
+        "latex": {
+          "skip_commands": [],
+          "skip_environments": []
+        }
+      }
+    },
+    "morphology": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/MorphologyConfig"
+        }
+      ],
+      "default": {
+        "enabled": true,
+        "inflections": true
+      }
+    },
+    "names": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/NameConfig"
+        }
+      ],
+      "default": {
+        "aggressiveness": "balanced",
+        "enabled": false
+      }
+    },
+    "performance": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/PerformanceConfig"
+        }
+      ],
+      "default": {
+        "debounce_ms": 500,
+        "high_performance_mode": false,
+        "max_file_size": 0,
+        "max_range_bytes": 2048,
+        "result_cache_entries": 4096
+      }
+    },
+    "rules": {
+      "additionalProperties": {
+        "$ref": "#/definitions/RuleConfig"
+      },
+      "default": {},
+      "type": "object"
+    },
+    "workspace": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/WorkspaceConfig"
+        }
+      ],
+      "default": {
+        "db_path": null,
+        "index_on_open": false
+      }
+    }
+  },
+  "title": ".languagecheck.yaml",
+  "type": "object"
+}

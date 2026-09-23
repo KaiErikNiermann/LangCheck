@@ -1,10 +1,11 @@
 use anyhow::Result;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use tracing::warn;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
 pub struct Config {
     #[serde(default)]
     pub engines: EngineConfig,
@@ -72,7 +73,7 @@ pub struct Config {
 ///   enabled: true
 ///   aggressiveness: balanced   # conservative | balanced | aggressive
 /// ```
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Default)]
 pub struct NameConfig {
     /// Whether to drop spelling diagnostics on tokens detected as human names.
     #[serde(default)]
@@ -95,7 +96,10 @@ pub struct NameConfig {
 ///   enabled: true       # accept prefixed and derived forms of known words
 ///   inflections: true   # also accept the regular inflections of dictionary words
 /// ```
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
+#[schemars(
+    description = "Accept words built by affixation on known words: `subalgebra` is accepted because `algebra` is a word."
+)]
 pub struct MorphologyConfig {
     /// Accept a flagged token that decomposes into a known root.
     #[serde(default = "default_true")]
@@ -126,7 +130,7 @@ impl Default for MorphologyConfig {
 ///     markdown: [mdx, Rmd]
 ///     latex: [sty]
 /// ```
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Default)]
 pub struct LanguageConfig {
     /// Additional file extensions per language ID (without leading dots).
     #[serde(default)]
@@ -145,7 +149,7 @@ pub struct LanguageConfig {
 ///       - prooftree
 ///       - mycustomenv
 /// ```
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Default)]
 pub struct LaTeXConfig {
     /// Extra environment names to skip during prose extraction.
     /// These are checked in addition to the built-in skip list.
@@ -164,7 +168,7 @@ pub struct LaTeXConfig {
 /// workspace:
 ///   index_on_open: true
 /// ```
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Default)]
 pub struct WorkspaceConfig {
     /// Whether to run a full workspace index when the project is opened.
     /// Default: false (only check documents on open/change).
@@ -178,7 +182,7 @@ pub struct WorkspaceConfig {
 
 /// Performance tuning options. High Performance Mode (HPM) disables
 /// expensive engines and external providers, using only harper-core.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
 pub struct PerformanceConfig {
     /// Enable High Performance Mode (only harper, no LT/externals).
     #[serde(default)]
@@ -243,7 +247,7 @@ const fn default_max_range_bytes() -> usize {
 }
 
 /// Configuration for bundled and additional wordlist dictionaries.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
 pub struct DictionaryConfig {
     /// Whether to load the bundled domain-specific dictionaries (software terms,
     /// TypeScript, companies, jargon, mathematics). Default: true.
@@ -271,7 +275,7 @@ impl Default for DictionaryConfig {
 }
 
 /// A user-defined find->replace auto-fix rule.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
 pub struct AutoFixRule {
     /// Pattern to find (plain text, case-sensitive).
     pub find: String,
@@ -285,7 +289,7 @@ pub struct AutoFixRule {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
 #[serde(from = "EngineConfigWire")]
 pub struct EngineConfig {
     pub harper: HarperConfig,
@@ -311,20 +315,29 @@ pub struct EngineConfig {
 /// silently fell back to the default `http://localhost:8010`, and the only
 /// symptom was a connection error naming a server the user never configured
 /// (issue #86). Both spellings are read here, and the flat one warns.
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
+#[schemars(
+    rename = "EngineConfig",
+    description = "Checking engines. Each one takes `true`/`false` or a table of its settings."
+)]
 struct EngineConfigWire {
     #[serde(
         default = "default_harper_config",
         deserialize_with = "deser_engine_or_bool"
     )]
+    #[schemars(with = "EngineSetting<HarperConfig>")]
     harper: HarperConfig,
     #[serde(default, deserialize_with = "deser_engine_or_bool")]
+    #[schemars(with = "EngineSetting<LanguageToolConfig>")]
     languagetool: LanguageToolConfig,
     #[serde(default, deserialize_with = "deser_engine_or_bool")]
+    #[schemars(with = "EngineSetting<ValeConfig>")]
     vale: ValeConfig,
     #[serde(default, deserialize_with = "deser_engine_or_bool")]
+    #[schemars(with = "EngineSetting<ProselintConfig>")]
     proselint: ProselintConfig,
     #[serde(default, deserialize_with = "deser_engine_or_bool")]
+    #[schemars(with = "EngineSetting<HunspellConfig>")]
     hunspell: HunspellConfig,
     #[serde(default)]
     external: Vec<ExternalProvider>,
@@ -334,9 +347,11 @@ struct EngineConfigWire {
     spell_language: String,
     /// Deprecated alias for `engines.languagetool.url`.
     #[serde(default)]
+    #[schemars(extend("deprecated" = true, "deprecationMessage" = "Use `engines.languagetool.url`."))]
     languagetool_url: Option<String>,
     /// Deprecated alias for `engines.vale.config`.
     #[serde(default)]
+    #[schemars(extend("deprecated" = true, "deprecationMessage" = "Use `engines.vale.config`."))]
     vale_config: Option<String>,
 }
 
@@ -400,6 +415,17 @@ fn warn_ignored_engine_key(old: &str, new: &str) {
     warn!("`{old}` is ignored because `{new}` is also set; delete the deprecated key.");
 }
 
+/// An engine written either as a bool shorthand or as its full settings table.
+#[derive(Deserialize, JsonSchema)]
+#[serde(untagged)]
+#[schemars(rename = "{T}OrBool")]
+enum EngineSetting<T> {
+    // First, so an editor reporting a typo in the table blames the key, not the type.
+    Settings(T),
+    /// `true` or `false`: turn the engine on or off with its default settings.
+    Enabled(bool),
+}
+
 /// Deserialize an engine config from either a bool shorthand or the full struct.
 /// `harper: true` → `HarperConfig { enabled: true, ..default }`.
 fn deser_engine_or_bool<'de, D, T>(deserializer: D) -> Result<T, D::Error>
@@ -407,20 +433,13 @@ where
     D: serde::Deserializer<'de>,
     T: Deserialize<'de> + EngineToggle + Default,
 {
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum BoolOrStruct<T> {
-        Bool(bool),
-        Struct(T),
-    }
-
-    match BoolOrStruct::deserialize(deserializer)? {
-        BoolOrStruct::Bool(b) => {
+    match EngineSetting::deserialize(deserializer)? {
+        EngineSetting::Enabled(b) => {
             let mut cfg = T::default();
             cfg.set_enabled(b);
             Ok(cfg)
         }
-        BoolOrStruct::Struct(s) => Ok(s),
+        EngineSetting::Settings(s) => Ok(s),
     }
 }
 
@@ -431,12 +450,13 @@ pub trait EngineToggle {
 }
 
 /// Harper engine configuration.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
 pub struct HarperConfig {
     #[serde(default = "default_true")]
     pub enabled: bool,
-    /// Harper dialect: `American`, `British`, `Canadian`, `Australian`, `Indian`.
+    /// Harper dialect: `American`, `British`, `Canadian` or `Australian`.
     #[serde(default = "default_dialect")]
+    #[schemars(extend("enum" = ["American", "British", "Canadian", "Australian"]))]
     pub dialect: String,
     /// Per-rule toggles. Key is the rule name (e.g. `LongSentences`), value
     /// is `true`/`false`. Omitted rules use the curated default.
@@ -472,7 +492,7 @@ impl EngineToggle for HarperConfig {
 }
 
 /// `LanguageTool` engine configuration.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
 pub struct LanguageToolConfig {
     #[serde(default)]
     pub enabled: bool,
@@ -481,6 +501,7 @@ pub struct LanguageToolConfig {
     pub url: String,
     /// Checking level: `default` or `picky` (enables stricter rules).
     #[serde(default = "default_lt_level")]
+    #[schemars(extend("enum" = ["default", "picky"]))]
     pub level: String,
     /// User's native language for false-friends detection (BCP-47 tag).
     #[serde(default)]
@@ -559,7 +580,7 @@ const fn default_lt_max_request_bytes() -> usize {
 ///     dictionary_paths:
 ///       la: /opt/dictionaries/latin
 /// ```
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, JsonSchema, Clone)]
 pub struct HunspellConfig {
     /// Off by default, like every engine that needs something installed.
     #[serde(default)]
@@ -608,7 +629,7 @@ impl EngineToggle for LanguageToolConfig {
 }
 
 /// Vale engine configuration.
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, JsonSchema, Clone)]
 pub struct ValeConfig {
     #[serde(default)]
     pub enabled: bool,
@@ -627,7 +648,7 @@ impl EngineToggle for ValeConfig {
 }
 
 /// Proselint engine configuration.
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, JsonSchema, Clone)]
 pub struct ProselintConfig {
     #[serde(default)]
     pub enabled: bool,
@@ -649,7 +670,7 @@ impl EngineToggle for ProselintConfig {
 ///
 /// The binary receives `{"text": "...", "language_id": "..."}` on stdin
 /// and returns `[{"start_byte": N, "end_byte": N, "message": "...", ...}]` on stdout.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
 pub struct ExternalProvider {
     /// Display name for this provider.
     pub name: String,
@@ -677,7 +698,7 @@ pub struct ExternalProvider {
 ///
 /// Plugins must export a `check` function that receives a JSON string
 /// `{"text": "...", "language_id": "..."}` and returns a JSON array of diagnostics.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
 pub struct WasmPlugin {
     /// Display name for this plugin.
     pub name: String,
@@ -706,9 +727,11 @@ impl Default for EngineConfig {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
 pub struct RuleConfig {
-    pub severity: Option<String>, // "error", "warning", "info", "hint", "off"
+    /// Severity to report this rule at, or `off` to drop it. Case-insensitive.
+    #[schemars(extend("enum" = ["error", "warning", "info", "hint", "off", null]))]
+    pub severity: Option<String>,
 }
 
 const fn default_true() -> bool {
@@ -954,6 +977,32 @@ impl Config {
             );
         }
         out
+    }
+
+    /// JSON Schema for `.languagecheck.yaml`, for editor completion and validation.
+    ///
+    /// Every table is closed to unknown keys: serde drops them without a word, so an editor
+    /// flagging `enabeld` is the only place that typo gets noticed below the top level.
+    #[must_use]
+    pub fn json_schema() -> serde_json::Value {
+        let mut schema = schemars::generate::SchemaSettings::draft07()
+            .with_transform(schemars::transform::RecursiveTransform(
+                |schema: &mut schemars::Schema| {
+                    if schema.get("properties").is_some()
+                        && schema.get("additionalProperties").is_none()
+                    {
+                        schema.insert("additionalProperties".into(), false.into());
+                    }
+                    // VS Code renders `markdownDescription` and shows `description` verbatim.
+                    if let Some(text) = schema.get("description").cloned() {
+                        schema.insert("markdownDescription".into(), text);
+                    }
+                },
+            ))
+            .into_generator()
+            .into_root_schema_for::<Self>();
+        schema.insert("title".into(), ".languagecheck.yaml".into());
+        schema.to_value()
     }
 
     pub fn load(workspace_root: &Path) -> Result<Self> {
@@ -2181,6 +2230,107 @@ engines:
         assert_eq!(
             config.engines.proselint.config.as_deref(),
             Some("proselint.json")
+        );
+    }
+
+    fn schema_keys(schema: &serde_json::Value, pointer: &str) -> Vec<String> {
+        let mut keys: Vec<String> = schema
+            .pointer(pointer)
+            .and_then(serde_json::Value::as_object)
+            .expect("schema has the properties table")
+            .keys()
+            .cloned()
+            .collect();
+        keys.sort();
+        keys
+    }
+
+    fn sorted(keys: &[&str]) -> Vec<String> {
+        let mut keys: Vec<String> = keys.iter().map(ToString::to_string).collect();
+        keys.sort();
+        keys
+    }
+
+    /// The schema and the unknown-key warning describe the same keys, so one cannot gain a
+    /// key the other rejects.
+    #[test]
+    fn schema_keys_match_the_unknown_key_lists() {
+        let schema = Config::json_schema();
+        assert_eq!(
+            schema_keys(&schema, "/properties"),
+            sorted(KNOWN_TOP_LEVEL_KEYS)
+        );
+        assert_eq!(
+            schema_keys(&schema, "/definitions/EngineConfig/properties"),
+            sorted(KNOWN_ENGINE_KEYS)
+        );
+    }
+
+    #[test]
+    fn schema_accepts_every_config_in_the_repository() {
+        let validator = jsonschema::draft7::new(&Config::json_schema()).expect("schema compiles");
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let configs = [
+            ".languagecheck.yaml",
+            "examples/latex/.languagecheck.yaml",
+            "examples/markdown/.languagecheck.yaml",
+            "examples/typst/.languagecheck.yaml",
+            "examples/typst-overlapping-checkers/.languagecheck.yaml",
+        ];
+        for relative in configs {
+            let path = repo.join(relative);
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                // Built from the published crate, which ships none of these.
+                assert!(!repo.join("extension").exists(), "{relative} is missing");
+                continue;
+            };
+            let value: serde_json::Value = serde_yaml::from_str(&text).expect("valid YAML");
+            let errors: Vec<String> = validator
+                .iter_errors(&value)
+                .map(|e| e.to_string())
+                .collect();
+            assert!(errors.is_empty(), "{relative}: {errors:#?}");
+        }
+    }
+
+    #[test]
+    fn schema_rejects_typos_and_bad_values() {
+        let validator = jsonschema::draft7::new(&Config::json_schema()).expect("schema compiles");
+        for bad in [
+            "engines: { harper: { enabeld: true } }",
+            "engines: { languagetool: { level: strict } }",
+            "rules: { spelling.typo: { severity: loud } }",
+            "names: { aggressiveness: extreme }",
+        ] {
+            let value: serde_json::Value = serde_yaml::from_str(bad).expect("valid YAML");
+            assert!(!validator.is_valid(&value), "accepted: {bad}");
+        }
+        let good: serde_json::Value =
+            serde_yaml::from_str("engines: { harper: false, vale: { enabled: true } }")
+                .expect("valid YAML");
+        assert!(validator.is_valid(&good));
+    }
+
+    /// The extension ships a copy of the schema. Regenerate it with
+    /// `LANGCHECK_UPDATE_SCHEMA=1 cargo test schema_file_is_current`.
+    #[test]
+    fn schema_file_is_current() {
+        let extension = Path::new(env!("CARGO_MANIFEST_DIR")).join("../extension");
+        if !extension.exists() {
+            // Built from the published crate, which does not include the extension.
+            return;
+        }
+        let path = extension.join("schemas/languagecheck.schema.json");
+        let generated = serde_json::to_string_pretty(&Config::json_schema()).unwrap() + "\n";
+        if std::env::var_os("LANGCHECK_UPDATE_SCHEMA").is_some() {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, &generated).unwrap();
+        }
+        let on_disk = std::fs::read_to_string(&path).unwrap_or_default();
+        assert!(
+            on_disk == generated,
+            "{} is stale; regenerate it with `LANGCHECK_UPDATE_SCHEMA=1 cargo test schema_file_is_current`",
+            path.display()
         );
     }
 }
