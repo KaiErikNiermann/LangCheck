@@ -15,7 +15,7 @@ import { byteToCharConverter } from '../../checking/offsets';
 import { GITHUB_REPO } from '../../shared/links';
 import type { InspectorLog } from '../inspectorLog';
 import { detectEngineInfo } from './engineInfo';
-import { webviewHtml } from './html';
+import { createBesidePanel, webviewHtml } from './html';
 import type { InspectorDiagnosticSummary, InspectorToExtensionMessage } from './protocol';
 
 export interface InspectorDeps {
@@ -44,18 +44,7 @@ export class InspectorPanel {
             return;
         }
 
-        this.panel = vscode.window.createWebviewPanel(
-            'inspector',
-            'Inspector',
-            vscode.ViewColumn.Beside,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [
-                    vscode.Uri.file(path.join(this.deps.context.extensionPath, 'webview', 'dist')),
-                ]
-            }
-        );
+        this.panel = createBesidePanel(this.deps.context.extensionPath, 'inspector', 'Inspector', ['dist']);
 
         this.deps.inspectorLog.attach(this.panel.webview);
         this.panel.webview.html = webviewHtml(this.panel.webview, this.deps.context.extensionPath, { script: 'inspector', title: 'Inspector' });

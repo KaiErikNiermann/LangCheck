@@ -14,7 +14,7 @@ import { findOpenDocument } from '../shared/documents';
 import type { Logger } from '../shared/logger';
 import type { StatusBars } from '../ui/statusBars';
 import { spellLanguageOf } from './edits';
-import { CONFIG_FILE_NAMES, readFirstConfig } from './file';
+import { CONFIG_FILE_NAMES, readFirstConfig, readTextOrEmpty } from './file';
 import type { ConfigStatusView } from './gutter';
 import { parseDictionaryPaths, wordsAdded } from './parsing';
 import { classifyConfigChange } from './rules';
@@ -64,14 +64,6 @@ const CORE_PROCESS_SETTINGS = (['core.binaryPath', 'core.channel'] as const).map
  * checker and adjusting the patterns.
  */
 const SCHEMA_DIR_PATTERN = '.langcheck/schemas/**/*';
-
-async function readWordlist(uri: vscode.Uri): Promise<string> {
-    try {
-        return Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
-    } catch {
-        return '';
-    }
-}
 
 export class ConfigWatchers {
     /**
@@ -292,10 +284,10 @@ export class ConfigWatchers {
             );
             const uri = vscode.Uri.joinPath(folder.uri, relative);
             const key = uri.toString();
-            this.wordlistContents.set(key, await readWordlist(uri));
+            this.wordlistContents.set(key, await readTextOrEmpty(uri));
             const reload = async () => {
                 const before = this.wordlistContents.get(key) ?? '';
-                const after = await readWordlist(uri);
+                const after = await readTextOrEmpty(uri);
                 this.wordlistContents.set(key, after);
                 const added = wordsAdded(before, after);
                 if (added === null) {

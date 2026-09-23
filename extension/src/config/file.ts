@@ -26,12 +26,13 @@ export async function resolveConfigForEdit(folder: vscode.WorkspaceFolder): Prom
 }
 
 /**
- * The config's text, or `''` when it cannot be read.
+ * A workspace file's text, or `''` when it cannot be read.
  *
- * An empty string is what the edits start a new file from. It is also what an
- * unreadable existing file turns into, so an edit then overwrites it.
+ * For the config, an empty string is what the edits start a new file from; it
+ * is also what an unreadable existing file turns into, so an edit then
+ * overwrites it. For a wordlist, a missing file simply holds no words.
  */
-export async function readConfigText(uri: vscode.Uri): Promise<string> {
+export async function readTextOrEmpty(uri: vscode.Uri): Promise<string> {
     try {
         return Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
     } catch {

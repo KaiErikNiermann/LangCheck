@@ -2,7 +2,7 @@
 import * as vscode from 'vscode';
 
 import { deactivateRule } from '../config/edits';
-import { readConfigText, resolveConfigForEdit, writeConfigText } from '../config/file';
+import { readTextOrEmpty, resolveConfigForEdit, writeConfigText } from '../config/file';
 import { ignoreRequest, isSpellingOf, isSpellingRule, ruleIdOf } from '../diagnostics/diagnostic';
 import { findOpenDocument } from '../shared/documents';
 import { spanned } from '../shared/ignoreSpan';
@@ -193,7 +193,7 @@ export function diagnosticsCommands(app: App) {
             const targetUri = await resolveConfigForEdit(workspaceFolder);
 
             try {
-                const edit = deactivateRule(await readConfigText(targetUri), ruleId);
+                const edit = deactivateRule(await readTextOrEmpty(targetUri), ruleId);
                 const alreadyDeactivated = edit.alreadyDeactivated;
                 if (!alreadyDeactivated) {
                     await writeConfigText(targetUri, edit.content);

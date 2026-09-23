@@ -11,7 +11,7 @@ import {
     type LatexList,
 } from '../config/edits';
 import {
-    readConfigText,
+    readTextOrEmpty,
     resolveConfigForEdit,
     showConfigUpdateError,
     workspaceFolderOrWarn,
@@ -37,7 +37,7 @@ export function settingsCommands(app: App) {
 
         const targetUri = await resolveConfigForEdit(workspaceFolder);
         try {
-            await writeConfigText(targetUri, addLatexListEntry(await readConfigText(targetUri), list, name));
+            await writeConfigText(targetUri, addLatexListEntry(await readTextOrEmpty(targetUri), list, name));
             vscode.window.showInformationMessage(message);
             userSet.add(name);
             inlayHintEmitter.fire();
@@ -144,7 +144,7 @@ export function settingsCommands(app: App) {
 
             const targetUri = await resolveConfigForEdit(workspaceFolder);
             try {
-                const content = setSpellLanguage(await readConfigText(targetUri), selected.label);
+                const content = setSpellLanguage(await readTextOrEmpty(targetUri), selected.label);
                 await writeConfigText(targetUri, content);
                 statusBars.setLanguage(selected.label);
                 vscode.window.showInformationMessage(
@@ -160,7 +160,7 @@ export function settingsCommands(app: App) {
             if (!workspaceFolder) return;
 
             const targetUri = await resolveConfigForEdit(workspaceFolder);
-            let content = await readConfigText(targetUri);
+            let content = await readTextOrEmpty(targetUri);
 
             // Determine current language to show language-support hints
             const spellLang = spellLanguageOf(content);

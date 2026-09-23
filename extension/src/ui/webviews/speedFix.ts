@@ -10,7 +10,7 @@ import { diagId, parseDiagId, ruleIdOf, type ExtendedDiagnostic } from '../../di
 import type { FixTarget } from '../../diagnostics/fixTarget';
 import type { DiagnosticStore } from '../../diagnostics/store';
 import { displayOriginalText, speedFixSuggestionLabel } from '../../shared/inlayLabels';
-import { webviewHtml } from './html';
+import { createBesidePanel, webviewHtml } from './html';
 import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage } from './protocol';
 
 /** What the panel's buttons do, which belongs to the diagnostic actions, not to the panel. */
@@ -70,19 +70,7 @@ export class SpeedFixPanel {
             return;
         }
 
-        this.panel = vscode.window.createWebviewPanel(
-            'speedFix',
-            'SpeedFix',
-            vscode.ViewColumn.Beside,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [
-                    vscode.Uri.file(path.join(this.deps.context.extensionPath, 'webview', 'dist')),
-                    vscode.Uri.file(path.join(this.deps.context.extensionPath, 'webview', 'out'))
-                ]
-            }
-        );
+        this.panel = createBesidePanel(this.deps.context.extensionPath, 'speedFix', 'SpeedFix', ['dist', 'out']);
 
         this.panel.webview.html = webviewHtml(this.panel.webview, this.deps.context.extensionPath, { script: 'index', title: 'SpeedFix' });
 
