@@ -10,15 +10,7 @@ import { createAPI } from './api';
 import { binaryExists, downloadBinary } from './core/downloader';
 import { formatSuggestionLabel, speedFixSuggestionLabel, displayOriginalText } from './shared/inlayLabels';
 import type { LanguageCheckDiagnostic } from './api';
-import {
-    DEFAULT_DEBOUNCE_MS,
-    parseDebounceMs,
-    parseDictionaryPaths,
-    parseProseEnvironments,
-    parseSkipCommands,
-    parseSkipEnvironments,
-    wordsAdded,
-} from './config/parsing';
+import { parseDictionaryPaths, wordsAdded } from './config/parsing';
 import {
     declinePack,
     forgetDecline,
@@ -75,6 +67,7 @@ import { SUPPORTED_LANGUAGES, supportedLanguageSelector } from './checking/langu
 import { byteToCharConverter } from './checking/offsets';
 import { webviewHtml } from './ui/webviews/html';
 import { StatusBars } from './ui/statusBars';
+import { WorkspaceConfigState } from './config/state';
 
 let client: LanguageClient | null = null;
 
@@ -132,7 +125,6 @@ const HINT_CONFIDENCE_FLOOR = 0.8;
 
 // Check-on-change debounce timer per document
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
-let debounceMs = DEFAULT_DEBOUNCE_MS;
 
 // Concurrency limiter: max simultaneous CheckProse RPCs to avoid flooding
 // the server (each LT check holds the orchestrator mutex for seconds).
@@ -163,24 +155,7 @@ function releaseCheckSlot() {
 const results = new CheckResults();
 const statusBars = new StatusBars(results);
 
-/**
- * The config file as last seen, so any edit to it triggers a re-check.
- *
- * Watching only `spell_language` left the rest of the file able to change
- * behind the results: a new dictionary, a disabled rule or a different engine
- * silently applied to the next document checked and not to the one on screen,
- * and the inspector went on reporting what the previous config produced.
- */
-/**
- * The config file's contents as the core last saw them.
- *
- * Three states, and the third is the one that needed spelling out: a string is
- * the file's contents, `null` is "there is no config file", and `undefined` is
- * "not looked yet". Without `null`, deleting the config was indistinguishable
- * from never having read one, so the editor went on checking under a config
- * that no longer existed.
- */
-let lastKnownConfigText: string | null | undefined;
+const configState = new WorkspaceConfigState();
 /**
  * Languages offered this session.
  *
@@ -197,13 +172,7 @@ let currentServerPath: string | undefined;
 /** Re-check after an install, without hoisting the whole closure out. */
 let reinitializeAndRecheckRef: (() => Promise<void>) | undefined;
 
-// User-configured skip_environments from .languagecheck.yaml
-let userSkipEnvs = new Set<string>();
-// User-configured prose_environments from .languagecheck.yaml (suppress inlay hints, keep checking)
-let userProseEnvs = new Set<string>();
 
-// User-configured skip_commands from .languagecheck.yaml
-let userSkipCommands = new Set<string>();
 
 
 
@@ -713,7 +682,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 let m: RegExpExecArray | null;
                 while ((m = re.exec(text)) !== null) {
                     const envName = m[1]!;
-                    if (BUILTIN_SKIP_ENVS.has(envName) || PROSE_ENVS.has(envName) || userSkipEnvs.has(envName) || userProseEnvs.has(envName)) continue;
+                    if (BUILTIN_SKIP_ENVS.has(envName) || PROSE_ENVS.has(envName) || configState.skipEnvironments.has(envName) || configState.proseEnvironments.has(envName)) continue;
                     const pos = document.positionAt(m.index + m[0].length);
                     const hint = new vscode.InlayHint(
                         pos,
@@ -755,7 +724,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     const cmdName = m[1]!;
                     if (
                         BUILTIN_SKIP_COMMANDS.has(cmdName) ||
-                        userSkipCommands.has(cmdName) ||
+                        configState.skipCommands.has(cmdName) ||
                         PROSE_COMMANDS.has(cmdName)
                     ) continue;
                     // Find the closing brace to get the full argument span
@@ -1567,15 +1536,15 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(registerCommand(COMMANDS.skipLatexEnv, (envName: string) =>
         appendToLatexList('skip_environments', envName,
-            vscode.l10n.t('Added "{0}" to skip list. Rechecking...', envName), userSkipEnvs)));
+            vscode.l10n.t('Added "{0}" to skip list. Rechecking...', envName), configState.skipEnvironments)));
 
     context.subscriptions.push(registerCommand(COMMANDS.hideLatexEnvHint, (envName: string) =>
         appendToLatexList('prose_environments', envName,
-            vscode.l10n.t('Hint hidden for "{0}". Checking continues.', envName), userProseEnvs)));
+            vscode.l10n.t('Hint hidden for "{0}". Checking continues.', envName), configState.proseEnvironments)));
 
     context.subscriptions.push(registerCommand(COMMANDS.skipLatexCommand, (cmdName: string) =>
         appendToLatexList('skip_commands', cmdName,
-            vscode.l10n.t('Added "{0}" to skip_commands. Rechecking...', cmdName), userSkipCommands)));
+            vscode.l10n.t('Added "{0}" to skip_commands. Rechecking...', cmdName), configState.skipCommands)));
 
     context.subscriptions.push(registerCommand(COMMANDS.checkDocument, async (): Promise<CheckOutcome | undefined> => {
         const editor = vscode.window.activeTextEditor;
@@ -1861,7 +1830,7 @@ export async function activate(context: vscode.ExtensionContext) {
         debounceTimers.set(uri, setTimeout(() => {
             debounceTimers.delete(uri);
             checkDocument(doc);
-        }, debounceMs));
+        }, configState.debounceMs));
     }));
 
     // Always re-check on save (regardless of trigger mode)
@@ -1939,17 +1908,14 @@ export async function activate(context: vscode.ExtensionContext) {
                 // Then the findings on screen are already the right ones minus
                 // a filter, and re-checking would blank the file and fill it
                 // back in to reach the answer it is holding.
-                const previous = lastKnownConfigText;
+                const previous = configState.text;
                 const change = typeof previous === 'string'
                     ? classifyConfigChange(previous, raw)
                     : { kind: 'none' as const, newlyOff: new Set<string>() };
                 const changed = previous !== undefined && raw !== previous;
-                lastKnownConfigText = raw;
+                configState.text = raw;
 
-                userSkipEnvs = parseSkipEnvironments(raw);
-                userSkipCommands = parseSkipCommands(raw);
-                userProseEnvs = parseProseEnvironments(raw);
-                debounceMs = parseDebounceMs(raw);
+                configState.apply(raw);
                 inlayHintEmitter.fire();
                 if (changed && change.kind === 'subtractive') {
                     await applySilencedRules(change.newlyOff);
@@ -1973,13 +1939,10 @@ export async function activate(context: vscode.ExtensionContext) {
         // change like any other -- the core falls back to its defaults, and
         // the parsed settings this file fed have to go with it, or an inlay
         // hint keeps skipping a LaTeX environment the config no longer names.
-        const hadOne = lastKnownConfigText !== undefined && lastKnownConfigText !== null;
-        lastKnownConfigText = null;
+        const hadOne = configState.text !== undefined && configState.text !== null;
+        configState.text = null;
         statusBars.setLanguage('en-US');
-        userSkipEnvs = new Set<string>();
-        userSkipCommands = new Set<string>();
-        userProseEnvs = new Set<string>();
-        debounceMs = DEFAULT_DEBOUNCE_MS;
+        configState.reset();
         inlayHintEmitter.fire();
         if (hadOne) {
             await reinitializeAndRecheck();
@@ -2085,8 +2048,8 @@ export async function activate(context: vscode.ExtensionContext) {
             '.languagecheck/dictionary.txt',
             ...getSetting('dictionaries.paths'),
         ]);
-        if (typeof lastKnownConfigText === 'string') {
-            for (const configured of parseDictionaryPaths(lastKnownConfigText)) {
+        if (typeof configState.text === 'string') {
+            for (const configured of parseDictionaryPaths(configState.text)) {
                 paths.add(configured);
             }
         }
@@ -2134,12 +2097,9 @@ export async function activate(context: vscode.ExtensionContext) {
         const found = folder ? await readFirstConfig(folder) : undefined;
         if (found) {
             const raw = found.text;
-            lastKnownConfigText = raw;
+            configState.text = raw;
             statusBars.setLanguage(spellLanguageOf(raw));
-            userSkipEnvs = parseSkipEnvironments(raw);
-            userSkipCommands = parseSkipCommands(raw);
-            userProseEnvs = parseProseEnvironments(raw);
-            debounceMs = parseDebounceMs(raw);
+            configState.apply(raw);
         }
     }
 
