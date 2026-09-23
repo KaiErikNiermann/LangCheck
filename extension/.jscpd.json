@@ -1,0 +1,12 @@
+{
+  "$comment": "maxLines/maxSize are raised on purpose: jscpd's defaults (1000 lines, 100kb) silently skip any file above them, which is how a 3,600-line extension.ts once scanned as 0% duplicated. threshold is the failing percentage; tighten it as duplication is removed, never loosen it.",
+  "path": ["src"],
+  "ignore": ["**/proto/**", "**/test/**", "**/generated/**"],
+  "format": ["typescript"],
+  "minTokens": 35,
+  "maxLines": 20000,
+  "maxSize": "2mb",
+  "threshold": 4,
+  "reporters": ["console"],
+  "silent": false
+}
