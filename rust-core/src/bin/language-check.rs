@@ -938,6 +938,10 @@ fn list_selected_files(target: &Path, show_skipped: bool, bare: bool) -> Result<
         return Ok(());
     }
 
+    match Config::file_in(&root) {
+        Some(file) => println!("{} {}", style("config:").bold(), relative(&file)),
+        None => println!("{} none, so the defaults", style("config:").bold()),
+    }
     if config.include.is_empty() {
         println!(
             "{} every file the grammars recognise",
