@@ -6,6 +6,7 @@ import {
     forgetDecline,
     isLanguageTag,
     languageToolCovers,
+    languageToolIsAnOption,
     shouldPrompt,
     uncheckedLanguages,
     type PromptMemory,
@@ -236,5 +237,21 @@ describe('languageToolCovers', () => {
     it('does not treat rubbish as a language', () => {
         expect(languageToolCovers('')).toBe(false);
         expect(languageToolCovers('english')).toBe(false);
+    });
+});
+
+describe('languageToolIsAnOption', () => {
+    it('offers LanguageTool for a language it covers when the config leaves it off', () => {
+        expect(languageToolIsAnOption('de', 'engines:\n  harper: true\n')).toBe(true);
+        expect(languageToolIsAnOption('de', undefined)).toBe(true);
+    });
+
+    it('does not offer what the config has already switched on', () => {
+        expect(languageToolIsAnOption('de', 'engines:\n  languagetool: true\n')).toBe(false);
+        expect(languageToolIsAnOption('de', 'engines:\n  languagetool:\n    enabled: true\n')).toBe(false);
+    });
+
+    it('does not offer it for a language it does not cover', () => {
+        expect(languageToolIsAnOption('he', 'engines:\n  harper: true\n')).toBe(false);
     });
 });

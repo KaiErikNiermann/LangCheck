@@ -38,14 +38,3 @@ export async function updateSetting<K extends SettingKey>(
 export function settingId(key: SettingKey): string {
     return `${SECTION}.${key}`;
 }
-
-/**
- * A setting the code reads but package.json does not declare.
- *
- * Kept visible rather than typed away: an undeclared setting has no UI and no
- * default except the one given here, so a user can only set it by hand in
- * settings.json. Each caller is a known gap in the manifest.
- */
-export function getUndeclaredSetting<T>(key: string, fallback: T): T {
-    return vscode.workspace.getConfiguration(SECTION).get<T>(key, fallback);
-}

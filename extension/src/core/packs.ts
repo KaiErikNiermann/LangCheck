@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { COMMANDS, executeCommand } from '../commands/ids';
-import { getUndeclaredSetting } from '../config/settings';
+import type { WorkspaceConfigState } from '../config/state';
 import type { ExtendedDiagnostic } from '../diagnostics/diagnostic';
 import type { Logger } from '../shared/logger';
 import type { InspectorLog } from '../ui/inspectorLog';
@@ -18,7 +18,7 @@ import {
     forgetDecline,
     isLanguageTag,
     type LanguageTag,
-    languageToolCovers,
+    languageToolIsAnOption,
     shouldPrompt,
     uncheckedLanguages,
 } from './packPrompt';
@@ -26,6 +26,7 @@ import {
 export interface PackDeps {
     readonly context: vscode.ExtensionContext;
     readonly core: CoreService;
+    readonly configState: WorkspaceConfigState;
     readonly log: Logger;
     readonly inspectorLog: InspectorLog;
     /** Reinitialize and re-check, once an installed pack is on disk. */
@@ -78,11 +79,9 @@ export class Packs {
             // grammar and style, where Hunspell gives spelling alone. Offering
             // only the narrower one would hide the choice from someone who would
             // have picked the other.
-            const ltIsAnOption =
-                languageToolCovers(candidate.language) &&
-                // Undeclared in package.json, so this is always the fallback
-                // unless set by hand in settings.json.
-                !getUndeclaredSetting('engines.languagetool', false);
+            const seen = this.deps.configState.seen;
+            const ltIsAnOption = languageToolIsAnOption(
+                candidate.language, seen.state === 'present' ? seen.text : undefined);
 
             const install = vscode.l10n.t('Install');
             const setUpLT = vscode.l10n.t('Set up LanguageTool');

@@ -8,6 +8,7 @@
  * which costs nothing until someone goes looking for it.
  */
 
+import { engineEnabled } from '../config/edits';
 import { ruleIdOf } from '../diagnostics/diagnostic';
 
 /** The subset of the extension host this module needs, so it can be tested. */
@@ -136,4 +137,17 @@ export function languageToolCovers(language: string): boolean {
     if (!isLanguageTag(language)) return false;
     const primary = language.split(/[-_]/)[0]?.toLowerCase() ?? '';
     return LANGUAGETOOL_LANGUAGES.has(primary);
+}
+
+/**
+ * Whether to offer LanguageTool alongside the Hunspell pack: it covers the
+ * language, and the workspace config has not already switched it on.
+ *
+ * Read from the config text, which is where LanguageTool is enabled. It used
+ * to be read from a VS Code setting, `languageCheck.engines.languagetool`,
+ * that package.json never declared, so it was always off and LanguageTool was
+ * offered even to a workspace already running it.
+ */
+export function languageToolIsAnOption(language: string, configText: string | undefined): boolean {
+    return languageToolCovers(language) && !engineEnabled(configText ?? '', 'languagetool', false);
 }
