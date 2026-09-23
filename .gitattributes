@@ -1,0 +1,3 @@
+# Generated; the drift test compares it byte for byte, so a CRLF checkout on
+# Windows would read as stale.
+extension/schemas/*.json text eol=lf
