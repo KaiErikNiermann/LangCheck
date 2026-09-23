@@ -433,6 +433,11 @@ async fn harper_diagnostics_stay_in_bounds_on_malformed_prose() {
     for lang in ["markdown", "latex", "html", "typst"] {
         // A tenth of the extraction cases: a check costs far more than a parse.
         for seed in seeds(lang).into_iter().step_by(10) {
+            std::fs::write(
+                last_case_file(&format!("harper-{lang}")),
+                format!("lang={lang} MALFORMED_FUZZ_SEED={seed} (the Harper test)\n"),
+            )
+            .ok();
             let mut rng = SmallRng::seed_from_u64(seed);
             let text = document(&mut rng, lang);
             let Ok(extraction) = extract_with_range_limit(&text, lang, None, None, &extras, 4096)
