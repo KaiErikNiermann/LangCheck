@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { deactivateRule } from '../config/edits';
 import { readTextOrEmpty, resolveConfigForEdit, writeConfigText } from '../config/file';
 import { ignoreRequest, isSpellingOf, isSpellingRule, ruleIdOf } from '../diagnostics/diagnostic';
-import { findOpenDocument } from '../shared/documents';
+import { findOpenDocument, uriKey, type UriKey } from '../shared/documents';
 import { spanned } from '../shared/ignoreSpan';
 import type { App } from '../services';
 import { COMMANDS, type CommandHandlers } from './ids';
@@ -26,15 +26,15 @@ export function diagnosticsCommands(app: App) {
          * Called with no arguments from the palette, where the editor's own
          * selection is the span.
          */
-        [COMMANDS.ignoreSelection]: async (uriText?: string, startOffset?: number, endOffset?: number) => {
+        [COMMANDS.ignoreSelection]: async (uriText?: UriKey, startOffset?: number, endOffset?: number) => {
             const editor = uriText === undefined
                 ? vscode.window.activeTextEditor
-                : vscode.window.visibleTextEditors.find(e => e.document.uri.toString() === uriText)
+                : vscode.window.visibleTextEditors.find(e => uriKey(e.document.uri) === uriText)
                     ?? vscode.window.activeTextEditor;
             if (!editor || !core.client) return;
 
             const document = editor.document;
-            const uri = document.uri.toString();
+            const uri = uriKey(document.uri);
             const diagnostics = store.get(uri);
             if (!diagnostics || diagnostics.length === 0) return;
 
@@ -72,7 +72,7 @@ export function diagnosticsCommands(app: App) {
                 `Ignoring ${chosen.length} issue(s) over the selection`,
             );
         },
-        [COMMANDS.fixAllSpellingInFile]: async (uri: string, word: string, replacement: string) => {
+        [COMMANDS.fixAllSpellingInFile]: async (uri: UriKey, word: string, replacement: string) => {
             const diagnostics = store.get(uri);
             if (!diagnostics) return;
 
@@ -98,7 +98,7 @@ export function diagnosticsCommands(app: App) {
         },
         [COMMANDS.fixAllSpellingInWorkspace]: async (word: string, replacement: string) => {
             const edit = new vscode.WorkspaceEdit();
-            const affectedUris: string[] = [];
+            const affectedUris: UriKey[] = [];
 
             for (const [uri, diagnostics] of store) {
                 const document = findOpenDocument(uri);
@@ -150,7 +150,7 @@ export function diagnosticsCommands(app: App) {
                     const editor = fixTarget.findEditor();
                     let removedCount = 0;
                     if (editor) {
-                        const uri = editor.document.uri.toString();
+                        const uri = uriKey(editor.document.uri);
                         const diagnostics = store.get(uri);
                         if (diagnostics) {
                             const remaining = diagnostics.filter(d => {

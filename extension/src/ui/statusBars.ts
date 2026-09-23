@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import type { CheckResults } from '../checking/results';
 import { COMMANDS } from '../commands/ids';
 import { proseMetrics } from './readability';
+import { uriKey } from '../shared/documents';
 
 /** The language status bar item's text for a spell-check language. */
 export function languageStatusText(language: string): string {
@@ -79,7 +80,7 @@ export class StatusBars {
 
         // Use extracted prose from cache (markup-free) for accurate metrics.
         // Falls back to raw text if no extraction data is cached yet.
-        const cached = this.results.extraction.get(editor.document.uri.toString());
+        const cached = this.results.extraction.get(uriKey(editor.document.uri));
         const proseText = cached
             ? cached.prose.map(r => r.cleanText).join(' ')
             : editor.document.getText();

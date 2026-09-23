@@ -9,22 +9,23 @@
  */
 import * as vscode from 'vscode';
 
+import { uriKey, type UriKey } from '../shared/documents';
 import type { ExtendedDiagnostic } from './diagnostic';
 
-export class DiagnosticStore implements vscode.Disposable, Iterable<[string, ExtendedDiagnostic[]]> {
+export class DiagnosticStore implements vscode.Disposable, Iterable<[UriKey, ExtendedDiagnostic[]]> {
     private readonly collection = vscode.languages.createDiagnosticCollection('language-check');
-    private readonly byUri = new Map<string, ExtendedDiagnostic[]>();
+    private readonly byUri = new Map<UriKey, ExtendedDiagnostic[]>();
     private readonly listeners: (() => void)[] = [];
 
-    has(uri: string): boolean {
+    has(uri: UriKey): boolean {
         return this.byUri.has(uri);
     }
 
-    get(uri: string): ExtendedDiagnostic[] | undefined {
+    get(uri: UriKey): ExtendedDiagnostic[] | undefined {
         return this.byUri.get(uri);
     }
 
-    [Symbol.iterator](): IterableIterator<[string, ExtendedDiagnostic[]]> {
+    [Symbol.iterator](): IterableIterator<[UriKey, ExtendedDiagnostic[]]> {
         return this.byUri.entries();
     }
 
@@ -35,7 +36,7 @@ export class DiagnosticStore implements vscode.Disposable, Iterable<[string, Ext
      * once. `documentUri` is passed rather than parsed from `uri`, because
      * each caller already holds the one it has always drawn with.
      */
-    write(uri: string, documentUri: vscode.Uri, diagnostics: ExtendedDiagnostic[]): void {
+    write(uri: UriKey, documentUri: vscode.Uri, diagnostics: ExtendedDiagnostic[]): void {
         this.byUri.set(uri, diagnostics);
         this.collection.set(documentUri, diagnostics);
     }
@@ -43,7 +44,7 @@ export class DiagnosticStore implements vscode.Disposable, Iterable<[string, Ext
     /** {@link write} for a finished check, which has always drawn before it records. */
     publishCheck(documentUri: vscode.Uri, diagnostics: ExtendedDiagnostic[]): void {
         this.collection.set(documentUri, diagnostics);
-        this.byUri.set(documentUri.toString(), diagnostics);
+        this.byUri.set(uriKey(documentUri), diagnostics);
     }
 
     /** Drop everything, silently: used before a full re-check that will publish afresh. */

@@ -10,6 +10,7 @@
 import * as vscode from 'vscode';
 
 import { commands as manifestCommands } from '../generated/meta';
+import type { UriKey } from '../shared/documents';
 
 export const INTERNAL_COMMANDS = {
     addToDictionary: 'language-check.addToDictionary',
@@ -32,11 +33,11 @@ interface CommandArgs {
     'language-check.applyFix': [diagnosticId: string, suggestion: string];
     'language-check.configStatus': [uri?: string];
     'language-check.deactivateRule': [ruleId: string];
-    'language-check.fixAllSpellingInFile': [uri: string, word: string, replacement: string];
+    'language-check.fixAllSpellingInFile': [uri: UriKey, word: string, replacement: string];
     'language-check.fixAllSpellingInWorkspace': [word: string, replacement: string];
     'language-check.hideLatexEnvHint': [envName: string];
     'language-check.ignoreDiagnostic': [diagnosticId: string];
-    'language-check.ignoreSelection': [uri?: string, startOffset?: number, endOffset?: number];
+    'language-check.ignoreSelection': [uri?: UriKey, startOffset?: number, endOffset?: number];
     'language-check.installPack': [language: string];
     'language-check.skipLatexCommand': [cmdName: string];
     'language-check.skipLatexEnv': [envName: string];

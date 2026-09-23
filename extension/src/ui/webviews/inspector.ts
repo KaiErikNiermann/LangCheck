@@ -17,6 +17,7 @@ import type { InspectorLog } from '../inspectorLog';
 import { detectEngineInfo } from './engineInfo';
 import { createBesidePanel, webviewHtml } from './html';
 import type { InspectorDiagnosticSummary, InspectorToExtensionMessage } from './protocol';
+import { uriKey } from '../../shared/documents';
 
 export interface InspectorDeps {
     readonly context: vscode.ExtensionContext;
@@ -54,7 +55,7 @@ export class InspectorPanel {
                 case 'inspectorReady': {
                     // Use the editor captured before the panel stole focus.
                     const editorForCheck = originEditor ?? vscode.window.activeTextEditor;
-                    if (editorForCheck && !this.deps.store.has(editorForCheck.document.uri.toString())) {
+                    if (editorForCheck && !this.deps.store.has(uriKey(editorForCheck.document.uri))) {
                         await this.deps.check(editorForCheck.document);
                     }
                     await this.update();
@@ -134,7 +135,7 @@ export class InspectorPanel {
         if (!editor) return;
 
         const document = editor.document;
-        const uri = document.uri.toString();
+        const uri = uriKey(document.uri);
         const fileName = path.basename(document.uri.fsPath);
 
         // Send real extraction data from cache.

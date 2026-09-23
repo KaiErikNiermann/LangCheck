@@ -12,6 +12,7 @@ import type { DiagnosticStore } from '../../diagnostics/store';
 import { displayOriginalText, speedFixSuggestionLabel } from '../../shared/inlayLabels';
 import { createBesidePanel, webviewHtml } from './html';
 import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage } from './protocol';
+import { uriKey } from '../../shared/documents';
 
 /** What the panel's buttons do, which belongs to the diagnostic actions, not to the panel. */
 export interface SpeedFixActions {
@@ -81,13 +82,14 @@ export class SpeedFixPanel {
                     this.panel?.webview.postMessage({ type: 'setLowResource', payload: hpm });
                     this.panel?.webview.postMessage({ type: 'setScope', payload: this.scope });
                     // Track which file SpeedFix is targeting
-                    this.deps.fixTarget.uri = (originEditor ?? vscode.window.activeTextEditor)?.document.uri.toString() ?? null;
+                    const targetEditor = originEditor ?? vscode.window.activeTextEditor;
+                    this.deps.fixTarget.uri = targetEditor ? uriKey(targetEditor.document.uri) : null;
                     // If we already have diagnostics, send them immediately
                     this.update();
                     // If no diagnostics exist yet, auto-run a check using the
                     // editor captured before the panel stole focus.
                     const editorForCheck = originEditor ?? vscode.window.activeTextEditor;
-                    if (editorForCheck && !this.deps.store.has(editorForCheck.document.uri.toString())) {
+                    if (editorForCheck && !this.deps.store.has(uriKey(editorForCheck.document.uri))) {
                         this.sendLoading(true);
                         this.deps.actions.check(editorForCheck.document).then(() => {
                             this.sendLoading(false);
@@ -109,7 +111,7 @@ export class SpeedFixPanel {
                 case 'goToLocation': {
                     const editor = this.deps.fixTarget.findEditor();
                     if (!editor) break;
-                    const diagnostics = this.deps.store.get(editor.document.uri.toString());
+                    const diagnostics = this.deps.store.get(uriKey(editor.document.uri));
                     if (!diagnostics) break;
                     const idx = parseDiagId(message.payload.diagnosticId);
                     const diag = diagnostics[idx];
@@ -163,9 +165,9 @@ export class SpeedFixPanel {
         const editor = this.deps.fixTarget.findEditor() ?? vscode.window.activeTextEditor;
 
         if (editor) {
-            const diagnostics = this.deps.store.get(editor.document.uri.toString());
+            const diagnostics = this.deps.store.get(uriKey(editor.document.uri));
             if (diagnostics && diagnostics.length > 0) {
-                this.deps.fixTarget.uri = editor.document.uri.toString();
+                this.deps.fixTarget.uri = uriKey(editor.document.uri);
                 const fileName = path.basename(editor.document.uri.fsPath);
                 const payload: SpeedFixDiagnostic[] = diagnostics.map((d, i) =>
                     toSpeedFixDiagnostic(d, i, editor.document, fileName));
@@ -177,7 +179,7 @@ export class SpeedFixPanel {
 
         // Current file has no diagnostics — try workspace advance
         if (this.scope === 'workspace') {
-            const currentUri = editor?.document.uri.toString();
+            const currentUri = editor ? uriKey(editor.document.uri) : undefined;
             this.advance(currentUri);
             return;
         }

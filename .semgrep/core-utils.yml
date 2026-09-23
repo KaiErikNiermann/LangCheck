@@ -487,3 +487,21 @@ rules:
       - pattern-regex: "createDiagnosticCollection\\('language-check'\\)"
       - pattern-regex: 'diagnosticCollection\.(?:set|clear)\('
       - pattern-regex: 'new Map<string, ExtendedDiagnostic\[\]>'
+
+  - id: uri-keys-through-uri-key
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      Make a document's map key with `uriKey(uri)` from `shared/documents.ts`, not
+      `uri.toString()`. The key is a branded `UriKey`, so the store, the SpeedFix target and
+      findOpenDocument refuse a bare string; writing `toString()` directly produces a plain
+      string that has to be cast back in, which is how an fsPath or a label ends up used as a
+      key. Run against 8b9a812, the revision before the brand, this rule reports 44
+      findings, which is the answer it must keep finding if the shape comes back.
+    paths:
+      include:
+        - "**/extension/src/"
+      exclude:
+        - "**/extension/src/shared/documents.ts"
+        - "**/extension/src/test/"
+    pattern-regex: '\buri\.toString\(\)'

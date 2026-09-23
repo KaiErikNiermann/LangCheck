@@ -16,7 +16,7 @@ import {
     ruleIdOf,
 } from '../diagnostics/diagnostic';
 import type { DiagnosticStore } from '../diagnostics/store';
-import { findOpenDocument } from '../shared/documents';
+import { findOpenDocument, uriKey } from '../shared/documents';
 import { engines as enginesBehind, spanned } from '../shared/ignoreSpan';
 
 export function registerCodeActions(subscriptions: vscode.Disposable[], deps: { readonly store: DiagnosticStore }): void {
@@ -27,7 +27,7 @@ export function registerCodeActions(subscriptions: vscode.Disposable[], deps: { 
         supportedLanguageSelector(),
         {
             provideCodeActions(document, range, context) {
-                const diagnostics = store.get(document.uri.toString());
+                const diagnostics = store.get(uriKey(document.uri));
                 if (!diagnostics) return [];
 
                 const actions: vscode.CodeAction[] = [];
@@ -128,7 +128,7 @@ export function registerCodeActions(subscriptions: vscode.Disposable[], deps: { 
                     // list that shows what that suggestion is.
                     if (word !== null && extDiag.suggestions && extDiag.suggestions.length > 0) {
                         const replacement = extDiag.suggestions[0]!;
-                        const uri = document.uri.toString();
+                        const uri = uriKey(document.uri);
 
                         // Count matching spelling diagnostics in this file
                         const fileCount = diagnostics.filter(d => isSpellingOf(document, d, word)).length;
@@ -189,7 +189,7 @@ export function registerCodeActions(subscriptions: vscode.Disposable[], deps: { 
                     silenceAll.command = commandLink(
                         COMMANDS.ignoreSelection,
                         'Ignore all issues here',
-                        document.uri.toString(),
+                        uriKey(document.uri),
                         document.offsetAt(range.start),
                         document.offsetAt(range.end),
                     );

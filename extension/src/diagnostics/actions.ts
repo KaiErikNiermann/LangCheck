@@ -14,6 +14,7 @@ import type { SpeedFixPanel } from '../ui/webviews/speedFix';
 import { addSuggestionEdit, ignoreRequest, parseDiagId } from './diagnostic';
 import type { FixTarget } from './fixTarget';
 import type { DiagnosticStore } from './store';
+import { uriKey } from '../shared/documents';
 
 export interface DiagnosticActionDeps {
     readonly core: CoreService;
@@ -34,7 +35,7 @@ export class DiagnosticActions {
         if (!editor) return;
 
         const uri = editor.document.uri;
-        const uriStr = uri.toString();
+        const uriStr = uriKey(uri);
         const diagnostics = store.get(uriStr);
         if (!diagnostics) return;
 
@@ -77,7 +78,7 @@ export class DiagnosticActions {
         const editor = fixTarget.findEditor();
         if (!editor || !core.client) return;
 
-        const uri = editor.document.uri.toString();
+        const uri = uriKey(editor.document.uri);
         const diagnostics = store.get(uri);
         if (!diagnostics) return;
 

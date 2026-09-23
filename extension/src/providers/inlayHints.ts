@@ -12,6 +12,7 @@ import type { DiagnosticStore } from '../diagnostics/store';
 import { formatSuggestionLabel } from '../shared/inlayLabels';
 import type { Logger } from '../shared/logger';
 import { BUILTIN_SKIP_COMMANDS, BUILTIN_SKIP_ENVS, PROSE_COMMANDS, PROSE_ENVS } from './latexLists';
+import { uriKey } from '../shared/documents';
 
 /**
  * How sure an engine has to be before its suggestion is shown inline.
@@ -57,7 +58,7 @@ export function registerInlayHints(subscriptions: vscode.Disposable[], deps: Inl
             onDidChangeInlayHints: emitter.event,
             provideInlayHints(document, _range, _token) {
                 if (!hintSwitch.enabled) return [];
-                const diagnostics = store.get(document.uri.toString());
+                const diagnostics = store.get(uriKey(document.uri));
                 if (!diagnostics) return [];
 
                 // Group diagnostics by position to avoid stacking hints
@@ -169,7 +170,7 @@ export function registerInlayHints(subscriptions: vscode.Disposable[], deps: Inl
             onDidChangeInlayHints: emitter.event,
             provideInlayHints(document, _range, _token) {
                 if (!hintSwitch.enabled) return [];
-                const diagnostics = store.get(document.uri.toString());
+                const diagnostics = store.get(uriKey(document.uri));
                 if (!diagnostics || diagnostics.length === 0) return [];
                 const text = document.getText();
                 const hints: vscode.InlayHint[] = [];

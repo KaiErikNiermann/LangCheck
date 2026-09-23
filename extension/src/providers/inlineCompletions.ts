@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 import { supportedLanguageSelector } from '../checking/languages';
 import type { DiagnosticStore } from '../diagnostics/store';
+import { uriKey } from '../shared/documents';
 
 export function registerInlineCompletions(subscriptions: vscode.Disposable[], deps: { readonly store: DiagnosticStore }): void {
     const { store } = deps;
@@ -11,7 +12,7 @@ export function registerInlineCompletions(subscriptions: vscode.Disposable[], de
         supportedLanguageSelector(),
         {
             provideInlineCompletionItems(document, position, _context, _token) {
-                const diagnostics = store.get(document.uri.toString());
+                const diagnostics = store.get(uriKey(document.uri));
                 if (!diagnostics) return [];
 
                 const items: vscode.InlineCompletionItem[] = [];

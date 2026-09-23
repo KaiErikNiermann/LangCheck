@@ -19,6 +19,7 @@ import { CONFIG_FILE_NAMES } from './file';
 import { languagecheck } from '../proto/checker';
 import { parseConfigKeys, spanForKey, type KeySpan } from './keys';
 import type { Logger } from '../shared/logger';
+import { uriKey } from '../shared/documents';
 
 /** What a probe found, in the order a rollup should prefer. */
 export type ConfigStatus = 'skipped' | 'ok' | 'degraded' | 'down' | 'pending';
@@ -168,7 +169,7 @@ export class ConfigStatusView implements vscode.Disposable {
     }
 
     private schedule(document: vscode.TextDocument, delay = PROBE_DEBOUNCE_MS): void {
-        const uri = document.uri.toString();
+        const uri = uriKey(document.uri);
         const existing = this.timers.get(uri);
         if (existing) clearTimeout(existing);
         this.timers.set(uri, setTimeout(() => {
@@ -178,7 +179,7 @@ export class ConfigStatusView implements vscode.Disposable {
     }
 
     private forget(document: vscode.TextDocument): void {
-        const uri = document.uri.toString();
+        const uri = uriKey(document.uri);
         const timer = this.timers.get(uri);
         if (timer) clearTimeout(timer);
         this.timers.delete(uri);
@@ -188,7 +189,7 @@ export class ConfigStatusView implements vscode.Disposable {
     }
 
     private async run(document: vscode.TextDocument): Promise<void> {
-        const uri = document.uri.toString();
+        const uri = uriKey(document.uri);
         const text = document.getText();
         const parsed = parseConfigKeys(text);
 
@@ -375,8 +376,8 @@ export class ConfigStatusView implements vscode.Disposable {
             .sort((a, b) => a.line - b.line);
 
         this.revision += 1;
-        this.snapshots.set(document.uri.toString(), {
-            uri: document.uri.toString(),
+        this.snapshots.set(uriKey(document.uri), {
+            uri: uriKey(document.uri),
             marks,
             diagnostics: diagnostics.map(d => ({
                 line: d.range.start.line,
@@ -406,7 +407,7 @@ export class ConfigStatusView implements vscode.Disposable {
     /** Push the model to every editor showing one of these documents. */
     private renderAll(): void {
         for (const editor of vscode.window.visibleTextEditors) {
-            const snapshot = this.snapshots.get(editor.document.uri.toString());
+            const snapshot = this.snapshots.get(uriKey(editor.document.uri));
             if (snapshot === undefined) continue;
             for (const status of ['ok', 'degraded', 'down', 'pending'] as const) {
                 const ranges = snapshot.marks

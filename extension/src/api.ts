@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { LanguageClient } from './core/client';
 import type { CoreService } from './core/coreService';
+import { uriKey, type UriKey } from './shared/documents';
 
 /**
  * Public API for the Language Check extension.
@@ -69,7 +70,7 @@ export function createAPI(
     checkDocumentFn: (uri: vscode.Uri) => Promise<LanguageCheckDiagnostic[]>,
     version: string,
 ): LanguageCheckAPI {
-    const ignoreRanges = new Map<string, IgnoreRange[]>();
+    const ignoreRanges = new Map<UriKey, IgnoreRange[]>();
     const languageQueries = new Map<string, string>();
     const externalProviders = new Map<string, ExternalProviderRegistration>();
 
@@ -79,13 +80,13 @@ export function createAPI(
         },
 
         registerIgnoreRanges(uri: vscode.Uri, ranges: IgnoreRange[]): void {
-            const key = uri.toString();
+            const key = uriKey(uri);
             const existing = ignoreRanges.get(key) ?? [];
             ignoreRanges.set(key, [...existing, ...ranges]);
         },
 
         clearIgnoreRanges(uri: vscode.Uri): void {
-            ignoreRanges.delete(uri.toString());
+            ignoreRanges.delete(uriKey(uri));
         },
 
         registerLanguageQuery(languageId: string, query: string): void {

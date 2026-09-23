@@ -17,6 +17,7 @@ import { byteToCharConverter } from './offsets';
 import { toDiagnostic, toInspectorRanges, toNameSpans } from './response';
 import type { CheckResults } from './results';
 import { CheckSlots } from './scheduler';
+import { uriKey } from '../shared/documents';
 
 /** What a check did, for the caller that asked for it. */
 export interface CheckOutcome {
@@ -96,7 +97,7 @@ export class Checker {
         const textContent = document.getText();
         const readMs = performance.now() - t0;
 
-        const uri = document.uri.toString();
+        const uri = uriKey(document.uri);
         const inFlight = this.inFlight.get(uri);
         if (inFlight && inFlight.text === textContent) {
             inspectorLog.push('debug', 'checkDocument', `Joining in-flight check for ${path.basename(document.fileName)}`);
@@ -187,14 +188,14 @@ export class Checker {
                 const inspectorRanges = toInspectorRanges(
                     response.checkProse.extraction?.proseRanges ?? [], textContent, byteToChar);
 
-                results.extraction.set(document.uri.toString(), {
+                results.extraction.set(uriKey(document.uri), {
                     prose: inspectorRanges,
                     languageId: document.languageId,
                     syntax: response.checkProse.extraction?.syntax ?? '',
                     maxRangeBytes: (response.checkProse.extraction?.maxRangeBytes as number) ?? 0,
                 });
 
-                results.names.set(document.uri.toString(), toNameSpans(
+                results.names.set(uriKey(document.uri), toNameSpans(
                     response.checkProse.extraction?.names ?? [], textContent, document, byteToChar));
 
                 // Store timings and check info for inspector

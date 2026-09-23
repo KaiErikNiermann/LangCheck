@@ -12,6 +12,7 @@ import type { InspectorPanel } from '../ui/webviews/inspector';
 import type { Checker } from './checker';
 import { SUPPORTED_LANGUAGES, isCheckableIn } from './languages';
 import { Debouncer } from './scheduler';
+import { uriKey } from '../shared/documents';
 
 export interface TriggerDeps {
     readonly core: CoreService;
@@ -60,7 +61,7 @@ export class CheckTriggers {
         // soon as Initialize returns.
         if (!this.deps.core.ready()) return;
         if (!this.isCheckable(document)) return;
-        if (this.deps.store.has(document.uri.toString())) return;
+        if (this.deps.store.has(uriKey(document.uri))) return;
         this.deps.checker.check(document);
     }
 
@@ -88,7 +89,7 @@ export class CheckTriggers {
         subscriptions.push(vscode.workspace.onDidOpenTextDocument((document) => {
             if (!this.isCheckable(document)) return;
             const isVisible = vscode.window.visibleTextEditors.some(
-                e => e.document.uri.toString() === document.uri.toString()
+                e => uriKey(e.document.uri) === uriKey(document.uri)
             );
             if (!isVisible) return;
             this.checkIfUnchecked(document);
@@ -114,7 +115,7 @@ export class CheckTriggers {
             if (trigger !== 'onChange') return;
 
             const doc = event.document;
-            this.debouncer.schedule(doc.uri.toString(), this.deps.configState.debounceMs, () => {
+            this.debouncer.schedule(uriKey(doc.uri), this.deps.configState.debounceMs, () => {
                 this.deps.checker.check(doc);
             });
         }));
@@ -123,7 +124,7 @@ export class CheckTriggers {
         vscode.workspace.onDidSaveTextDocument(async (document) => {
             if (SUPPORTED_LANGUAGES.includes(document.languageId)) {
                 // Cancel any pending debounce for this doc since we're checking now
-                this.debouncer.cancel(document.uri.toString());
+                this.debouncer.cancel(uriKey(document.uri));
                 await this.deps.checker.check(document);
                 await this.deps.inspector.update();
             }

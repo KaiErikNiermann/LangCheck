@@ -10,7 +10,7 @@ import type { Reloader } from '../checking/reload';
 import type { CoreService } from '../core/coreService';
 import { isSpellingRule, ruleIdOf } from '../diagnostics/diagnostic';
 import type { DiagnosticStore } from '../diagnostics/store';
-import { findOpenDocument } from '../shared/documents';
+import { findOpenDocument, uriKey, type UriKey } from '../shared/documents';
 import type { Logger } from '../shared/logger';
 import type { StatusBars } from '../ui/statusBars';
 import { spellLanguageOf } from './edits';
@@ -87,7 +87,7 @@ export class ConfigWatchers {
      * spelling findings, and removing one needs the check because the finding
      * was dropped inside the core and never reached the editor.
      */
-    private readonly wordlistContents = new Map<string, string>();
+    private readonly wordlistContents = new Map<UriKey, string>();
 
     /** Where the watchers go, so VS Code disposes them; set by {@link start}. */
     private subscriptions: vscode.Disposable[] = [];
@@ -283,7 +283,7 @@ export class ConfigWatchers {
                 new vscode.RelativePattern(folder, relative),
             );
             const uri = vscode.Uri.joinPath(folder.uri, relative);
-            const key = uri.toString();
+            const key = uriKey(uri);
             this.wordlistContents.set(key, await readTextOrEmpty(uri));
             const reload = async () => {
                 const before = this.wordlistContents.get(key) ?? '';
