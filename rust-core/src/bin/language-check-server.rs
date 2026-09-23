@@ -338,6 +338,18 @@ async fn main() -> Result<()> {
         let mut length_buf = [0u8; 4];
         length_buf.copy_from_slice(&buffer[..4]);
         let length: usize = u32::from_be_bytes(length_buf) as usize;
+        // A length past any real request is not one: the stream has lost its
+        // framing, and every length after it would be read from the wrong
+        // place. Waiting for that many bytes held memory against a request
+        // that would never arrive. Exiting is what lets the editor notice and
+        // start a fresh core.
+        if length > MAX_REQUEST_BYTES {
+            error!(
+                length,
+                "Request longer than any real one; the stream is out of step, exiting"
+            );
+            anyhow::bail!("request framing lost: a request claimed {length} bytes");
+        }
 
         if buffer.len() < 4 + length {
             let mut chunk = [0u8; 4096];
@@ -352,12 +364,15 @@ async fn main() -> Result<()> {
         buffer.advance(4);
         let msg_data = buffer.split_to(length);
 
-        let request = match Request::decode(msg_data) {
+        let request = match Request::decode(msg_data.clone()) {
             Ok(req) => req,
             Err(e) => {
                 error!("Failed to decode request: {e}");
+                // Answered under the request's own id when it can still be
+                // read, so the editor fails that request now instead of
+                // waiting out its timeout for an answer filed under 0.
                 let response = Response {
-                    id: 0,
+                    id: leading_request_id(&msg_data).unwrap_or(0),
                     payload: Some(response::Payload::Error(ErrorResponse {
                         message: format!("Failed to decode request: {e}"),
                     })),
@@ -392,11 +407,12 @@ async fn main() -> Result<()> {
         let workspace_root_arc = workspace_root_arc.clone();
         let indexing_notify = indexing_notify.clone();
         let stdout_arc_clone = stdout_arc.clone();
+        let stdout_for_panic = stdout_arc.clone();
 
         // Spawn the handler so the main loop can immediately read the next request.
         // Heavy requests (CheckProse with LT) no longer block lightweight ones
         // (AddDictionaryWord, Ignore).
-        tokio::spawn(async move {
+        let handler = tokio::spawn(async move {
             let handler_start = std::time::Instant::now();
             let response_payload = match request.payload {
                 Some(checker::request::Payload::Initialize(req)) => {
@@ -949,6 +965,29 @@ async fn main() -> Result<()> {
                 error!(id = request_id, "Failed to send response: {e}");
             }
         });
+        // A handler that panics never answers, and the editor waited out its
+        // whole timeout -- holding one of its few check slots -- for an answer
+        // that was never coming. Answered here instead, as an error.
+        tokio::spawn(async move {
+            if let Err(e) = handler.await
+                && e.is_panic()
+            {
+                error!(
+                    id = request_id,
+                    kind = payload_kind,
+                    "Request handler panicked: {e}"
+                );
+                let response = Response {
+                    id: request_id,
+                    payload: Some(response::Payload::Error(ErrorResponse {
+                        message: format!("The core failed while handling this request: {e}"),
+                    })),
+                };
+                if let Err(e) = send_response(&stdout_for_panic, response).await {
+                    error!(id = request_id, "Failed to report the panic: {e}");
+                }
+            }
+        });
     }
 
     indexing_handle.abort();
@@ -992,9 +1031,43 @@ fn list_config_files(root: &Path) -> ListConfigFilesResponse {
     }
 }
 
+/// The longest request the server will wait for. A document is the largest
+/// thing a request carries, and the editor sends nothing near this.
+const MAX_REQUEST_BYTES: usize = 256 * 1024 * 1024;
+
+/// The `id` of a request that did not decode, when its first field is still
+/// readable: field 1 as a varint, which is how every request starts.
+fn leading_request_id(bytes: &[u8]) -> Option<u64> {
+    // Tag byte for field 1, wire type 0 (varint).
+    let rest = bytes.strip_prefix(&[0x08])?;
+    let mut id: u64 = 0;
+    for (i, &byte) in rest.iter().take(10).enumerate() {
+        id |= u64::from(byte & 0x7f) << (7 * i);
+        if byte & 0x80 == 0 {
+            return Some(id);
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_id_of_an_undecodable_request_is_still_read() {
+        let mut bytes = Request {
+            id: 300,
+            payload: None,
+        }
+        .encode_to_vec();
+        // A field 2 that claims more bytes than follow: not decodable.
+        bytes.extend_from_slice(&[0x12, 0x7f, 0x01]);
+        assert!(Request::decode(bytes.as_slice()).is_err());
+        assert_eq!(leading_request_id(&bytes), Some(300));
+        assert_eq!(leading_request_id(&[0x12, 0x00]), None);
+        assert_eq!(leading_request_id(&[0x08, 0xff]), None);
+    }
 
     #[test]
     fn lists_the_config_in_force_and_what_it_selects() {
