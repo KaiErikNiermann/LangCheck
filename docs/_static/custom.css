@@ -410,10 +410,11 @@ body {
   box-shadow: var(--lc-kbd-shadow);
   background: var(--lc-kbd-background);
   color: var(--lc-kbd-text);
-  font-family: var(--font-stack);
+  font-family: var(--font-stack--monospace) !important;
   font-size: var(--lc-kbd-font-size);
   font-weight: 600;
   line-height: 1.5;
+  text-align: center;
 }
 
 /* Keep the placeholder clear of the badge. */
