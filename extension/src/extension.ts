@@ -2,14 +2,13 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { TraceLogger } from './shared/trace';
 import { createAPI, severityToString } from './api';
-import { formatSuggestionLabel } from './shared/inlayLabels';
 import type { LanguageCheckDiagnostic } from './api';
 import { parseDictionaryPaths, wordsAdded } from './config/parsing';
 import { YAML_EXTENSION_ID, declineYamlSuggestion, shouldSuggestYaml } from './config/yamlSuggestion';
 import { Logger } from './shared/logger';
 import { ConfigStatusView } from './config/gutter';
 import { classifyConfigChange } from './config/rules';
-import { engines as enginesBehind, spanned } from './shared/ignoreSpan';
+import { spanned } from './shared/ignoreSpan';
 import {
     addLatexListEntry,
     deactivateRule,
@@ -28,24 +27,14 @@ import {
     workspaceFolderOrWarn,
     writeConfigText,
 } from './config/file';
-import {
-    addSuggestionEdit,
-    diagId,
-    getDiagnosticWord,
-    ignoreRequest,
-    insertedText,
-    isSpellingOf,
-    isSpellingRule,
-    ruleIdOf,
-} from './diagnostics/diagnostic';
+import { ignoreRequest, isSpellingOf, isSpellingRule, ruleIdOf } from './diagnostics/diagnostic';
 import { findOpenDocument } from './shared/documents';
 import { DiagnosticStore, Suppression } from './diagnostics/store';
 import { CheckResults } from './checking/results';
 import { InspectorLog } from './ui/inspectorLog';
-import { COMMANDS, commandLink, registerCommand } from './commands/ids';
+import { COMMANDS, registerCommand } from './commands/ids';
 import { getSetting, settingId, updateSetting, type SettingValue } from './config/settings';
-import { BUILTIN_SKIP_COMMANDS, BUILTIN_SKIP_ENVS, PROSE_COMMANDS, PROSE_ENVS } from './providers/latexLists';
-import { SUPPORTED_LANGUAGES, isCheckableIn, supportedLanguageSelector } from './checking/languages';
+import { SUPPORTED_LANGUAGES, isCheckableIn } from './checking/languages';
 import { StatusBars } from './ui/statusBars';
 import { CoreService } from './core/coreService';
 import { Checker, type CheckOutcome } from './checking/checker';
@@ -57,6 +46,9 @@ import { DiagnosticActions } from './diagnostics/actions';
 import { InspectorPanel } from './ui/webviews/inspector';
 import { Packs } from './core/packs';
 import { Reloader } from './checking/reload';
+import { InlayHintSwitch, registerInlayHints } from './providers/inlayHints';
+import { registerInlineCompletions } from './providers/inlineCompletions';
+import { registerCodeActions } from './providers/codeActions';
 import { bootstrapCore, downloadFailedMessage, downloadWithProgress, onDownloadFailedChoice } from './core/binary';
 import { WorkspaceConfigState } from './config/state';
 import { createServices } from './services';
@@ -73,6 +65,7 @@ let statusBars: StatusBars;
 let configState: WorkspaceConfigState;
 let inspectorLog: InspectorLog;
 let inlayHintEmitter: vscode.EventEmitter<void>;
+let inlayHintSwitch: InlayHintSwitch;
 let fixTarget: FixTarget;
 let speedFix: SpeedFixPanel;
 let actions: DiagnosticActions;
@@ -84,18 +77,7 @@ let configStatusView: ConfigStatusView | null = null;
 
 // Engine health tracking
 
-// Inlay hint invalidation
-let inlayHintsEnabled = true;
 
-/**
- * How sure an engine has to be before its suggestion is shown inline.
- *
- * Harper and LanguageTool report 0.8, Vale 0.75, proselint 0.7 and Hunspell
- * 0.6, so at this floor the first two reach the hint and the rest stay in the
- * quick fix menu. A hint is applied with one keystroke and sits in the text,
- * which is a different bar from a menu entry someone chose to open.
- */
-const HINT_CONFIDENCE_FLOOR = 0.8;
 
 // Check-on-change debounce timer per document
 const debouncer = new Debouncer();
@@ -108,7 +90,7 @@ export async function activate(context: vscode.ExtensionContext) {
     log = new Logger(isDev);
     context.subscriptions.push({ dispose: () => log.dispose() });
 
-    ({ store, suppression, results, statusBars, configState, inspectorLog, inlayHintEmitter, fixTarget } = createServices());
+    ({ store, suppression, results, statusBars, configState, inspectorLog, inlayHintEmitter, inlayHintSwitch, fixTarget } = createServices());
     speedFix = new SpeedFixPanel({
         context, store, fixTarget,
         actions: {
@@ -274,390 +256,9 @@ export async function activate(context: vscode.ExtensionContext) {
     reloader = new Reloader({ log, core, store, results, statusBars, inspector, checker, isCheckable });
 
 
-    /** Format an inlay hint label and apply-value for a diagnostic suggestion. */
-    function formatInlayLabel(
-        d: { suggestions?: string[]; range: vscode.Range },
-        document: vscode.TextDocument
-    ): { label: string; applyValue: string } | null {
-        const suggestion = d.suggestions?.[0];
-        if (suggestion === undefined) return null;
-        return formatSuggestionLabel(document.getText(d.range), suggestion);
-    }
-
-    // Register Inlay Hints Provider with invalidation support
-    context.subscriptions.push(vscode.languages.registerInlayHintsProvider(
-        supportedLanguageSelector(),
-        {
-            onDidChangeInlayHints: inlayHintEmitter.event,
-            provideInlayHints(document, _range, _token) {
-                if (!inlayHintsEnabled) return [];
-                const diagnostics = store.get(document.uri.toString());
-                if (!diagnostics) return [];
-
-                // Group diagnostics by position to avoid stacking hints
-                const byPosition = new Map<string, { diag: typeof diagnostics[number]; idx: number; fmt: { label: string; applyValue: string } }[]>();
-                for (let i = 0; i < diagnostics.length; i++) {
-                    const d = diagnostics[i]!;
-                    if (d.confidence !== undefined && d.confidence >= HINT_CONFIDENCE_FLOOR
-                        && d.suggestions && d.suggestions.length > 0) {
-                        const fmt = formatInlayLabel(d, document);
-                        if (!fmt) continue;
-                        const key = `${d.range.end.line}:${d.range.end.character}`;
-                        const group = byPosition.get(key);
-                        const entry = { diag: d, idx: i, fmt };
-                        if (group) {
-                            group.push(entry);
-                        } else {
-                            byPosition.set(key, [entry]);
-                        }
-                    }
-                }
-
-                const hints: vscode.InlayHint[] = [];
-                for (const group of byPosition.values()) {
-                    if (group.length === 0) continue;
-                    const first = group[0]!;
-                    let label: string;
-                    let tooltip: string;
-                    if (group.length === 1) {
-                        label = first.fmt.label;
-                        tooltip = `Accept suggestion: ${first.fmt.applyValue || '(remove)'}`;
-                    } else {
-                        label = `${first.fmt.label} (+${group.length - 1} more)`;
-                        tooltip = group
-                            .map((e, i) => `${i + 1}. ${e.diag.message}: ${e.fmt.applyValue || '(remove)'}`)
-                            .join('\n');
-                    }
-                    const hint = new vscode.InlayHint(
-                        first.diag.range.end,
-                        [
-                            {
-                                value: label,
-                                command: commandLink(COMMANDS.applyFix, 'Apply Fix', diagId(first.idx), first.fmt.applyValue)
-                            }
-                        ],
-                        vscode.InlayHintKind.Type
-                    );
-                    hint.tooltip = tooltip;
-                    hints.push(hint);
-                }
-                // Whether a hint appears depends on four things that are
-                // invisible from the editor: the provider firing at all, the
-                // document having diagnostics, those diagnostics clearing the
-                // confidence floor, and the label formatter returning one. A
-                // count of each is what tells the four apart without guessing.
-                log.debug('provideInlayHints', {
-                    language: document.languageId,
-                    diagnostics: diagnostics.length,
-                    aboveConfidenceFloor: diagnostics.filter(
-                        d => d.confidence !== undefined && d.confidence >= HINT_CONFIDENCE_FLOOR
-                    ).length,
-                    hints: hints.length,
-                });
-                return hints;
-            }
-        }
-    ));
-
-    // Register LaTeX-only Inlay Hints Provider for environment skip hints
-    context.subscriptions.push(vscode.languages.registerInlayHintsProvider(
-        [{ language: 'latex' }],
-        {
-            onDidChangeInlayHints: inlayHintEmitter.event,
-            provideInlayHints(document, _range, _token) {
-                if (!inlayHintsEnabled) return [];
-                const text = document.getText();
-                const hints: vscode.InlayHint[] = [];
-                const re = /\\begin\{([^}]+)\}/g;
-                let m: RegExpExecArray | null;
-                while ((m = re.exec(text)) !== null) {
-                    const envName = m[1]!;
-                    if (BUILTIN_SKIP_ENVS.has(envName) || PROSE_ENVS.has(envName) || configState.skipEnvironments.has(envName) || configState.proseEnvironments.has(envName)) continue;
-                    const pos = document.positionAt(m.index + m[0].length);
-                    const hint = new vscode.InlayHint(
-                        pos,
-                        [
-                            {
-                                value: ' \u2298 skip',
-                                command: commandLink(COMMANDS.skipLatexEnv, 'Skip checking this environment', envName)
-                            },
-                            {
-                                value: ' | hide hint',
-                                command: commandLink(COMMANDS.hideLatexEnvHint, 'Hide this hint (keep checking)', envName)
-                            }
-                        ],
-                        vscode.InlayHintKind.Parameter
-                    );
-                    hint.tooltip = `"skip" adds to skip_environments, "hide hint" adds to prose_environments`;
-                    hints.push(hint);
-                }
-                return hints;
-            }
-        }
-    ));
-
-    // Register LaTeX-only Inlay Hints Provider for command skip hints (Approach B: diagnostic-driven)
-    context.subscriptions.push(vscode.languages.registerInlayHintsProvider(
-        [{ language: 'latex' }],
-        {
-            onDidChangeInlayHints: inlayHintEmitter.event,
-            provideInlayHints(document, _range, _token) {
-                if (!inlayHintsEnabled) return [];
-                const diagnostics = store.get(document.uri.toString());
-                if (!diagnostics || diagnostics.length === 0) return [];
-                const text = document.getText();
-                const hints: vscode.InlayHint[] = [];
-                const seen = new Set<string>();
-                const re = /\\([a-zA-Z]+)\{/g;
-                let m: RegExpExecArray | null;
-                while ((m = re.exec(text)) !== null) {
-                    const cmdName = m[1]!;
-                    if (
-                        BUILTIN_SKIP_COMMANDS.has(cmdName) ||
-                        configState.skipCommands.has(cmdName) ||
-                        PROSE_COMMANDS.has(cmdName)
-                    ) continue;
-                    // Find the closing brace to get the full argument span
-                    const argStart = m.index + m[0].length - 1; // position of '{'
-                    let depth = 1;
-                    let argEnd = argStart + 1;
-                    while (argEnd < text.length && depth > 0) {
-                        if (text[argEnd] === '{') depth++;
-                        else if (text[argEnd] === '}') depth--;
-                        argEnd++;
-                    }
-                    // Check if any diagnostic falls inside this command's argument
-                    const cmdStartPos = document.positionAt(m.index);
-                    const cmdEndPos = document.positionAt(argEnd);
-                    const cmdRange = new vscode.Range(cmdStartPos, cmdEndPos);
-                    const hasDiag = diagnostics.some(d => cmdRange.contains(d.range));
-                    if (!hasDiag) continue;
-                    // Only show one hint per command name
-                    const key = `${cmdName}:${m.index}`;
-                    if (seen.has(key)) continue;
-                    seen.add(key);
-                    const pos = document.positionAt(argEnd);
-                    const hint = new vscode.InlayHint(
-                        pos,
-                        [{
-                            value: ' \u2298 skip',
-                            command: commandLink(COMMANDS.skipLatexCommand, 'Skip this LaTeX command', cmdName)
-                        }],
-                        vscode.InlayHintKind.Parameter
-                    );
-                    hint.tooltip = `Add "${cmdName}" to skip_commands in .languagecheck.yaml`;
-                    hints.push(hint);
-                }
-                return hints;
-            }
-        }
-    ));
-
-    // Register Inline Completion Provider (ghost text suggestions)
-    context.subscriptions.push(vscode.languages.registerInlineCompletionItemProvider(
-        supportedLanguageSelector(),
-        {
-            provideInlineCompletionItems(document, position, _context, _token) {
-                const diagnostics = store.get(document.uri.toString());
-                if (!diagnostics) return [];
-
-                const items: vscode.InlineCompletionItem[] = [];
-                for (const d of diagnostics) {
-                    if (!d.suggestions || d.suggestions.length === 0) continue;
-                    if (!d.range.contains(position)) continue;
-
-                    const suggestion = d.suggestions[0];
-                    if (!suggestion) continue;
-
-                    items.push(new vscode.InlineCompletionItem(
-                        suggestion,
-                        d.range
-                    ));
-                }
-                return items;
-            }
-        }
-    ));
-
-    // Register Code Action Provider (quickfix lightbulb)
-    context.subscriptions.push(vscode.languages.registerCodeActionsProvider(
-        supportedLanguageSelector(),
-        {
-            provideCodeActions(document, range, context) {
-                const diagnostics = store.get(document.uri.toString());
-                if (!diagnostics) return [];
-
-                const actions: vscode.CodeAction[] = [];
-                const relevantDiags = context.diagnostics.filter(
-                    d => d.source === 'language-check'
-                );
-
-                for (const diag of relevantDiags) {
-                    const extDiag = diagnostics.find(
-                        ed => ed.range.isEqual(diag.range) && ed.message === diag.message
-                    );
-                    if (!extDiag) continue;
-                    const diagIndex = diagnostics.indexOf(extDiag);
-
-                    // Two groups, emitted in this order. The always-present
-                    // actions come first so they keep a stable position: a
-                    // misspelling can carry twenty suggestions, and listing
-                    // those first pushes "Add to dictionary" — the one most
-                    // often reached for — off the bottom of the lightbulb.
-                    const singleChoice: vscode.CodeAction[] = [];
-                    const replacements: vscode.CodeAction[] = [];
-
-                    const ruleId = ruleIdOf(diag, '');
-                    const word = isSpellingRule(ruleId)
-                        ? getDiagnosticWord(document, diag)
-                        : null;
-
-                    // A language nothing could check. The modal is asked at
-                    // most once and never again after a refusal, so this is
-                    // where the offer stays reachable afterwards -- it costs
-                    // nothing until someone opens the lightbulb.
-                    if (ruleId === 'languagecheck.no-provider' && extDiag.packInstallable) {
-                        const tag = extDiag.language ?? '';
-                        const installAction = new vscode.CodeAction(
-                            vscode.l10n.t('Install the {0} dictionary', tag),
-                            vscode.CodeActionKind.QuickFix
-                        );
-                        installAction.command = commandLink(COMMANDS.installPack, vscode.l10n.t('Install dictionary'), tag);
-                        installAction.diagnostics = [diag];
-                        singleChoice.push(installAction);
-                    }
-
-                    // Add "Add to Dictionary" action for spelling rules
-                    if (word !== null) {
-                        const dictAction = new vscode.CodeAction(
-                            `Add "${word}" to dictionary`,
-                            vscode.CodeActionKind.QuickFix
-                        );
-                        dictAction.command = commandLink(COMMANDS.addToDictionary, 'Add to Dictionary', word);
-                        dictAction.diagnostics = [diag];
-                        singleChoice.push(dictAction);
-                    }
-
-                    // Add "Ignore" action
-                    const ignoreAction = new vscode.CodeAction(
-                        'Ignore this issue',
-                        vscode.CodeActionKind.QuickFix
-                    );
-                    ignoreAction.command = commandLink(COMMANDS.ignoreDiagnostic, 'Ignore', diagId(diagIndex));
-                    ignoreAction.diagnostics = [diag];
-                    singleChoice.push(ignoreAction);
-
-                    // Add "Deactivate rule" action
-                    if (ruleId) {
-                        const deactivateAction = new vscode.CodeAction(
-                            vscode.l10n.t('Deactivate rule "{0}"', ruleId),
-                            vscode.CodeActionKind.QuickFix
-                        );
-                        deactivateAction.command = commandLink(COMMANDS.deactivateRule, 'Deactivate rule', ruleId);
-                        deactivateAction.diagnostics = [diag];
-                        singleChoice.push(deactivateAction);
-                    }
-
-                    // Add a quickfix for each suggestion
-                    if (extDiag.suggestions) {
-                        for (const suggestion of extDiag.suggestions) {
-                            const inserted = insertedText(suggestion);
-                            const isRemove = suggestion === '';
-                            const label = isRemove
-                                ? 'Fix: Remove text'
-                                : inserted !== null
-                                    ? `Fix: Insert "${inserted}"`
-                                    : `Fix: "${suggestion}"`;
-                            const fix = new vscode.CodeAction(
-                                label,
-                                vscode.CodeActionKind.QuickFix
-                            );
-                            fix.edit = new vscode.WorkspaceEdit();
-                            addSuggestionEdit(fix.edit, document.uri, diag.range, suggestion);
-                            fix.diagnostics = [diag];
-                            fix.isPreferred = extDiag.suggestions.indexOf(suggestion) === 0;
-                            replacements.push(fix);
-                        }
-                    }
-
-                    // "Fix all" bulk actions (only when first suggestion exists).
-                    // They apply the top suggestion, so they stay next to the
-                    // list that shows what that suggestion is.
-                    if (word !== null && extDiag.suggestions && extDiag.suggestions.length > 0) {
-                        const replacement = extDiag.suggestions[0]!;
-                        const uri = document.uri.toString();
-
-                        // Count matching spelling diagnostics in this file
-                        const fileCount = diagnostics.filter(d => isSpellingOf(document, d, word)).length;
-
-                        if (fileCount >= 2) {
-                            const fixFileAction = new vscode.CodeAction(
-                                vscode.l10n.t('Fix all "{0}" in this file', word),
-                                vscode.CodeActionKind.QuickFix
-                            );
-                            fixFileAction.command = commandLink(COMMANDS.fixAllSpellingInFile, 'Fix all in file', uri, word, replacement);
-                            fixFileAction.diagnostics = [diag];
-                            replacements.push(fixFileAction);
-                        }
-
-                        // Count matching spelling diagnostics across workspace
-                        let workspaceCount = 0;
-                        for (const [entryUri, entryDiags] of store) {
-                            const entryDoc = findOpenDocument(entryUri);
-                            if (!entryDoc) continue;
-                            workspaceCount += entryDiags.filter(d => isSpellingOf(entryDoc, d, word)).length;
-                        }
-
-                        if (workspaceCount >= 2) {
-                            const fixWsAction = new vscode.CodeAction(
-                                vscode.l10n.t('Fix all "{0}" in workspace', word),
-                                vscode.CodeActionKind.QuickFix
-                            );
-                            fixWsAction.command = commandLink(COMMANDS.fixAllSpellingInWorkspace, 'Fix all in workspace', word, replacement);
-                            fixWsAction.diagnostics = [diag];
-                            replacements.push(fixWsAction);
-                        }
-                    }
-
-                    actions.push(...singleChoice, ...replacements);
-                }
-
-                // Offered once for the whole selection, not once per
-                // diagnostic. "Ignore this issue" is keyed on one finding's
-                // message, so a phrase three engines all dislike takes three
-                // trips through the lightbulb -- and the second and third
-                // only appear once the one above has gone.
-                const here = spanned(
-                    {
-                        start: document.offsetAt(range.start),
-                        end: document.offsetAt(range.end),
-                    },
-                    diagnostics.map(d => ({
-                        start: document.offsetAt(d.range.start),
-                        end: document.offsetAt(d.range.end),
-                        code: ruleIdOf(d, undefined),
-                    })),
-                );
-                if (here.length > 1 && enginesBehind(here.map(d => d.code)).size > 0) {
-                    const silenceAll = new vscode.CodeAction(
-                        vscode.l10n.t('Ignore all {0} issues here', here.length),
-                        vscode.CodeActionKind.QuickFix,
-                    );
-                    silenceAll.command = commandLink(
-                        COMMANDS.ignoreSelection,
-                        'Ignore all issues here',
-                        document.uri.toString(),
-                        document.offsetAt(range.start),
-                        document.offsetAt(range.end),
-                    );
-                    actions.push(silenceAll);
-                }
-
-                return actions;
-            }
-        },
-        { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
-    ));
+    registerInlayHints(context.subscriptions, { store, configState, log, emitter: inlayHintEmitter, hintSwitch: inlayHintSwitch });
+    registerInlineCompletions(context.subscriptions, { store });
+    registerCodeActions(context.subscriptions, { store });
 
     context.subscriptions.push(registerCommand(COMMANDS.downloadBinary, async () => {
         const result = await downloadWithProgress(context);
@@ -669,9 +270,9 @@ export async function activate(context: vscode.ExtensionContext) {
     }));
 
     context.subscriptions.push(registerCommand(COMMANDS.toggleInlayHints, () => {
-        inlayHintsEnabled = !inlayHintsEnabled;
+        inlayHintSwitch.enabled = !inlayHintSwitch.enabled;
         inlayHintEmitter.fire();
-        vscode.window.showInformationMessage(inlayHintsEnabled
+        vscode.window.showInformationMessage(inlayHintSwitch.enabled
             ? vscode.l10n.t('Language Check inlay hints enabled')
             : vscode.l10n.t('Language Check inlay hints disabled'));
     }));

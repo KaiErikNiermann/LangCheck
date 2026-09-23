@@ -15,6 +15,7 @@ import { FixTarget } from './diagnostics/fixTarget';
 import { DiagnosticStore, Suppression } from './diagnostics/store';
 import { InspectorLog } from './ui/inspectorLog';
 import { StatusBars } from './ui/statusBars';
+import { InlayHintSwitch } from './providers/inlayHints';
 
 export interface Services {
     readonly store: DiagnosticStore;
@@ -26,6 +27,7 @@ export interface Services {
     readonly fixTarget: FixTarget;
     /** Fired whenever an inlay hint provider's answer may have changed. */
     readonly inlayHintEmitter: vscode.EventEmitter<void>;
+    readonly inlayHintSwitch: InlayHintSwitch;
 }
 
 export function createServices(): Services {
@@ -40,5 +42,6 @@ export function createServices(): Services {
         statusBars: new StatusBars(results),
         fixTarget: new FixTarget(store),
         inlayHintEmitter: new vscode.EventEmitter<void>(),
+        inlayHintSwitch: new InlayHintSwitch(),
     };
 }
