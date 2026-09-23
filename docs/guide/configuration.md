@@ -6,6 +6,19 @@ The configuration format is still evolving. Backwards compatibility is maintaine
 
 Language Check is configured via a `.languagecheck.yaml` file in your workspace root. YAML is preferred; `.languagecheck.yml` and `.languagecheck.json` are also supported.
 
+## Where the config is read from
+
+Language Check reads one config per workspace, from the root of the workspace folder. It does not search up or down from the file being checked, so the closest config to a file is not necessarily the one that applies to it.
+
+- **Only the root counts.** A `.languagecheck.yaml` in a subfolder is not read, not even for the files inside that subfolder, and nothing from it is merged into the root config. To treat part of a project differently, use `exclude`, the per-language settings and `rules` in the root config.
+- **One file wins, with no merging.** If more than one config sits at the root, `.languagecheck.yaml` is used, then `.languagecheck.yml`, then `.languagecheck.json`. The others are ignored completely.
+- **Multi-root workspaces** use the config of the first folder, for every folder.
+- **The command line** reads the config from the directory it runs in. `language-check check docs/` from the repository root uses the root config; running the same check from inside `docs/` uses the config there, if there is one.
+
+This is the model pyright and mypy use (one config per run), not the nearest-config-wins model of Prettier or ESLint's flat config.
+
+One thing does look at nested configs: the status marks in the gutter of an open config file. They appear on any `.languagecheck.*` file, including a nested one that has no effect, and they check its paths relative to its own folder. A mark on a nested config says whether that file's references resolve, not that the file is in use.
+
 ## Engines
 
 Control which checking engines are active:

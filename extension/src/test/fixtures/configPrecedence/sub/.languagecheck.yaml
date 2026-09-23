@@ -1,0 +1,7 @@
+# A nested config. The extension and the core read only the workspace root's,
+# so this does not apply to sub/nested.md.
+engines:
+  harper: true
+rules:
+  harper.Spelling:
+    severity: "off"

@@ -230,6 +230,13 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 120_000 },
     },
     {
+        label: 'config-precedence',
+        files: 'out/test/e2e/configPrecedence.test.js',
+        workspaceFolder: './src/test/fixtures/configPrecedence',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 120_000 },
+    },
+    {
         label: 'decline-phase1',
         files: 'out/test/e2e/declinePhase1.test.js',
         workspaceFolder: './src/test/fixtures/packs',

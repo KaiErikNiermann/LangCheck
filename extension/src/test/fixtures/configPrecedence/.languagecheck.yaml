@@ -1,0 +1,4 @@
+# The config that applies. The .json beside it and the one in sub/ both turn
+# spelling off; a spelling finding anywhere proves neither was read.
+engines:
+  harper: true

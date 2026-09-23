@@ -1,0 +1,4 @@
+{
+  "engines": { "harper": true },
+  "rules": { "harper.Spelling": { "severity": "off" } }
+}
