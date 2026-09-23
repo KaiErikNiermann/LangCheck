@@ -121,13 +121,13 @@ export class CheckTriggers {
         }));
 
         // Always re-check on save (regardless of trigger mode)
-        vscode.workspace.onDidSaveTextDocument(async (document) => {
+        subscriptions.push(vscode.workspace.onDidSaveTextDocument(async (document) => {
             if (SUPPORTED_LANGUAGES.includes(document.languageId)) {
                 // Cancel any pending debounce for this doc since we're checking now
                 this.debouncer.cancel(uriKey(document.uri));
                 await this.deps.checker.check(document);
                 await this.deps.inspector.update();
             }
-        });
+        }));
     }
 }

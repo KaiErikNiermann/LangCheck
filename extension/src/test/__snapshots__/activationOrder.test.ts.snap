@@ -75,7 +75,7 @@ exports[`activation order > in production, when the core has to be downloaded fi
   "workspace.createFileSystemWatcher.onDidDelete()",
   "languages.onDidChangeDiagnostics(function)",
   "--- activated ---",
-  "--- 50 subscriptions ---",
+  "--- 51 subscriptions ---",
 ]
 `;
 
@@ -165,7 +165,7 @@ exports[`activation order > under the test host, with a local core build 1`] = `
   "workspace.createFileSystemWatcher.onDidDelete()",
   "languages.onDidChangeDiagnostics(function)",
   "--- activated ---",
-  "--- 50 subscriptions ---",
+  "--- 51 subscriptions ---",
 ]
 `;
 
@@ -256,7 +256,7 @@ exports[`activation order > under the test host, with no local core build 1`] = 
   "workspace.createFileSystemWatcher.onDidDelete()",
   "languages.onDidChangeDiagnostics(function)",
   "--- activated ---",
-  "--- 50 subscriptions ---",
+  "--- 51 subscriptions ---",
 ]
 `;
 

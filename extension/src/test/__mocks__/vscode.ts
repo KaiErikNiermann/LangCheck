@@ -20,6 +20,14 @@ export function __resetCalls(): void {
     __calls.length = 0;
 }
 
+/**
+ * Every event subscription made on a namespace (`workspace.onDid…`,
+ * `window.onDid…`, `languages.onDid…`), and whether its disposable has been
+ * disposed. VS Code disposes what an extension pushes to its subscriptions;
+ * a subscription left out of them outlives the extension.
+ */
+export const __listeners: { label: string; disposed: boolean }[] = [];
+
 /** What the workspace looks like to the code under test. Tests set this before activating. */
 export const __workspace: { folders: { uri: Uri; name: string; index: number }[] | undefined } = {
     folders: undefined,
@@ -65,6 +73,11 @@ function namespace<T extends object>(name: string, known: T): T {
             if (prop in target || typeof prop === 'symbol') return Reflect.get(target, prop, receiver);
             return (...args: unknown[]) => {
                 record(`${name}.${prop}`, args);
+                if (prop.startsWith('on')) {
+                    const listener = { label: `${name}.${prop}`, disposed: false };
+                    __listeners.push(listener);
+                    return { dispose: () => { listener.disposed = true; } };
+                }
                 return stub(`${name}.${prop}`);
             };
         },

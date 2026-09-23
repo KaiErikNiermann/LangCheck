@@ -121,6 +121,25 @@ async function activateIn(mode: ExtensionMode, withBinary: boolean) {
     return { calls: [...calls], client: [...clientCalls] };
 }
 
+describe('shutdown', () => {
+    it('disposes every event subscription activation made', async () => {
+        vi.resetModules();
+        const mock: Mock = await import('./__mocks__/vscode');
+        const { extensionPath, workspace } = makeLayout(true);
+        mock.__workspace.folders = [{ uri: mock.Uri.file(workspace), name: 'workspace', index: 0 }];
+        const extension = await import('../extension');
+        const ctx = context(mock, extensionPath, ExtensionMode.Test);
+        await extension.activate(ctx as never);
+        await settle();
+
+        // What VS Code does when the extension is deactivated.
+        extension.deactivate();
+        for (const subscription of ctx.subscriptions) subscription.dispose();
+
+        expect(mock.__listeners.filter(l => !l.disposed).map(l => l.label)).toEqual([]);
+    });
+});
+
 describe('activation order', () => {
     beforeEach(() => {
         download.present = true;
