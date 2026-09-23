@@ -17,7 +17,7 @@ Language Check reads one config per workspace, from the root of the workspace fo
 
 This is the model pyright and mypy use (one config per run), not the nearest-config-wins model of Prettier or ESLint's flat config.
 
-One thing does look at nested configs: the status marks in the gutter of an open config file. They appear on any `.languagecheck.*` file, including a nested one that has no effect, and they check its paths relative to its own folder. A mark on a nested config says whether that file's references resolve, not that the file is in use.
+The editor says so when you open a config that is not in effect: a nested one, or one shadowed by a higher-precedence name at the root. It shows a single information note naming the file that is read, and none of the gutter status marks the config in effect gets.
 
 ## Engines
 

@@ -69,3 +69,23 @@ export function workspaceFolderOrWarn(): vscode.WorkspaceFolder | undefined {
 export function showConfigUpdateError(err: unknown): void {
     vscode.window.showErrorMessage(vscode.l10n.t('Failed to update config: {0}', String(err)));
 }
+
+/**
+ * The config the core reads for this workspace: the first of
+ * {@link CONFIG_FILE_NAMES} that exists at the root of the first workspace
+ * folder. `undefined` when there is no folder, or no config there yet.
+ *
+ * See "Where the config is read from" in docs/guide/configuration.md.
+ */
+export async function configInEffect(): Promise<vscode.Uri | undefined> {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) return undefined;
+    for (const name of CONFIG_FILE_NAMES) {
+        const uri = vscode.Uri.joinPath(folder.uri, name);
+        try {
+            await vscode.workspace.fs.stat(uri);
+            return uri;
+        } catch { /* not found */ }
+    }
+    return undefined;
+}

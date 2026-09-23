@@ -15,7 +15,7 @@
  */
 import * as vscode from 'vscode';
 
-import { CONFIG_FILE_NAMES } from './file';
+import { CONFIG_FILE_NAMES, configInEffect } from './file';
 import { languagecheck } from '../proto/checker';
 import { parseConfigKeys, spanForKey, type KeySpan } from './keys';
 import type { Logger } from '../shared/logger';
@@ -75,6 +75,21 @@ function statusFromWire(status: languagecheck.ProbeStatus | number): ConfigStatu
  * for.
  */
 const PROBE_DEBOUNCE_MS = 600;
+
+/**
+ * Whether the core reads this config file.
+ *
+ * With no workspace folder there is nothing to compare against, so every
+ * config counts. With no config on disk yet, one being written at the root
+ * will be the one read once it is saved.
+ */
+function isInEffect(document: vscode.TextDocument, effective: vscode.Uri | undefined): boolean {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) return true;
+    if (effective) return uriKey(document.uri) === uriKey(effective);
+    const directory = document.uri.path.slice(0, document.uri.path.lastIndexOf('/'));
+    return directory === folder.uri.path;
+}
 
 export function isConfigDocument(document: vscode.TextDocument): boolean {
     const name = document.uri.path.split('/').pop() ?? '';
@@ -190,6 +205,11 @@ export class ConfigStatusView implements vscode.Disposable {
 
     private async run(document: vscode.TextDocument): Promise<void> {
         const uri = uriKey(document.uri);
+        const effective = await configInEffect();
+        if (!isInEffect(document, effective)) {
+            this.showNotInEffect(document);
+            return;
+        }
         const text = document.getText();
         const parsed = parseConfigKeys(text);
 
@@ -401,6 +421,32 @@ export class ConfigStatusView implements vscode.Disposable {
         });
 
         this.diagnostics.set(document.uri, unique);
+        this.renderAll();
+    }
+
+    /**
+     * A config file the core does not read: no status marks, which would read
+     * as "this is live", and one note saying which file is.
+     */
+    private showNotInEffect(document: vscode.TextDocument): void {
+        const message = vscode.l10n.t(
+            'Not in effect: Language Check reads .languagecheck.yaml at the workspace root. If that is missing it reads .languagecheck.yml, then .languagecheck.json. It never reads a config in a subfolder.',
+        );
+        const diagnostic = new vscode.Diagnostic(
+            new vscode.Range(0, 0, 0, 0),
+            message,
+            vscode.DiagnosticSeverity.Information,
+        );
+        diagnostic.source = 'language-check';
+        this.revision += 1;
+        this.snapshots.set(uriKey(document.uri), {
+            uri: uriKey(document.uri),
+            marks: [],
+            diagnostics: [{ line: 0, message, severity: vscode.DiagnosticSeverity[diagnostic.severity] }],
+            revision: this.revision,
+            parseError: '',
+        });
+        this.diagnostics.set(document.uri, [diagnostic]);
         this.renderAll();
     }
 

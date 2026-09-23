@@ -96,5 +96,6 @@
   "Set up LanguageTool": "Set up LanguageTool",
   "None of your enabled checkers read {0}. Install the Hunspell dictionary for it?": "None of your enabled checkers read {0}. Install the Hunspell dictionary for it?",
   "None of your enabled checkers read {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.": "None of your enabled checkers read {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.",
-  "Install the Red Hat YAML extension for completion and validation in .languagecheck.yaml?": "Install the Red Hat YAML extension for completion and validation in .languagecheck.yaml?"
+  "Install the Red Hat YAML extension for completion and validation in .languagecheck.yaml?": "Install the Red Hat YAML extension for completion and validation in .languagecheck.yaml?",
+  "Not in effect: Language Check reads .languagecheck.yaml at the workspace root. If that is missing it reads .languagecheck.yml, then .languagecheck.json. It never reads a config in a subfolder.": "Not in effect: Language Check reads .languagecheck.yaml at the workspace root. If that is missing it reads .languagecheck.yml, then .languagecheck.json. It never reads a config in a subfolder."
 }

@@ -96,5 +96,6 @@
   "Set up LanguageTool": "Configurar LanguageTool",
   "None of your enabled checkers read {0}. Install the Hunspell dictionary for it?": "Ninguno de tus correctores activos lee {0}. ¿Instalar el diccionario de Hunspell?",
   "None of your enabled checkers read {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.": "Ninguno de tus correctores activos lee {0}. Hunspell añade la ortografía; LanguageTool añade además gramática y estilo.",
-  "Install the Red Hat YAML extension for completion and validation in .languagecheck.yaml?": "¿Instalar la extensión YAML de Red Hat para autocompletado y validación en .languagecheck.yaml?"
+  "Install the Red Hat YAML extension for completion and validation in .languagecheck.yaml?": "¿Instalar la extensión YAML de Red Hat para autocompletado y validación en .languagecheck.yaml?",
+  "Not in effect: Language Check reads .languagecheck.yaml at the workspace root. If that is missing it reads .languagecheck.yml, then .languagecheck.json. It never reads a config in a subfolder.": "Sin efecto: Language Check lee .languagecheck.yaml en la raíz del espacio de trabajo. Si no existe, lee .languagecheck.yml y, después, .languagecheck.json. Nunca lee una configuración en una subcarpeta."
 }

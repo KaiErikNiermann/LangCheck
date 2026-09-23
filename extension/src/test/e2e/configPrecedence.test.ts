@@ -16,6 +16,22 @@ import { eventually, fixture, openInEditor, ourDiagnostics } from './helpers';
 
 const BUDGET_MS = 45_000;
 
+interface Snapshot {
+    marks: unknown[];
+    diagnostics: { line: number; message: string; severity: string }[];
+}
+
+/** The config gutter's model for a config file, once it has one. */
+async function configStatus(name: string): Promise<Snapshot> {
+    const uri = fixture(name);
+    await openInEditor(uri);
+    return eventually(`the config view to answer for ${name}`, async () =>
+        await vscode.commands.executeCommand<Snapshot | undefined>('language-check.configStatus', uri.toString()),
+    BUDGET_MS);
+}
+
+const NOT_IN_EFFECT = /^Not in effect: Language Check reads \.languagecheck\.yaml at the workspace root\./;
+
 function spans(document: vscode.TextDocument): string[] {
     return ourDiagnostics(document.uri).map(d => document.getText(d.range));
 }
@@ -61,6 +77,29 @@ suite('config precedence', () => {
         }
         await eventually('the typo to come back once the root config is restored', () =>
             spans(document).includes('recieve') ? true : undefined, BUDGET_MS);
+    });
+
+    test('a subfolder config is marked as not in effect, with no status marks', async function () {
+        this.timeout(BUDGET_MS + 15_000);
+        const snapshot = await configStatus('sub/.languagecheck.yaml');
+        assert.deepStrictEqual(snapshot.marks, []);
+        assert.strictEqual(snapshot.diagnostics.length, 1, JSON.stringify(snapshot.diagnostics));
+        assert.match(snapshot.diagnostics[0]!.message, NOT_IN_EFFECT);
+        assert.strictEqual(snapshot.diagnostics[0]!.severity, 'Information');
+    });
+
+    test('a root config shadowed by one of higher precedence is marked the same way', async function () {
+        this.timeout(BUDGET_MS + 15_000);
+        const snapshot = await configStatus('.languagecheck.json');
+        assert.deepStrictEqual(snapshot.marks, []);
+        assert.match(snapshot.diagnostics[0]?.message ?? '', NOT_IN_EFFECT);
+    });
+
+    test('the config in effect gets its status marks and no such note', async function () {
+        this.timeout(BUDGET_MS + 15_000);
+        const snapshot = await configStatus('.languagecheck.yaml');
+        assert.ok(snapshot.marks.length > 0, 'the config in effect drew no marks');
+        assert.ok(!snapshot.diagnostics.some(d => NOT_IN_EFFECT.test(d.message)));
     });
 
     test('editing a subfolder config changes nothing', async function () {
