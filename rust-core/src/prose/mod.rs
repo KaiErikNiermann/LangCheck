@@ -796,6 +796,22 @@ mod tests {
     /// aborted the process: a test run dies here, rather than failing, if the
     /// guard in `markdown_depth` stops working. Both containers, and the
     /// unknown language that falls back to the Markdown grammar.
+    /// The same overrun in the vendored Typst scanner, whose content blocks
+    /// aborted past 250 deep (125 for `#emph[`, which opens two). Patched in
+    /// `tree-sitter-typst/src/scanner.c`; this dies with SIGABRT if the patch
+    /// is lost in a re-vendor.
+    #[test]
+    fn typst_nested_past_the_scanner_limit_is_extracted_not_aborted() {
+        for opener in ["[", "#[", "#emph["] {
+            let text = format!("{} Deep prose.", opener.repeat(1000));
+            let ranges = extract_with_fallback(&text, "typst", None, None, &LatexExtras::default())
+                .unwrap_or_else(|e| panic!("{opener}: {e}"));
+            for range in &ranges {
+                assert!(range.start_byte <= range.end_byte && range.end_byte <= text.len());
+            }
+        }
+    }
+
     #[test]
     fn markdown_nested_past_the_scanner_limit_is_extracted_not_aborted() {
         let quotes = format!("{} Deep quoted prose.\n", ">".repeat(1000));

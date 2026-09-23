@@ -174,16 +174,20 @@ static void vec_u32_push(struct vec_u32* self, uint32_t value) {
 static uint32_t vec_u32_pop(struct vec_u32* self) {
 	assert(self != NULL, "vec_u32_pop");
 	assert(self->len > 0, "vec_u32_pop: empty vec");
-	return self->vec[self->len--];
+	// lang-check patch: was `self->vec[self->len--]`, which read one past
+	// the last element -- outside the allocation when the vec was full.
+	return self->vec[--self->len];
 }
-static size_t vec_u32_serialize(struct vec_u32* self, char* buffer) {
-	assert(self != NULL, "vec_u32_serialize");
+// lang-check patch: serialize at most `max` entries, the last ones.
+static size_t vec_u32_serialize_last(struct vec_u32* self, char* buffer, size_t max) {
+	assert(self != NULL, "vec_u32_serialize_last");
+	size_t len = self->len < max ? self->len : max;
 	size_t written = 0;
-	memcpy(buffer, &self->len, sizeof self->len);
-	written += sizeof self->len;
-	if (self->len > 0) {
-		memcpy(buffer + written, self->vec, self->len * sizeof(uint32_t));
-		written += self->len * sizeof(uint32_t);
+	memcpy(buffer, &len, sizeof len);
+	written += sizeof len;
+	if (len > 0) {
+		memcpy(buffer + written, self->vec + (self->len - len), len * sizeof(uint32_t));
+		written += len * sizeof(uint32_t);
 	}
 	return written;
 }
@@ -347,9 +351,24 @@ unsigned tree_sitter_typst_external_scanner_serialize(
 	char *buffer
 ) {
 	struct scanner* self = payload;
+	// lang-check patch: tree-sitter's buffer holds
+	// TREE_SITTER_SERIALIZATION_BUFFER_SIZE bytes, and nothing checked that
+	// the two stacks fit. Past about 250 nested content blocks they did not,
+	// tree-sitter's assertion fired, and the process aborted. Each stack now
+	// keeps its innermost entries, the ones the next token is scanned
+	// against, up to what fits; only a document nested that deep loses any.
+	const size_t fixed = 2 * sizeof(size_t) + 4;
+	const size_t room = (TREE_SITTER_SERIALIZATION_BUFFER_SIZE - fixed) / sizeof(uint32_t);
+	size_t keep_containers = self->containers.len < room / 2 ? self->containers.len : room / 2;
+	size_t keep_indentation = self->indentation.len < room - keep_containers
+		? self->indentation.len
+		: room - keep_containers;
+	keep_containers = self->containers.len < room - keep_indentation
+		? self->containers.len
+		: room - keep_indentation;
 	size_t written = 0;
-	written += vec_u32_serialize(&self->indentation, buffer + written);
-	written += vec_u32_serialize(&self->containers, buffer + written);
+	written += vec_u32_serialize_last(&self->indentation, buffer + written, keep_indentation);
+	written += vec_u32_serialize_last(&self->containers, buffer + written, keep_containers);
 	buffer[written++] = self->immediate;
 	buffer[written++] = self->heading_level;
 	buffer[written++] = self->line_start;
