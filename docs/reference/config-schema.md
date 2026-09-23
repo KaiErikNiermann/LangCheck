@@ -2,6 +2,22 @@
 
 Complete reference for `.languagecheck.yaml`.
 
+## Editor Completion
+
+The extension ships a JSON Schema for the config file, generated from the same types the
+core parses it with. In VS Code, `.languagecheck.json` gets completion and validation out
+of the box. `.languagecheck.yaml` needs the
+[Red Hat YAML](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)
+extension, which the extension offers to install the first time you open the file.
+
+Other editors running `yaml-language-server` can load the schema with a modeline:
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/KaiErikNiermann/LangCheck/main/extension/schemas/languagecheck.schema.json
+```
+
+`language-check config schema` prints the schema for the installed version.
+
 ## Top-Level Fields
 
 | Field         | Type                        | Default              | Description                    |

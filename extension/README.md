@@ -48,6 +48,8 @@ auto_fix:
 
 Or run `Language Check: Config Init` from the command palette to generate a default config.
 
+For completion and validation in `.languagecheck.yaml`, install the [Red Hat YAML](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) extension. Language Check offers it the first time you open the file. `.languagecheck.json` works without it.
+
 ### Extension Settings
 
 | Setting | Default | Description |
