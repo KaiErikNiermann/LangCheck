@@ -28,7 +28,7 @@ import {
     uncheckedLanguages,
 } from './core/packPrompt';
 import { YAML_EXTENSION_ID, declineYamlSuggestion, shouldSuggestYaml } from './config/yamlSuggestion';
-import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth, InspectorEngineInfo, InspectorNameSpan } from './ui/webviews/protocol';
+import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorEvent, InspectorEngineInfo, InspectorNameSpan } from './ui/webviews/protocol';
 import { Logger } from './shared/logger';
 import { ConfigStatusView } from './config/gutter';
 import { classifyConfigChange, silencedBy } from './config/rules';
@@ -65,6 +65,7 @@ import {
 } from './diagnostics/diagnostic';
 import { findOpenDocument } from './shared/documents';
 import { DiagnosticStore, Suppression } from './diagnostics/store';
+import { CheckResults } from './checking/results';
 import { COMMANDS, commandLink, executeCommand, registerCommand } from './commands/ids';
 import { getSetting, getUndeclaredSetting, settingId, updateSetting, type SettingValue } from './config/settings';
 import { GITHUB_REPO, openReleasesPage } from './shared/links';
@@ -111,7 +112,6 @@ let speedFixScope: SpeedFixScope = 'file';
 let speedFixTargetUri: string | null = null;
 
 // Engine health tracking
-let engineHealthState: InspectorEngineHealth[] = [];
 let engineInfoState: InspectorEngineInfo[] = [];
 let ltDownNotificationShown = false;
 
@@ -121,15 +121,6 @@ const inlayHintEmitter = new vscode.EventEmitter<void>();
 store.onChange(() => inlayHintEmitter.fire());
 store.onChange(() => updateSpeedFixDiagnostics());
 let inlayHintsEnabled = true;
-
-/**
- * Whether the last check was answered from the core's stored result.
- *
- * Module-level because `checkDocument` returns a count for its many callers
- * and only the command needs this. Read immediately after the check that set
- * it, so there is nothing to key it by.
- */
-let lastCheckServedFromCache = false;
 
 /**
  * How sure an engine has to be before its suggestion is shown inline.
@@ -174,14 +165,7 @@ function releaseCheckSlot() {
 // Checking state (for status bar spinner)
 let isChecking = false;
 
-// Last check timing (real benchmark data for inspector)
-let lastCheckTimings: { name: string; durationMs: number }[] = [];
-let lastCheckInfo: InspectorCheckInfo | null = null;
-
-// Cached extraction data per document URI (from real Rust core response)
-const extractionCache = new Map<string, { prose: InspectorProseRange[]; languageId: string; syntax: string; maxRangeBytes: number }>();
-/** Words the name filter silenced on the last check, per document. */
-const detectedNamesCache = new Map<string, InspectorNameSpan[]>();
+const results = new CheckResults();
 
 /**
  * The config file as last seen, so any edit to it triggers a re-check.
@@ -609,8 +593,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // The inspector reports which language each range was checked in. Under
         // a new config that answer may have changed, and showing the old one is
         // worse than showing none, so it goes until the re-check replaces it.
-        extractionCache.clear();
-        detectedNamesCache.clear();
+        results.clearDocuments();
         await updateInspectorData();
         const editors = vscode.window.visibleTextEditors.filter(e => isCheckable(e.document));
         log.debug('Rechecking visible editors', { count: editors.length });
@@ -1628,7 +1611,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // Returned so a caller can see what the check did. A command's return
         // value reaches executeCommand, which is how the end-to-end tests
         // assert that a reload reused the stored result.
-        return { diagnostics: result, servedFromCache: lastCheckServedFromCache };
+        return { diagnostics: result, servedFromCache: results.servedFromCache };
     }));
 
     context.subscriptions.push(registerCommand(COMMANDS.checkWorkspace, async () => {
@@ -2484,7 +2467,7 @@ async function updateInspectorData() {
     // cache has been dropped — a config change invalidates it — there is
     // nothing to show until the re-check lands, which is the point: a language
     // from the previous config is worse than an empty panel.
-    const cached = extractionCache.get(uri);
+    const cached = results.extraction.get(uri);
     inspectorPanel.webview.postMessage({
         type: 'setExtraction',
         payload: {
@@ -2499,22 +2482,22 @@ async function updateInspectorData() {
     // Send words the name filter silenced
     inspectorPanel.webview.postMessage({
         type: 'setNames',
-        payload: { names: detectedNamesCache.get(uri) ?? [] },
+        payload: { names: results.names.get(uri) ?? [] },
     });
 
     // Send real benchmark timings if available
-    if (lastCheckTimings.length > 0) {
+    if (results.timings.length > 0) {
         inspectorPanel.webview.postMessage({
             type: 'setLatency',
-            payload: { stages: lastCheckTimings },
+            payload: { stages: results.timings },
         });
     }
 
     // Send check info if available
-    if (lastCheckInfo) {
+    if (results.info) {
         inspectorPanel.webview.postMessage({
             type: 'setCheckInfo',
-            payload: lastCheckInfo,
+            payload: results.info,
         });
     }
 
@@ -2546,10 +2529,10 @@ async function updateInspectorData() {
     }
 
     // Send engine health state
-    if (engineHealthState.length > 0) {
+    if (results.engineHealth.length > 0) {
         inspectorPanel.webview.postMessage({
             type: 'setEngineHealth',
-            payload: engineHealthState,
+            payload: results.engineHealth,
         });
     }
 
@@ -2896,7 +2879,7 @@ async function runCheck(
             }
 
             const t3 = performance.now();
-            lastCheckServedFromCache = response.checkProse.servedFromCache === true;
+            results.servedFromCache = response.checkProse.servedFromCache === true;
             store.publishCheck(document.uri, extendedDiagnostics);
             store.notify();
             timings.push({ name: 'Update UI', durationMs: performance.now() - t3 });
@@ -2962,7 +2945,7 @@ async function runCheck(
                 };
             });
 
-            extractionCache.set(document.uri.toString(), {
+            results.extraction.set(document.uri.toString(), {
                 prose: inspectorRanges,
                 languageId: document.languageId,
                 syntax: response.checkProse.extraction?.syntax ?? '',
@@ -2984,12 +2967,12 @@ async function runCheck(
                     line: document.positionAt(startChar).line + 1,
                 };
             });
-            detectedNamesCache.set(document.uri.toString(), nameSpans);
+            results.names.set(document.uri.toString(), nameSpans);
 
             // Store timings and check info for inspector
-            lastCheckTimings = timings;
+            results.timings = timings;
             const totalProseBytes = inspectorRanges.reduce((sum, r) => sum + (r.endByte - r.startByte), 0);
-            lastCheckInfo = {
+            results.info = {
                 fileName: path.basename(document.uri.fsPath),
                 fileSize: new TextEncoder().encode(textContent).length,
                 languageId: document.languageId,
@@ -3006,14 +2989,14 @@ async function runCheck(
                 });
                 inspectorPanel.webview.postMessage({
                     type: 'setCheckInfo',
-                    payload: lastCheckInfo,
+                    payload: results.info,
                 });
             }
 
             // Process engine health from response
             const protoHealth = response.checkProse.engineHealth ?? [];
             if (protoHealth.length > 0) {
-                engineHealthState = protoHealth.map(h => ({
+                results.engineHealth = protoHealth.map(h => ({
                     name: h.name as string,
                     status: (h.status as string) as 'ok' | 'degraded' | 'down',
                     consecutiveFailures: (h.consecutiveFailures as number) ?? 0,
@@ -3025,7 +3008,7 @@ async function runCheck(
                 if (inspectorPanel) {
                     inspectorPanel.webview.postMessage({
                         type: 'setEngineHealth',
-                        payload: engineHealthState,
+                        payload: results.engineHealth,
                     });
                 }
 
@@ -3033,7 +3016,7 @@ async function runCheck(
                 updateHealthStatusBar();
 
                 // Show warning notification on first LT down detection
-                const ltHealth = engineHealthState.find(e => e.name === 'languagetool');
+                const ltHealth = results.engineHealth.find(e => e.name === 'languagetool');
                 if (ltHealth && ltHealth.status === 'down' && !ltDownNotificationShown) {
                     ltDownNotificationShown = true;
                     const hasDocker = hasDockerCompose();
@@ -3097,7 +3080,7 @@ async function pollLTReady(timeoutMs: number): Promise<boolean> {
 }
 
 function updateHealthStatusBar() {
-    const ltHealth = engineHealthState.find(e => e.name === 'languagetool');
+    const ltHealth = results.engineHealth.find(e => e.name === 'languagetool');
     if (!ltHealth || ltHealth.status === 'ok') {
         // Remove any health suffix — let updateInsightsStatusBar handle the text
         insightsStatusBarItem.backgroundColor = undefined;
@@ -3123,7 +3106,7 @@ function updateInsightsStatusBar(editor?: vscode.TextEditor) {
 
     // Use extracted prose from cache (markup-free) for accurate metrics.
     // Falls back to raw text if no extraction data is cached yet.
-    const cached = extractionCache.get(editor.document.uri.toString());
+    const cached = results.extraction.get(editor.document.uri.toString());
     const proseText = cached
         ? cached.prose.map(r => r.cleanText).join(' ')
         : editor.document.getText();
