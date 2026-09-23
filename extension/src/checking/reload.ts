@@ -42,6 +42,8 @@ export class Reloader {
         // worse than showing none, so it goes until the re-check replaces it.
         this.deps.results.clearDocuments();
         await this.deps.inspector.update();
+        // include, exclude and file_types may be what changed.
+        await this.deps.inspector.refreshConfigScope();
         const editors = vscode.window.visibleTextEditors.filter(e => this.deps.isCheckable(e.document));
         this.deps.log.debug('Rechecking visible editors', { count: editors.length });
         for (const editor of editors) {

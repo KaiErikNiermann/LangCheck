@@ -1,4 +1,6 @@
 # Checked on every change (see .vscode/settings.json), so the Inspector's
-# ranges have to follow an edit before any save.
+# ranges have to follow an edit before any save. The UI tests also rewrite
+# include and exclude here, and the Config tab has to follow.
 engines:
   harper: true
+include: ["docs/**"]

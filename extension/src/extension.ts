@@ -59,6 +59,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const inspector = new InspectorPanel({
         context, store, results, fixTarget, inspectorLog,
         check: document => checker.check(document),
+        listConfigFiles: () => core.listConfigFiles(),
     });
     log.info('Language Check extension activated', { mode: isDev ? 'dev' : 'prod' });
     registerOnboarding(context);

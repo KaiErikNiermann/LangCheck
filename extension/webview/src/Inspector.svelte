@@ -73,7 +73,24 @@
     configPath: string;
   }
 
-  type Tab = 'extraction' | 'cleantext' | 'latency' | 'diagnostics' | 'names' | 'events' | 'health';
+  interface SkippedFile {
+    path: string;
+    /** The config key that turned it away: include, exclude or file_types. */
+    rejectedBy: string;
+  }
+
+  interface ConfigScope {
+    /** Absolute path of the config in force; empty when the defaults apply. */
+    configPath: string;
+    include: string[];
+    exclude: string[];
+    fileTypes: string[];
+    selected: string[];
+    skipped: SkippedFile[];
+    loadError: string;
+  }
+
+  type Tab = 'extraction' | 'cleantext' | 'latency' | 'diagnostics' | 'names' | 'events' | 'config' | 'health';
 
   let proseRanges: ProseRange[] = $state([]);
   let detectedNames: NameSpan[] = $state([]);
@@ -96,6 +113,13 @@
   let copyFeedback: boolean = $state(false);
   /** The document was edited after the check the ranges came from. */
   let stale = $state(false);
+  /** Undefined until the core answers; null when there is no core to ask. */
+  let configScope: ConfigScope | null | undefined = $state(undefined);
+  /**
+   * How many files each list draws. A workspace can select thousands, and
+   * a list that long is a scroll nobody reads; the counts stay exact.
+   */
+  const SCOPE_LIST_CAP = 500;
   const MAX_EVENTS = 200;
   const REPORT_EVENT_CAP = 20;
 
@@ -144,6 +168,9 @@
           break;
         case 'setStale':
           stale = message.payload;
+          break;
+        case 'setConfigScope':
+          configScope = message.payload;
           break;
         case 'setNames':
           detectedNames = message.payload.names ?? [];
@@ -375,6 +402,16 @@
       lines.push('');
     }
 
+    // Config. The file's name only: the absolute path would put the
+    // reporter's home directory in a public issue.
+    if (configScope) {
+      lines.push('### Config');
+      lines.push(`- **File:** ${configScope.configPath ? configScope.configPath.split(/[\\/]/).pop() : 'none, so the defaults'}`);
+      lines.push(`- **Checked:** ${configScope.selected.length} files, **skipped:** ${configScope.skipped.length}`);
+      if (configScope.loadError) lines.push(`- **Could not be read:** ${configScope.loadError}`);
+      lines.push('');
+    }
+
     // Diagnostics
     if (diagnosticSummary && diagnosticSummary.total > 0) {
       lines.push(`### Diagnostics (${diagnosticSummary.total} issues)`, '');
@@ -503,6 +540,9 @@
     </button>
     <button class="tab" class:active={activeTab === 'events'} onclick={() => activeTab = 'events'}>
       Events{events.length > 0 ? ` (${events.length})` : ''}
+    </button>
+    <button class="tab" class:active={activeTab === 'config'} onclick={() => activeTab = 'config'}>
+      Config
     </button>
     <button class="tab" class:active={activeTab === 'health'} class:tab-health-warn={hasUnhealthyEngine()} onclick={() => activeTab = 'health'}>
       Health
@@ -827,6 +867,76 @@
         <div class="empty-state">No events captured yet. Interact with the extension to see pipeline events.</div>
       {/if}
 
+    {:else if activeTab === 'config'}
+      {#if configScope === undefined}
+        <div class="empty-state">Asking the core what the config selects.</div>
+      {:else if configScope === null}
+        <div class="empty-state">The core is not running, so there is nothing to ask.</div>
+      {:else}
+        <div class="section-list">
+          <div class="section-header">
+            <span class="section-title">Config in force</span>
+          </div>
+          {#if configScope.configPath}
+            <code class="config-path">{configScope.configPath}</code>
+          {:else}
+            <div class="config-path config-path-none">No config file, so the defaults apply.</div>
+          {/if}
+          {#if configScope.loadError}
+            <div class="health-error-text config-error">Could not be read, so the defaults apply: {configScope.loadError}</div>
+          {/if}
+          <div class="check-info-grid">
+            <div class="check-info-row">
+              <span class="check-info-label">include</span>
+              <span class="check-info-value">{configScope.include.length > 0 ? configScope.include.join(', ') : 'every file the grammars recognise'}</span>
+            </div>
+            {#if configScope.fileTypes.length > 0}
+              <div class="check-info-row">
+                <span class="check-info-label">file_types</span>
+                <span class="check-info-value">{configScope.fileTypes.join(', ')}</span>
+              </div>
+            {/if}
+            <div class="check-info-row">
+              <span class="check-info-label">exclude</span>
+              <details class="check-info-value config-excludes">
+                <summary>{configScope.exclude.length} patterns</summary>
+                {#each configScope.exclude as pattern}<div>{pattern}</div>{/each}
+              </details>
+            </div>
+          </div>
+
+          <div class="section-header">
+            <span class="section-title">Checked</span>
+            <span class="section-count">{configScope.selected.length} files</span>
+          </div>
+          <div class="scope-list" data-list="checked">
+            {#each configScope.selected.slice(0, SCOPE_LIST_CAP) as file}
+              <div class="scope-file"><span class="scope-path">{file}</span></div>
+            {:else}
+              <div class="names-hint">Nothing. A check of the workspace would visit no file.</div>
+            {/each}
+            {#if configScope.selected.length > SCOPE_LIST_CAP}
+              <div class="names-hint">and {configScope.selected.length - SCOPE_LIST_CAP} more</div>
+            {/if}
+          </div>
+
+          <div class="section-header">
+            <span class="section-title">Skipped</span>
+            <span class="section-count">{configScope.skipped.length} files</span>
+          </div>
+          <div class="scope-list" data-list="skipped">
+            {#each configScope.skipped.slice(0, SCOPE_LIST_CAP) as file}
+              <div class="scope-file">
+                <span class="scope-path">{file.path}</span>
+                <span class="lang-badge scope-reason">{file.rejectedBy}</span>
+              </div>
+            {/each}
+            {#if configScope.skipped.length > SCOPE_LIST_CAP}
+              <div class="names-hint">and {configScope.skipped.length - SCOPE_LIST_CAP} more</div>
+            {/if}
+          </div>
+        </div>
+      {/if}
     {:else if activeTab === 'health'}
       <!-- Engine Health -->
       {#if engineInfo.length > 0}
@@ -1813,7 +1923,7 @@
     text-align: right;
   }
 
-  /* -- Stale ranges -- */
+  /* -- Config -- */
   .stale-notice {
     font-size: 11px;
     padding: 6px 8px;
@@ -1822,4 +1932,49 @@
     color: var(--vscode-editorWarning-foreground, #cca700);
   }
 
+  .config-path {
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .config-path-none {
+    opacity: 0.6;
+  }
+
+  .config-error {
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
+
+  .config-excludes summary {
+    cursor: pointer;
+  }
+
+  .scope-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .scope-file {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .scope-path {
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .scope-reason {
+    --_badge-accent: var(--vscode-descriptionForeground, #999);
+    flex: none;
+  }
 </style>

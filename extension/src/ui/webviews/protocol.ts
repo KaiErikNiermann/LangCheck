@@ -129,6 +129,26 @@ export interface InspectorEngineInfo {
     configPath: string;
 }
 
+/** A file the config turned away, and the key that did it. */
+export interface InspectorSkippedFile {
+    path: string;
+    rejectedBy: string;
+}
+
+/** Which config is in force and which files it selects, as `config files` prints it. */
+export interface InspectorConfigScope {
+    /** Absolute path of the config file in force; empty when the defaults apply. */
+    configPath: string;
+    include: string[];
+    exclude: string[];
+    fileTypes: string[];
+    /** Workspace-relative, sorted. */
+    selected: string[];
+    skipped: InspectorSkippedFile[];
+    /** Why the config file could not be read, in which case the lists are the defaults'. */
+    loadError: string;
+}
+
 // Messages from extension → Inspector webview
 export type ExtensionToInspectorMessage =
     | {
@@ -152,7 +172,8 @@ export type ExtensionToInspectorMessage =
         };
     }
     | { type: 'setStale'; payload: boolean }
-
+    /** Null when there is no core to ask. */
+    | { type: 'setConfigScope'; payload: InspectorConfigScope | null }
     | { type: 'setNames'; payload: { names: InspectorNameSpan[] } }
     | { type: 'setLatency'; payload: { stages: InspectorLatencyStage[] } }
     | { type: 'setDiagnosticSummary'; payload: InspectorDiagnosticSummary }

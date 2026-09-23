@@ -16,8 +16,10 @@ import { GITHUB_REPO } from '../../shared/links';
 import type { InspectorLog } from '../inspectorLog';
 import { detectEngineInfo } from '../../core/engineInfo';
 import { createBesidePanel, webviewHtml } from './html';
+import type { languagecheck } from '../../proto/checker';
 import type {
     ExtensionToInspectorMessage,
+    InspectorConfigScope,
     InspectorDiagnosticSummary,
     InspectorToExtensionMessage,
 } from './protocol';
@@ -30,15 +32,32 @@ export interface InspectorDeps {
     readonly fixTarget: FixTarget;
     readonly inspectorLog: InspectorLog;
     readonly check: (document: vscode.TextDocument) => Promise<number>;
+    readonly listConfigFiles: () => Promise<languagecheck.IListConfigFilesResponse | null>;
 }
 
+/** How long a burst of file creations and deletions settles before the scope is re-listed. */
+const RELIST_DELAY_MS = 300;
+
+/** The wire answer as the webview draws it, with proto3's absent fields filled in. */
+function toConfigScope(listing: languagecheck.IListConfigFilesResponse): InspectorConfigScope {
+    return {
+        configPath: listing.configPath ?? '',
+        include: listing.include ?? [],
+        exclude: listing.exclude ?? [],
+        fileTypes: listing.fileTypes ?? [],
+        selected: listing.selected ?? [],
+        skipped: (listing.skipped ?? []).map(s => ({ path: s.path ?? '', rejectedBy: s.rejectedBy ?? '' })),
+        loadError: listing.loadError ?? '',
+    };
+}
 
 export class InspectorPanel {
     private panel: vscode.WebviewPanel | null = null;
     /** The document the panel last described, which its buttons act on. */
     private inspected: UriKey | undefined;
-    /** What is live only while the panel is open. */
+    /** What is live only while the panel is: the edit and file listeners. */
     private liveListeners: vscode.Disposable[] = [];
+    private relistTimer: ReturnType<typeof setTimeout> | undefined;
 
     constructor(private readonly deps: InspectorDeps) {}
 
@@ -79,6 +98,7 @@ export class InspectorPanel {
                         await this.deps.check(editorForCheck.document);
                     }
                     await this.update();
+                    await this.refreshConfigScope();
                     this.post({ type: 'setDockerAvailable', payload: hasDockerCompose() });
                     const extVersion = (this.deps.context.extension.packageJSON as { version?: string }).version ?? 'unknown';
                     this.post({ type: 'setExtensionVersion', payload: extVersion });
@@ -149,6 +169,7 @@ export class InspectorPanel {
             this.deps.inspectorLog.detach();
             for (const listener of this.liveListeners) listener.dispose();
             this.liveListeners = [];
+            clearTimeout(this.relistTimer);
         }, null, this.deps.context.subscriptions);
     }
 
@@ -157,9 +178,9 @@ export class InspectorPanel {
     }
 
     /**
-     * Keep the panel in step with the document while it is open: the event
-     * log was live and the ranges were not, so they could describe text that
-     * no longer existed.
+     * Keep the panel in step with the document and the workspace while it is
+     * open: the event log was live and the ranges and the config's file list
+     * were not, so either could describe a state that no longer existed.
      */
     private listenWhileOpen(): void {
         this.liveListeners.push(vscode.workspace.onDidChangeTextDocument(event => {
@@ -167,6 +188,23 @@ export class InspectorPanel {
             const cached = this.deps.results.extraction.get(this.inspected);
             if (cached) this.post({ type: 'setStale', payload: cached.version !== event.document.version });
         }));
+        // A file created or deleted changes what the config selects without
+        // the config changing. Edits to a file do not, so they are not watched.
+        const files = vscode.workspace.createFileSystemWatcher('**/*', false, true, false);
+        const relist = () => {
+            clearTimeout(this.relistTimer);
+            this.relistTimer = setTimeout(() => void this.refreshConfigScope(), RELIST_DELAY_MS);
+        };
+        files.onDidCreate(relist);
+        files.onDidDelete(relist);
+        this.liveListeners.push(files);
+    }
+
+    /** Ask the core which config is in force and what it selects, and show it. */
+    async refreshConfigScope(): Promise<void> {
+        if (!this.panel) return;
+        const listing = await this.deps.listConfigFiles();
+        this.post({ type: 'setConfigScope', payload: listing ? toConfigScope(listing) : null });
     }
 
     /**

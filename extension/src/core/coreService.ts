@@ -196,6 +196,17 @@ export class CoreService {
         return response.probeConfig ?? null;
     }
 
+    /**
+     * Which config is in force and which files it selects, as the CLI's
+     * `config files --skipped` reports it. Null when there is no core to ask.
+     */
+    async listConfigFiles() {
+        const client = this.ready();
+        if (!client) return null;
+        const response = await client.sendRequest({ listConfigFiles: {} });
+        return response.listConfigFiles ?? null;
+    }
+
     stop(): void {
         if (this.current) {
             this.current.stop();
