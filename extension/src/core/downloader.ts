@@ -6,7 +6,7 @@ import * as crypto from 'crypto';
 import * as os from 'os';
 import * as zlib from 'zlib';
 
-import { GITHUB_REPO } from './shared/links';
+import { GITHUB_REPO } from '../shared/links';
 
 const BINARY_NAME = 'language-check-server';
 

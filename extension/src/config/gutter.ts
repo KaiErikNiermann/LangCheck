@@ -15,10 +15,10 @@
  */
 import * as vscode from 'vscode';
 
-import { CONFIG_FILE_NAMES } from './config/file';
-import { languagecheck } from './proto/checker';
-import { parseConfigKeys, spanForKey, type KeySpan } from './configKeys';
-import type { Logger } from './logger';
+import { CONFIG_FILE_NAMES } from './file';
+import { languagecheck } from '../proto/checker';
+import { parseConfigKeys, spanForKey, type KeySpan } from './keys';
+import type { Logger } from '../shared/logger';
 
 /** What a probe found, in the order a rollup should prefer. */
 export type ConfigStatus = 'skipped' | 'ok' | 'degraded' | 'down' | 'pending';

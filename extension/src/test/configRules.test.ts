@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { classifyConfigChange, silencedBy } from '../configRules';
+import { classifyConfigChange, silencedBy } from '../config/rules';
 
 const BASE = 'engines:\n  harper: true\n  spell_language: "en-US"\n';
 

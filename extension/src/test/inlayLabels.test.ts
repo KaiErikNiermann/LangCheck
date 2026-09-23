@@ -5,7 +5,7 @@ import {
     describeWhitespaceFix,
     speedFixSuggestionLabel,
     displayOriginalText,
-} from '../inlayLabels';
+} from '../shared/inlayLabels';
 
 describe('visualizeWhitespace', () => {
     it('renders spaces, tabs and newlines as visible glyphs', () => {

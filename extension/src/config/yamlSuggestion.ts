@@ -7,7 +7,7 @@
  * It is suggested, not declared as a dependency, because not everyone wants a
  * second language server installed for one file.
  */
-import type { PromptMemory } from './packPrompt';
+import type { PromptMemory } from '../core/packPrompt';
 
 export const YAML_EXTENSION_ID = 'redhat.vscode-yaml';
 const DECLINED_KEY = 'language-check.yamlExtensionDeclined';

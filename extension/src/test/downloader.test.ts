@@ -15,8 +15,8 @@ vi.mock('os', async (importOriginal) => {
 // Import after mocking
 import { EventEmitter } from 'events';
 
-import { getPlatformArchiveName, binaryExists, downloadFile, computeSha256 } from '../downloader';
-import type { HttpGet } from '../downloader';
+import { getPlatformArchiveName, binaryExists, downloadFile, computeSha256 } from '../core/downloader';
+import type { HttpGet } from '../core/downloader';
 
 describe('downloader', () => {
     describe('getPlatformArchiveName', () => {

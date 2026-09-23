@@ -3,12 +3,12 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
 import { execFile, execSync } from 'child_process';
-import { LanguageClient } from './client';
+import { LanguageClient } from './core/client';
 import { languagecheck } from './proto/checker';
-import { TraceLogger } from './trace';
+import { TraceLogger } from './shared/trace';
 import { createAPI } from './api';
-import { binaryExists, downloadBinary } from './downloader';
-import { formatSuggestionLabel, speedFixSuggestionLabel, displayOriginalText } from './inlayLabels';
+import { binaryExists, downloadBinary } from './core/downloader';
+import { formatSuggestionLabel, speedFixSuggestionLabel, displayOriginalText } from './shared/inlayLabels';
 import type { LanguageCheckDiagnostic } from './api';
 import {
     DEFAULT_DEBOUNCE_MS,
@@ -18,7 +18,7 @@ import {
     parseSkipCommands,
     parseSkipEnvironments,
     wordsAdded,
-} from './configParsing';
+} from './config/parsing';
 import {
     declinePack,
     forgetDecline,
@@ -26,13 +26,13 @@ import {
     languageToolCovers,
     shouldPrompt,
     uncheckedLanguages,
-} from './packPrompt';
-import { YAML_EXTENSION_ID, declineYamlSuggestion, shouldSuggestYaml } from './yamlSuggestion';
-import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth, InspectorEngineInfo, InspectorNameSpan } from './events';
-import { Logger } from './logger';
-import { ConfigStatusView } from './configGutter';
-import { classifyConfigChange, silencedBy } from './configRules';
-import { engines as enginesBehind, spanned } from './ignoreSpan';
+} from './core/packPrompt';
+import { YAML_EXTENSION_ID, declineYamlSuggestion, shouldSuggestYaml } from './config/yamlSuggestion';
+import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorProseRange, InspectorExclusion, InspectorDiagnosticSummary, InspectorCheckInfo, InspectorEvent, InspectorEngineHealth, InspectorEngineInfo, InspectorNameSpan } from './ui/webviews/protocol';
+import { Logger } from './shared/logger';
+import { ConfigStatusView } from './config/gutter';
+import { classifyConfigChange, silencedBy } from './config/rules';
+import { engines as enginesBehind, spanned } from './shared/ignoreSpan';
 import {
     addLatexListEntry,
     deactivateRule,

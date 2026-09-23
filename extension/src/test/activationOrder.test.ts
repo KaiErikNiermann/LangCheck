@@ -24,7 +24,7 @@ type Mock = typeof import('./__mocks__/vscode');
 
 const clientCalls: string[] = [];
 
-vi.mock('../client', () => ({
+vi.mock('../core/client', () => ({
     LanguageClient: class {
         isRunning = true;
         lastFailure = null;
@@ -54,7 +54,7 @@ vi.mock('../client', () => ({
 }));
 
 const download = vi.hoisted(() => ({ present: true }));
-vi.mock('../downloader', () => ({
+vi.mock('../core/downloader', () => ({
     binaryExists: () => download.present,
     downloadBinary: async () => undefined,
 }));

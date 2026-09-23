@@ -9,7 +9,7 @@ import {
     shouldPrompt,
     uncheckedLanguages,
     type PromptMemory,
-} from '../packPrompt';
+} from '../core/packPrompt';
 
 /** An in-memory stand-in for the extension host's global state. */
 function memory(): PromptMemory {

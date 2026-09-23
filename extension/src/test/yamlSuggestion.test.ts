@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { declineYamlSuggestion, isYamlConfig, shouldSuggestYaml } from '../yamlSuggestion';
-import type { PromptMemory } from '../packPrompt';
+import { declineYamlSuggestion, isYamlConfig, shouldSuggestYaml } from '../config/yamlSuggestion';
+import type { PromptMemory } from '../core/packPrompt';
 
 function memory(): PromptMemory {
     const store = new Map<string, unknown>();

@@ -7,7 +7,7 @@ import {
     parseSkipEnvironments,
     parseWordlist,
     wordsAdded,
-} from '../configParsing';
+} from '../config/parsing';
 
 describe('parseDebounceMs', () => {
     it('reads the value the config sets', () => {

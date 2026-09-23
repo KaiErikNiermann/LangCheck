@@ -1,7 +1,7 @@
 import * as cp from 'child_process';
-import { languagecheck } from './proto/checker';
-import type { TraceLogger } from './trace';
-import type { Logger } from './logger';
+import { languagecheck } from '../proto/checker';
+import type { TraceLogger } from '../shared/trace';
+import type { Logger } from '../shared/logger';
 
 const REQUEST_TIMEOUT_MS = 120_000;
 const MAX_RESTART_ATTEMPTS = 3;

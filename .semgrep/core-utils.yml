@@ -37,7 +37,7 @@ rules:
       core-crashed and core-restarting paths — precisely the ones you need evidence for.
     paths:
       exclude:
-        - "**/extension/src/logger.ts"
+        - "**/extension/src/shared/logger.ts"
         - "**/extension/src/test/"
     pattern-either:
       - pattern: console.log(...)
@@ -346,7 +346,6 @@ rules:
         - "**/extension/src/"
       exclude:
         - "**/extension/src/config/edits.ts"
-        - "**/extension/src/configParsing.ts"
         - "**/extension/src/config/parsing.ts"
         - "**/extension/src/test/"
     pattern-either:

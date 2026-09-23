@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { parseConfigKeys, spanForKey } from '../configKeys';
+import { parseConfigKeys, spanForKey } from '../config/keys';
 
 /** The text a span covers, which is what an assertion can read. */
 function textAt(source: string, key: string, which: 'key' | 'value' = 'value'): string {

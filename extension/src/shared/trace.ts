@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { languagecheck } from './proto/checker';
+import { languagecheck } from '../proto/checker';
 
 /** Protobuf message trace logger that writes decoded messages to a VS Code Output Channel. */
 export class TraceLogger {

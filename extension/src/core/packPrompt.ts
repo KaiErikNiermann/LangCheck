@@ -8,7 +8,7 @@
  * which costs nothing until someone goes looking for it.
  */
 
-import { ruleIdOf } from './diagnostics/diagnostic';
+import { ruleIdOf } from '../diagnostics/diagnostic';
 
 /** The subset of the extension host this module needs, so it can be tested. */
 export interface PromptMemory {

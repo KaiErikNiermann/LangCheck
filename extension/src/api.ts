@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { LanguageClient } from './client';
+import type { LanguageClient } from './core/client';
 
 /**
  * Public API for the Language Check extension.

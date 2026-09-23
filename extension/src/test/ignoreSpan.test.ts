@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { engines, spanned, touches } from '../ignoreSpan';
+import { engines, spanned, touches } from '../shared/ignoreSpan';
 
 const at = (start: number, end: number) => ({ start, end });
 

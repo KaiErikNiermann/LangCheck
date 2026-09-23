@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { LanguageClient } from '../client';
+import { LanguageClient } from '../core/client';
 import { languagecheck } from '../proto/checker';
 import * as cp from 'child_process';
 import { EventEmitter } from 'events';
