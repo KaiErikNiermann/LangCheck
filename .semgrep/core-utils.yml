@@ -257,3 +257,24 @@ rules:
       - pattern: ciborium::into_writer(...)
       - pattern: ciborium::from_reader(...)
 
+  - id: cli-engine-probe-through-probe-cli-engine
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      Probe an external-binary engine through `config_probe::probe_cli_engine`. It owns the three
+      outcomes a binary-plus-config engine can have -- switched off (Skipped), not on PATH (Down,
+      blamed on the install) and a config path that is not readable (reported against
+      `engines.<name>.config`, not the binary) -- and the key names the editor gutter anchors to.
+      `probe_vale` and `probe_proselint` were 0.97-similar copies differing only in the engine
+      name; run against b526abd, the revision before they were converted, this rule reports 2
+      findings, which is the answer it must keep finding if the shape comes back.
+    paths:
+      include:
+        - "**/rust-core/src/config_probe.rs"
+    patterns:
+      - pattern: binary_version(...)
+      - pattern-not-inside: |
+          async fn probe_cli_engine(...) -> $R { ... }
+      - pattern-not-inside: |
+          mod tests { ... }
+

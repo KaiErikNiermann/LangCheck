@@ -369,78 +369,60 @@ struct LanguageEntry {
 }
 
 /// Vale: the binary has to be on PATH, and the config file has to be readable.
-///
-/// Both are reported separately because the fixes are different -- one is an
-/// install, the other is a path in this file.
 async fn probe_vale(config: &Config) -> Vec<Probe> {
-    const ENGINE: &str = "vale";
-    if !config.engines.vale.enabled {
-        return vec![Probe::new(
-            "engines.vale",
-            ENGINE,
-            ProbeStatus::Skipped,
-            "Vale is switched off.",
-        )];
-    }
-
-    let mut probes = match binary_version("vale", &["--version"]).await {
-        Ok(version) => vec![Probe::new(
-            "engines.vale",
-            ENGINE,
-            ProbeStatus::Ok,
-            format!("Found {version} on PATH."),
-        )],
-        Err(why) => {
-            return vec![Probe::new("engines.vale", ENGINE, ProbeStatus::Down, why)];
-        }
-    };
-
-    if let Some(path) = &config.engines.vale.config {
-        probes.push(readable_file(
-            "engines.vale.config",
-            ENGINE,
-            path,
-            "Vale config",
-        ));
-    }
-    probes
+    let vale = &config.engines.vale;
+    probe_cli_engine("vale", "Vale", vale.enabled, vale.config.as_deref()).await
 }
 
 /// Proselint, on the same two questions as Vale.
 async fn probe_proselint(config: &Config) -> Vec<Probe> {
-    const ENGINE: &str = "proselint";
-    if !config.engines.proselint.enabled {
+    let proselint = &config.engines.proselint;
+    probe_cli_engine(
+        "proselint",
+        "Proselint",
+        proselint.enabled,
+        proselint.config.as_deref(),
+    )
+    .await
+}
+
+/// An engine that is an external binary plus an optional config file.
+///
+/// Both are reported separately because the fixes are different -- one is an
+/// install, the other is a path in this file. `engine` is both the binary name
+/// and the key under `engines.`; `display` is how the detail text names it.
+async fn probe_cli_engine(
+    engine: &str,
+    display: &str,
+    enabled: bool,
+    config_path: Option<&str>,
+) -> Vec<Probe> {
+    let key = format!("engines.{engine}");
+    if !enabled {
         return vec![Probe::new(
-            "engines.proselint",
-            ENGINE,
+            key,
+            engine,
             ProbeStatus::Skipped,
-            "Proselint is switched off.",
+            format!("{display} is switched off."),
         )];
     }
 
-    let mut probes = match binary_version("proselint", &["--version"]).await {
+    let mut probes = match binary_version(engine, &["--version"]).await {
         Ok(version) => vec![Probe::new(
-            "engines.proselint",
-            ENGINE,
+            &key,
+            engine,
             ProbeStatus::Ok,
             format!("Found {version} on PATH."),
         )],
-        Err(why) => {
-            return vec![Probe::new(
-                "engines.proselint",
-                ENGINE,
-                ProbeStatus::Down,
-                why,
-            )];
-        }
+        Err(why) => return vec![Probe::new(key, engine, ProbeStatus::Down, why)],
     };
 
-    if let Some(path) = &config.engines.proselint.config {
+    if let Some(path) = config_path {
         probes.push(readable_file(
-            "engines.proselint.config",
-            ENGINE,
+            &format!("{key}.config"),
+            engine,
             path,
-            "Proselint config",
+            &format!("{display} config"),
         ));
     }
     probes
