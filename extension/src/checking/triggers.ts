@@ -10,7 +10,7 @@ import type { WorkspaceConfigState } from '../config/state';
 import type { DiagnosticStore } from '../diagnostics/store';
 import type { InspectorPanel } from '../ui/webviews/inspector';
 import type { Checker } from './checker';
-import { SUPPORTED_LANGUAGES, isCheckableIn } from './languages';
+import { isCheckableIn } from './languages';
 import { Debouncer } from './scheduler';
 import { uriKey } from '../shared/documents';
 
@@ -120,9 +120,11 @@ export class CheckTriggers {
             });
         }));
 
-        // Always re-check on save (regardless of trigger mode)
+        // Always re-check on save (regardless of trigger mode). The same test
+        // as every other trigger: a file only an SLS schema handles has no
+        // language id of its own, and checking the id alone skipped it.
         subscriptions.push(vscode.workspace.onDidSaveTextDocument(async (document) => {
-            if (SUPPORTED_LANGUAGES.includes(document.languageId)) {
+            if (this.isCheckable(document)) {
                 // Cancel any pending debounce for this doc since we're checking now
                 this.debouncer.cancel(uriKey(document.uri));
                 await this.deps.checker.check(document);

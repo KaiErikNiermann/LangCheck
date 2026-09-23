@@ -71,6 +71,31 @@ suite('SLS schemas', () => {
         );
     });
 
+    test('saving a schema-only document re-checks it', async function () {
+        // The save handler used to test VS Code's language id against the
+        // built-in list, which a schema file never matches, so under the
+        // default onSave trigger an edit here was never checked at all.
+        //
+        // First in the suite on purpose: the teardown rewrites the schema,
+        // and the re-check that sets off would land on the unsaved edit and
+        // check it for reasons that have nothing to do with saving.
+        this.timeout(BUDGET_MS + 30_000);
+        await settlesTo('the original findings', words => words.has(IN_PROSE));
+        const original = document.getText();
+        const editor = await vscode.window.showTextDocument(document, { preview: false });
+        try {
+            await editor.edit(edit => edit.insert(document.positionAt(original.length), 'PROSE Anothr line.\n'));
+            await new Promise(resolve => setTimeout(resolve, 3_000));
+            assert.ok(!flagged(document).has('anothr'), 'the unsaved edit was already checked, so this is not testing the save');
+            await document.save();
+            await settlesTo('the saved line to be checked', words => words.has('anothr'));
+        } finally {
+            await editor.edit(edit => edit.delete(new vscode.Range(
+                document.positionAt(original.length), document.positionAt(document.getText().length))));
+            await document.save();
+        }
+    });
+
     test('a document only a schema understands is checked', async function () {
         this.timeout(BUDGET_MS + 15_000);
         // VS Code calls this file plaintext. That it is checked at all is the
