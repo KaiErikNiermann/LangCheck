@@ -112,3 +112,20 @@ export function getRegisteredIgnoreRanges(_api: ReturnType<typeof createAPI>, _u
     // This is used internally by the extension to check against API-registered ranges
     return [];
 }
+
+/**
+ * The API's severity string for a core severity.
+ *
+ * Off by one against the proto (1 is INFORMATION, 3 is ERROR there): error and
+ * information come out swapped. Kept as it is until a deliberate fix, which
+ * changes what other extensions see; the e2e characterization pins it.
+ */
+export function severityToString(severity: number | null | undefined): 'error' | 'warning' | 'information' | 'hint' {
+    switch (severity) {
+        case 1: return 'error';
+        case 2: return 'warning';
+        case 3: return 'information';
+        case 4: return 'hint';
+        default: return 'warning';
+    }
+}

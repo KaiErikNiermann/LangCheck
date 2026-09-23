@@ -1,24 +1,14 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
-import { execFile } from 'child_process';
 import { TraceLogger } from './shared/trace';
-import { createAPI } from './api';
+import { createAPI, severityToString } from './api';
 import { formatSuggestionLabel } from './shared/inlayLabels';
 import type { LanguageCheckDiagnostic } from './api';
 import { parseDictionaryPaths, wordsAdded } from './config/parsing';
-import {
-    declinePack,
-    forgetDecline,
-    isLanguageTag,
-    languageToolCovers,
-    shouldPrompt,
-    uncheckedLanguages,
-} from './core/packPrompt';
 import { YAML_EXTENSION_ID, declineYamlSuggestion, shouldSuggestYaml } from './config/yamlSuggestion';
 import { Logger } from './shared/logger';
 import { ConfigStatusView } from './config/gutter';
-import { classifyConfigChange, silencedBy } from './config/rules';
+import { classifyConfigChange } from './config/rules';
 import { engines as enginesBehind, spanned } from './shared/ignoreSpan';
 import {
     addLatexListEntry,
@@ -47,16 +37,15 @@ import {
     isSpellingOf,
     isSpellingRule,
     ruleIdOf,
-    type ExtendedDiagnostic,
 } from './diagnostics/diagnostic';
 import { findOpenDocument } from './shared/documents';
 import { DiagnosticStore, Suppression } from './diagnostics/store';
 import { CheckResults } from './checking/results';
 import { InspectorLog } from './ui/inspectorLog';
-import { COMMANDS, commandLink, executeCommand, registerCommand } from './commands/ids';
-import { getSetting, getUndeclaredSetting, settingId, updateSetting, type SettingValue } from './config/settings';
+import { COMMANDS, commandLink, registerCommand } from './commands/ids';
+import { getSetting, settingId, updateSetting, type SettingValue } from './config/settings';
 import { BUILTIN_SKIP_COMMANDS, BUILTIN_SKIP_ENVS, PROSE_COMMANDS, PROSE_ENVS } from './providers/latexLists';
-import { SUPPORTED_LANGUAGES, supportedLanguageSelector } from './checking/languages';
+import { SUPPORTED_LANGUAGES, isCheckableIn, supportedLanguageSelector } from './checking/languages';
 import { StatusBars } from './ui/statusBars';
 import { CoreService } from './core/coreService';
 import { Checker, type CheckOutcome } from './checking/checker';
@@ -66,6 +55,8 @@ import type { FixTarget } from './diagnostics/fixTarget';
 import { SpeedFixPanel } from './ui/webviews/speedFix';
 import { DiagnosticActions } from './diagnostics/actions';
 import { InspectorPanel } from './ui/webviews/inspector';
+import { Packs } from './core/packs';
+import { Reloader } from './checking/reload';
 import { bootstrapCore, downloadFailedMessage, downloadWithProgress, onDownloadFailedChoice } from './core/binary';
 import { WorkspaceConfigState } from './config/state';
 import { createServices } from './services';
@@ -86,6 +77,8 @@ let fixTarget: FixTarget;
 let speedFix: SpeedFixPanel;
 let actions: DiagnosticActions;
 let inspector: InspectorPanel;
+let packs: Packs;
+let reloader: Reloader;
 let configStatusView: ConfigStatusView | null = null;
 
 
@@ -107,23 +100,10 @@ const HINT_CONFIDENCE_FLOOR = 0.8;
 // Check-on-change debounce timer per document
 const debouncer = new Debouncer();
 
-/**
- * Languages offered this session.
- *
- * Separate from the permanent decline list: dismissing the modal without
- * choosing is not a refusal, so it is not remembered past the session, but it
- * should not re-fire on the next keystroke either.
- */
-const packsOfferedThisSession = new Set<string>();
 let yamlOfferedThisSession = false;
-/** Set once on activation, so the pack code can reach global state. */
-let extensionContext: vscode.ExtensionContext | undefined;
-/** Re-check after an install, without hoisting the whole closure out. */
-let reinitializeAndRecheckRef: (() => Promise<void>) | undefined;
 
 
 export async function activate(context: vscode.ExtensionContext) {
-    extensionContext = context;
     const isDev = context.extensionMode === vscode.ExtensionMode.Development;
     log = new Logger(isDev);
     context.subscriptions.push({ dispose: () => log.dispose() });
@@ -206,10 +186,11 @@ export async function activate(context: vscode.ExtensionContext) {
         observer: {
             checkRecorded: timings => inspector.checkRecorded(timings),
             healthUpdated: () => inspector.healthUpdated(),
-            diagnosticsPublished: diagnostics => void offerMissingPacks(diagnostics),
+            diagnosticsPublished: diagnostics => void packs.offer(diagnostics),
         },
     });
     actions = new DiagnosticActions({ core, checker, log, inspectorLog, store, fixTarget, speedFix });
+    packs = new Packs({ context, core, log, inspectorLog, reload: () => reloader.reinitializeAndRecheck() });
 
     /**
      * When a document is re-checked after its first check.
@@ -288,72 +269,10 @@ export async function activate(context: vscode.ExtensionContext) {
     // Update insights when active editor changes
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => statusBars.updateInsights(editor)));
 
-    /**
-     * Whether this extension should check a document.
-     *
-     * Two ways to qualify. VS Code's language id, for the formats there are
-     * grammars for -- and the file's extension, for the ones only an SLS
-     * schema handles. A schema language has no language id in VS Code, so
-     * checking the id alone made every schema unreachable from the editor
-     * however correct it was: the core would have used it, and was never
-     * asked.
-     */
-    const isCheckable = (document: vscode.TextDocument): boolean => {
-        if (SUPPORTED_LANGUAGES.includes(document.languageId)) return true;
-        const extension = path.extname(document.fileName).replace(/^\./, '').toLowerCase();
-        return extension.length > 0 && core.schemaExtensions.has(extension);
-    };
+    const isCheckable = (document: vscode.TextDocument) => isCheckableIn(document, core.schemaExtensions);
 
-    /** Re-initialize the server, clear stale diagnostics, and recheck open documents. */
-    const reinitializeAndRecheck = async () => {
-        log.info('Reinitializing and rechecking');
-        await core.initialize();
-        store.clear();
-        // The inspector reports which language each range was checked in. Under
-        // a new config that answer may have changed, and showing the old one is
-        // worse than showing none, so it goes until the re-check replaces it.
-        results.clearDocuments();
-        await inspector.update();
-        const editors = vscode.window.visibleTextEditors.filter(e => isCheckable(e.document));
-        log.debug('Rechecking visible editors', { count: editors.length });
-        for (const editor of editors) {
-            checker.check(editor.document);
-        }
-    };
-    // A config change rebuilds the client and clears the caches. It must not
-    // clear which packs the user refused: that is their standing answer, not
-    // state derived from the config.
-    reinitializeAndRecheckRef = reinitializeAndRecheck;
+    reloader = new Reloader({ log, core, store, results, statusBars, inspector, checker, isCheckable });
 
-    /**
-     * Apply a config change that can only remove diagnostics.
-     *
-     * Silencing a rule is applied by the core after the engines have run, so
-     * checking again produces the same findings and drops one more of them.
-     * The answer is already on screen; all that is needed is the same filter
-     * the core would apply, and the core told about the new config so the
-     * next check it runs for any other reason agrees.
-     *
-     * Re-checking instead is not merely slower. `reinitializeAndRecheck`
-     * clears every diagnostic first, so the whole file goes blank and fills
-     * back in -- for a rule the user silenced precisely because they did not
-     * want to look at it.
-     */
-    const applySilencedRules = async (newlyOff: ReadonlySet<string>) => {
-        log.info('Config silenced rules, filtering in place', { rules: [...newlyOff] });
-        for (const [uri, diagnostics] of store) {
-            const remaining = diagnostics.filter(
-                d => !silencedBy(newlyOff, ruleIdOf(d, undefined), d.unifiedId),
-            );
-            if (remaining.length === diagnostics.length) continue;
-            store.write(uri, vscode.Uri.parse(uri), remaining);
-        }
-        store.notify();
-        statusBars.updateInsights(vscode.window.activeTextEditor);
-        // Last, and without clearing anything: the core needs the new config
-        // for whatever it is asked next, but nothing on screen depends on it.
-        await core.initialize();
-    };
 
     /** Format an inlay hint label and apply-value for a diagnostic suggestion. */
     function formatInlayLabel(
@@ -987,7 +906,7 @@ export async function activate(context: vscode.ExtensionContext) {
     }));
 
     context.subscriptions.push(registerCommand(COMMANDS.installPack, async (language: string) => {
-        await installDictionaryPack(context, language);
+        await packs.install(language);
     }));
 
     context.subscriptions.push(registerCommand(COMMANDS.addToDictionary, async (word: string) => {
@@ -1138,7 +1057,7 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showInformationMessage(
                 vscode.l10n.t('Spell-check language set to "{0}". Reloading...', selected.label)
             );
-            await reinitializeAndRecheck();
+            await reloader.reinitializeAndRecheck();
         } catch (err) {
             showConfigUpdateError(err);
         }
@@ -1198,7 +1117,7 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showInformationMessage(
                 vscode.l10n.t('Engines updated: {0}. Reloading...', names)
             );
-            await reinitializeAndRecheck();
+            await reloader.reinitializeAndRecheck();
         } catch (err) {
             showConfigUpdateError(err);
         }
@@ -1362,7 +1281,7 @@ export async function activate(context: vscode.ExtensionContext) {
         if (CORE_SETTINGS.some(key => event.affectsConfiguration(key))) {
             log.info('Core setting changed, reinitializing');
             await refreshDictionaryWatchers();
-            await reinitializeAndRecheck();
+            await reloader.reinitializeAndRecheck();
         }
         // Everything else -- the check trigger, the inlay hints, the panel --
         // is read where it is used, so a change takes effect on its own.
@@ -1402,14 +1321,14 @@ export async function activate(context: vscode.ExtensionContext) {
                 configState.apply(raw);
                 inlayHintEmitter.fire();
                 if (changed && change.kind === 'subtractive') {
-                    await applySilencedRules(change.newlyOff);
+                    await reloader.applySilencedRules(change.newlyOff);
                     configStatusView?.refresh();
                 } else if (changed) {
                     // Before the recheck: the config may have named a
                     // different wordlist, and the new one has to be watched
                     // from now on.
                     await refreshDictionaryWatchers();
-                    await reinitializeAndRecheck();
+                    await reloader.reinitializeAndRecheck();
                     // A change from outside the editor -- another window, a
                     // branch switch -- moves the text without a keystroke to
                     // fire the usual trigger.
@@ -1429,7 +1348,7 @@ export async function activate(context: vscode.ExtensionContext) {
         configState.reset();
         inlayHintEmitter.fire();
         if (hadOne) {
-            await reinitializeAndRecheck();
+            await reloader.reinitializeAndRecheck();
         }
     };
     /**
@@ -1518,7 +1437,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const schemaWatcher = vscode.workspace.createFileSystemWatcher(
             new vscode.RelativePattern(folder, SCHEMA_DIR_PATTERN),
         );
-        const reloadSchemas = () => reinitializeAndRecheck();
+        const reloadSchemas = () => reloader.reinitializeAndRecheck();
         schemaWatcher.onDidChange(reloadSchemas);
         schemaWatcher.onDidCreate(reloadSchemas);
         schemaWatcher.onDidDelete(reloadSchemas);
@@ -1556,7 +1475,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 const added = wordsAdded(before, after);
                 if (added === null) {
                     // A word was taken away, or the file was rewritten.
-                    await reinitializeAndRecheck();
+                    await reloader.reinitializeAndRecheck();
                     return;
                 }
                 await applyAcceptedWords(added);
@@ -1635,158 +1554,10 @@ export async function activate(context: vscode.ExtensionContext) {
     return api;
 }
 
-/**
- * Offer to install a pack for any language the core could not check.
- *
- * Called after every check, so the guard conditions carry the weight: the
- * language comes from the core rather than from parsing a message, it must be
- * one a pack exists for, and it must not have been asked about this session or
- * refused in any previous one.
- */
-async function offerMissingPacks(diagnostics: readonly ExtendedDiagnostic[]): Promise<void> {
-    if (!extensionContext) return;
-    // globalState, not workspaceState: a refusal is about the user's opinion
-    // of a language, not about one folder, and it has to outlive a reload.
-    const memory = extensionContext.globalState;
 
-    for (const candidate of uncheckedLanguages(diagnostics)) {
-        if (!shouldPrompt(memory, packsOfferedThisSession, candidate)) continue;
-        // Recorded before awaiting, so a second check finishing while the
-        // modal is open cannot raise a second one.
-        packsOfferedThisSession.add(candidate.language.replace(/_/g, '-').toLowerCase());
 
-        // LanguageTool covers this language too, and covers it better --
-        // grammar and style, where Hunspell gives spelling alone. Offering
-        // only the narrower one would hide the choice from someone who would
-        // have picked the other.
-        const ltIsAnOption =
-            languageToolCovers(candidate.language) &&
-            // Undeclared in package.json, so this is always the fallback
-            // unless set by hand in settings.json.
-            !getUndeclaredSetting('engines.languagetool', false);
 
-        const install = vscode.l10n.t('Install');
-        const setUpLT = vscode.l10n.t('Set up LanguageTool');
-        const notNow = vscode.l10n.t('Not now');
-        const never = vscode.l10n.t("Don't ask again");
 
-        // "None of your enabled checkers", not "nothing installed": a user
-        // whose only engine is their own external checker still has one, it
-        // just does not declare this language. Telling them they have
-        // nothing is both false and a reason to distrust the rest.
-        const message = ltIsAnOption
-            ? vscode.l10n.t(
-                'None of your enabled checkers read {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.',
-                candidate.language
-            )
-            : vscode.l10n.t(
-                'None of your enabled checkers read {0}. Install the Hunspell dictionary for it?',
-                candidate.language
-            );
-
-        const choices = ltIsAnOption
-            ? [install, setUpLT, notNow, never]
-            : [install, notNow, never];
-        const choice = await vscode.window.showInformationMessage(message, ...choices);
-
-        if (choice === install) {
-            await installDictionaryPack(extensionContext, candidate.language);
-        } else if (choice === setUpLT) {
-            // The Docker path already exists and does the whole setup, so this
-            // hands over rather than reimplementing it.
-            await executeCommand(COMMANDS.restartLTDocker);
-        } else if (choice === never) {
-            await declinePack(memory, candidate.language);
-        }
-        // "Not now" and a dismissed modal are the same thing: nothing is
-        // remembered past this session, and the quick fix stays available.
-    }
-}
-
-/**
- * Run the core's pack installer and re-check once it lands.
- *
- * Shells out to the CLI beside the server binary rather than adding an RPC:
- * an install is a one-off that writes to disk and prints its own progress,
- * which is what a command line is for.
- */
-async function installDictionaryPack(
-    context: vscode.ExtensionContext,
-    language: string
-): Promise<void> {
-    if (!isLanguageTag(language)) {
-        log.warn('Refusing to install a pack for an implausible tag', { language });
-        return;
-    }
-    // Asking again means the user changed their mind, so the refusal goes.
-    await forgetDecline(context.globalState, language);
-
-    const cli = resolveCliPath();
-    if (!cli) {
-        void vscode.window.showErrorMessage(
-            vscode.l10n.t('Could not find the language-check binary to install the dictionary.')
-        );
-        return;
-    }
-
-    await vscode.window.withProgress(
-        {
-            location: vscode.ProgressLocation.Notification,
-            title: vscode.l10n.t('Installing the {0} dictionary…', language),
-            cancellable: false,
-        },
-        async () => {
-            const result = await runPackInstall(cli, language);
-            if (result.ok) {
-                void vscode.window.showInformationMessage(
-                    vscode.l10n.t('Installed the {0} dictionary.', language)
-                );
-                inspectorLog.push('info', 'packs', `Installed ${language}`, {
-                    details: result.output.trim().split('\n').at(-1) ?? '',
-                });
-                await reinitializeAndRecheckRef?.();
-            } else {
-                // The core's message names the file and the reason; passing it
-                // through beats replacing it with something vaguer.
-                void vscode.window.showErrorMessage(
-                    vscode.l10n.t('Could not install the {0} dictionary: {1}', language, result.output.trim())
-                );
-                inspectorLog.push('error', 'packs', `Install failed for ${language}`, {
-                    details: result.output.trim(),
-                });
-            }
-        }
-    );
-}
-
-/** `language-check`, beside whichever `language-check-server` is in use. */
-function resolveCliPath(): string | null {
-    const server = core.currentServerPath;
-    if (!server) return null;
-    const cli = path.join(path.dirname(server), process.platform === 'win32' ? 'language-check.exe' : 'language-check');
-    return fs.existsSync(cli) ? cli : null;
-}
-
-/** Run `packs install`, capturing whatever it said. */
-function runPackInstall(cli: string, language: string): Promise<{ ok: boolean; output: string }> {
-    return new Promise(resolve => {
-        // execFile, not a shell: the tag is validated above and still never
-        // reaches a command line where it could be anything but an argument.
-        execFile(cli, ['packs', 'install', language], { timeout: 300_000 }, (error, stdout, stderr) => {
-            resolve({ ok: !error, output: `${stdout}${stderr}` });
-        });
-    });
-}
-
-function severityToString(severity: number | null | undefined): 'error' | 'warning' | 'information' | 'hint' {
-    switch (severity) {
-        case 1: return 'error';
-        case 2: return 'warning';
-        case 3: return 'information';
-        case 4: return 'hint';
-        default: return 'warning';
-    }
-}
 
 
 
