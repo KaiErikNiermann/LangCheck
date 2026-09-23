@@ -303,3 +303,29 @@ rules:
       - pattern-not-inside: |
           fn schema_only_extensions(...) -> $T { ... }
 
+  - id: bench-setup-through-bench-helpers
+    languages: [rust]
+    severity: INFO
+    message: >-
+      Build the engine under benchmark through `bench_extract`, `bench_harper` or
+      `bench_morphology`. A benchmark is only comparable with its siblings when everything but
+      the input is held fixed, and a copied body is where one of them quietly gets a different
+      runtime, config or language tag. Seven benches repeated their setup; run against b526abd,
+      the revision before they were converted, this rule reports 8 findings (three extractors,
+      three Harper engines, two affix analyzers), which is the answer it must keep finding if the
+      shape comes back.
+    paths:
+      include:
+        - "**/rust-core/benches/"
+    patterns:
+      - pattern-either:
+          - pattern: ProseExtractor::new(...)
+          - pattern: HarperEngine::new(...)
+          - pattern: lang_check::morphology::AffixAnalyzer::new(...)
+          - pattern: AffixAnalyzer::new(...)
+      - pattern-not-inside: |
+          fn bench_extract(...) { ... }
+      - pattern-not-inside: |
+          fn bench_harper(...) { ... }
+      - pattern-not-inside: |
+          fn bench_morphology(...) { ... }

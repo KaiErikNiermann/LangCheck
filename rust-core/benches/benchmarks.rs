@@ -14,81 +14,55 @@ fn main() {
 
 #[divan::bench]
 fn prose_extraction_short_markdown(bencher: divan::Bencher) {
-    bencher
-        .with_inputs(|| ProseExtractor::new(tree_sitter_md::LANGUAGE.into()).unwrap())
-        .bench_local_refs(|ext| {
-            ext.extract(
-                "# Hello\n\nA short paragraph.",
-                "markdown",
-                &LatexExtras::default(),
-            )
-            .unwrap()
-        });
+    bench_extract(
+        bencher,
+        tree_sitter_md::LANGUAGE.into(),
+        "markdown",
+        "# Hello\n\nA short paragraph.",
+    );
 }
 
 #[divan::bench]
 fn prose_extraction_long_markdown(bencher: divan::Bencher) {
-    let text = generate_markdown(100);
-    bencher
-        .with_inputs(|| ProseExtractor::new(tree_sitter_md::LANGUAGE.into()).unwrap())
-        .bench_local_refs(|ext| {
-            ext.extract(&text, "markdown", &LatexExtras::default())
-                .unwrap()
-        });
+    bench_extract(
+        bencher,
+        tree_sitter_md::LANGUAGE.into(),
+        "markdown",
+        &generate_markdown(100),
+    );
 }
 
 #[divan::bench]
 fn prose_extraction_html(bencher: divan::Bencher) {
-    let text =
-        "<html><body><p>Hello world.</p><p>Another paragraph with some text.</p></body></html>";
-    bencher
-        .with_inputs(|| ProseExtractor::new(tree_sitter_html::LANGUAGE.into()).unwrap())
-        .bench_local_refs(|ext| ext.extract(text, "html", &LatexExtras::default()).unwrap());
+    bench_extract(
+        bencher,
+        tree_sitter_html::LANGUAGE.into(),
+        "html",
+        "<html><body><p>Hello world.</p><p>Another paragraph with some text.</p></body></html>",
+    );
 }
 
 // ── Harper checking benchmarks ───────────────────────────────────────
 
 #[divan::bench]
 fn harper_check_clean_sentence(bencher: divan::Bencher) {
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    bencher
-        .with_inputs(|| HarperEngine::new(&lang_check::config::HarperConfig::default()))
-        .bench_local_refs(|engine| {
-            rt.block_on(engine.check("The quick brown fox jumped over the lazy dog.", "en-US"))
-                .unwrap()
-        });
+    bench_harper(bencher, "The quick brown fox jumped over the lazy dog.");
 }
 
 #[divan::bench]
 fn harper_check_with_errors(bencher: divan::Bencher) {
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    bencher
-        .with_inputs(|| HarperEngine::new(&lang_check::config::HarperConfig::default()))
-        .bench_local_refs(|engine| {
-            rt.block_on(engine.check("This is an test of the the system.", "en-US"))
-                .unwrap()
-        });
+    bench_harper(bencher, "This is an test of the the system.");
 }
 
 #[divan::bench]
 fn harper_check_paragraph(bencher: divan::Bencher) {
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    let text = "The quick brown fox jumped over the lazy dog. \
-                It was a beautiful day in the neighborhood. \
-                The sun was shining and the birds were singing. \
-                Everything seemed perfect in every way.";
-    bencher
-        .with_inputs(|| HarperEngine::new(&lang_check::config::HarperConfig::default()))
-        .bench_local_refs(|engine| rt.block_on(engine.check(text, "en-US")).unwrap());
+    bench_harper(
+        bencher,
+        "The quick brown fox jumped over the lazy dog. \
+         It was a beautiful day in the neighborhood. \
+         The sun was shining and the birds were singing. \
+         Everything seemed perfect in every way.",
+    );
 }
 
 // ── Rule normalization benchmarks ────────────────────────────────────
@@ -124,6 +98,36 @@ fn insights_long_text(bencher: divan::Bencher) {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
+
+fn bench_extract(
+    bencher: divan::Bencher,
+    language: tree_sitter::Language,
+    language_id: &str,
+    text: &str,
+) {
+    bencher
+        .with_inputs(|| ProseExtractor::new(language.clone()).unwrap())
+        .bench_local_refs(|ext| {
+            ext.extract(text, language_id, &LatexExtras::default())
+                .unwrap()
+        });
+}
+
+/// Harper's `check` is async, so each iteration blocks on a current-thread runtime.
+fn bench_harper(bencher: divan::Bencher, text: &str) {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    bencher
+        .with_inputs(|| HarperEngine::new(&lang_check::config::HarperConfig::default()))
+        .bench_local_refs(|engine| rt.block_on(engine.check(text, "en-US")).unwrap());
+}
+
+fn bench_morphology(bencher: divan::Bencher, word: &str) {
+    let analyzer = lang_check::morphology::AffixAnalyzer::new("en-US");
+    bencher.bench_local(|| divan::black_box(analyzer.analyze(word, None)));
+}
 
 fn generate_markdown(paragraphs: usize) -> String {
     let mut text = String::from("# Benchmark Document\n\n");
@@ -164,13 +168,11 @@ fn dictionary_derive_inflections(bencher: divan::Bencher) {
 /// The common case: a token that is simply misspelled and decomposes into nothing.
 #[divan::bench]
 fn morphology_reject_typo(bencher: divan::Bencher) {
-    let analyzer = lang_check::morphology::AffixAnalyzer::new("en-US");
-    bencher.bench_local(|| divan::black_box(analyzer.analyze("recieve", None)));
+    bench_morphology(bencher, "recieve");
 }
 
 /// The worst case: a prefix and a suffix, both peeled, before the root is found.
 #[divan::bench]
 fn morphology_accept_derived(bencher: divan::Bencher) {
-    let analyzer = lang_check::morphology::AffixAnalyzer::new("en-US");
-    bencher.bench_local(|| divan::black_box(analyzer.analyze("subadditivity", None)));
+    bench_morphology(bencher, "subadditivity");
 }
