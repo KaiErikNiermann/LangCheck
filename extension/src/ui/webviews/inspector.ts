@@ -14,7 +14,7 @@ import type { DiagnosticStore } from '../../diagnostics/store';
 import { byteToCharConverter } from '../../checking/offsets';
 import { GITHUB_REPO } from '../../shared/links';
 import type { InspectorLog } from '../inspectorLog';
-import { detectEngineInfo } from './engineInfo';
+import { detectEngineInfo } from '../../core/engineInfo';
 import { createBesidePanel, webviewHtml } from './html';
 import type { InspectorDiagnosticSummary, InspectorToExtensionMessage } from './protocol';
 import { uriKey } from '../../shared/documents';

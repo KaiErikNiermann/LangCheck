@@ -3,9 +3,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { engineEnabled } from '../../config/edits';
-import { readFirstConfig } from '../../config/file';
-import type { InspectorEngineInfo } from './protocol';
+import { engineEnabled } from '../config/edits';
+import { readFirstConfig } from '../config/file';
+import type { InspectorEngineInfo } from '../ui/webviews/protocol';
 
 /** Detect engine binaries and config files, for the Inspector's engine table. */
 export async function detectEngineInfo(): Promise<InspectorEngineInfo[]> {

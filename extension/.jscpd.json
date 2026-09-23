@@ -6,7 +6,7 @@
   "minTokens": 35,
   "maxLines": 20000,
   "maxSize": "2mb",
-  "threshold": 4,
+  "threshold": 1,
   "reporters": ["console"],
   "silent": false
 }
