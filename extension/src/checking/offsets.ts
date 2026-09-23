@@ -29,14 +29,45 @@ export function coreByte(value: number | null | undefined): ByteOffset {
 }
 
 /**
- * A converter from byte offsets in `text` to string offsets, sharing one
- * encoding of it.
+ * A converter from byte offsets in `text` to string offsets, built in one
+ * pass over the text.
  *
- * Converted through a `Buffer` decode of the prefix, which is also what fixes
- * the behaviour for an offset that lands inside a multi-byte character: the
- * partial sequence decodes to U+FFFD and counts as one code unit.
+ * Its answers are those of decoding the prefix through a `Buffer`, which is
+ * how it used to work and what fixes the behaviour for an offset inside a
+ * multi-byte character: the partial sequence decodes to one U+FFFD, one code
+ * unit. Decoding per call cost the length of the prefix every time, and the
+ * checker converts two offsets per diagnostic, so a large document with many
+ * findings spent seconds here after the core had long answered. A table
+ * over every byte offset answers in constant time; the property test in
+ * offsets.test.ts holds it to the decode on arbitrary text.
  */
 export function byteToCharConverter(text: string): (byteOffset: ByteOffset) => CharOffset {
-    const encoded = Buffer.from(text, 'utf8');
-    return (offset: ByteOffset) => encoded.subarray(0, offset).toString('utf8').length as CharOffset;
+    const total = Buffer.byteLength(text, 'utf8');
+    const table = new Uint32Array(total + 1);
+    let byte = 0;
+    let unit = 0;
+    for (const char of text) {
+        const point = char.codePointAt(0) ?? 0;
+        // A lone surrogate encodes as U+FFFD, three bytes, like the rest of
+        // its range.
+        const length = point < 0x80 ? 1 : point < 0x800 ? 2 : point < 0x1_0000 ? 3 : 4;
+        table[byte] = unit;
+        table.fill(unit + 1, byte + 1, byte + length);
+        byte += length;
+        unit += char.length;
+    }
+    table[byte] = unit;
+    return (offset: ByteOffset) => table[prefixEnd(offset, total)] as CharOffset;
+}
+
+/**
+ * Where `subarray(0, offset)` ends, which is what the offsets meant when they
+ * were decoded that way: past the end is the end, a negative offset counts
+ * from it, and a missing one is the whole text.
+ */
+function prefixEnd(offset: number | undefined, total: number): number {
+    if (offset === undefined) return total;
+    const whole = Math.trunc(offset);
+    if (Number.isNaN(whole)) return 0;
+    return whole < 0 ? Math.max(total + whole, 0) : Math.min(whole, total);
 }
