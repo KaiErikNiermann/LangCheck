@@ -74,8 +74,7 @@ import { BUILTIN_SKIP_COMMANDS, BUILTIN_SKIP_ENVS, PROSE_COMMANDS, PROSE_ENVS } 
 import { SUPPORTED_LANGUAGES, supportedLanguageSelector } from './checking/languages';
 import { byteToCharConverter } from './checking/offsets';
 import { webviewHtml } from './ui/webviews/html';
-import { proseMetrics } from './ui/readability';
-import { languageStatusText } from './ui/statusBars';
+import { StatusBars } from './ui/statusBars';
 
 let client: LanguageClient | null = null;
 
@@ -105,8 +104,6 @@ const suppression = new Suppression();
 let speedFixPanel: vscode.WebviewPanel | null = null;
 let inspectorPanel: vscode.WebviewPanel | null = null;
 let configStatusView: ConfigStatusView | null = null;
-let languageStatusBarItem: vscode.StatusBarItem;
-let insightsStatusBarItem: vscode.StatusBarItem;
 
 // SpeedFix scope (file vs workspace)
 let speedFixScope: SpeedFixScope = 'file';
@@ -163,10 +160,8 @@ function releaseCheckSlot() {
     }
 }
 
-// Checking state (for status bar spinner)
-let isChecking = false;
-
 const results = new CheckResults();
+const statusBars = new StatusBars(results);
 
 /**
  * The config file as last seen, so any edit to it triggers a re-check.
@@ -341,7 +336,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const reportCoreFailure = async (reason: string, binaryPath: string) => {
         log.error('Core unavailable', { reason, binary: binaryPath });
         inspectorLog.push('error', 'core', reason, { details: binaryPath });
-        setCheckingSpinner(false);
+        statusBars.setChecking(false);
 
         const message = fs.existsSync(binaryPath)
             ? vscode.l10n.t('Language Check core stopped responding: {0}', reason)
@@ -547,22 +542,11 @@ export async function activate(context: vscode.ExtensionContext) {
         bootClient();
     }
 
-    // Status bar: spell-check language
-    languageStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    languageStatusBarItem.command = COMMANDS.selectLanguage;
-    languageStatusBarItem.text = languageStatusText('en-US');
-    languageStatusBarItem.tooltip = 'Language Check: Click to change language';
-    languageStatusBarItem.show();
-    context.subscriptions.push(languageStatusBarItem);
-
-    // Status bar: prose insights (word count, reading level)
-    insightsStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
-    insightsStatusBarItem.tooltip = 'Language Check: Prose Insights';
-    insightsStatusBarItem.show();
-    context.subscriptions.push(insightsStatusBarItem);
+    // Status bars: spell-check language, and prose insights (word count, reading level)
+    statusBars.create(context.subscriptions);
 
     // Update insights when active editor changes
-    context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(updateInsightsStatusBar));
+    context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => statusBars.updateInsights(editor)));
 
     /**
      * Whether this extension should check a document.
@@ -625,7 +609,7 @@ export async function activate(context: vscode.ExtensionContext) {
             store.write(uri, vscode.Uri.parse(uri), remaining);
         }
         store.notify();
-        updateInsightsStatusBar(vscode.window.activeTextEditor);
+        statusBars.updateInsights(vscode.window.activeTextEditor);
         // Last, and without clearing anything: the core needs the new config
         // for whatever it is asked next, but nothing on screen depends on it.
         await initializeClient();
@@ -1489,7 +1473,7 @@ export async function activate(context: vscode.ExtensionContext) {
         try {
             const content = setSpellLanguage(await readConfigText(targetUri), selected.label);
             await writeConfigText(targetUri, content);
-            languageStatusBarItem.text = languageStatusText(selected.label);
+            statusBars.setLanguage(selected.label);
             vscode.window.showInformationMessage(
                 vscode.l10n.t('Spell-check language set to "{0}". Reloading...', selected.label)
             );
@@ -1944,7 +1928,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 const raw = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
 
                 const currentLang = spellLanguageOf(raw);
-                languageStatusBarItem.text = languageStatusText(currentLang);
+                statusBars.setLanguage(currentLang);
 
                 // Any edit, not only the spell language: the rest of the file
                 // decides the result just as much, and what is on screen has to
@@ -1991,7 +1975,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // hint keeps skipping a LaTeX environment the config no longer names.
         const hadOne = lastKnownConfigText !== undefined && lastKnownConfigText !== null;
         lastKnownConfigText = null;
-        languageStatusBarItem.text = languageStatusText('en-US');
+        statusBars.setLanguage('en-US');
         userSkipEnvs = new Set<string>();
         userSkipCommands = new Set<string>();
         userProseEnvs = new Set<string>();
@@ -2151,7 +2135,7 @@ export async function activate(context: vscode.ExtensionContext) {
         if (found) {
             const raw = found.text;
             lastKnownConfigText = raw;
-            languageStatusBarItem.text = languageStatusText(spellLanguageOf(raw));
+            statusBars.setLanguage(spellLanguageOf(raw));
             userSkipEnvs = parseSkipEnvironments(raw);
             userSkipCommands = parseSkipCommands(raw);
             userProseEnvs = parseProseEnvironments(raw);
@@ -2369,15 +2353,6 @@ function hasDockerCompose(): boolean {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) return false;
     return fs.existsSync(path.join(folders[0]!.uri.fsPath, 'docker-compose.yml'));
-}
-
-function setCheckingSpinner(active: boolean) {
-    isChecking = active;
-    if (active) {
-        insightsStatusBarItem.text = `$(sync~spin) Checking...`;
-    } else {
-        updateInsightsStatusBar(vscode.window.activeTextEditor);
-    }
 }
 
 /** Detect engine binaries and config files, updating `engineInfoState`. */
@@ -2801,7 +2776,7 @@ async function runCheck(
 
     // Wait for a concurrency slot so we don't flood the server
     await acquireCheckSlot();
-    setCheckingSpinner(true);
+    statusBars.setChecking(true);
     const timings: { name: string; durationMs: number }[] = [];
 
     try {
@@ -2881,7 +2856,7 @@ async function runCheck(
             store.notify();
             timings.push({ name: 'Update UI', durationMs: performance.now() - t3 });
 
-            updateInsightsStatusBar(vscode.window.activeTextEditor);
+            statusBars.updateInsights(vscode.window.activeTextEditor);
             void offerMissingPacks(extendedDiagnostics);
 
             // Cache extraction data from real Rust core response
@@ -3010,7 +2985,7 @@ async function runCheck(
                 }
 
                 // Update status bar with health indicator
-                updateHealthStatusBar();
+                statusBars.updateHealth();
 
                 // Show warning notification on first LT down detection
                 const ltHealth = results.engineHealth.find(e => e.name === 'languagetool');
@@ -3053,7 +3028,7 @@ async function runCheck(
         return -1;
     } finally {
         releaseCheckSlot();
-        setCheckingSpinner(false);
+        statusBars.setChecking(false);
     }
 
     return 0;
@@ -3074,46 +3049,6 @@ async function pollLTReady(timeoutMs: number): Promise<boolean> {
         await new Promise(r => setTimeout(r, 2000));
     }
     return false;
-}
-
-function updateHealthStatusBar() {
-    const ltHealth = results.engineHealth.find(e => e.name === 'languagetool');
-    if (!ltHealth || ltHealth.status === 'ok') {
-        // Remove any health suffix — let updateInsightsStatusBar handle the text
-        insightsStatusBarItem.backgroundColor = undefined;
-        return;
-    }
-    if (ltHealth.status === 'degraded') {
-        insightsStatusBarItem.text += ' $(warning) LT degraded';
-        insightsStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-    } else {
-        insightsStatusBarItem.text += ' $(error) LT down';
-        insightsStatusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
-    }
-}
-
-function updateInsightsStatusBar(editor?: vscode.TextEditor) {
-    if (isChecking) return; // Don't overwrite spinner
-
-    if (!editor) {
-        insightsStatusBarItem.text = '';
-        insightsStatusBarItem.hide();
-        return;
-    }
-
-    // Use extracted prose from cache (markup-free) for accurate metrics.
-    // Falls back to raw text if no extraction data is cached yet.
-    const cached = results.extraction.get(editor.document.uri.toString());
-    const proseText = cached
-        ? cached.prose.map(r => r.cleanText).join(' ')
-        : editor.document.getText();
-
-    const { wordCount, sentenceCount, charCount, readingLevel } = proseMetrics(proseText);
-
-    const rlLabel = readingLevel > 0 ? ` | ARI ${readingLevel.toFixed(1)}` : '';
-    insightsStatusBarItem.text = `$(pencil) ${wordCount} words${rlLabel}`;
-    insightsStatusBarItem.tooltip = `Words: ${wordCount} | Sentences: ${sentenceCount} | Characters: ${charCount} | Reading Level (ARI): ${readingLevel.toFixed(1)}`;
-    insightsStatusBarItem.show();
 }
 
 export function deactivate() {
