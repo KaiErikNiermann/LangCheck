@@ -38,6 +38,21 @@
   "main": "./out/extension.js",
   "l10n": "./l10n",
   "contributes": {
+    "jsonValidation": [
+      {
+        "fileMatch": ".languagecheck.json",
+        "url": "./schemas/languagecheck.schema.json"
+      }
+    ],
+    "yamlValidation": [
+      {
+        "fileMatch": [
+          ".languagecheck.yaml",
+          ".languagecheck.yml"
+        ],
+        "url": "./schemas/languagecheck.schema.json"
+      }
+    ],
     "commands": [
       {
         "command": "language-check.checkDocument",

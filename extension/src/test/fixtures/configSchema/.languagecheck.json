@@ -1,0 +1,6 @@
+{
+  "engines": {
+    "harper": { "enabeld": true },
+    "languagetool": { "level": "strict" }
+  }
+}

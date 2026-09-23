@@ -191,6 +191,13 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 120_000 },
     },
     {
+        label: 'config-schema',
+        files: 'out/test/e2e/configSchema.test.js',
+        workspaceFolder: './src/test/fixtures/configSchema',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 60_000 },
+    },
+    {
         label: 'decline-phase1',
         files: 'out/test/e2e/declinePhase1.test.js',
         workspaceFolder: './src/test/fixtures/packs',
