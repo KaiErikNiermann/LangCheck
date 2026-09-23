@@ -7,12 +7,16 @@ on:
       - "rust-core/**"
       - "proto/**"
       - ".github/workflows/test-rust.yml"
+      - "extension/schemas/**"
+      - ".gitattributes"
   pull_request:
     branches: [main]
     paths:
       - "rust-core/**"
       - "proto/**"
       - ".github/workflows/test-rust.yml"
+      - "extension/schemas/**"
+      - ".gitattributes"
 
 concurrency:
   group: test-rust-${{ github.ref }}
