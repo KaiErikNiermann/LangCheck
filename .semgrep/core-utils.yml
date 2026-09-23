@@ -442,3 +442,27 @@ rules:
       - pattern-regex: "const GITHUB_REPO = '"
       - pattern-regex: '\.map\(\s*\w+\s*=>\s*\(\{\s*language:\s*\w+\s*\}\)\)'
       - pattern-regex: '\$\(book\) '
+
+  - id: commands-and-settings-through-typed-wrappers
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      Name a command through `COMMANDS` with `registerCommand`, `executeCommand` or `commandLink`
+      from `commands/ids.ts`, and read or write a setting with `getSetting`/`updateSetting` from
+      `config/settings.ts`. Both are typed from package.json via `generated/meta.ts` (run
+      `pnpm run gen:meta` after editing contributes), so an id typo, a wrong argument list or an
+      undeclared setting fails to compile instead of failing silently at runtime. Run against
+      8b9a812, the revision before the wrappers existed, this rule reports 58 findings (57 in extension.ts, one in trace.ts),
+      which is the answer it must keep finding if the shape comes back.
+    paths:
+      include:
+        - "**/extension/src/"
+      exclude:
+        - "**/extension/src/commands/ids.ts"
+        - "**/extension/src/config/settings.ts"
+        - "**/extension/src/generated/"
+        - "**/extension/src/test/"
+    pattern-either:
+      - pattern-regex: "commands\\.(?:registerCommand|executeCommand)\\(\\s*'language-check\\."
+      - pattern-regex: "command\\s*[:=]\\s*'language-check\\."
+      - pattern-regex: "getConfiguration\\(\\s*'languageCheck'"

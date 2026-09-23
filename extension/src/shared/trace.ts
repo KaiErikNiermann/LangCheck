@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+
+import { getSetting } from '../config/settings';
 import { languagecheck } from '../proto/checker';
 
 /** Protobuf message trace logger that writes decoded messages to a VS Code Output Channel. */
@@ -9,8 +11,7 @@ export class TraceLogger {
 
     constructor() {
         this.channel = vscode.window.createOutputChannel('Language Check: Protobuf Trace');
-        this.enabled = vscode.workspace.getConfiguration('languageCheck')
-            .get<boolean>('trace.enable', false);
+        this.enabled = getSetting('trace.enable');
     }
 
     /** Toggle tracing on/off. Returns the new state. */

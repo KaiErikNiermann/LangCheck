@@ -64,6 +64,8 @@ import {
     type ExtendedDiagnostic,
 } from './diagnostics/diagnostic';
 import { findOpenDocument } from './shared/documents';
+import { COMMANDS, commandLink, executeCommand, registerCommand } from './commands/ids';
+import { getSetting, getUndeclaredSetting, settingId, updateSetting, type SettingValue } from './config/settings';
 import { GITHUB_REPO, openReleasesPage } from './shared/links';
 import { BUILTIN_SKIP_COMMANDS, BUILTIN_SKIP_ENVS, PROSE_COMMANDS, PROSE_ENVS } from './providers/latexLists';
 import { SUPPORTED_LANGUAGES, supportedLanguageSelector } from './checking/languages';
@@ -279,11 +281,10 @@ export async function activate(context: vscode.ExtensionContext) {
     for (const document of vscode.workspace.textDocuments) void suggestYamlExtension(document);
 
     const resolveBinaryPath = (channel?: string): string => {
-        const config = vscode.workspace.getConfiguration('languageCheck');
-        const customPath = config.get<string>('core.binaryPath', '');
+        const customPath = getSetting('core.binaryPath');
         if (customPath) return customPath;
 
-        const selectedChannel = channel ?? config.get<string>('core.channel', 'stable');
+        const selectedChannel = channel ?? getSetting('core.channel');
 
         // Test counts as development here. The end-to-end tests run under
         // ExtensionMode.Test, where the packaged `bin/` directory exists only
@@ -314,13 +315,12 @@ export async function activate(context: vscode.ExtensionContext) {
     const initializeClient = async () => {
         if (client && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
             const root = vscode.workspace.workspaceFolders[0]!.uri.fsPath;
-            const wsConfig = vscode.workspace.getConfiguration('languageCheck');
-            const indexOnOpen = wsConfig.get<boolean>('workspace.indexOnOpen', false);
-            const dbPath = wsConfig.get<string>('workspace.dbPath', '') || null;
-            const detectNames = wsConfig.get<boolean>('names.enabled', false);
-            const dictionariesBundled = wsConfig.get<boolean>('dictionaries.bundled', true);
-            const dictionariesDisabled = wsConfig.get<string[]>('dictionaries.disabled', []);
-            const dictionariesPaths = wsConfig.get<string[]>('dictionaries.paths', []);
+            const indexOnOpen = getSetting('workspace.indexOnOpen');
+            const dbPath = getSetting('workspace.dbPath') || null;
+            const detectNames = getSetting('names.enabled');
+            const dictionariesBundled = getSetting('dictionaries.bundled');
+            const dictionariesDisabled = getSetting('dictionaries.disabled');
+            const dictionariesPaths = getSetting('dictionaries.paths');
             log.debug('Sending Initialize request', { workspaceRoot: root, indexOnOpen, dbPath, detectNames, dictionariesBundled, dictionariesDisabled, dictionariesPaths });
             pushInspectorEvent('info', 'initialize', `Initializing (indexOnOpen=${indexOnOpen}, detectNames=${detectNames})`);
             const t0 = performance.now();
@@ -365,7 +365,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const restart = vscode.l10n.t('Restart Core');
         const selection = await vscode.window.showErrorMessage(message, restart);
         if (selection === restart) {
-            vscode.commands.executeCommand('language-check.restartLanguageServer');
+            executeCommand(COMMANDS.restartLanguageServer);
         }
     };
 
@@ -420,7 +420,7 @@ export async function activate(context: vscode.ExtensionContext) {
      * said one thing and the extension did the other.
      */
     const checkTrigger = () =>
-        vscode.workspace.getConfiguration('languageCheck').get<string>('check.trigger', 'onSave');
+        getSetting('check.trigger');
 
     /**
      * Check a document that has never been checked.
@@ -485,8 +485,7 @@ export async function activate(context: vscode.ExtensionContext) {
      * line has to be handed the state the extension pushed. This is that
      * state, at the last point the extension controls.
      */
-    context.subscriptions.push(vscode.commands.registerCommand(
-        'language-check.configStatus',
+    context.subscriptions.push(registerCommand(COMMANDS.configStatus,
         (uri?: string) => uri === undefined
             ? configStatusView?.allSnapshots() ?? []
             : configStatusView?.snapshot(uri) ?? undefined,
@@ -505,8 +504,7 @@ export async function activate(context: vscode.ExtensionContext) {
     if (usesLocalBuild) {
         const localBinaryPath = resolveBinaryPath();
         if (!fs.existsSync(localBinaryPath)) {
-            const target = vscode.workspace.getConfiguration('languageCheck')
-                .get<string>('core.channel', 'stable') === 'debug' ? 'debug' : 'release';
+            const target = getSetting('core.channel') === 'debug' ? 'debug' : 'release';
             log.error('Local core binary not found', { expected: localBinaryPath });
             // Not awaited. Nothing dismisses a notification in a test run, and
             // an activation that waits for a click never returns -- which is
@@ -555,7 +553,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.l10n.t('Download Manually'),
             ).then(selection => {
                 if (selection === vscode.l10n.t('Retry')) {
-                    vscode.commands.executeCommand('language-check.downloadBinary');
+                    executeCommand(COMMANDS.downloadBinary);
                 } else if (selection === vscode.l10n.t('Download Manually')) {
                     openReleasesPage();
                 }
@@ -567,7 +565,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Status bar: spell-check language
     languageStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    languageStatusBarItem.command = 'language-check.selectLanguage';
+    languageStatusBarItem.command = COMMANDS.selectLanguage;
     languageStatusBarItem.text = languageStatusText('en-US');
     languageStatusBarItem.tooltip = 'Language Check: Click to change language';
     languageStatusBarItem.show();
@@ -712,11 +710,7 @@ export async function activate(context: vscode.ExtensionContext) {
                         [
                             {
                                 value: label,
-                                command: {
-                                    command: 'language-check.applyFix',
-                                    title: 'Apply Fix',
-                                    arguments: [diagId(first.idx), first.fmt.applyValue]
-                                }
+                                command: commandLink(COMMANDS.applyFix, 'Apply Fix', diagId(first.idx), first.fmt.applyValue)
                             }
                         ],
                         vscode.InlayHintKind.Type
@@ -762,19 +756,11 @@ export async function activate(context: vscode.ExtensionContext) {
                         [
                             {
                                 value: ' \u2298 skip',
-                                command: {
-                                    command: 'language-check.skipLatexEnv',
-                                    title: 'Skip checking this environment',
-                                    arguments: [envName]
-                                }
+                                command: commandLink(COMMANDS.skipLatexEnv, 'Skip checking this environment', envName)
                             },
                             {
                                 value: ' | hide hint',
-                                command: {
-                                    command: 'language-check.hideLatexEnvHint',
-                                    title: 'Hide this hint (keep checking)',
-                                    arguments: [envName]
-                                }
+                                command: commandLink(COMMANDS.hideLatexEnvHint, 'Hide this hint (keep checking)', envName)
                             }
                         ],
                         vscode.InlayHintKind.Parameter
@@ -832,11 +818,7 @@ export async function activate(context: vscode.ExtensionContext) {
                         pos,
                         [{
                             value: ' \u2298 skip',
-                            command: {
-                                command: 'language-check.skipLatexCommand',
-                                title: 'Skip this LaTeX command',
-                                arguments: [cmdName]
-                            }
+                            command: commandLink(COMMANDS.skipLatexCommand, 'Skip this LaTeX command', cmdName)
                         }],
                         vscode.InlayHintKind.Parameter
                     );
@@ -917,11 +899,7 @@ export async function activate(context: vscode.ExtensionContext) {
                             vscode.l10n.t('Install the {0} dictionary', tag),
                             vscode.CodeActionKind.QuickFix
                         );
-                        installAction.command = {
-                            command: 'language-check.installPack',
-                            title: vscode.l10n.t('Install dictionary'),
-                            arguments: [tag],
-                        };
+                        installAction.command = commandLink(COMMANDS.installPack, vscode.l10n.t('Install dictionary'), tag);
                         installAction.diagnostics = [diag];
                         singleChoice.push(installAction);
                     }
@@ -932,11 +910,7 @@ export async function activate(context: vscode.ExtensionContext) {
                             `Add "${word}" to dictionary`,
                             vscode.CodeActionKind.QuickFix
                         );
-                        dictAction.command = {
-                            command: 'language-check.addToDictionary',
-                            title: 'Add to Dictionary',
-                            arguments: [word]
-                        };
+                        dictAction.command = commandLink(COMMANDS.addToDictionary, 'Add to Dictionary', word);
                         dictAction.diagnostics = [diag];
                         singleChoice.push(dictAction);
                     }
@@ -946,11 +920,7 @@ export async function activate(context: vscode.ExtensionContext) {
                         'Ignore this issue',
                         vscode.CodeActionKind.QuickFix
                     );
-                    ignoreAction.command = {
-                        command: 'language-check.ignoreDiagnostic',
-                        title: 'Ignore',
-                        arguments: [diagId(diagIndex)]
-                    };
+                    ignoreAction.command = commandLink(COMMANDS.ignoreDiagnostic, 'Ignore', diagId(diagIndex));
                     ignoreAction.diagnostics = [diag];
                     singleChoice.push(ignoreAction);
 
@@ -960,11 +930,7 @@ export async function activate(context: vscode.ExtensionContext) {
                             vscode.l10n.t('Deactivate rule "{0}"', ruleId),
                             vscode.CodeActionKind.QuickFix
                         );
-                        deactivateAction.command = {
-                            command: 'language-check.deactivateRule',
-                            title: 'Deactivate rule',
-                            arguments: [ruleId]
-                        };
+                        deactivateAction.command = commandLink(COMMANDS.deactivateRule, 'Deactivate rule', ruleId);
                         deactivateAction.diagnostics = [diag];
                         singleChoice.push(deactivateAction);
                     }
@@ -1006,11 +972,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                 vscode.l10n.t('Fix all "{0}" in this file', word),
                                 vscode.CodeActionKind.QuickFix
                             );
-                            fixFileAction.command = {
-                                command: 'language-check.fixAllSpellingInFile',
-                                title: 'Fix all in file',
-                                arguments: [uri, word, replacement]
-                            };
+                            fixFileAction.command = commandLink(COMMANDS.fixAllSpellingInFile, 'Fix all in file', uri, word, replacement);
                             fixFileAction.diagnostics = [diag];
                             replacements.push(fixFileAction);
                         }
@@ -1028,11 +990,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                 vscode.l10n.t('Fix all "{0}" in workspace', word),
                                 vscode.CodeActionKind.QuickFix
                             );
-                            fixWsAction.command = {
-                                command: 'language-check.fixAllSpellingInWorkspace',
-                                title: 'Fix all in workspace',
-                                arguments: [word, replacement]
-                            };
+                            fixWsAction.command = commandLink(COMMANDS.fixAllSpellingInWorkspace, 'Fix all in workspace', word, replacement);
                             fixWsAction.diagnostics = [diag];
                             replacements.push(fixWsAction);
                         }
@@ -1062,15 +1020,13 @@ export async function activate(context: vscode.ExtensionContext) {
                         vscode.l10n.t('Ignore all {0} issues here', here.length),
                         vscode.CodeActionKind.QuickFix,
                     );
-                    silenceAll.command = {
-                        command: 'language-check.ignoreSelection',
-                        title: 'Ignore all issues here',
-                        arguments: [
-                            document.uri.toString(),
-                            document.offsetAt(range.start),
-                            document.offsetAt(range.end),
-                        ],
-                    };
+                    silenceAll.command = commandLink(
+                        COMMANDS.ignoreSelection,
+                        'Ignore all issues here',
+                        document.uri.toString(),
+                        document.offsetAt(range.start),
+                        document.offsetAt(range.end),
+                    );
                     actions.push(silenceAll);
                 }
 
@@ -1080,7 +1036,7 @@ export async function activate(context: vscode.ExtensionContext) {
         { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
     ));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.downloadBinary', async () => {
+    context.subscriptions.push(registerCommand(COMMANDS.downloadBinary, async () => {
         const dir = path.join(context.extensionPath, 'bin');
         const result = await vscode.window.withProgress(
             {
@@ -1107,14 +1063,14 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.l10n.t('Download Manually'),
             );
             if (selection === vscode.l10n.t('Retry')) {
-                vscode.commands.executeCommand('language-check.downloadBinary');
+                executeCommand(COMMANDS.downloadBinary);
             } else if (selection === vscode.l10n.t('Download Manually')) {
                 openReleasesPage();
             }
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.toggleInlayHints', () => {
+    context.subscriptions.push(registerCommand(COMMANDS.toggleInlayHints, () => {
         inlayHintsEnabled = !inlayHintsEnabled;
         inlayHintEmitter.fire();
         vscode.window.showInformationMessage(inlayHintsEnabled
@@ -1122,21 +1078,20 @@ export async function activate(context: vscode.ExtensionContext) {
             : vscode.l10n.t('Language Check inlay hints disabled'));
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.toggleCheckTrigger', async () => {
-        const config = vscode.workspace.getConfiguration('languageCheck');
+    context.subscriptions.push(registerCommand(COMMANDS.toggleCheckTrigger, async () => {
         const current = checkTrigger();
         const next = current === 'onChange' ? 'onSave' : 'onChange';
-        await config.update('check.trigger', next, vscode.ConfigurationTarget.Workspace);
+        await updateSetting('check.trigger', next, vscode.ConfigurationTarget.Workspace);
         const label = next === 'onSave'
             ? vscode.l10n.t('Switched to check on save')
             : vscode.l10n.t('Switched to check on change');
         vscode.window.showInformationMessage(label);
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.managePlugins', async () => {
-        const config = vscode.workspace.getConfiguration('languageCheck');
-        const plugins: Array<{ path: string; enabled?: boolean; name?: string; languages?: string[] }> =
-            config.get('plugins') ?? [];
+    context.subscriptions.push(registerCommand(COMMANDS.managePlugins, async () => {
+        // `?? []` as well as the manifest default: a `null` written into
+        // settings.json by hand comes back as null, not as the default.
+        const plugins = getSetting('plugins') ?? [];
 
         if (plugins.length === 0) {
             vscode.window.showInformationMessage(
@@ -1167,7 +1122,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         const selectedIndices = new Set(selected.map(s => s.index));
         const updated = plugins.map((p, i) => ({ ...p, enabled: selectedIndices.has(i) }));
-        await config.update('plugins', updated, vscode.ConfigurationTarget.Workspace);
+        await updateSetting('plugins', updated, vscode.ConfigurationTarget.Workspace);
 
         for (const item of items) {
             const nowEnabled = selectedIndices.has(item.index);
@@ -1180,7 +1135,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.restartLanguageServer', () => {
+    context.subscriptions.push(registerCommand(COMMANDS.restartLanguageServer, () => {
         log.info('Restarting language server');
         pushInspectorEvent('info', 'restartServer', 'Restarting language server');
         startClient();
@@ -1188,7 +1143,7 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage(vscode.l10n.t('Language Check server restarted'));
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.restartLTDocker', async () => {
+    context.subscriptions.push(registerCommand(COMMANDS.restartLTDocker, async () => {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders || workspaceFolders.length === 0) {
             vscode.window.showErrorMessage(vscode.l10n.t('No workspace folder open'));
@@ -1242,7 +1197,7 @@ export async function activate(context: vscode.ExtensionContext) {
         );
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.ignoreDiagnostic', async (diagnosticId: string) => {
+    context.subscriptions.push(registerCommand(COMMANDS.ignoreDiagnostic, async (diagnosticId: string) => {
         await ignoreDiagnostic(diagnosticId);
     }));
 
@@ -1256,8 +1211,7 @@ export async function activate(context: vscode.ExtensionContext) {
      * Called with no arguments from the palette, where the editor's own
      * selection is the span.
      */
-    context.subscriptions.push(vscode.commands.registerCommand(
-        'language-check.ignoreSelection',
+    context.subscriptions.push(registerCommand(COMMANDS.ignoreSelection,
         async (uriText?: string, startOffset?: number, endOffset?: number) => {
             const editor = uriText === undefined
                 ? vscode.window.activeTextEditor
@@ -1308,7 +1262,7 @@ export async function activate(context: vscode.ExtensionContext) {
         },
     ));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.fixAllSpellingInFile', async (uri: string, word: string, replacement: string) => {
+    context.subscriptions.push(registerCommand(COMMANDS.fixAllSpellingInFile, async (uri: string, word: string, replacement: string) => {
         const diagnostics = diagnosticsMap.get(uri);
         if (!diagnostics) return;
 
@@ -1335,7 +1289,7 @@ export async function activate(context: vscode.ExtensionContext) {
         await checkDocument(document);
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.fixAllSpellingInWorkspace', async (word: string, replacement: string) => {
+    context.subscriptions.push(registerCommand(COMMANDS.fixAllSpellingInWorkspace, async (word: string, replacement: string) => {
         const edit = new vscode.WorkspaceEdit();
         const affectedUris: string[] = [];
 
@@ -1372,7 +1326,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.toggleTrace', () => {
+    context.subscriptions.push(registerCommand(COMMANDS.toggleTrace, () => {
         if (!traceLogger) return;
         const enabled = traceLogger.toggle();
         vscode.window.showInformationMessage(
@@ -1380,12 +1334,12 @@ export async function activate(context: vscode.ExtensionContext) {
         );
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.showTrace', () => {
+    context.subscriptions.push(registerCommand(COMMANDS.showTrace, () => {
         traceLogger?.show();
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.switchCore', async () => {
-        const channels = [
+    context.subscriptions.push(registerCommand(COMMANDS.switchCore, async () => {
+        const channels: { label: string; description: string; channel: SettingValue<'core.channel'> }[] = [
             { label: vscode.l10n.t('Stable'), description: vscode.l10n.t('Production release'), channel: 'stable' },
             { label: vscode.l10n.t('Canary'), description: vscode.l10n.t('Pre-release with latest features'), channel: 'canary' },
             { label: vscode.l10n.t('Dev'), description: vscode.l10n.t('Development build (debug symbols)'), channel: 'dev' },
@@ -1403,8 +1357,7 @@ export async function activate(context: vscode.ExtensionContext) {
         });
         if (!selected) return;
 
-        await vscode.workspace.getConfiguration('languageCheck')
-            .update('core.channel', selected.channel, vscode.ConfigurationTarget.Global);
+        await updateSetting('core.channel', selected.channel, vscode.ConfigurationTarget.Global);
 
         startClient(selected.channel);
         initializeClient();
@@ -1414,11 +1367,11 @@ export async function activate(context: vscode.ExtensionContext) {
         );
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.installPack', async (language: string) => {
+    context.subscriptions.push(registerCommand(COMMANDS.installPack, async (language: string) => {
         await installDictionaryPack(context, language);
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.addToDictionary', async (word: string) => {
+    context.subscriptions.push(registerCommand(COMMANDS.addToDictionary, async (word: string) => {
         if (!client) return;
         sendSpeedFixLoading(true);
         const t0 = performance.now();
@@ -1477,7 +1430,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.deactivateRule', async (ruleId: string) => {
+    context.subscriptions.push(registerCommand(COMMANDS.deactivateRule, async (ruleId: string) => {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) return;
 
@@ -1526,11 +1479,11 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.applyFix', async (diagnosticId: string, suggestion: string) => {
+    context.subscriptions.push(registerCommand(COMMANDS.applyFix, async (diagnosticId: string, suggestion: string) => {
         await applyFix(diagnosticId, suggestion);
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.selectLanguage', async () => {
+    context.subscriptions.push(registerCommand(COMMANDS.selectLanguage, async () => {
         const languages = [
             { label: 'en-US', description: vscode.l10n.t('English (US)') },
             { label: 'en-GB', description: vscode.l10n.t('English (UK)') },
@@ -1577,7 +1530,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.manageEngines', async () => {
+    context.subscriptions.push(registerCommand(COMMANDS.manageEngines, async () => {
         const workspaceFolder = workspaceFolderOrWarn();
         if (!workspaceFolder) return;
 
@@ -1659,19 +1612,19 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     };
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.skipLatexEnv', (envName: string) =>
+    context.subscriptions.push(registerCommand(COMMANDS.skipLatexEnv, (envName: string) =>
         appendToLatexList('skip_environments', envName,
             vscode.l10n.t('Added "{0}" to skip list. Rechecking...', envName), userSkipEnvs)));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.hideLatexEnvHint', (envName: string) =>
+    context.subscriptions.push(registerCommand(COMMANDS.hideLatexEnvHint, (envName: string) =>
         appendToLatexList('prose_environments', envName,
             vscode.l10n.t('Hint hidden for "{0}". Checking continues.', envName), userProseEnvs)));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.skipLatexCommand', (cmdName: string) =>
+    context.subscriptions.push(registerCommand(COMMANDS.skipLatexCommand, (cmdName: string) =>
         appendToLatexList('skip_commands', cmdName,
             vscode.l10n.t('Added "{0}" to skip_commands. Rechecking...', cmdName), userSkipCommands)));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.checkDocument', async (): Promise<CheckOutcome | undefined> => {
+    context.subscriptions.push(registerCommand(COMMANDS.checkDocument, async (): Promise<CheckOutcome | undefined> => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) return undefined;
         const result = await checkDocument(editor.document);
@@ -1687,7 +1640,7 @@ export async function activate(context: vscode.ExtensionContext) {
         return { diagnostics: result, servedFromCache: lastCheckServedFromCache };
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.checkWorkspace', async () => {
+    context.subscriptions.push(registerCommand(COMMANDS.checkWorkspace, async () => {
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: vscode.l10n.t('Checking workspace...'),
@@ -1707,7 +1660,7 @@ export async function activate(context: vscode.ExtensionContext) {
         });
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.openSpeedFix', () => {
+    context.subscriptions.push(registerCommand(COMMANDS.openSpeedFix, () => {
         // Capture the active editor before creating the panel, since the
         // webview will steal focus and make activeTextEditor undefined.
         const originEditor = vscode.window.activeTextEditor;
@@ -1737,8 +1690,7 @@ export async function activate(context: vscode.ExtensionContext) {
         speedFixPanel.webview.onDidReceiveMessage(async (message: WebviewToExtensionMessage) => {
             switch (message.type) {
                 case 'ready': {
-                    const hpm = vscode.workspace.getConfiguration('languageCheck')
-                        .get<boolean>('performance.highPerformanceMode', false);
+                    const hpm = getSetting('performance.highPerformanceMode');
                     speedFixPanel?.webview.postMessage({ type: 'setLowResource', payload: hpm });
                     speedFixPanel?.webview.postMessage({ type: 'setScope', payload: speedFixScope });
                     // Track which file SpeedFix is targeting
@@ -1764,7 +1716,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     speedFixPanel?.reveal(vscode.ViewColumn.Beside, false);
                     break;
                 case 'addDictionary':
-                    await vscode.commands.executeCommand('language-check.addToDictionary', message.payload.word);
+                    await executeCommand(COMMANDS.addToDictionary, message.payload.word);
                     speedFixPanel?.reveal(vscode.ViewColumn.Beside, false);
                     break;
                 case 'goToLocation': {
@@ -1810,7 +1762,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }, null, context.subscriptions);
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('language-check.openInspector', () => {
+    context.subscriptions.push(registerCommand(COMMANDS.openInspector, () => {
         // Capture the active editor before creating the panel, since the
         // webview will steal focus and make activeTextEditor undefined.
         const originEditor = vscode.window.activeTextEditor;
@@ -1869,7 +1821,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     break;
                 }
                 case 'restartLTDocker': {
-                    vscode.commands.executeCommand('language-check.restartLTDocker');
+                    executeCommand(COMMANDS.restartLTDocker);
                     break;
                 }
                 case 'openIssue': {
@@ -1982,20 +1934,17 @@ export async function activate(context: vscode.ExtensionContext) {
      * Settings UI left every one of their words still accepted, with no
      * indication that the setting had not taken.
      */
-    const CORE_SETTINGS = [
-        'languageCheck.dictionaries.bundled',
-        'languageCheck.dictionaries.disabled',
-        'languageCheck.dictionaries.paths',
-        'languageCheck.names.enabled',
-        'languageCheck.workspace.indexOnOpen',
-        'languageCheck.workspace.dbPath',
-    ];
+    const CORE_SETTINGS = ([
+        'dictionaries.bundled',
+        'dictionaries.disabled',
+        'dictionaries.paths',
+        'names.enabled',
+        'workspace.indexOnOpen',
+        'workspace.dbPath',
+    ] as const).map(settingId);
 
     /** Settings that decide which binary runs, so the process has to be replaced. */
-    const CORE_PROCESS_SETTINGS = [
-        'languageCheck.core.binaryPath',
-        'languageCheck.core.channel',
-    ];
+    const CORE_PROCESS_SETTINGS = (['core.binaryPath', 'core.channel'] as const).map(settingId);
 
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async event => {
         if (CORE_PROCESS_SETTINGS.some(key => event.affectsConfiguration(key))) {
@@ -2181,8 +2130,7 @@ export async function activate(context: vscode.ExtensionContext) {
             // copy when it writes there, but a hand edit is a change like any
             // other.
             '.languagecheck/dictionary.txt',
-            ...vscode.workspace.getConfiguration('languageCheck')
-                .get<string[]>('dictionaries.paths', []),
+            ...getSetting('dictionaries.paths'),
         ]);
         if (typeof lastKnownConfigText === 'string') {
             for (const configured of parseDictionaryPaths(lastKnownConfigText)) {
@@ -2316,7 +2264,9 @@ async function offerMissingPacks(diagnostics: readonly ExtendedDiagnostic[]): Pr
         // have picked the other.
         const ltIsAnOption =
             languageToolCovers(candidate.language) &&
-            !vscode.workspace.getConfiguration('languageCheck').get<boolean>('engines.languagetool', false);
+            // Undeclared in package.json, so this is always the fallback
+            // unless set by hand in settings.json.
+            !getUndeclaredSetting('engines.languagetool', false);
 
         const install = vscode.l10n.t('Install');
         const setUpLT = vscode.l10n.t('Set up LanguageTool');
@@ -2347,7 +2297,7 @@ async function offerMissingPacks(diagnostics: readonly ExtendedDiagnostic[]): Pr
         } else if (choice === setUpLT) {
             // The Docker path already exists and does the whole setup, so this
             // hands over rather than reimplementing it.
-            await vscode.commands.executeCommand('language-check.restartLTDocker');
+            await executeCommand(COMMANDS.restartLTDocker);
         } else if (choice === never) {
             await declinePack(memory, candidate.language);
         }
@@ -3118,9 +3068,9 @@ async function runCheck(
                         ...actions,
                     );
                     if (action === 'Restart Docker') {
-                        vscode.commands.executeCommand('language-check.restartLTDocker');
+                        executeCommand(COMMANDS.restartLTDocker);
                     } else if (action === 'Open Inspector') {
-                        vscode.commands.executeCommand('language-check.openInspector');
+                        executeCommand(COMMANDS.openInspector);
                     }
                 } else if (ltHealth && ltHealth.status === 'ok') {
                     ltDownNotificationShown = false;
