@@ -17,6 +17,7 @@ import {
     declinePack,
     forgetDecline,
     isLanguageTag,
+    type LanguageTag,
     languageToolCovers,
     shouldPrompt,
     uncheckedLanguages,
@@ -32,7 +33,7 @@ export interface PackDeps {
 }
 
 /** Run `packs install`, capturing whatever it said. */
-function runPackInstall(cli: string, language: string): Promise<{ ok: boolean; output: string }> {
+function runPackInstall(cli: string, language: LanguageTag): Promise<{ ok: boolean; output: string }> {
     return new Promise(resolve => {
         // execFile, not a shell: the tag is validated above and still never
         // reaches a command line where it could be anything but an argument.

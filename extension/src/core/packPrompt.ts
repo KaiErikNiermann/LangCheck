@@ -65,6 +65,16 @@ export function shouldPrompt(
     return !declinedPacks(memory).includes(tag);
 }
 
+declare const languageTag: unique symbol;
+
+/**
+ * A string that has passed {@link isLanguageTag}.
+ *
+ * It ends up as an argument to the pack installer, so the brand is what
+ * guarantees nothing unvalidated reaches that command line.
+ */
+export type LanguageTag = string & { readonly [languageTag]: true };
+
 /**
  * Whether a string is a language tag we will act on.
  *
@@ -72,7 +82,7 @@ export function shouldPrompt(
  * does, so it fires only on something shaped like `he`, `en-GB` or
  * `ca-ES-valencia` — never on a stray word that reached the field.
  */
-export function isLanguageTag(value: string): boolean {
+export function isLanguageTag(value: string): value is LanguageTag {
     return /^[a-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$/i.test(value);
 }
 
