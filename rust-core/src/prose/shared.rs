@@ -366,7 +366,9 @@ fn chunk_of(range: &ProseRange, start: usize, end: usize) -> ProseRange {
 /// Returns `from` when nothing usable was found, which the caller reads as
 /// "do not split".
 fn split_point(text: &str, from: usize, limit: usize, exclusions: &[(usize, usize)]) -> usize {
-    let hard_end = limit.min(text.len());
+    // Floored to a character boundary: the limit is a byte count, and one
+    // landing inside a multi-byte character made the slice below panic.
+    let hard_end = text.floor_char_boundary(limit.min(text.len()));
     let in_exclusion = |at: usize| exclusions.iter().any(|&(es, ee)| at > es && at < ee);
 
     // A sentence end: terminator, then the whitespace after it.
@@ -400,13 +402,13 @@ fn split_point(text: &str, from: usize, limit: usize, exclusions: &[(usize, usiz
     if let Some(at) = word {
         return at;
     }
-    // Neither: cut on a character boundary so a single enormous token still
-    // divides rather than defeating the whole pass.
-    let mut at = hard_end;
-    while at > from && !text.is_char_boundary(at) {
-        at -= 1;
+    // Neither: cut at the limit, which is on a character boundary, so a
+    // single enormous token still divides rather than defeating the pass.
+    if in_exclusion(hard_end) {
+        from
+    } else {
+        hard_end
     }
-    if in_exclusion(at) { from } else { at }
 }
 
 /// Merge adjacent prose blocks that are a logical continuation of one another,
@@ -748,6 +750,20 @@ mod tests {
         assert_eq!(chunks.concat(), text);
         for chunk in &chunks {
             assert!(!chunk.starts_with(' '), "a chunk begins mid-gap: {chunk:?}");
+        }
+    }
+
+    #[test]
+    fn a_limit_inside_a_multi_byte_character_does_not_panic() {
+        // The window up to the limit was sliced at the raw byte count, so a
+        // limit landing inside a character panicked -- a four-byte one at the
+        // default 4096-byte split took the whole core down. Every limit over
+        // a text full of multi-byte characters, including ones that fall
+        // inside each width.
+        let text = "ab \u{1d518}\u{1d52b} c\u{e9}d \u{4e2d}\u{6587} ef. gh \u{1f469}\u{200d}\u{1f467} ij kl.";
+        for limit in 1..=text.len() {
+            let chunks = split_texts(text, limit, Vec::new());
+            assert_eq!(chunks.concat(), text, "text lost or added at limit {limit}");
         }
     }
 
