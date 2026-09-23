@@ -34,8 +34,8 @@ export interface CheckOutcome {
 
 /** What the rest of the extension is told while a check lands, at the points it always was. */
 export interface CheckObserver {
-    /** The check's timings and summary are in CheckResults. */
-    checkRecorded(timings: { name: string; durationMs: number }[]): void;
+    /** A check of `document` landed: its extraction, timings and summary are in CheckResults. */
+    checkRecorded(document: vscode.TextDocument, timings: { name: string; durationMs: number }[]): void;
     /** The core reported engine health, now in CheckResults. */
     healthUpdated(): void;
     /** Diagnostics were published for a document. */
@@ -95,6 +95,7 @@ export class Checker {
 
         const t0 = performance.now();
         const textContent = document.getText();
+        const version = document.version;
         const readMs = performance.now() - t0;
 
         const uri = uriKey(document.uri);
@@ -104,7 +105,7 @@ export class Checker {
             return inFlight.result;
         }
 
-        const result = this.run(document, core.client, textContent, readMs);
+        const result = this.run(document, core.client, textContent, version, readMs);
         this.inFlight.set(uri, { text: textContent, result });
         try {
             return await result;
@@ -122,6 +123,8 @@ export class Checker {
         document: vscode.TextDocument,
         client: LanguageClient,
         textContent: string,
+        /** The document version `textContent` was read at. */
+        version: number,
         readMs: number,
     ): Promise<number> {
         const { log, store, suppression, results, statusBars, inspectorLog, observer } = this.deps;
@@ -193,6 +196,7 @@ export class Checker {
                     languageId: document.languageId,
                     syntax: response.checkProse.extraction?.syntax ?? '',
                     maxRangeBytes: (response.checkProse.extraction?.maxRangeBytes as number) ?? 0,
+                    version,
                 });
 
                 results.names.set(uriKey(document.uri), toNameSpans(
@@ -210,7 +214,7 @@ export class Checker {
                     diagnosticCount: extendedDiagnostics.length,
                     englishEngine: 'multi', // All enabled engines run concurrently
                 };
-                observer.checkRecorded(timings);
+                observer.checkRecorded(document, timings);
 
                 // Process engine health from response
                 const protoHealth = response.checkProse.engineHealth ?? [];

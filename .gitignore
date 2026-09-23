@@ -35,6 +35,9 @@ out.xml
 .DS_Store
 *.log
 .vscode/
+# Except where the workspace setting is the fixture: the UI tests cannot
+# change a setting from inside the window the way the e2e suites do.
+!extension/src/test/fixtures/uiInspectorLive/.vscode/
 refs/
 test.md
 test.txt

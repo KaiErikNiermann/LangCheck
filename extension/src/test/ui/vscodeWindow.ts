@@ -104,3 +104,17 @@ export async function editorText(page: Page): Promise<string> {
     const text = await page.locator('.editor-group-container .view-lines').first().innerText();
     return text.replace(/\u00a0/g, ' ');
 }
+
+/** Type at the end of the first editor, as a user would, moving focus there. */
+export async function typeAtEnd(page: Page, text: string): Promise<void> {
+    await page.locator('.editor-group-container .view-lines').first().click();
+    await page.keyboard.press('Control+End');
+    await page.keyboard.type(text);
+}
+
+/** Replace everything in the first editor by typing, moving focus there. */
+export async function replaceText(page: Page, text: string): Promise<void> {
+    await page.locator('.editor-group-container .view-lines').first().click();
+    await page.keyboard.press('Control+a');
+    await page.keyboard.type(text);
+}

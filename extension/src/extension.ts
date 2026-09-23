@@ -78,7 +78,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const checker = new Checker({
         core, log, store, suppression, results, statusBars, inspectorLog,
         observer: {
-            checkRecorded: timings => inspector.checkRecorded(timings),
+            checkRecorded: (document, timings) => inspector.checkRecorded(document, timings),
             healthUpdated: () => inspector.healthUpdated(),
             diagnosticsPublished: diagnostics => void packs.offer(diagnostics),
         },

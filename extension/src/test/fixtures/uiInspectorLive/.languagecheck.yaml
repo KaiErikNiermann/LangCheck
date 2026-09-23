@@ -1,0 +1,4 @@
+# Checked on every change (see .vscode/settings.json), so the Inspector's
+# ranges have to follow an edit before any save.
+engines:
+  harper: true

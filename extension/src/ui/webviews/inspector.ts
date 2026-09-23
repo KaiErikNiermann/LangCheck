@@ -16,7 +16,11 @@ import { GITHUB_REPO } from '../../shared/links';
 import type { InspectorLog } from '../inspectorLog';
 import { detectEngineInfo } from '../../core/engineInfo';
 import { createBesidePanel, webviewHtml } from './html';
-import type { InspectorDiagnosticSummary, InspectorToExtensionMessage } from './protocol';
+import type {
+    ExtensionToInspectorMessage,
+    InspectorDiagnosticSummary,
+    InspectorToExtensionMessage,
+} from './protocol';
 import { uriKey, type UriKey } from '../../shared/documents';
 
 export interface InspectorDeps {
@@ -28,10 +32,13 @@ export interface InspectorDeps {
     readonly check: (document: vscode.TextDocument) => Promise<number>;
 }
 
+
 export class InspectorPanel {
     private panel: vscode.WebviewPanel | null = null;
     /** The document the panel last described, which its buttons act on. */
     private inspected: UriKey | undefined;
+    /** What is live only while the panel is open. */
+    private liveListeners: vscode.Disposable[] = [];
 
     constructor(private readonly deps: InspectorDeps) {}
 
@@ -72,9 +79,9 @@ export class InspectorPanel {
                         await this.deps.check(editorForCheck.document);
                     }
                     await this.update();
-                    this.panel?.webview.postMessage({ type: 'setDockerAvailable', payload: hasDockerCompose() });
+                    this.post({ type: 'setDockerAvailable', payload: hasDockerCompose() });
                     const extVersion = (this.deps.context.extension.packageJSON as { version?: string }).version ?? 'unknown';
-                    this.panel?.webview.postMessage({ type: 'setExtensionVersion', payload: extVersion });
+                    this.post({ type: 'setExtensionVersion', payload: extVersion });
                     break;
                 }
                 case 'highlightRange': {
@@ -135,10 +142,83 @@ export class InspectorPanel {
             }
         }, undefined, this.deps.context.subscriptions);
 
+        this.listenWhileOpen();
+
         this.panel.onDidDispose(() => {
             this.panel = null;
             this.deps.inspectorLog.detach();
+            for (const listener of this.liveListeners) listener.dispose();
+            this.liveListeners = [];
         }, null, this.deps.context.subscriptions);
+    }
+
+    private post(message: ExtensionToInspectorMessage): void {
+        void this.panel?.webview.postMessage(message);
+    }
+
+    /**
+     * Keep the panel in step with the document while it is open: the event
+     * log was live and the ranges were not, so they could describe text that
+     * no longer existed.
+     */
+    private listenWhileOpen(): void {
+        this.liveListeners.push(vscode.workspace.onDidChangeTextDocument(event => {
+            if (uriKey(event.document.uri) !== this.inspected || event.contentChanges.length === 0) return;
+            const cached = this.deps.results.extraction.get(this.inspected);
+            if (cached) this.post({ type: 'setStale', payload: cached.version !== event.document.version });
+        }));
+    }
+
+    /**
+     * What the last check of `document` found: its ranges, the names it
+     * silenced and its issue summary, all from the same check.
+     */
+    private showDocument(document: vscode.TextDocument): void {
+        const uri = uriKey(document.uri);
+        this.inspected = uri;
+
+        // Everything here comes from one CheckProse response, so the syntax and the
+        // per-range language always describe the boxes shown beside them. When the
+        // cache has been dropped — a config change invalidates it — there is
+        // nothing to show until the re-check lands, which is the point: a language
+        // from the previous config is worse than an empty panel.
+        const cached = this.deps.results.extraction.get(uri);
+        this.post({
+            type: 'setExtraction',
+            payload: {
+                prose: cached?.prose ?? [],
+                fileName: path.basename(document.uri.fsPath),
+                languageId: cached?.languageId ?? document.languageId,
+                syntax: cached?.syntax ?? '',
+                maxRangeBytes: cached?.maxRangeBytes ?? 0,
+                stale: cached !== undefined && cached.version !== document.version,
+            },
+        });
+
+        this.post({ type: 'setNames', payload: { names: this.deps.results.names.get(uri) ?? [] } });
+
+        // Sent when there are none too: a summary left from before the last
+        // fix went on reporting issues the document no longer has.
+        const diags = this.deps.store.get(uri) ?? [];
+        const byRule = new Map<string, number>();
+        const bySeverity = new Map<string, number>();
+        for (const d of diags) {
+            const rule = ruleIdOf(d, 'unknown');
+            byRule.set(rule, (byRule.get(rule) || 0) + 1);
+            const sev = d.severity === vscode.DiagnosticSeverity.Error ? 'error' :
+                        d.severity === vscode.DiagnosticSeverity.Warning ? 'warning' :
+                        d.severity === vscode.DiagnosticSeverity.Hint ? 'hint' : 'info';
+            bySeverity.set(sev, (bySeverity.get(sev) || 0) + 1);
+        }
+        const summary: InspectorDiagnosticSummary = {
+            total: diags.length,
+            byRule: [...byRule.entries()]
+                .map(([ruleId, count]) => ({ ruleId, count }))
+                .sort((a, b) => b.count - a.count),
+            bySeverity: [...bySeverity.entries()]
+                .map(([severity, count]) => ({ severity, count })),
+        };
+        this.post({ type: 'setDiagnosticSummary', payload: summary });
     }
 
     async update(): Promise<void> {
@@ -151,116 +231,47 @@ export class InspectorPanel {
             ?? vscode.window.visibleTextEditors[0];
         if (!editor) return;
 
-        const document = editor.document;
-        const uri = uriKey(document.uri);
-        this.inspected = uri;
-        const fileName = path.basename(document.uri.fsPath);
-
-        // Send real extraction data from cache.
-        //
-        // Everything here comes from one CheckProse response, so the syntax and the
-        // per-range language always describe the boxes shown beside them. When the
-        // cache has been dropped — a config change invalidates it — there is
-        // nothing to show until the re-check lands, which is the point: a language
-        // from the previous config is worse than an empty panel.
-        const cached = this.deps.results.extraction.get(uri);
-        this.panel.webview.postMessage({
-            type: 'setExtraction',
-            payload: {
-                prose: cached?.prose ?? [],
-                fileName,
-                languageId: cached?.languageId ?? document.languageId,
-                syntax: cached?.syntax ?? '',
-                maxRangeBytes: cached?.maxRangeBytes ?? 0,
-            },
-        });
-
-        // Send words the name filter silenced
-        this.panel.webview.postMessage({
-            type: 'setNames',
-            payload: { names: this.deps.results.names.get(uri) ?? [] },
-        });
+        this.showDocument(editor.document);
 
         // Send real benchmark timings if available
         if (this.deps.results.timings.length > 0) {
-            this.panel.webview.postMessage({
-                type: 'setLatency',
-                payload: { stages: this.deps.results.timings },
-            });
+            this.post({ type: 'setLatency', payload: { stages: this.deps.results.timings } });
         }
 
         // Send check info if available
         if (this.deps.results.info) {
-            this.panel.webview.postMessage({
-                type: 'setCheckInfo',
-                payload: this.deps.results.info,
-            });
-        }
-
-        // Send diagnostic summary
-        const diags = this.deps.store.get(uri);
-        if (diags && diags.length > 0) {
-            const byRule = new Map<string, number>();
-            const bySeverity = new Map<string, number>();
-            for (const d of diags) {
-                const rule = ruleIdOf(d, 'unknown');
-                byRule.set(rule, (byRule.get(rule) || 0) + 1);
-                const sev = d.severity === vscode.DiagnosticSeverity.Error ? 'error' :
-                            d.severity === vscode.DiagnosticSeverity.Warning ? 'warning' :
-                            d.severity === vscode.DiagnosticSeverity.Hint ? 'hint' : 'info';
-                bySeverity.set(sev, (bySeverity.get(sev) || 0) + 1);
-            }
-            const summary: InspectorDiagnosticSummary = {
-                total: diags.length,
-                byRule: [...byRule.entries()]
-                    .map(([ruleId, count]) => ({ ruleId, count }))
-                    .sort((a, b) => b.count - a.count),
-                bySeverity: [...bySeverity.entries()]
-                    .map(([severity, count]) => ({ severity, count })),
-            };
-            this.panel.webview.postMessage({
-                type: 'setDiagnosticSummary',
-                payload: summary,
-            });
+            this.post({ type: 'setCheckInfo', payload: this.deps.results.info });
         }
 
         // Send engine health state
         if (this.deps.results.engineHealth.length > 0) {
-            this.panel.webview.postMessage({
-                type: 'setEngineHealth',
-                payload: this.deps.results.engineHealth,
-            });
+            this.post({ type: 'setEngineHealth', payload: this.deps.results.engineHealth });
         }
 
         // Send engine info (binary detection, config paths)
         const engineInfo = await detectEngineInfo();
-        this.panel.webview.postMessage({
-            type: 'setEngineInfo',
-            payload: engineInfo,
-        });
+        this.post({ type: 'setEngineInfo', payload: engineInfo });
     }
 
-    /** A check finished: show its stage timings and summary, if open. */
-    checkRecorded(timings: { name: string; durationMs: number }[]): void {
-        if (this.panel) {
-            this.panel.webview.postMessage({
-                type: 'setLatency',
-                payload: { stages: timings },
-            });
-            this.panel.webview.postMessage({
-                type: 'setCheckInfo',
-                payload: this.deps.results.info,
-            });
-        }
+    /**
+     * A check finished: show its stage timings and summary, if open, and its
+     * ranges when it was of the document on display.
+     *
+     * The ranges used to wait for a save or an editor switch, so under the
+     * onChange trigger the panel went on showing the prose of a check that
+     * had since been replaced.
+     */
+    checkRecorded(document: vscode.TextDocument, timings: { name: string; durationMs: number }[]): void {
+        if (!this.panel) return;
+        this.post({ type: 'setLatency', payload: { stages: timings } });
+        if (this.deps.results.info) this.post({ type: 'setCheckInfo', payload: this.deps.results.info });
+        if (uriKey(document.uri) === this.inspected) this.showDocument(document);
     }
 
     /** The core reported engine health: show it, if open. */
     healthUpdated(): void {
         if (this.panel) {
-            this.panel.webview.postMessage({
-                type: 'setEngineHealth',
-                payload: this.deps.results.engineHealth,
-            });
+            this.post({ type: 'setEngineHealth', payload: this.deps.results.engineHealth });
         }
     }
 }

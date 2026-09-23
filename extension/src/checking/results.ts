@@ -17,6 +17,13 @@ export interface CachedExtraction {
     languageId: string;
     syntax: string;
     maxRangeBytes: number;
+    /**
+     * The document version the check read. Under the onSave trigger an edit
+     * is not checked until it is saved, and the ranges keep describing the
+     * text as it was; the Inspector says so rather than draw them over text
+     * they no longer match.
+     */
+    version: number;
 }
 
 export class CheckResults {

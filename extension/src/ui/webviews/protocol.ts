@@ -147,8 +147,12 @@ export type ExtensionToInspectorMessage =
              * Zero when splitting is switched off.
              */
             maxRangeBytes: number;
+            /** The document was edited after the check these ranges came from. */
+            stale: boolean;
         };
     }
+    | { type: 'setStale'; payload: boolean }
+
     | { type: 'setNames'; payload: { names: InspectorNameSpan[] } }
     | { type: 'setLatency'; payload: { stages: InspectorLatencyStage[] } }
     | { type: 'setDiagnosticSummary'; payload: InspectorDiagnosticSummary }

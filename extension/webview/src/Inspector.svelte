@@ -94,6 +94,8 @@
   let selectedRangeIdx: number | null = $state(null);
   let extensionVersion: string = $state('');
   let copyFeedback: boolean = $state(false);
+  /** The document was edited after the check the ranges came from. */
+  let stale = $state(false);
   const MAX_EVENTS = 200;
   const REPORT_EVENT_CAP = 20;
 
@@ -137,7 +139,11 @@
           languageId = message.payload.languageId ?? '';
           syntax = message.payload.syntax ?? '';
           maxRangeBytes = message.payload.maxRangeBytes ?? 0;
+          stale = message.payload.stale ?? false;
           selectedRangeIdx = null;
+          break;
+        case 'setStale':
+          stale = message.payload;
           break;
         case 'setNames':
           detectedNames = message.payload.names ?? [];
@@ -193,6 +199,9 @@
   }
 
   function highlightRange(range: ProseRange, idx: number) {
+    // The offsets are into the text as it was checked, so after an edit
+    // they select whatever has moved into their place.
+    if (stale) return;
     selectedRangeIdx = idx;
     vscode.postMessage({
       type: 'highlightRange',
@@ -530,6 +539,9 @@
             </span>
             <span class="section-count">{proseRanges.length} ranges</span>
           </div>
+          {#if stale}
+            <div class="stale-notice">Edited since this check. These ranges describe the text as it was checked; save to check it again.</div>
+          {/if}
           {#each proseRanges as range, i}
             <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
             <div
@@ -589,6 +601,9 @@
             <span class="section-title">Checker input</span>
             <span class="section-count">{proseRanges.length} ranges</span>
           </div>
+          {#if stale}
+            <div class="stale-notice">Edited since this check. These ranges describe the text as it was checked; save to check it again.</div>
+          {/if}
           {#each proseRanges as range, i}
             <div class="clean-text-block">
               <div class="clean-text-header">
@@ -1797,4 +1812,14 @@
     min-width: 24px;
     text-align: right;
   }
+
+  /* -- Stale ranges -- */
+  .stale-notice {
+    font-size: 11px;
+    padding: 6px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--vscode-editorWarning-foreground, #cca700);
+    color: var(--vscode-editorWarning-foreground, #cca700);
+  }
+
 </style>
