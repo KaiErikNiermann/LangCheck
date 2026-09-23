@@ -30,7 +30,7 @@ import { registerInlineCompletions } from './providers/inlineCompletions';
 import { createServices } from './services';
 import { Logger } from './shared/logger';
 import { TraceLogger } from './shared/trace';
-import { registerOnboarding } from './ui/onboarding';
+import { registerOnboarding, warnAboutOtherCopies } from './ui/onboarding';
 import { InspectorPanel } from './ui/webviews/inspector';
 import { SpeedFixPanel } from './ui/webviews/speedFix';
 
@@ -65,6 +65,7 @@ export async function activate(context: vscode.ExtensionContext) {
     });
     log.info('Language Check extension activated', { mode: isDev ? 'dev' : 'prod' });
     registerOnboarding(context);
+    warnAboutOtherCopies(context, log);
 
     const traceLogger = new TraceLogger();
     context.subscriptions.push({ dispose: () => traceLogger.dispose() });

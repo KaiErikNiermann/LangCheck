@@ -5,6 +5,8 @@
 import * as vscode from 'vscode';
 
 import { YAML_EXTENSION_ID, declineYamlSuggestion, shouldSuggestYaml } from '../config/yamlSuggestion';
+import type { Logger } from '../shared/logger';
+import { otherCopies } from '../shared/otherCopies';
 
 export function registerOnboarding(context: vscode.ExtensionContext): void {
     let offeredThisSession = false;
@@ -51,4 +53,27 @@ export function registerOnboarding(context: vscode.ExtensionContext): void {
     };
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(document => void suggestYamlExtension(document)));
     for (const document of vscode.workspace.textDocuments) void suggestYamlExtension(document);
+}
+
+/**
+ * Warn when another copy of this extension is installed under a different
+ * id, naming it and where it lives: each copy starts its own checker, and
+ * the doubled squiggles look like a bug in this one.
+ */
+export function warnAboutOtherCopies(context: vscode.ExtensionContext, log: Logger): void {
+    const installed = Array.isArray(vscode.extensions.all) ? vscode.extensions.all : [];
+    const copies = otherCopies(installed, context.extension.id);
+    if (copies.length === 0) return;
+    for (const copy of copies) {
+        log.warn(`Another copy of Language Check is installed: ${copy.id} ${copy.version}, at ${copy.path}`);
+    }
+    const [first] = copies;
+    if (!first) return;
+    const showLog = vscode.l10n.t('Show Log');
+    void Promise.resolve(vscode.window.showWarningMessage(
+        vscode.l10n.t('Another copy of Language Check is installed ({0}, version {1}, at {2}). Each copy starts its own checker; disable one of them.', first.id, first.version, first.path),
+        showLog,
+    )).then(choice => {
+        if (choice === showLog) log.show();
+    });
 }
