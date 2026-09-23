@@ -109,6 +109,8 @@ enum ConfigAction {
     Show,
     /// Generate a default .languagecheck.json in the current directory
     Init,
+    /// Print the JSON Schema for .languagecheck.yaml, for editor completion
+    Schema,
     /// List the files this config selects for checking
     Files {
         /// Also list the files that were skipped, and which pattern did it
@@ -864,6 +866,9 @@ fn handle_config(action: ConfigAction) -> Result<()> {
                 Config::default()
             });
             println!("{}", serde_yaml::to_string(&config)?);
+        }
+        ConfigAction::Schema => {
+            println!("{}", serde_json::to_string_pretty(&Config::json_schema())?);
         }
         ConfigAction::Files {
             skipped,
