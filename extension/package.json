@@ -344,6 +344,7 @@
     "compile:e2e": "tsc -p tsconfig.test.json",
     "pretest:e2e": "rm -rf .vscode-test/user-data-decline && pnpm run build:dev && pnpm run compile:e2e",
     "test:e2e": "vscode-test",
+    "pretest:ui": "pnpm run build:dev",
     "test:ui": "playwright test"
   },
   "keywords": [],
