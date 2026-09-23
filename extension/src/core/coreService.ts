@@ -95,7 +95,12 @@ export class CoreService {
         client.setLogger(this.log);
         client.setTraceLogger(this.traceLogger);
         client.onRestart(async () => {
-            await this.initialize();
+            try {
+                await this.initialize();
+            } catch (err) {
+                this.reportInitializeFailure('Core initialize failed after the process was restarted', err);
+                return;
+            }
             this.hooks.restarted();
         });
         client.onFailure(reason => this.reportFailure(reason, binaryPath));
@@ -160,7 +165,19 @@ export class CoreService {
      */
     restart(channel?: string): void {
         this.start(channel);
-        void this.initialize();
+        this.initialize().catch(err => this.reportInitializeFailure('Core initialize failed after a restart', err));
+    }
+
+    /**
+     * Log an Initialize nobody is awaiting.
+     *
+     * These run from commands and from the client's own recovery, where there
+     * is no caller to hand the error to; left alone it surfaces only as an
+     * unhandled rejection in the extension host log.
+     */
+    private reportInitializeFailure(message: string, err: unknown): void {
+        this.log.warn(message, { err: String(err) });
+        this.inspectorLog.push('error', 'initialize', `${message}: ${String(err)}`);
     }
 
     /**

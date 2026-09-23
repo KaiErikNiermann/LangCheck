@@ -115,8 +115,12 @@ export function onDownloadFailedChoice(selection: string | undefined): void {
 export function bootstrapCore(
     context: vscode.ExtensionContext,
     log: Logger,
-    boot: () => Promise<void>,
+    bootCore: () => Promise<void>,
 ): Promise<void> | undefined {
+    // Not awaited by activation, so nothing else would see it fail.
+    const boot = () => {
+        bootCore().catch(err => log.warn('Core failed to start', { err: String(err) }));
+    };
     if (usesLocalBuild(context)) {
         const localBinaryPath = resolveBinaryPath(context);
         if (!fs.existsSync(localBinaryPath)) {
