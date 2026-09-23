@@ -17,7 +17,7 @@ import type { InspectorLog } from '../inspectorLog';
 import { detectEngineInfo } from '../../core/engineInfo';
 import { createBesidePanel, webviewHtml } from './html';
 import type { InspectorDiagnosticSummary, InspectorToExtensionMessage } from './protocol';
-import { uriKey } from '../../shared/documents';
+import { uriKey, type UriKey } from '../../shared/documents';
 
 export interface InspectorDeps {
     readonly context: vscode.ExtensionContext;
@@ -30,8 +30,21 @@ export interface InspectorDeps {
 
 export class InspectorPanel {
     private panel: vscode.WebviewPanel | null = null;
+    /** The document the panel last described, which its buttons act on. */
+    private inspected: UriKey | undefined;
 
     constructor(private readonly deps: InspectorDeps) {}
+
+    /**
+     * The editor showing the document on display, for the panel's buttons.
+     *
+     * Not `activeTextEditor`: clicking in the panel moves focus into the
+     * webview, and VS Code then reports no active text editor at all.
+     */
+    private inspectedEditor(): vscode.TextEditor | undefined {
+        return vscode.window.visibleTextEditors.find(e => uriKey(e.document.uri) === this.inspected)
+            ?? vscode.window.activeTextEditor;
+    }
 
     /** Show the panel, creating it on first use. */
     open(): void {
@@ -65,18 +78,22 @@ export class InspectorPanel {
                     break;
                 }
                 case 'highlightRange': {
-                    const editor = vscode.window.activeTextEditor;
+                    // The click that sent this put focus in the webview, so
+                    // there is no active text editor to select in.
+                    const editor = this.inspectedEditor();
                     if (editor) {
                         const byteToChar = byteToCharConverter(editor.document.getText());
                         const start = editor.document.positionAt(byteToChar(message.payload.startByte));
                         const end = editor.document.positionAt(byteToChar(message.payload.endByte));
-                        editor.selection = new vscode.Selection(start, end);
-                        editor.revealRange(new vscode.Range(start, end));
+                        await vscode.window.showTextDocument(editor.document, {
+                            ...(editor.viewColumn === undefined ? {} : { viewColumn: editor.viewColumn }),
+                            selection: new vscode.Selection(start, end),
+                        });
                     }
                     break;
                 }
                 case 'healthCheckLT': {
-                    const editor = vscode.window.activeTextEditor;
+                    const editor = this.inspectedEditor();
                     if (editor) {
                         await this.deps.check(editor.document);
                     }
@@ -136,6 +153,7 @@ export class InspectorPanel {
 
         const document = editor.document;
         const uri = uriKey(document.uri);
+        this.inspected = uri;
         const fileName = path.basename(document.uri.fsPath);
 
         // Send real extraction data from cache.

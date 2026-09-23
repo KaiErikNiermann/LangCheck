@@ -39,6 +39,15 @@ test('Extraction shows each prose range the core extracted, with its exclusions'
     await expect(cards.nth(1).locator('.exc-text')).toHaveText('`inline code`');
 });
 
+test('clicking a range selects it in the editor, counted in characters not bytes', async () => {
+    const panel = await open();
+    const range = panel.locator('.prose-card').nth(1);
+    // 78 bytes on the wire: the `ł` in Wisława is two of them.
+    await expect(range.locator('.prose-bytes').last()).toHaveText('bytes 13..91');
+    await range.click();
+    await expect(window.page.locator('.statusbar-item', { hasText: 'selected' })).toContainText('(77 selected)');
+});
+
 test('Clean Text shows what the checker read, with the exclusion blanked', async () => {
     const panel = await open();
     await showTab(panel, 'Clean Text');
@@ -99,4 +108,23 @@ test('Copy Report puts a report about this document on the clipboard', async () 
     const report = await clipboardText(window);
     expect(report).toContain('- **File:** doc.md');
     expect(report).toContain('harper.Spelling');
+});
+
+test('the Health tab re-check button checks the inspected document', async () => {
+    // Offered only while an engine is unhealthy, hence a fixture whose
+    // LanguageTool points at a port nothing listens on.
+    window = await launchVSCode('uiInspectorDown', 'doc.md');
+    await waitForSquiggles(window.page);
+    const panel = await openInspector(window.page);
+    await showTab(panel, 'Health');
+    // Degraded after the first failed request, down after several: either
+    // is unhealthy, and either offers the button.
+    await expect(panel.locator('.health-card', { hasText: 'languagetool' }).locator('.health-status')).toHaveText(/degraded|down/i);
+    await showTab(panel, 'Events');
+    await expect(panel.locator('.event-row')).toHaveCount(0);
+    await showTab(panel, 'Health');
+    // The click puts focus in the webview, where there is no active editor.
+    await panel.locator('.health-action-btn', { hasText: /check/i }).first().click();
+    await showTab(panel, 'Events');
+    await expect(panel.locator('.event-source', { hasText: 'checkDocument' }).first()).toBeVisible();
 });

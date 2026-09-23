@@ -1,0 +1,7 @@
+# LanguageTool on, pointed at a port nothing listens on, so the Inspector's
+# Health tab reports it down and offers its re-check button.
+engines:
+  harper: true
+  languagetool:
+    enabled: true
+    url: "http://127.0.0.1:9"
