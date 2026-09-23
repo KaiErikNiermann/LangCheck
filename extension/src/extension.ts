@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { execFile, execSync } from 'child_process';
 import { TraceLogger } from './shared/trace';
 import { createAPI } from './api';
-import { formatSuggestionLabel, speedFixSuggestionLabel, displayOriginalText } from './shared/inlayLabels';
+import { formatSuggestionLabel } from './shared/inlayLabels';
 import type { LanguageCheckDiagnostic } from './api';
 import { parseDictionaryPaths, wordsAdded } from './config/parsing';
 import {
@@ -16,7 +16,7 @@ import {
     uncheckedLanguages,
 } from './core/packPrompt';
 import { YAML_EXTENSION_ID, declineYamlSuggestion, shouldSuggestYaml } from './config/yamlSuggestion';
-import type { SpeedFixDiagnostic, SpeedFixScope, WebviewToExtensionMessage, InspectorToExtensionMessage, InspectorDiagnosticSummary, InspectorEngineInfo } from './ui/webviews/protocol';
+import type { InspectorToExtensionMessage, InspectorDiagnosticSummary, InspectorEngineInfo } from './ui/webviews/protocol';
 import { Logger } from './shared/logger';
 import { ConfigStatusView } from './config/gutter';
 import { classifyConfigChange, silencedBy } from './config/rules';
@@ -47,7 +47,6 @@ import {
     insertedText,
     isSpellingOf,
     isSpellingRule,
-    parseDiagId,
     ruleIdOf,
     type ExtendedDiagnostic,
 } from './diagnostics/diagnostic';
@@ -67,6 +66,9 @@ import { CoreService } from './core/coreService';
 import { Checker, type CheckOutcome } from './checking/checker';
 import { Debouncer } from './checking/scheduler';
 import { hasDockerCompose, restartLanguageToolDocker } from './core/languagetool';
+import type { FixTarget } from './diagnostics/fixTarget';
+import { SpeedFixPanel } from './ui/webviews/speedFix';
+import { DiagnosticActions } from './diagnostics/actions';
 import { bootstrapCore, downloadFailedMessage, downloadWithProgress, onDownloadFailedChoice } from './core/binary';
 import { WorkspaceConfigState } from './config/state';
 import { createServices } from './services';
@@ -83,13 +85,12 @@ let statusBars: StatusBars;
 let configState: WorkspaceConfigState;
 let inspectorLog: InspectorLog;
 let inlayHintEmitter: vscode.EventEmitter<void>;
-let speedFixPanel: vscode.WebviewPanel | null = null;
+let fixTarget: FixTarget;
+let speedFix: SpeedFixPanel;
+let actions: DiagnosticActions;
 let inspectorPanel: vscode.WebviewPanel | null = null;
 let configStatusView: ConfigStatusView | null = null;
 
-// SpeedFix scope (file vs workspace)
-let speedFixScope: SpeedFixScope = 'file';
-let speedFixTargetUri: string | null = null;
 
 // Engine health tracking
 let engineInfoState: InspectorEngineInfo[] = [];
@@ -131,10 +132,18 @@ export async function activate(context: vscode.ExtensionContext) {
     log = new Logger(isDev);
     context.subscriptions.push({ dispose: () => log.dispose() });
 
-    ({ store, suppression, results, statusBars, configState, inspectorLog, inlayHintEmitter } = createServices());
+    ({ store, suppression, results, statusBars, configState, inspectorLog, inlayHintEmitter, fixTarget } = createServices());
+    speedFix = new SpeedFixPanel({
+        context, store, fixTarget,
+        actions: {
+            applyFix: (diagnosticId, suggestion) => actions.applyFix(diagnosticId, suggestion),
+            ignore: diagnosticId => actions.ignore(diagnosticId),
+            check: document => checker.check(document),
+        },
+    });
     // What every diagnostics change refreshes, in this order.
     store.onChange(() => inlayHintEmitter.fire());
-    store.onChange(() => updateSpeedFixDiagnostics());
+    store.onChange(() => speedFix.update());
     log.info('Language Check extension activated', { mode: isDev ? 'dev' : 'prod' });
 
     // First-run onboarding: show welcome notification once
@@ -220,6 +229,7 @@ export async function activate(context: vscode.ExtensionContext) {
             diagnosticsPublished: diagnostics => void offerMissingPacks(diagnostics),
         },
     });
+    actions = new DiagnosticActions({ core, checker, log, inspectorLog, store, fixTarget, speedFix });
 
     /**
      * When a document is re-checked after its first check.
@@ -835,7 +845,7 @@ export async function activate(context: vscode.ExtensionContext) {
         restartLanguageToolDocker(document => checker.check(document))));
 
     context.subscriptions.push(registerCommand(COMMANDS.ignoreDiagnostic, async (diagnosticId: string) => {
-        await ignoreDiagnostic(diagnosticId);
+        await actions.ignore(diagnosticId);
     }));
 
     /**
@@ -1002,7 +1012,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(registerCommand(COMMANDS.addToDictionary, async (word: string) => {
         if (!core.client) return;
-        sendSpeedFixLoading(true);
+        speedFix.sendLoading(true);
         const t0 = performance.now();
         log.debug('addToDictionary', { word });
         inspectorLog.push('info', 'addToDictionary', `Sending request for "${word}"`);
@@ -1017,7 +1027,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 const wordLower = word.toLowerCase();
                 suppression.words.add(wordLower);
                 // Optimistic removal: remove all spelling diagnostics for this word immediately
-                const editor = findEditorWithDiagnostics();
+                const editor = fixTarget.findEditor();
                 let removedCount = 0;
                 if (editor) {
                     const uri = editor.document.uri.toString();
@@ -1053,7 +1063,7 @@ export async function activate(context: vscode.ExtensionContext) {
             log.error('addToDictionary failed', { word, error: errStr });
             vscode.window.showErrorMessage(vscode.l10n.t('Failed to add word: {0}', errStr));
         } finally {
-            sendSpeedFixLoading(false);
+            speedFix.sendLoading(false);
         }
     }));
 
@@ -1104,7 +1114,7 @@ export async function activate(context: vscode.ExtensionContext) {
     }));
 
     context.subscriptions.push(registerCommand(COMMANDS.applyFix, async (diagnosticId: string, suggestion: string) => {
-        await applyFix(diagnosticId, suggestion);
+        await actions.applyFix(diagnosticId, suggestion);
     }));
 
     context.subscriptions.push(registerCommand(COMMANDS.selectLanguage, async () => {
@@ -1284,107 +1294,7 @@ export async function activate(context: vscode.ExtensionContext) {
         });
     }));
 
-    context.subscriptions.push(registerCommand(COMMANDS.openSpeedFix, () => {
-        // Capture the active editor before creating the panel, since the
-        // webview will steal focus and make activeTextEditor undefined.
-        const originEditor = vscode.window.activeTextEditor;
-
-        if (speedFixPanel) {
-            speedFixPanel.reveal(vscode.ViewColumn.Beside);
-            updateSpeedFixDiagnostics();
-            return;
-        }
-
-        speedFixPanel = vscode.window.createWebviewPanel(
-            'speedFix',
-            'SpeedFix',
-            vscode.ViewColumn.Beside,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [
-                    vscode.Uri.file(path.join(context.extensionPath, 'webview', 'dist')),
-                    vscode.Uri.file(path.join(context.extensionPath, 'webview', 'out'))
-                ]
-            }
-        );
-
-        speedFixPanel.webview.html = webviewHtml(speedFixPanel.webview, context.extensionPath, { script: 'index', title: 'SpeedFix' });
-
-        speedFixPanel.webview.onDidReceiveMessage(async (message: WebviewToExtensionMessage) => {
-            switch (message.type) {
-                case 'ready': {
-                    const hpm = getSetting('performance.highPerformanceMode');
-                    speedFixPanel?.webview.postMessage({ type: 'setLowResource', payload: hpm });
-                    speedFixPanel?.webview.postMessage({ type: 'setScope', payload: speedFixScope });
-                    // Track which file SpeedFix is targeting
-                    speedFixTargetUri = (originEditor ?? vscode.window.activeTextEditor)?.document.uri.toString() ?? null;
-                    // If we already have diagnostics, send them immediately
-                    updateSpeedFixDiagnostics();
-                    // If no diagnostics exist yet, auto-run a check using the
-                    // editor captured before the panel stole focus.
-                    const editorForCheck = originEditor ?? vscode.window.activeTextEditor;
-                    if (editorForCheck && !store.has(editorForCheck.document.uri.toString())) {
-                        sendSpeedFixLoading(true);
-                        checker.check(editorForCheck.document).then(() => {
-                            sendSpeedFixLoading(false);
-                        });
-                    }
-                    break;
-                }
-                case 'applyFix':
-                    await applyFix(message.payload.diagnosticId, message.payload.suggestion);
-                    break;
-                case 'ignore':
-                    await ignoreDiagnostic(message.payload.diagnosticId);
-                    speedFixPanel?.reveal(vscode.ViewColumn.Beside, false);
-                    break;
-                case 'addDictionary':
-                    await executeCommand(COMMANDS.addToDictionary, message.payload.word);
-                    speedFixPanel?.reveal(vscode.ViewColumn.Beside, false);
-                    break;
-                case 'goToLocation': {
-                    const editor = findEditorWithDiagnostics();
-                    if (!editor) break;
-                    const diagnostics = store.get(editor.document.uri.toString());
-                    if (!diagnostics) break;
-                    const idx = parseDiagId(message.payload.diagnosticId);
-                    const diag = diagnostics[idx];
-                    if (diag) {
-                        editor.selection = new vscode.Selection(diag.range.start, diag.range.end);
-                        editor.revealRange(diag.range, vscode.TextEditorRevealType.InCenter);
-                    }
-                    break;
-                }
-                case 'skip':
-                case 'prev':
-                case 'next':
-                    // Navigation is handled client-side in the webview
-                    break;
-                case 'refresh': {
-                    const editor = findEditorWithDiagnostics() ?? vscode.window.activeTextEditor;
-                    if (editor) {
-                        sendSpeedFixLoading(true);
-                        await checker.check(editor.document);
-                        sendSpeedFixLoading(false);
-                    }
-                    break;
-                }
-                case 'setScope':
-                    speedFixScope = message.payload;
-                    updateSpeedFixDiagnostics();
-                    break;
-                case 'close':
-                    speedFixPanel?.dispose();
-                    break;
-            }
-        }, undefined, context.subscriptions);
-
-        speedFixPanel.onDidDispose(() => {
-            speedFixPanel = null;
-            speedFixTargetUri = null;
-        }, null, context.subscriptions);
-    }));
+    context.subscriptions.push(registerCommand(COMMANDS.openSpeedFix, () => speedFix.open()));
 
     context.subscriptions.push(registerCommand(COMMANDS.openInspector, () => {
         // Capture the active editor before creating the panel, since the
@@ -1804,7 +1714,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Listen for diagnostic changes to keep SpeedFix in sync
     context.subscriptions.push(vscode.languages.onDidChangeDiagnostics(() => {
-        updateSpeedFixDiagnostics();
+        speedFix.update();
     }));
 
     context.subscriptions.push(store);
@@ -1997,9 +1907,6 @@ function severityToString(severity: number | null | undefined): 'error' | 'warni
     }
 }
 
-function sendSpeedFixLoading(loading: boolean) {
-    speedFixPanel?.webview.postMessage({ type: 'loading', payload: loading });
-}
 
 /** Detect engine binaries and config files, updating `engineInfoState`. */
 async function detectEngineInfo(): Promise<void> {
@@ -2070,7 +1977,7 @@ async function updateInspectorData() {
     // Prefer active editor, fall back to a visible editor with diagnostics.
     // When the inspector panel has focus, activeTextEditor is undefined.
     const editor = vscode.window.activeTextEditor
-        ?? findEditorWithDiagnostics()
+        ?? fixTarget.findEditor()
         ?? vscode.window.visibleTextEditors[0];
     if (!editor) return;
 
@@ -2162,187 +2069,13 @@ async function updateInspectorData() {
     });
 }
 
-/** Find a text editor that has diagnostics, preferring activeTextEditor.
- *  Falls back to visibleTextEditors when a webview panel has stolen focus.
- *  When a SpeedFix target URI is set, prefer that editor. */
-function findEditorWithDiagnostics(): vscode.TextEditor | undefined {
-    // Prefer the SpeedFix target (set by workspace-mode auto-advance)
-    if (speedFixTargetUri) {
-        const target = vscode.window.visibleTextEditors.find(
-            e => e.document.uri.toString() === speedFixTargetUri
-        );
-        if (target && store.has(speedFixTargetUri)) return target;
-    }
-    const active = vscode.window.activeTextEditor;
-    if (active && store.has(active.document.uri.toString())) return active;
-    // Fallback: find a visible editor that has diagnostics
-    return vscode.window.visibleTextEditors.find(e =>
-        store.has(e.document.uri.toString())
-    );
-}
-
-async function applyFix(diagnosticId: string, suggestion: string) {
-    const editor = findEditorWithDiagnostics();
-    if (!editor) return;
-
-    const uri = editor.document.uri;
-    const uriStr = uri.toString();
-    const diagnostics = store.get(uriStr);
-    if (!diagnostics) return;
-
-    const index = parseDiagId(diagnosticId);
-    const diagnostic = diagnostics[index];
-    if (!diagnostic) return;
-
-    const t0 = performance.now();
-    const origText = editor.document.getText(diagnostic.range);
-    log.debug('applyFix', { diagnosticId, suggestion, original: origText });
-    inspectorLog.push('info', 'applyFix', `"${origText}" → "${suggestion}"`);
-    sendSpeedFixLoading(true);
-
-    try {
-        // Apply the fix directly — we are our own code action provider.
-        // Handle "Insert" suggestions: `Insert ","` means insert the quoted text
-        // at the diagnostic position, not replace the diagnostic range with the
-        // literal string `Insert ","`.
-        const edit = new vscode.WorkspaceEdit();
-        addSuggestionEdit(edit, uri, diagnostic.range, suggestion);
-        await vscode.workspace.applyEdit(edit);
-
-        // Optimistic removal: remove the fixed diagnostic immediately
-        const remaining = diagnostics.filter((_, i) => i !== index);
-        store.write(uriStr, uri, remaining);
-        store.notify();
-
-        // Background re-check for full consistency
-        inspectorLog.push('debug', 'applyFix', 'Re-checking after fix', { durationMs: performance.now() - t0 });
-        checker.check(editor.document);
-    } finally {
-        sendSpeedFixLoading(false);
-        // Refocus the SpeedFix panel so the user can continue through issues
-        speedFixPanel?.reveal(vscode.ViewColumn.Beside, false);
-    }
-}
-
-async function ignoreDiagnostic(diagnosticId: string) {
-    const editor = findEditorWithDiagnostics();
-    if (!editor || !core.client) return;
-
-    const uri = editor.document.uri.toString();
-    const diagnostics = store.get(uri);
-    if (!diagnostics) return;
-
-    const index = parseDiagId(diagnosticId);
-    const diagnostic = diagnostics[index];
-    if (diagnostic) {
-        sendSpeedFixLoading(true);
-        const t0 = performance.now();
-        const ignoredText = editor.document.getText(diagnostic.range);
-        inspectorLog.push('info', 'ignoreDiagnostic', `Ignoring "${ignoredText}" (${diagnostic.message})`);
-        // Send ignore request to core with full document text + original byte
-        // offsets so the fingerprint matches the one created during checkProse.
-        await core.client.sendRequest(ignoreRequest(diagnostic, editor.document, editor.document.getText()));
-
-        // Optimistic removal: remove the ignored diagnostic immediately
-        const remaining = diagnostics.filter((_, i) => i !== index);
-        store.write(uri, editor.document.uri, remaining);
-        store.notify();
-        sendSpeedFixLoading(false);
-        inspectorLog.push('info', 'ignoreDiagnostic', 'Ignore confirmed, re-checking', { durationMs: performance.now() - t0 });
-
-        // Background re-check for full consistency
-        checker.check(editor.document);
-    }
-}
-
-/** Build the SpeedFix webview payload for one diagnostic, precomputing the
- *  display labels so all formatting lives in `inlayLabels`. */
-function toSpeedFixDiagnostic(
-    d: ExtendedDiagnostic,
-    index: number,
-    document: vscode.TextDocument,
-    fileName: string,
-): SpeedFixDiagnostic {
-    const text = document.getText(d.range);
-    const suggestions = d.suggestions || [];
-    return {
-        id: diagId(index),
-        message: d.message,
-        suggestions,
-        suggestionLabels: suggestions.map(s => speedFixSuggestionLabel(text, s)),
-        text,
-        displayText: displayOriginalText(text),
-        context: document.lineAt(d.range.start.line).text.trim(),
-        ruleId: ruleIdOf(d, 'unknown'),
-        fileName,
-        lineNumber: d.range.start.line + 1,
-    };
-}
 
 
-function updateSpeedFixDiagnostics() {
-    if (!speedFixPanel) return;
-    const editor = findEditorWithDiagnostics() ?? vscode.window.activeTextEditor;
 
-    if (editor) {
-        const diagnostics = store.get(editor.document.uri.toString());
-        if (diagnostics && diagnostics.length > 0) {
-            speedFixTargetUri = editor.document.uri.toString();
-            const fileName = path.basename(editor.document.uri.fsPath);
-            const payload: SpeedFixDiagnostic[] = diagnostics.map((d, i) =>
-                toSpeedFixDiagnostic(d, i, editor.document, fileName));
-            speedFixPanel.webview.postMessage({ type: 'setDiagnostics', payload });
-            sendWorkspaceProgress();
-            return;
-        }
-    }
 
-    // Current file has no diagnostics — try workspace advance
-    if (speedFixScope === 'workspace') {
-        const currentUri = editor?.document.uri.toString();
-        advanceToNextFileWithDiagnostics(currentUri);
-        return;
-    }
 
-    speedFixPanel.webview.postMessage({ type: 'setDiagnostics', payload: [] });
-    sendWorkspaceProgress();
-}
 
-/** In workspace mode, find and open the next file that has diagnostics. */
-async function advanceToNextFileWithDiagnostics(currentUri?: string): Promise<void> {
-    for (const [uriStr, diags] of store) {
-        if (uriStr === currentUri || diags.length === 0) continue;
 
-        const uri = vscode.Uri.parse(uriStr);
-        const doc = await vscode.workspace.openTextDocument(uri);
-        await vscode.window.showTextDocument(doc, vscode.ViewColumn.One, false);
-        speedFixTargetUri = uriStr;
-
-        const fileName = path.basename(doc.uri.fsPath);
-        const payload: SpeedFixDiagnostic[] = diags.map((d, i) =>
-            toSpeedFixDiagnostic(d, i, doc, fileName));
-        speedFixPanel?.webview.postMessage({ type: 'setDiagnostics', payload });
-        sendWorkspaceProgress();
-        speedFixPanel?.reveal(vscode.ViewColumn.Beside, false);
-        return;
-    }
-
-    // No more files with diagnostics — all done across workspace
-    speedFixPanel?.webview.postMessage({ type: 'setDiagnostics', payload: [] });
-    sendWorkspaceProgress();
-}
-
-function sendWorkspaceProgress() {
-    if (!speedFixPanel || speedFixScope !== 'workspace') return;
-    let filesWithIssues = 0;
-    for (const [, diags] of store) {
-        if (diags.length > 0) filesWithIssues++;
-    }
-    speedFixPanel.webview.postMessage({
-        type: 'setWorkspaceProgress',
-        payload: { filesWithIssues },
-    });
-}
 
 export function deactivate() {
     // Clean up debounce timers
