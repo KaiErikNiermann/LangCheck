@@ -207,6 +207,29 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 120_000 },
     },
     {
+        // Characterization suites: what the extension does today on the paths
+        // nothing else reached, pinned before extension.ts was split.
+        label: 'characterize-fixes',
+        files: 'out/test/e2e/characterizeFixes.test.js',
+        workspaceFolder: './src/test/fixtures/characterizeFixes',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 120_000 },
+    },
+    {
+        label: 'characterize-latex',
+        files: 'out/test/e2e/characterizeLatex.test.js',
+        workspaceFolder: './src/test/fixtures/characterizeLatex',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 120_000 },
+    },
+    {
+        label: 'characterize-settings',
+        files: 'out/test/e2e/characterizeSettings.test.js',
+        workspaceFolder: './src/test/fixtures/characterizeSettings',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 120_000 },
+    },
+    {
         label: 'decline-phase1',
         files: 'out/test/e2e/declinePhase1.test.js',
         workspaceFolder: './src/test/fixtures/packs',

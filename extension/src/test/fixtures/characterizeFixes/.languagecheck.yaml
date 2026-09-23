@@ -1,0 +1,4 @@
+# One in-process engine, so every finding and suggestion comes from Harper and
+# the characterization tests pin the extension's handling of it, not a server.
+engines:
+  harper: true

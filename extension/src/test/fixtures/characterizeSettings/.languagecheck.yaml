@@ -1,0 +1,3 @@
+# The settings commands rewrite this file; the suite restores it afterwards.
+engines:
+  harper: true

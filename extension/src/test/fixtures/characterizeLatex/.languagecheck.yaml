@@ -1,0 +1,4 @@
+# Harper only. The LaTeX skip commands append to this file, so the suites
+# restore it afterwards; it is the starting state they compare against.
+engines:
+  harper: true
