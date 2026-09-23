@@ -329,3 +329,27 @@ rules:
           fn bench_harper(...) { ... }
       - pattern-not-inside: |
           fn bench_morphology(...) { ... }
+
+  - id: config-text-edits-through-config-edits
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      Edit `.languagecheck.yaml` text through `config/edits.ts` (`addLatexListEntry`,
+      `setSpellLanguage`, `spellLanguageOf`, `engineEnabled`, `setEngineEnabled`,
+      `deactivateRule`). Each of those is a string transform that only understands the layouts it
+      matches, and a second private copy is where two commands start writing the same key
+      differently. extension.ts carried these inline, some twice: run against 8b9a812, the
+      revision before they were extracted, this rule reports 31 findings across eleven sites, which is the
+      answer it must keep finding if the shape comes back.
+    paths:
+      include:
+        - "**/extension/src/"
+      exclude:
+        - "**/extension/src/config/edits.ts"
+        - "**/extension/src/configParsing.ts"
+        - "**/extension/src/config/parsing.ts"
+        - "**/extension/src/test/"
+    pattern-either:
+      - pattern-regex: '(?:/\^?|RegExp\(`[^`]*?)(?:spell_language|skip_environments|prose_environments|skip_commands|engines|latex|languages|rules):'
+      - pattern-regex: 'enabled:\\+s\*\(true\|false\)'
+      - pattern-regex: "includes\\('(?:spell_language|engines):'\\)"

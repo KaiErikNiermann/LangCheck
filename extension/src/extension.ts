@@ -33,6 +33,14 @@ import { Logger } from './logger';
 import { ConfigStatusView } from './configGutter';
 import { classifyConfigChange, silencedBy } from './configRules';
 import { engines as enginesBehind, spanned } from './ignoreSpan';
+import {
+    addLatexListEntry,
+    deactivateRule,
+    engineEnabled,
+    setEngineEnabled,
+    setSpellLanguage,
+    spellLanguageOf,
+} from './config/edits';
 
 const GITHUB_REPO = 'KaiErikNiermann/LangCheck';
 
@@ -1565,22 +1573,10 @@ export async function activate(context: vscode.ExtensionContext) {
                 content = '';
             }
 
-            // Only write the entry if this rule isn't already deactivated —
-            // otherwise repeated "Deactivate rule" clicks pile up duplicate
-            // keys (serde_yaml silently keeps just the last, so they're dead
-            // weight). Matches an existing `  <ruleId>:` line at any indent.
-            const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const alreadyDeactivated = new RegExp(`^\\s*${escapeRe(ruleId)}:\\s*$`, 'm').test(content);
-
+            const edit = deactivateRule(content, ruleId);
+            const alreadyDeactivated = edit.alreadyDeactivated;
             if (!alreadyDeactivated) {
-                // Build the YAML entry: rules:\n  <ruleId>:\n    severity: "off"
-                const ruleEntry = `  ${ruleId}:\n    severity: "off"`;
-                if (/^rules:/m.test(content)) {
-                    content = content.replace(/^rules:/m, `rules:\n${ruleEntry}`);
-                } else {
-                    content = `${content}\nrules:\n${ruleEntry}\n`;
-                }
-                await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
+                await vscode.workspace.fs.writeFile(targetUri, Buffer.from(edit.content, 'utf8'));
             }
 
             // Suppress this rule in any in-flight check results
@@ -1682,13 +1678,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 content = '';
             }
 
-            if (content.includes('spell_language:')) {
-                content = content.replace(/spell_language:\s*\S+/, `spell_language: ${selected.label}`);
-            } else if (content.includes('engines:')) {
-                content = content.replace(/engines:/, `engines:\n  spell_language: ${selected.label}`);
-            } else {
-                content = `engines:\n  spell_language: ${selected.label}\n${content}`;
-            }
+            content = setSpellLanguage(content, selected.label);
 
             await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
             languageStatusBarItem.text = `$(book) ${selected.label}`;
@@ -1730,8 +1720,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
 
         // Determine current language to show language-support hints
-        const langMatch = content.match(/spell_language:\s*(\S+)/);
-        const spellLang = langMatch?.[1] ?? 'en-US';
+        const spellLang = spellLanguageOf(content);
         const isEnglish = spellLang.startsWith('en');
 
         // Engine definitions: key, label, description, language constraint
@@ -1746,14 +1735,8 @@ export async function activate(context: vscode.ExtensionContext) {
         // Supports both bool shorthand (`harper: true`) and nested (`harper:\n  enabled: true`)
         const items: (vscode.QuickPickItem & { engineKey: string })[] = engines
             .map(e => {
-                const boolRe = new RegExp(`^\\s*${e.key}:\\s*(true|false)\\s*$`, 'm');
-                const nestedRe = new RegExp(`^\\s*${e.key}:\\s*\\n\\s+enabled:\\s*(true|false)`, 'm');
-                const boolMatch = content.match(boolRe);
-                const nestedMatch = content.match(nestedRe);
                 // harper defaults to true, others to false
-                const isOn = nestedMatch ? nestedMatch[1] === 'true'
-                    : boolMatch ? boolMatch[1] === 'true'
-                    : e.key === 'harper';
+                const isOn = engineEnabled(content, e.key, e.key === 'harper');
                 const langNote = e.englishOnly && !isEnglish
                     ? ` $(warning) ${vscode.l10n.t('English only')}`
                     : '';
@@ -1775,20 +1758,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         try {
             for (const e of engines) {
-                const desired = enabledKeys.has(e.key);
-                // Match nested format first: `harper:\n  enabled: true`
-                const nestedRe = new RegExp(`(^\\s*${e.key}:\\s*\\n\\s+enabled:\\s*)(true|false)`, 'm');
-                // Then bool shorthand: `harper: true`
-                const boolRe = new RegExp(`(^\\s*${e.key}:\\s*)(true|false)(\\s*$)`, 'm');
-                if (nestedRe.test(content)) {
-                    content = content.replace(nestedRe, `$1${desired}`);
-                } else if (boolRe.test(content)) {
-                    content = content.replace(boolRe, `$1${desired}$3`);
-                } else if (content.includes('engines:')) {
-                    content = content.replace(/engines:/, `engines:\n  ${e.key}: ${desired}`);
-                } else {
-                    content = `engines:\n  ${e.key}: ${desired}\n${content}`;
-                }
+                content = setEngineEnabled(content, e.key, enabledKeys.has(e.key));
             }
 
             await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
@@ -1830,15 +1800,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 content = '';
             }
 
-            if (content.match(/skip_environments:/)) {
-                content = content.replace(/skip_environments:/, `skip_environments:\n      - ${envName}`);
-            } else if (content.match(/latex:/)) {
-                content = content.replace(/latex:/, `latex:\n    skip_environments:\n      - ${envName}`);
-            } else if (content.match(/languages:/)) {
-                content = content.replace(/languages:/, `languages:\n  latex:\n    skip_environments:\n      - ${envName}`);
-            } else {
-                content = `languages:\n  latex:\n    skip_environments:\n      - ${envName}\n${content}`;
-            }
+            content = addLatexListEntry(content, 'skip_environments', envName);
 
             await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
             vscode.window.showInformationMessage(
@@ -1879,15 +1841,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 content = '';
             }
 
-            if (content.match(/prose_environments:/)) {
-                content = content.replace(/prose_environments:/, `prose_environments:\n      - ${envName}`);
-            } else if (content.match(/latex:/)) {
-                content = content.replace(/latex:/, `latex:\n    prose_environments:\n      - ${envName}`);
-            } else if (content.match(/languages:/)) {
-                content = content.replace(/languages:/, `languages:\n  latex:\n    prose_environments:\n      - ${envName}`);
-            } else {
-                content = `languages:\n  latex:\n    prose_environments:\n      - ${envName}\n${content}`;
-            }
+            content = addLatexListEntry(content, 'prose_environments', envName);
 
             await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
             vscode.window.showInformationMessage(
@@ -1928,15 +1882,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 content = '';
             }
 
-            if (content.match(/skip_commands:/)) {
-                content = content.replace(/skip_commands:/, `skip_commands:\n      - ${cmdName}`);
-            } else if (content.match(/latex:/)) {
-                content = content.replace(/latex:/, `latex:\n    skip_commands:\n      - ${cmdName}`);
-            } else if (content.match(/languages:/)) {
-                content = content.replace(/languages:/, `languages:\n  latex:\n    skip_commands:\n      - ${cmdName}`);
-            } else {
-                content = `languages:\n  latex:\n    skip_commands:\n      - ${cmdName}\n${content}`;
-            }
+            content = addLatexListEntry(content, 'skip_commands', cmdName);
 
             await vscode.workspace.fs.writeFile(targetUri, Buffer.from(content, 'utf8'));
             vscode.window.showInformationMessage(
@@ -2299,8 +2245,7 @@ export async function activate(context: vscode.ExtensionContext) {
             try {
                 const raw = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
 
-                const langMatch = raw.match(/spell_language:\s*(\S+)/);
-                const currentLang = langMatch?.[1] ?? 'en-US';
+                const currentLang = spellLanguageOf(raw);
                 languageStatusBarItem.text = `$(book) ${currentLang}`;
                 lastKnownSpellLanguage = currentLang;
 
@@ -2516,8 +2461,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 const uri = vscode.Uri.joinPath(folder.uri, name);
                 try {
                     const raw = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
-                    const langMatch = raw.match(/spell_language:\s*(\S+)/);
-                    lastKnownSpellLanguage = langMatch?.[1] ?? 'en-US';
+                    lastKnownSpellLanguage = spellLanguageOf(raw);
                     lastKnownConfigText = raw;
                     languageStatusBarItem.text = `$(book) ${lastKnownSpellLanguage}`;
                     userSkipEnvs = parseSkipEnvironments(raw);
@@ -2808,16 +2752,7 @@ async function detectEngineInfo(): Promise<void> {
         }
     }
 
-    /** Check if an engine is enabled in the config (bool shorthand or nested). */
-    function isEnabled(key: string, defaultVal: boolean): boolean {
-        const nestedRe = new RegExp(`^\\s*${key}:\\s*\\n\\s+enabled:\\s*(true|false)`, 'm');
-        const boolRe = new RegExp(`^\\s*${key}:\\s*(true|false)\\s*$`, 'm');
-        const nested = configContent.match(nestedRe);
-        if (nested) return nested[1] === 'true';
-        const bool = configContent.match(boolRe);
-        if (bool) return bool[1] === 'true';
-        return defaultVal;
-    }
+    const isEnabled = (key: string, defaultVal: boolean) => engineEnabled(configContent, key, defaultVal);
 
     /** Check if a binary exists in PATH. */
     function binaryInPath(name: string): boolean {
