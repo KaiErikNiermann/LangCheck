@@ -147,7 +147,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Expose public API for other extensions
     return createAPI(
-        core.client!,
+        () => core.client,
         uri => apiCheckDocument(core, uri),
         context.extension.packageJSON.version ?? '0.0.0',
     );

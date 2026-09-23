@@ -273,6 +273,17 @@ suite('characterization: diagnostic actions', () => {
         assert.deepStrictEqual(spans(document), ['recieve'], 'the panels changed what is on screen');
     });
 
+    test('the public API reports the core running after a restart', async function () {
+        // The API used to hold the client that existed at activation. A
+        // restart replaces that client, so isRunning went on asking the
+        // stopped one and answered false while the core was fine.
+        this.timeout(BUDGET_MS + 30_000);
+        const api = vscode.extensions.getExtension(EXTENSION_ID)!.exports as { isRunning: boolean };
+        await eventually('the core to be running', () => (api.isRunning ? true : undefined), BUDGET_MS);
+        await vscode.commands.executeCommand('language-check.restartLanguageServer');
+        await eventually('the API to see the restarted core', () => (api.isRunning ? true : undefined), BUDGET_MS);
+    });
+
     test('restarting the core leaves it able to check', async function () {
         this.timeout(BUDGET_MS + 30_000);
         await checked('actions.md', ['recieve']);

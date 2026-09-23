@@ -64,9 +64,12 @@ export interface ExternalProviderRegistration {
 
 /**
  * Creates the public API object backed by the client and extension state.
+ *
+ * `currentClient` is asked on every use: a restart replaces the client, and
+ * activation may finish with none at all (no local build, a failed download).
  */
 export function createAPI(
-    client: LanguageClient,
+    currentClient: () => LanguageClient | null,
     checkDocumentFn: (uri: vscode.Uri) => Promise<LanguageCheckDiagnostic[]>,
     version: string,
 ): LanguageCheckAPI {
@@ -101,7 +104,7 @@ export function createAPI(
         },
 
         get isRunning(): boolean {
-            return client.isRunning;
+            return currentClient()?.isRunning ?? false;
         },
 
         version,
