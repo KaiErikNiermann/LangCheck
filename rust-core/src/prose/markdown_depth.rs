@@ -30,9 +30,12 @@ pub fn defang(text: &str) -> Cow<'_, str> {
     let mut out: Option<Vec<u8>> = None;
     let mut line_start = 0;
     while line_start < bytes.len() {
+        // CommonMark ends a line at LF, CR or CRLF. Splitting at LF alone
+        // left a CR-separated line looking like one that starts with a CR,
+        // whose markers were then never counted.
         let line_end = bytes[line_start..]
             .iter()
-            .position(|&b| b == b'\n')
+            .position(|&b| b == b'\n' || b == b'\r')
             .map_or(bytes.len(), |at| line_start + at);
         for marker in excess_markers(&bytes[line_start..line_end]) {
             let buffer = out.get_or_insert_with(|| bytes.to_vec());
@@ -146,6 +149,25 @@ mod tests {
             let has_marker = line.trim_start().starts_with("- ");
             assert_eq!(has_marker, depth < MAX_DEPTH, "line {depth}: {line:?}");
         }
+    }
+
+    #[test]
+    fn every_commonmark_line_ending_starts_a_line() {
+        // Found by the malformed-input fuzz: a CR, then 255 list markers.
+        // The bound counts the space after each marker as indentation too,
+        // so fewer than MAX_DEPTH survive; what matters is that the count is
+        // bounded, and the same whichever ending came before the line.
+        let kept: Vec<usize> = ["\r", "\r\n", "\n"]
+            .iter()
+            .map(|ending| {
+                let text = format!("prose{ending}{}text", "- ".repeat(300));
+                let defanged = defang(&text);
+                assert_eq!(defanged.len(), text.len());
+                defanged.matches("- ").count()
+            })
+            .collect();
+        assert!(kept[0] <= MAX_DEPTH, "{kept:?}");
+        assert!(kept.iter().all(|&k| k == kept[0]), "{kept:?}");
     }
 
     #[test]
