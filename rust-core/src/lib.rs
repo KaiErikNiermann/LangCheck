@@ -32,6 +32,7 @@ pub mod packs;
 pub mod prose;
 pub mod rules;
 pub mod scoping;
+pub mod selection;
 pub mod sls;
 pub mod style_rules;
 pub mod suppression;

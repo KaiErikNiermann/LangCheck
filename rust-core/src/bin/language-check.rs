@@ -10,13 +10,13 @@ use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use config::Config;
 use console::style;
-use glob::glob;
 use indicatif::{ProgressBar, ProgressStyle};
 use lang_check::dictionary::Dictionary;
 use lang_check::morphology::AffixAnalyzer;
 use lang_check::names::NameFilter;
 use lang_check::orchestrator::CheckContext;
 use lang_check::packs::{self, PackRegistry, catalogue};
+use lang_check::selection::select_files;
 use lang_check::sls::SchemaRegistry;
 use lang_check::suppression::{InlineDirectives, SuppressionContext, retain_visible};
 use lang_check::text_util::snap_range;
@@ -904,63 +904,6 @@ fn handle_config(action: ConfigAction) -> Result<()> {
     Ok(())
 }
 
-/// Show which files the config selects, and which pattern rejected the rest.
-///
-/// `include` and `exclude` decide what this project checks, and until you can
-/// see the answer the only way to find out is to run a check and count. A
-/// pattern that silently matches nothing, or one that swallows a directory
-/// nobody meant to drop, both look exactly like a checker that is working.
-/// What a config selects, and what it turned away.
-struct Selection {
-    selected: Vec<PathBuf>,
-    /// Each rejected path with the list that rejected it.
-    rejected: Vec<(PathBuf, &'static str)>,
-}
-
-/// Walk the same patterns the indexer walks and sort the results by verdict.
-///
-/// The grammars decide which extensions are candidates, so this answers for
-/// what the editor and CI will visit and not for every file on disk.
-fn select_files(
-    config: &Config,
-    root: &Path,
-    search_from: &Path,
-    with_rejected: bool,
-) -> Selection {
-    let mut patterns = lang_check::languages::all_file_patterns(config);
-    patterns.sort();
-    patterns.dedup();
-
-    let mut selection = Selection {
-        selected: Vec::new(),
-        rejected: Vec::new(),
-    };
-    for (suffix, _lang) in &patterns {
-        let Ok(entries) = glob(&format!("{}/{}", search_from.to_string_lossy(), suffix)) else {
-            continue;
-        };
-        for found in entries.flatten() {
-            if config.checks(&found, root) {
-                selection.selected.push(found);
-            } else if with_rejected {
-                let list = if !config.admits_type(&found) {
-                    "file_types"
-                } else if config.includes(&found, root) {
-                    "exclude"
-                } else {
-                    "include"
-                };
-                selection.rejected.push((found, list));
-            }
-        }
-    }
-    selection.selected.sort();
-    selection.selected.dedup();
-    selection.rejected.sort();
-    selection.rejected.dedup();
-    selection
-}
-
 /// Show which files the config selects, and which list rejected the rest.
 ///
 /// `include` and `exclude` decide what this project checks, and until you can
@@ -1019,12 +962,12 @@ fn list_selected_files(target: &Path, show_skipped: bool, bare: bool) -> Result<
     for file in &selection.selected {
         println!("  {} {}", style("+").green(), relative(file));
     }
-    for (file, list) in &selection.rejected {
+    for (file, by) in &selection.rejected {
         println!(
             "  {} {} {}",
             style("-").red(),
             relative(file),
-            style(format!("({list})")).dim()
+            style(format!("({})", by.key())).dim()
         );
     }
     println!(

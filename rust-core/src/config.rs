@@ -2,7 +2,7 @@ use anyhow::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tracing::warn;
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
@@ -997,39 +997,41 @@ impl Config {
         schema.to_value()
     }
 
-    pub fn load(workspace_root: &Path) -> Result<Self> {
-        // Prefer YAML, fall back to JSON for backward compatibility
-        let yaml_path = workspace_root.join(".languagecheck.yaml");
-        let yml_path = workspace_root.join(".languagecheck.yml");
-        let json_path = workspace_root.join(".languagecheck.json");
+    /// The names a workspace config may have, in the order they are tried.
+    ///
+    /// The first one present is the config, whole: a `.yml` beside a `.yaml`
+    /// is never read, let alone merged.
+    pub const FILE_NAMES: [&'static str; 3] = [
+        ".languagecheck.yaml",
+        ".languagecheck.yml",
+        ".languagecheck.json",
+    ];
 
-        if yaml_path.exists() {
-            let content = std::fs::read_to_string(yaml_path)?;
-            warn_duplicate_rule_keys(&content);
-            let mut config: Self = serde_yaml::from_str(&content)?;
-            warn_unknown_keys(&serde_yaml::from_str(&content)?);
-            config.merge_default_excludes();
-            config.resolve_paths(workspace_root);
-            Ok(config)
-        } else if yml_path.exists() {
-            let content = std::fs::read_to_string(yml_path)?;
-            warn_duplicate_rule_keys(&content);
-            let mut config: Self = serde_yaml::from_str(&content)?;
-            warn_unknown_keys(&serde_yaml::from_str(&content)?);
-            config.merge_default_excludes();
-            config.resolve_paths(workspace_root);
-            Ok(config)
-        } else if json_path.exists() {
-            let content = std::fs::read_to_string(json_path)?;
-            let mut config: Self = serde_json::from_str(&content)?;
-            // YAML 1.2 is a superset of JSON, so one key scanner covers both formats.
-            warn_unknown_keys(&serde_yaml::from_str(&content)?);
-            config.merge_default_excludes();
-            config.resolve_paths(workspace_root);
-            Ok(config)
+    /// The config file in force for `workspace_root`, if there is one.
+    #[must_use]
+    pub fn file_in(workspace_root: &Path) -> Option<PathBuf> {
+        Self::FILE_NAMES
+            .iter()
+            .map(|name| workspace_root.join(name))
+            .find(|path| path.exists())
+    }
+
+    pub fn load(workspace_root: &Path) -> Result<Self> {
+        let Some(path) = Self::file_in(workspace_root) else {
+            return Ok(Self::default());
+        };
+        let content = std::fs::read_to_string(&path)?;
+        let mut config: Self = if path.extension().is_some_and(|ext| ext == "json") {
+            serde_json::from_str(&content)?
         } else {
-            Ok(Self::default())
-        }
+            warn_duplicate_rule_keys(&content);
+            serde_yaml::from_str(&content)?
+        };
+        // YAML 1.2 is a superset of JSON, so one key scanner covers both formats.
+        warn_unknown_keys(&serde_yaml::from_str(&content)?);
+        config.merge_default_excludes();
+        config.resolve_paths(workspace_root);
+        Ok(config)
     }
 
     /// Apply user-defined auto-fix rules to the given text, returning the modified text
