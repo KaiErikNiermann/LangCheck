@@ -36,6 +36,25 @@ function spans(document: vscode.TextDocument): string[] {
     return ourDiagnostics(document.uri).map(d => document.getText(d.range));
 }
 
+/**
+ * Every code action offered over `range`, asking again if VS Code cancels.
+ *
+ * A request is cancelled when the document's diagnostics change while it is
+ * in flight, which a re-check landing at the same moment does. That says
+ * nothing about the actions, so it is retried, not failed on.
+ */
+async function codeActions(uri: vscode.Uri, range: vscode.Range): Promise<vscode.CodeAction[]> {
+    return eventually('code actions that were not cancelled', async () => {
+        try {
+            return await vscode.commands.executeCommand<vscode.CodeAction[]>(
+                'vscode.executeCodeActionProvider', uri, range) ?? [];
+        } catch (err) {
+            if (err instanceof Error && err.message === 'Canceled') return undefined;
+            throw err;
+        }
+    }, BUDGET_MS);
+}
+
 async function checked(name: string, expected: string[]): Promise<vscode.TextDocument> {
     const document = await openInEditor(fixture(name));
     try {
@@ -86,11 +105,7 @@ suite('characterization: diagnostic actions', () => {
         this.timeout(BUDGET_MS + 15_000);
         const document = await checked('actions.md', ['recieve']);
         const [diagnostic] = ourDiagnostics(document.uri);
-        const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
-            'vscode.executeCodeActionProvider',
-            document.uri,
-            diagnostic!.range,
-        );
+        const actions = await codeActions(document.uri, diagnostic!.range);
         // Only ours: VS Code's own providers (Markdown snippets, chat) answer
         // the same request, and their list is not this extension's behaviour.
         // `executeCodeActionProvider` drops the diagnostics an action carries,
@@ -177,8 +192,7 @@ suite('characterization: diagnostic actions', () => {
         // rule, so the fix-all leaves it alone.
         const document = await checked('fixall.md', ['# Fix all', 'recieve', 'recieve']);
         const first = ourDiagnostics(document.uri)[1]!;
-        const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
-            'vscode.executeCodeActionProvider', document.uri, first.range);
+        const actions = await codeActions(document.uri, first.range);
         const fixAll = (actions ?? [])
             .filter(a => a.command?.command.startsWith('language-check.fixAll'))
             .map(a => ({ title: a.title, command: a.command!.command, args: a.command!.arguments }));
