@@ -104,21 +104,31 @@ suite('characterization: diagnostic actions', () => {
     test('the quick fixes offered for a misspelling, in order', async function () {
         this.timeout(BUDGET_MS + 15_000);
         const document = await checked('actions.md', ['recieve']);
-        const [diagnostic] = ourDiagnostics(document.uri);
-        const actions = await codeActions(document.uri, diagnostic!.range);
         // Only ours: VS Code's own providers (Markdown snippets, chat) answer
         // the same request, and their list is not this extension's behaviour.
         // `executeCodeActionProvider` drops the diagnostics an action carries,
         // so ours are told apart by what they do: an edit titled "Fix", or one
         // of this extension's commands.
-        const ours = (actions ?? [])
-            .filter(a => a.title.startsWith('Fix: ') || a.command?.command.startsWith('language-check.'))
-            .map(a => ({
-                title: a.title,
-                command: a.command?.command ?? null,
-                args: a.command?.arguments ?? null,
-                preferred: a.isPreferred ?? false,
-            }));
+        const ourActions = async () => {
+            const [diagnostic] = ourDiagnostics(document.uri);
+            if (!diagnostic) return [];
+            return (await codeActions(document.uri, diagnostic.range))
+                .filter(a => a.title.startsWith('Fix: ') || a.command?.command.startsWith('language-check.'))
+                .map(a => ({
+                    title: a.title,
+                    command: a.command?.command ?? null,
+                    args: a.command?.arguments ?? null,
+                    preferred: a.isPreferred ?? false,
+                }));
+        };
+        // A document just opened can be checked twice in quick succession
+        // (on open and once the core reports ready). A request answered while
+        // the second result replaces the first sees no diagnostics to act on,
+        // so this waits for an answer that has them before comparing.
+        const ours = await eventually('our quick fixes', async () => {
+            const found = await ourActions();
+            return found.length > 0 ? found : undefined;
+        }, BUDGET_MS);
         assert.deepStrictEqual(ours, EXPECTED_ACTIONS, JSON.stringify(ours, null, 2));
     });
 
