@@ -13,6 +13,8 @@ import type { InspectorLog } from '../ui/inspectorLog';
 import type { StatusBars } from '../ui/statusBars';
 import { resolveBinaryPath } from './binary';
 import { LanguageClient } from './client';
+import { conflictLogLines, identityOf } from './initializeReport';
+import type { languagecheck } from '../proto/checker';
 
 declare const initialized: unique symbol;
 
@@ -43,6 +45,11 @@ export interface CoreHooks {
 export class CoreService {
     private current: LanguageClient | null = null;
     private initialized = false;
+    /**
+     * What Initialize has already warned about this session. A config change
+     * re-initializes, and the same notification on every save would be noise.
+     */
+    private readonly warnedAbout = new Set<string>();
     /**
      * File extensions that only an SLS schema handles, as the core reports them.
      *
@@ -122,7 +129,7 @@ export class CoreService {
             this.log.debug('Sending Initialize request', { workspaceRoot: root, indexOnOpen, dbPath, detectNames, dictionariesBundled, dictionariesDisabled, dictionariesPaths });
             this.inspectorLog.push('info', 'initialize', `Initializing (indexOnOpen=${indexOnOpen}, detectNames=${detectNames})`);
             const t0 = performance.now();
-            await client.sendRequest({
+            const response = await client.sendRequest({
                 initialize: {
                     workspaceRoot: root, indexOnOpen, dbPath, detectNames,
                     dictionariesBundled, dictionariesDisabled, dictionariesPaths
@@ -130,6 +137,7 @@ export class CoreService {
             });
             this.inspectorLog.push('info', 'initialize', 'Server initialized', { durationMs: performance.now() - t0 });
             this.log.debug('Initialize response received');
+            this.reportInitializeAnswer(response);
         }
         // Which extensions the schemas claim, which only the core knows and
         // which a schema edit changes. Read at call time, not above: a restart
@@ -166,6 +174,59 @@ export class CoreService {
     restart(channel?: string): void {
         this.start(channel);
         this.initialize().catch(err => this.reportInitializeFailure('Core initialize failed after a restart', err));
+    }
+
+    /**
+     * Tell the user what the core could not set up.
+     *
+     * The answer used to be read by nobody: an Initialize that failed looked
+     * like one that worked, and a second server on the same workspace ran
+     * without its index while nothing said a second server existed. The log
+     * gets the whole of it, with both servers' process ids and paths; the
+     * notification says what happened and opens the log.
+     */
+    private reportInitializeAnswer(response: languagecheck.IResponse): void {
+        if (response.error) {
+            const message = response.error.message ?? '';
+            this.log.error('Initialize failed', { message });
+            this.inspectorLog.push('error', 'initialize', message);
+            this.notifyOnce(`error:${message}`, vscode.l10n.t('Language Check could not set up its checker: {0}', message));
+            return;
+        }
+        // An older core answers Ok, and has nothing more to say.
+        const answer = response.initialize;
+        if (!answer) return;
+
+        const self = identityOf(answer.thisServer);
+        const other = identityOf(answer.otherServer);
+        if (other) {
+            for (const line of conflictLogLines(other, self)) this.log.warn(line);
+            this.inspectorLog.push('warn', 'initialize', `Another language-check server (pid ${other.pid}) holds this workspace's index`);
+            this.notifyOnce(
+                `server:${other.pid}:${other.executable}`,
+                vscode.l10n.t(
+                    "Another language-check server (process {0}, version {1}) is using this workspace's index: {2}. This window's server (process {3}) runs without it.",
+                    other.pid, other.version || '?', other.executable || '?', self?.pid ?? '?',
+                ),
+            );
+        }
+        for (const warning of answer.warnings ?? []) {
+            this.log.warn(warning);
+            this.inspectorLog.push('warn', 'initialize', warning);
+            // The core's own sentence about the index, when it named the
+            // holder, is what the notification above already says.
+            if (!other) this.notifyOnce(`warning:${warning}`, vscode.l10n.t('Language Check: {0}', warning));
+        }
+    }
+
+    /** A warning with a way to the log, once per session; not awaited, so Initialize never waits on a click. */
+    private notifyOnce(key: string, message: string): void {
+        if (this.warnedAbout.has(key)) return;
+        this.warnedAbout.add(key);
+        const showLog = vscode.l10n.t('Show Log');
+        void Promise.resolve(vscode.window.showWarningMessage(message, showLog)).then(choice => {
+            if (choice === showLog) this.log.show();
+        });
     }
 
     /**

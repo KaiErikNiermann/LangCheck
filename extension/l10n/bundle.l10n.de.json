@@ -97,5 +97,10 @@
   "None of your enabled checkers read {0}. Install the Hunspell dictionary for it?": "Keine Ihrer aktiven Prüfungen liest {0}. Das Hunspell-Wörterbuch dafür installieren?",
   "None of your enabled checkers read {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.": "Keine Ihrer aktiven Prüfungen liest {0}. Hunspell ergänzt die Rechtschreibung, LanguageTool zusätzlich Grammatik und Stil.",
   "Install the Red Hat YAML extension for completion and validation in .languagecheck.yaml?": "Die Red-Hat-YAML-Erweiterung für Vervollständigung und Prüfung in .languagecheck.yaml installieren?",
-  "Not in effect: Language Check reads .languagecheck.yaml at the workspace root. If that is missing it reads .languagecheck.yml, then .languagecheck.json. It never reads a config in a subfolder.": "Nicht wirksam: Language Check liest .languagecheck.yaml im Stammverzeichnis des Arbeitsbereichs. Fehlt sie, liest es .languagecheck.yml, danach .languagecheck.json. Eine Konfiguration in einem Unterordner wird nie gelesen."
+  "Not in effect: Language Check reads .languagecheck.yaml at the workspace root. If that is missing it reads .languagecheck.yml, then .languagecheck.json. It never reads a config in a subfolder.": "Nicht wirksam: Language Check liest .languagecheck.yaml im Stammverzeichnis des Arbeitsbereichs. Fehlt sie, liest es .languagecheck.yml, danach .languagecheck.json. Eine Konfiguration in einem Unterordner wird nie gelesen.",
+  "Language Check could not set up its checker: {0}": "Language Check konnte seinen Prüfer nicht einrichten: {0}",
+  "Another language-check server (process {0}, version {1}) is using this workspace's index: {2}. This window's server (process {3}) runs without it.": "Ein anderer language-check-Server (Prozess {0}, Version {1}) verwendet den Index dieses Arbeitsbereichs: {2}. Der Server dieses Fensters (Prozess {3}) läuft ohne ihn.",
+  "Language Check: {0}": "Language Check: {0}",
+  "Show Log": "Protokoll anzeigen",
+  "Another copy of Language Check is installed ({0}, version {1}, at {2}). Each copy starts its own checker; disable one of them.": "Eine weitere Kopie von Language Check ist installiert ({0}, Version {1}, unter {2}). Jede Kopie startet ihren eigenen Prüfer; deaktivieren Sie eine davon."
 }

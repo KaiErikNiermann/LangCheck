@@ -97,5 +97,10 @@
   "None of your enabled checkers read {0}. Install the Hunspell dictionary for it?": "None of your enabled checkers read {0}. Install the Hunspell dictionary for it?",
   "None of your enabled checkers read {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.": "None of your enabled checkers read {0}. Hunspell adds spelling for it; LanguageTool adds grammar and style as well.",
   "Install the Red Hat YAML extension for completion and validation in .languagecheck.yaml?": "Install the Red Hat YAML extension for completion and validation in .languagecheck.yaml?",
-  "Not in effect: Language Check reads .languagecheck.yaml at the workspace root. If that is missing it reads .languagecheck.yml, then .languagecheck.json. It never reads a config in a subfolder.": "Not in effect: Language Check reads .languagecheck.yaml at the workspace root. If that is missing it reads .languagecheck.yml, then .languagecheck.json. It never reads a config in a subfolder."
+  "Not in effect: Language Check reads .languagecheck.yaml at the workspace root. If that is missing it reads .languagecheck.yml, then .languagecheck.json. It never reads a config in a subfolder.": "Not in effect: Language Check reads .languagecheck.yaml at the workspace root. If that is missing it reads .languagecheck.yml, then .languagecheck.json. It never reads a config in a subfolder.",
+  "Language Check could not set up its checker: {0}": "Language Check could not set up its checker: {0}",
+  "Another language-check server (process {0}, version {1}) is using this workspace's index: {2}. This window's server (process {3}) runs without it.": "Another language-check server (process {0}, version {1}) is using this workspace's index: {2}. This window's server (process {3}) runs without it.",
+  "Language Check: {0}": "Language Check: {0}",
+  "Show Log": "Show Log",
+  "Another copy of Language Check is installed ({0}, version {1}, at {2}). Each copy starts its own checker; disable one of them.": "Another copy of Language Check is installed ({0}, version {1}, at {2}). Each copy starts its own checker; disable one of them."
 }
