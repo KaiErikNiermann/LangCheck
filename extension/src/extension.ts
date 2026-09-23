@@ -1659,12 +1659,13 @@ export async function activate(context: vscode.ExtensionContext) {
                 // Then the findings on screen are already the right ones minus
                 // a filter, and re-checking would blank the file and fill it
                 // back in to reach the answer it is holding.
-                const previous = configState.text;
-                const change = typeof previous === 'string'
-                    ? classifyConfigChange(previous, raw)
+                const previous = configState.seen;
+                const change = previous.state === 'present'
+                    ? classifyConfigChange(previous.text, raw)
                     : { kind: 'none' as const, newlyOff: new Set<string>() };
-                const changed = previous !== undefined && raw !== previous;
-                configState.text = raw;
+                const changed = previous.state === 'absent'
+                    || (previous.state === 'present' && raw !== previous.text);
+                configState.seen = { state: 'present', text: raw };
 
                 configState.apply(raw);
                 inlayHintEmitter.fire();
@@ -1690,8 +1691,8 @@ export async function activate(context: vscode.ExtensionContext) {
         // change like any other -- the core falls back to its defaults, and
         // the parsed settings this file fed have to go with it, or an inlay
         // hint keeps skipping a LaTeX environment the config no longer names.
-        const hadOne = configState.text !== undefined && configState.text !== null;
-        configState.text = null;
+        const hadOne = configState.seen.state === 'present';
+        configState.seen = { state: 'absent' };
         statusBars.setLanguage('en-US');
         configState.reset();
         inlayHintEmitter.fire();
@@ -1799,8 +1800,8 @@ export async function activate(context: vscode.ExtensionContext) {
             '.languagecheck/dictionary.txt',
             ...getSetting('dictionaries.paths'),
         ]);
-        if (typeof configState.text === 'string') {
-            for (const configured of parseDictionaryPaths(configState.text)) {
+        if (configState.seen.state === 'present') {
+            for (const configured of parseDictionaryPaths(configState.seen.text)) {
                 paths.add(configured);
             }
         }
@@ -1848,7 +1849,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const found = folder ? await readFirstConfig(folder) : undefined;
         if (found) {
             const raw = found.text;
-            configState.text = raw;
+            configState.seen = { state: 'present', text: raw };
             statusBars.setLanguage(spellLanguageOf(raw));
             configState.apply(raw);
         }

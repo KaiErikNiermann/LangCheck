@@ -14,6 +14,22 @@ import {
     parseSkipEnvironments,
 } from './parsing';
 
+/**
+ * The config file as last seen.
+ *
+ * Three states, and the third is the one that needed spelling out: `present`
+ * holds the file's contents, `absent` is "there is no config file", and
+ * `unread` is "not looked yet". Without `absent`, deleting the config was
+ * indistinguishable from never having read one, so the editor went on checking
+ * under a config that no longer existed. As a tagged union the two cannot be
+ * mixed up, and a caller cannot reach the text without first establishing that
+ * there is one.
+ */
+export type SeenConfig =
+    | { readonly state: 'unread' }
+    | { readonly state: 'absent' }
+    | { readonly state: 'present'; readonly text: string };
+
 export class WorkspaceConfigState {
     /**
      * The config file as last seen, so any edit to it triggers a re-check.
@@ -23,14 +39,8 @@ export class WorkspaceConfigState {
      * engine silently applied to the next document checked and not to the one
      * on screen, and the inspector went on reporting what the previous config
      * produced.
-     *
-     * Three states, and the third is the one that needed spelling out: a
-     * string is the file's contents, `null` is "there is no config file", and
-     * `undefined` is "not looked yet". Without `null`, deleting the config was
-     * indistinguishable from never having read one, so the editor went on
-     * checking under a config that no longer existed.
      */
-    text: string | null | undefined;
+    seen: SeenConfig = { state: 'unread' };
     /** User-configured `skip_environments`. */
     skipEnvironments = new Set<string>();
     /** User-configured `prose_environments`: inlay hints suppressed, checking kept. */
