@@ -824,17 +824,9 @@ impl Config {
     /// was never selected by one.
     #[must_use]
     pub fn admits_type(&self, path: &Path) -> bool {
-        if self.file_types.is_empty() {
-            return true;
-        }
-        let Some(extension) = path.extension().and_then(|e| e.to_str()) else {
-            return true;
-        };
-        self.file_types.iter().any(|wanted| {
-            wanted
-                .trim_start_matches('.')
-                .eq_ignore_ascii_case(extension)
-        })
+        path.extension()
+            .and_then(|e| e.to_str())
+            .is_none_or(|ext| crate::engines::declares_extension(&self.file_types, Some(ext)))
     }
 
     /// Whether this project checks this file at all.

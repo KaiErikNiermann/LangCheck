@@ -237,6 +237,8 @@ rules:
       and a WASM plugin. `ExternalEngine::handles_extension` and `WasmEngine::handles_extension`
       held byte-identical copies; run against the revision before they were converted this rule
       reports 2 findings, which is the answer it must keep finding if the shape comes back.
+      `Config::admits_type` was a third copy it caught later (1 finding at b526abd); it differs
+      only in admitting a path with no extension, which it now says with `is_none_or`.
     pattern: $E.trim_start_matches('.').eq_ignore_ascii_case($EXT)
 
   - id: workspace-blobs-through-cbor-helpers
@@ -254,3 +256,4 @@ rules:
     pattern-either:
       - pattern: ciborium::into_writer(...)
       - pattern: ciborium::from_reader(...)
+

@@ -92,7 +92,7 @@ pub fn engine_supports_language(engine: &(dyn Engine + Send), lang_tag: &str) ->
 /// two callers' shared rule: a provider is skipped only when it has said which
 /// formats it parses and this is not one of them. A leading dot in the config
 /// is accepted, since `extensions: [".md"]` is the obvious way to write it.
-fn declares_extension(declared: &[String], extension: Option<&str>) -> bool {
+pub(crate) fn declares_extension(declared: &[String], extension: Option<&str>) -> bool {
     if declared.is_empty() {
         return true;
     }
