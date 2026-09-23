@@ -51,6 +51,19 @@ import {
     workspaceFolderOrWarn,
     writeConfigText,
 } from './config/file';
+import {
+    addSuggestionEdit,
+    diagId,
+    getDiagnosticWord,
+    ignoreRequest,
+    insertedText,
+    isSpellingOf,
+    isSpellingRule,
+    parseDiagId,
+    ruleIdOf,
+    type ExtendedDiagnostic,
+} from './diagnostics/diagnostic';
+import { findOpenDocument } from './shared/documents';
 
 const GITHUB_REPO = 'KaiErikNiermann/LangCheck';
 
@@ -263,14 +276,6 @@ function pushInspectorEvent(level: InspectorEvent['level'], source: string, mess
     if (extra?.durationMs !== undefined) evt.durationMs = extra.durationMs;
     if (extra?.details !== undefined) evt.details = extra.details;
     inspectorPanel?.webview.postMessage({ type: 'pushEvent', payload: evt });
-}
-
-function isSpellingRule(ruleId: string): boolean {
-    return ruleId.includes('Spell') || ruleId.includes('spell') || ruleId.includes('MORFOLOGIK');
-}
-
-function getDiagnosticWord(document: vscode.TextDocument, diagnostic: vscode.Diagnostic): string {
-    return document.getText(diagnostic.range);
 }
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -688,7 +693,7 @@ export async function activate(context: vscode.ExtensionContext) {
         log.info('Config silenced rules, filtering in place', { rules: [...newlyOff] });
         for (const [uri, diagnostics] of diagnosticsMap) {
             const remaining = diagnostics.filter(
-                d => !silencedBy(newlyOff, typeof d.code === 'string' ? d.code : undefined, d.unifiedId),
+                d => !silencedBy(newlyOff, ruleIdOf(d, undefined), d.unifiedId),
             );
             if (remaining.length === diagnostics.length) continue;
             diagnosticsMap.set(uri, remaining);
@@ -764,7 +769,7 @@ export async function activate(context: vscode.ExtensionContext) {
                                 command: {
                                     command: 'language-check.applyFix',
                                     title: 'Apply Fix',
-                                    arguments: [`diag-${first.idx}`, first.fmt.applyValue]
+                                    arguments: [diagId(first.idx), first.fmt.applyValue]
                                 }
                             }
                         ],
@@ -951,7 +956,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     const singleChoice: vscode.CodeAction[] = [];
                     const replacements: vscode.CodeAction[] = [];
 
-                    const ruleId = (diag.code as string) || '';
+                    const ruleId = ruleIdOf(diag, '');
                     const word = isSpellingRule(ruleId)
                         ? getDiagnosticWord(document, diag)
                         : null;
@@ -998,7 +1003,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     ignoreAction.command = {
                         command: 'language-check.ignoreDiagnostic',
                         title: 'Ignore',
-                        arguments: [`diag-${diagIndex}`]
+                        arguments: [diagId(diagIndex)]
                     };
                     ignoreAction.diagnostics = [diag];
                     singleChoice.push(ignoreAction);
@@ -1021,24 +1026,19 @@ export async function activate(context: vscode.ExtensionContext) {
                     // Add a quickfix for each suggestion
                     if (extDiag.suggestions) {
                         for (const suggestion of extDiag.suggestions) {
-                            const insertMatch = suggestion.match(/^Insert\s+[""\u201C](.+)[""\u201D]$/);
+                            const inserted = insertedText(suggestion);
                             const isRemove = suggestion === '';
                             const label = isRemove
                                 ? 'Fix: Remove text'
-                                : insertMatch && insertMatch[1]
-                                    ? `Fix: Insert "${insertMatch[1]}"`
+                                : inserted !== null
+                                    ? `Fix: Insert "${inserted}"`
                                     : `Fix: "${suggestion}"`;
                             const fix = new vscode.CodeAction(
                                 label,
                                 vscode.CodeActionKind.QuickFix
                             );
                             fix.edit = new vscode.WorkspaceEdit();
-                            if (insertMatch && insertMatch[1]) {
-                                fix.edit.insert(document.uri, diag.range.end, insertMatch[1]);
-                            } else {
-                                // Empty string = delete the range; otherwise replace
-                                fix.edit.replace(document.uri, diag.range, suggestion);
-                            }
+                            addSuggestionEdit(fix.edit, document.uri, diag.range, suggestion);
                             fix.diagnostics = [diag];
                             fix.isPreferred = extDiag.suggestions.indexOf(suggestion) === 0;
                             replacements.push(fix);
@@ -1053,11 +1053,7 @@ export async function activate(context: vscode.ExtensionContext) {
                         const uri = document.uri.toString();
 
                         // Count matching spelling diagnostics in this file
-                        const fileCount = diagnostics.filter(d => {
-                            const dRuleId = (d.code as string) || '';
-                            return isSpellingRule(dRuleId)
-                                && getDiagnosticWord(document, d) === word;
-                        }).length;
+                        const fileCount = diagnostics.filter(d => isSpellingOf(document, d, word)).length;
 
                         if (fileCount >= 2) {
                             const fixFileAction = new vscode.CodeAction(
@@ -1076,17 +1072,9 @@ export async function activate(context: vscode.ExtensionContext) {
                         // Count matching spelling diagnostics across workspace
                         let workspaceCount = 0;
                         for (const [entryUri, entryDiags] of diagnosticsMap) {
-                            const entryDoc = vscode.workspace.textDocuments.find(
-                                doc => doc.uri.toString() === entryUri
-                            );
+                            const entryDoc = findOpenDocument(entryUri);
                             if (!entryDoc) continue;
-                            for (const d of entryDiags) {
-                                const dRuleId = (d.code as string) || '';
-                                if (isSpellingRule(dRuleId)
-                                    && getDiagnosticWord(entryDoc, d) === word) {
-                                    workspaceCount++;
-                                }
-                            }
+                            workspaceCount += entryDiags.filter(d => isSpellingOf(entryDoc, d, word)).length;
                         }
 
                         if (workspaceCount >= 2) {
@@ -1120,7 +1108,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     diagnostics.map(d => ({
                         start: document.offsetAt(d.range.start),
                         end: document.offsetAt(d.range.end),
-                        code: typeof d.code === 'string' ? d.code : undefined,
+                        code: ruleIdOf(d, undefined),
                     })),
                 );
                 if (here.length > 1 && enginesBehind(here.map(d => d.code)).size > 0) {
@@ -1357,15 +1345,7 @@ export async function activate(context: vscode.ExtensionContext) {
             for (const { index } of chosen) {
                 const diagnostic = diagnostics[index];
                 if (!diagnostic) continue;
-                await client.sendRequest({
-                    ignore: {
-                        message: diagnostic.message,
-                        context: document.getText(diagnostic.range),
-                        text,
-                        startByte: diagnostic.coreStartByte ?? 0,
-                        endByte: diagnostic.coreEndByte ?? 0,
-                    },
-                });
+                await client.sendRequest(ignoreRequest(diagnostic, document, text));
             }
 
             const silenced = new Set(chosen.map(c => c.index));
@@ -1386,13 +1366,10 @@ export async function activate(context: vscode.ExtensionContext) {
         const diagnostics = diagnosticsMap.get(uri);
         if (!diagnostics) return;
 
-        const document = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri);
+        const document = findOpenDocument(uri);
         if (!document) return;
 
-        const matching = diagnostics.filter(d => {
-            const dRuleId = (d.code as string) || '';
-            return isSpellingRule(dRuleId) && getDiagnosticWord(document, d) === word;
-        });
+        const matching = diagnostics.filter(d => isSpellingOf(document, d, word));
         if (matching.length === 0) return;
 
         const edit = new vscode.WorkspaceEdit();
@@ -1417,13 +1394,10 @@ export async function activate(context: vscode.ExtensionContext) {
         const affectedUris: string[] = [];
 
         for (const [uri, diagnostics] of diagnosticsMap) {
-            const document = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri);
+            const document = findOpenDocument(uri);
             if (!document) continue;
 
-            const matching = diagnostics.filter(d => {
-                const dRuleId = (d.code as string) || '';
-                return isSpellingRule(dRuleId) && getDiagnosticWord(document, d) === word;
-            });
+            const matching = diagnostics.filter(d => isSpellingOf(document, d, word));
             if (matching.length === 0) continue;
 
             for (const d of matching) {
@@ -1445,7 +1419,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // Re-check all affected files
         for (const uri of affectedUris) {
-            const document = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri);
+            const document = findOpenDocument(uri);
             if (document) {
                 await checkDocument(document);
             }
@@ -1523,7 +1497,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     if (diagnostics) {
                         const remaining = diagnostics.filter(d => {
                             const diagWord = editor.document.getText(d.range);
-                            const isSpelling = typeof d.code === 'string' && isSpellingRule(d.code);
+                            const isSpelling = isSpellingRule(ruleIdOf(d, ''));
                             if (isSpelling && diagWord.toLowerCase() === wordLower) {
                                 removedCount++;
                                 return false;
@@ -1576,8 +1550,7 @@ export async function activate(context: vscode.ExtensionContext) {
             // Immediately remove matching diagnostics from all open documents
             for (const [uri, diagnostics] of diagnosticsMap) {
                 const remaining = diagnostics.filter(d => {
-                    const dRuleId = typeof d.code === 'string' ? d.code : '';
-                    return dRuleId !== ruleId;
+                    return ruleIdOf(d, '') !== ruleId;
                 });
                 if (remaining.length !== diagnostics.length) {
                     diagnosticsMap.set(uri, remaining);
@@ -1854,7 +1827,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     if (!editor) break;
                     const diagnostics = diagnosticsMap.get(editor.document.uri.toString());
                     if (!diagnostics) break;
-                    const idx = parseInt(message.payload.diagnosticId.replace('diag-', ''));
+                    const idx = parseDiagId(message.payload.diagnosticId);
                     const diag = diagnostics[idx];
                     if (diag) {
                         editor.selection = new vscode.Selection(diag.range.start, diag.range.end);
@@ -2220,12 +2193,10 @@ export async function activate(context: vscode.ExtensionContext) {
         if (added.size > 0) {
             log.info('Wordlist gained words, filtering in place', { words: [...added] });
             for (const [uri, diagnostics] of diagnosticsMap) {
-                const document = vscode.workspace.textDocuments.find(
-                    d => d.uri.toString() === uri,
-                );
+                const document = findOpenDocument(uri);
                 if (!document) continue;
                 const remaining = diagnostics.filter(d => {
-                    const ruleId = typeof d.code === 'string' ? d.code : '';
+                    const ruleId = ruleIdOf(d, '');
                     if (!isSpellingRule(ruleId)) return true;
                     return !added.has(document.getText(d.range).toLowerCase());
                 });
@@ -2713,7 +2684,7 @@ async function updateInspectorData() {
         const byRule = new Map<string, number>();
         const bySeverity = new Map<string, number>();
         for (const d of diags) {
-            const rule = (d.code as string) || 'unknown';
+            const rule = ruleIdOf(d, 'unknown');
             byRule.set(rule, (byRule.get(rule) || 0) + 1);
             const sev = d.severity === vscode.DiagnosticSeverity.Error ? 'error' :
                         d.severity === vscode.DiagnosticSeverity.Warning ? 'warning' :
@@ -2778,7 +2749,7 @@ async function applyFix(diagnosticId: string, suggestion: string) {
     const diagnostics = diagnosticsMap.get(uriStr);
     if (!diagnostics) return;
 
-    const index = parseInt(diagnosticId.replace('diag-', ''));
+    const index = parseDiagId(diagnosticId);
     const diagnostic = diagnostics[index];
     if (!diagnostic) return;
 
@@ -2794,13 +2765,7 @@ async function applyFix(diagnosticId: string, suggestion: string) {
         // at the diagnostic position, not replace the diagnostic range with the
         // literal string `Insert ","`.
         const edit = new vscode.WorkspaceEdit();
-        const insertMatch = suggestion.match(/^Insert\s+[""\u201C](.+)[""\u201D]$/);
-        if (insertMatch && insertMatch[1]) {
-            // Insertion: insert the quoted content at the end of the diagnostic range
-            edit.insert(uri, diagnostic.range.end, insertMatch[1]);
-        } else {
-            edit.replace(uri, diagnostic.range, suggestion);
-        }
+        addSuggestionEdit(edit, uri, diagnostic.range, suggestion);
         await vscode.workspace.applyEdit(edit);
 
         // Optimistic removal: remove the fixed diagnostic immediately
@@ -2828,7 +2793,7 @@ async function ignoreDiagnostic(diagnosticId: string) {
     const diagnostics = diagnosticsMap.get(uri);
     if (!diagnostics) return;
 
-    const index = parseInt(diagnosticId.replace('diag-', ''));
+    const index = parseDiagId(diagnosticId);
     const diagnostic = diagnostics[index];
     if (diagnostic) {
         sendSpeedFixLoading(true);
@@ -2837,15 +2802,7 @@ async function ignoreDiagnostic(diagnosticId: string) {
         pushInspectorEvent('info', 'ignoreDiagnostic', `Ignoring "${ignoredText}" (${diagnostic.message})`);
         // Send ignore request to core with full document text + original byte
         // offsets so the fingerprint matches the one created during checkProse.
-        await client.sendRequest({
-            ignore: {
-                message: diagnostic.message,
-                context: editor.document.getText(diagnostic.range),
-                text: editor.document.getText(),
-                startByte: diagnostic.coreStartByte ?? 0,
-                endByte: diagnostic.coreEndByte ?? 0,
-            }
-        });
+        await client.sendRequest(ignoreRequest(diagnostic, editor.document, editor.document.getText()));
 
         // Optimistic removal: remove the ignored diagnostic immediately
         const remaining = diagnostics.filter((_, i) => i !== index);
@@ -2861,32 +2818,6 @@ async function ignoreDiagnostic(diagnosticId: string) {
     }
 }
 
-interface ExtendedDiagnostic extends vscode.Diagnostic {
-    suggestions?: string[];
-    confidence?: number;
-    /** Original byte offsets from the core, needed for fingerprint matching. */
-    coreStartByte?: number;
-    coreEndByte?: number;
-    /**
-     * The natural language this diagnostic is about, set by the core for the
-     * ones that concern a language rather than a word.
-     *
-     * Read from the wire rather than recovered from the message: a tag parsed
-     * out of prose is exactly where a spurious install prompt would come from.
-     */
-    language?: string;
-    /** Whether a dictionary pack for `language` can be fetched. */
-    packInstallable?: boolean;
-    /**
-     * The category the core sorted this into, e.g. `typography.capitalization`.
-     *
-     * Kept because `rules:` may silence a diagnostic by its category instead
-     * of by the native id on `code`, and the editor has to be able to apply
-     * the same filter the core would.
-     */
-    unifiedId?: string;
-}
-
 const diagnosticsMap = new Map<string, ExtendedDiagnostic[]>();
 
 /** Build the SpeedFix webview payload for one diagnostic, precomputing the
@@ -2900,14 +2831,14 @@ function toSpeedFixDiagnostic(
     const text = document.getText(d.range);
     const suggestions = d.suggestions || [];
     return {
-        id: `diag-${index}`,
+        id: diagId(index),
         message: d.message,
         suggestions,
         suggestionLabels: suggestions.map(s => speedFixSuggestionLabel(text, s)),
         text,
         displayText: displayOriginalText(text),
         context: document.lineAt(d.range.start.line).text.trim(),
-        ruleId: (d.code as string) || 'unknown',
+        ruleId: ruleIdOf(d, 'unknown'),
         fileName,
         lineNumber: d.range.start.line + 1,
     };
@@ -3125,7 +3056,7 @@ async function runCheck(
             // Filter out diagnostics for suppressed words / deactivated rules
             if (suppressedWords.size > 0 || suppressedRules.size > 0) {
                 const filtered = extendedDiagnostics.filter(d => {
-                    const ruleId = typeof d.code === 'string' ? d.code : '';
+                    const ruleId = ruleIdOf(d, '');
                     if (suppressedRules.size > 0 && ruleId && suppressedRules.has(ruleId)) return false;
                     if (suppressedWords.size > 0 && isSpellingRule(ruleId)) {
                         const word = document.getText(d.range).toLowerCase();

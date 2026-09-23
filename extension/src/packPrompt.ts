@@ -8,6 +8,8 @@
  * which costs nothing until someone goes looking for it.
  */
 
+import { ruleIdOf } from './diagnostics/diagnostic';
+
 /** The subset of the extension host this module needs, so it can be tested. */
 export interface PromptMemory {
     get<T>(key: string, fallback: T): T;
@@ -85,7 +87,7 @@ export function uncheckedLanguages(
 ): UncheckedLanguage[] {
     const seen = new Map<string, UncheckedLanguage>();
     for (const d of diagnostics) {
-        const rule = typeof d.code === 'string' ? d.code : '';
+        const rule = ruleIdOf(d, '');
         if (rule !== 'languagecheck.no-provider') continue;
         const language = d.language ?? '';
         if (!language) continue;

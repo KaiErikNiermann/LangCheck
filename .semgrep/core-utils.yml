@@ -372,3 +372,44 @@ rules:
         - "**/extension/src/config/file.ts"
         - "**/extension/src/test/"
     pattern-regex: "\\[\\s*'\\.languagecheck\\.yaml',\\s*'\\.languagecheck\\.yml'"
+
+  - id: diagnostic-facts-through-diagnostic-module
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      Read a diagnostic through `diagnostics/diagnostic.ts`: `ruleIdOf(d, fallback)` for its rule
+      id, `diagId`/`parseDiagId` for the `diag-N` id hints and webviews use, `insertedText` and
+      `addSuggestionEdit` for an `Insert "x"` suggestion, `ignoreRequest` for the core's ignore
+      payload. These were spelled out inline — the rule id three different ways, the id format in
+      six places, the Insert regex twice — and a copy that drifts sends the wrong fingerprint or
+      applies the wrong edit. Run against 8b9a812, the revision before they were extracted, this
+      rule reports 24 findings (23 in extension.ts, one in packPrompt.ts), which is the answer it
+      must keep finding if the shape comes back.
+    paths:
+      include:
+        - "**/extension/src/"
+      exclude:
+        - "**/extension/src/diagnostics/diagnostic.ts"
+        - "**/extension/src/test/"
+    pattern-either:
+      - pattern-regex: '\.code as string'
+      - pattern-regex: "typeof \\w+\\.code === 'string'"
+      - pattern-regex: "'diag-'|`diag-\\$\\{"
+      - pattern-regex: 'Insert\\s\+\['
+      - pattern-regex: 'ignore:\s*\{\s*message:'
+
+  - id: open-document-through-find-open-document
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      Look up an open document by URI string with `findOpenDocument` from `shared/documents.ts`.
+      Diagnostics are keyed by URI string, so every feature that acts on one needs this lookup;
+      run against 8b9a812 this rule reports 5 hand-written copies, which is the answer it
+      must keep finding if the shape comes back.
+    paths:
+      include:
+        - "**/extension/src/"
+      exclude:
+        - "**/extension/src/shared/documents.ts"
+        - "**/extension/src/test/"
+    pattern-regex: 'textDocuments\.find\(\s*\w+\s*=>\s*\w+\.uri\.toString\(\)\s*==='

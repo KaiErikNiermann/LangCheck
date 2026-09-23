@@ -134,6 +134,17 @@ export class Range {
     ) {}
 }
 
+/** Records the edits it is given, in order, so a test can read them back. */
+export class WorkspaceEdit {
+    readonly ops: { kind: 'insert' | 'replace'; uri: Uri; at: Range | Position; text: string }[] = [];
+    insert(uri: Uri, position: Position, text: string): void {
+        this.ops.push({ kind: 'insert', uri, at: position, text });
+    }
+    replace(uri: Uri, range: Range, text: string): void {
+        this.ops.push({ kind: 'replace', uri, at: range, text });
+    }
+}
+
 export class RelativePattern {
     constructor(
         readonly base: unknown,
