@@ -6,7 +6,7 @@ import { expect, test, type FrameLocator } from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { editorText, launchVSCode, openSpeedFix, waitForSquiggles, type VSCodeWindow } from './vscodeWindow';
+import { editorText, launchVSCode, openSpeedFix, runCommand, waitForSquiggles, type VSCodeWindow } from './vscodeWindow';
 
 let window: VSCodeWindow;
 
@@ -92,4 +92,40 @@ test('Escape closes the panel', async () => {
     await expect(tab).toHaveCount(1);
     await window.page.keyboard.press('Escape');
     await expect(tab).toHaveCount(0);
+});
+
+test('? lists every key, and Escape then closes the list rather than the panel', async () => {
+    const panel = await open('apply.md');
+    const help = panel.locator('dialog.help');
+    await expect(help).toBeHidden();
+    await window.page.keyboard.press('?');
+    await expect(help).toBeVisible();
+    await expect(help.locator('dd')).toContainText(['Add to dictionary', 'Close the panel']);
+    // A key the panel acts on does nothing behind the list.
+    await window.page.keyboard.press('1');
+    await window.page.keyboard.press('Escape');
+    await expect(help).toBeHidden();
+    await expect(window.page.locator('.tab', { hasText: 'SpeedFix' })).toHaveCount(1);
+    await expect(panel.locator('.error-text')).toHaveText('Teh');
+});
+
+async function resize(width: number): Promise<void> {
+    await window.app.evaluate(({ BrowserWindow }, w) => BrowserWindow.getAllWindows()[0]!.setSize(w, 700), width);
+}
+
+test('a narrow panel keeps the ? button and hides the rest of the legend', async () => {
+    window = await launchVSCode('uiSpeedFix', 'apply.md');
+    await waitForSquiggles(window.page);
+    // Only the two editors share the window, so its width sets the panel's.
+    // Before the panel opens: with it focused, the palette's keys reach it.
+    await runCommand(window.page, 'View: Close Secondary Side Bar');
+    await runCommand(window.page, 'View: Close Primary Side Bar');
+    await resize(1600);
+    const panel = await openSpeedFix(window.page);
+    const legend = panel.locator('.shortcut');
+    await expect(legend.first()).toBeVisible();
+    await resize(600);
+    await expect(legend.first()).toBeHidden();
+    await panel.locator('.help-btn').click();
+    await expect(panel.locator('dialog.help')).toBeVisible();
 });

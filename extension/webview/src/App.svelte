@@ -35,6 +35,32 @@
   let allDone = $state(false);
   let scope: Scope = $state('file');
   let filesWithIssues = $state(0);
+  let help: HTMLDialogElement;
+
+  /** The keys the header lists while the panel is wide enough for them. */
+  const HEADER_KEYS = [
+    { key: '\u2191\u2193', label: 'select' },
+    { key: 'Enter', label: 'apply' },
+    { key: 'A', label: 'dict' },
+    { key: 'S', label: 'skip' },
+    { key: 'W', label: 'scope' },
+    { key: 'Esc', label: 'close' },
+  ];
+
+  /** Every key the panel answers to, as the `?` dialog lists them. */
+  const ALL_KEYS = [
+    { keys: ['\u2191', '\u2193', 'j', 'k'], label: 'Select an action' },
+    { keys: ['Enter'], label: 'Apply the selected action' },
+    { keys: ['1\u20139', '0'], label: 'Apply that suggestion' },
+    { keys: ['A'], label: 'Add to dictionary' },
+    { keys: ['I'], label: 'Ignore' },
+    { keys: ['S', 'Space'], label: 'Skip' },
+    { keys: ['\u2190', '\u2192', 'h', 'l'], label: 'Previous / next issue' },
+    { keys: ['R'], label: 'Refresh' },
+    { keys: ['W'], label: 'Switch between file and workspace' },
+    { keys: ['?'], label: 'Show or hide this list' },
+    { keys: ['Esc'], label: 'Close the panel' },
+  ];
 
   const vscode = (window as any).acquireVsCodeApi();
 
@@ -75,6 +101,20 @@
   });
 
   function handleKeydown(event: KeyboardEvent) {
+    // While the key list is open, keys belong to it: Escape closes the list
+    // rather than the panel, and nothing else acts behind it.
+    if (help.open) {
+      if (event.key === 'Escape' || event.key === '?') {
+        event.preventDefault();
+        help.close();
+      }
+      return;
+    }
+    if (event.key === '?') {
+      help.showModal();
+      return;
+    }
+
     // Escape always works
     if (event.key === 'Escape') {
       vscode.postMessage({ type: 'close' });
@@ -273,11 +313,26 @@
           </div>
         {/if}
       </div>
-      <div class="shortcuts">
-        <kbd>&uarr;&darr;</kbd> select &middot; <kbd>Enter</kbd> apply &middot; <kbd>A</kbd> dict &middot; <kbd>S</kbd> skip &middot; <kbd>W</kbd> scope &middot; <kbd>Esc</kbd> close
-      </div>
+      <ul class="shortcuts">
+        {#each HEADER_KEYS as { key, label }}
+          <li class="shortcut"><kbd>{key}</kbd> {label}</li>
+        {/each}
+        <li><button class="help-btn" onclick={() => help.showModal()} type="button"><kbd>?</kbd> keys</button></li>
+      </ul>
     </div>
   </header>
+
+  <!-- Closes on a click outside the list; the keys are handled in handleKeydown. -->
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+  <dialog class="help" bind:this={help} aria-labelledby="help-title" onclick={event => { if (event.target === help) help.close(); }}>
+    <h2 id="help-title" class="help-title">Keys</h2>
+    <dl class="help-keys">
+      {#each ALL_KEYS as { keys, label }}
+        <dt>{#each keys as key}<kbd>{key}</kbd>{/each}</dt>
+        <dd>{label}</dd>
+      {/each}
+    </dl>
+  </dialog>
 
   {#if allDone && diagnostics.length === 0}
     <!-- All done state -->
@@ -434,6 +489,7 @@
 
   /* ── Header ── */
   .header {
+    container-type: inline-size;
     padding: 12px 20px;
     background: var(--vscode-titleBar-activeBackground, var(--vscode-editor-background));
     border-bottom: 1px solid var(--vscode-panel-border, transparent);
@@ -444,15 +500,18 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
   }
 
   .header-left {
     display: flex;
     align-items: center;
     gap: 12px;
+    min-width: 0;
   }
 
   .progress-text {
+    white-space: nowrap;
     font-size: 14px;
     color: var(--vscode-descriptionForeground, var(--vscode-editor-foreground));
     font-variant-numeric: tabular-nums;
@@ -475,12 +534,87 @@
   }
 
   .shortcuts {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
     font-size: 12px;
     color: var(--vscode-descriptionForeground, var(--vscode-editor-foreground));
     opacity: 0.7;
   }
 
-  .shortcuts kbd {
+  .shortcut, .help-btn {
+    white-space: nowrap;
+  }
+
+  /* Too narrow to list the keys without wrapping them one word to a line:
+     the `?` button stays, and the full list is a key press away. */
+  @container (max-width: 34rem) {
+    .shortcut {
+      display: none;
+    }
+  }
+
+  .help-btn {
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .help-btn:hover {
+    text-decoration: underline;
+  }
+
+  /* -- Key list -- */
+  .help {
+    max-width: min(28rem, 100% - 32px);
+    padding: 16px 20px;
+    border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, rgba(128,128,128,0.3)));
+    border-radius: 6px;
+    background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+    color: var(--vscode-editorWidget-foreground, var(--vscode-editor-foreground));
+    box-shadow: 0 4px 16px var(--vscode-widget-shadow, rgba(0,0,0,0.36));
+  }
+
+  .help::backdrop {
+    background: rgba(0,0,0,0.3);
+  }
+
+  .help-title {
+    margin: 0 0 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.7;
+  }
+
+  .help-keys {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px 16px;
+    align-items: center;
+    margin: 0;
+    font-size: 13px;
+  }
+
+  .help-keys dt {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+  }
+
+  .help-keys dd {
+    margin: 0;
+  }
+
+  .shortcuts kbd, .help-keys kbd {
     background: var(--vscode-keybindingLabel-background, rgba(128,128,128,0.15));
     border: 1px solid var(--vscode-keybindingLabel-border, rgba(128,128,128,0.25));
     border-radius: 3px;

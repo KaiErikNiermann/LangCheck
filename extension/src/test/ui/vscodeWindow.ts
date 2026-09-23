@@ -75,13 +75,14 @@ export function webview(page: Page): FrameLocator {
 /**
  * Open SpeedFix and give its document keyboard focus.
  *
- * Focused by clicking the shortcut legend, which does nothing: clicking the
- * panel's middle lands on whichever suggestion button is there and applies it.
+ * Focused by clicking the counter, which does nothing: clicking the panel's
+ * middle lands on whichever suggestion button is there and applies it, and
+ * the shortcut legend holds the button that opens the key list.
  */
 export async function openSpeedFix(page: Page): Promise<FrameLocator> {
     await runCommand(page, 'Language Check: Open SpeedFix');
     const panel = webview(page);
-    await panel.locator('.shortcuts').click({ timeout: 30_000 });
+    await panel.locator('.progress-text').click({ timeout: 30_000 });
     return panel;
 }
 
