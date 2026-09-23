@@ -10,8 +10,9 @@ import * as vscode from 'vscode';
 import { languagecheck } from '../proto/checker';
 import type { ExtendedDiagnostic } from '../diagnostics/diagnostic';
 import type { InspectorExclusion, InspectorNameSpan, InspectorProseRange } from '../ui/webviews/protocol';
+import { coreByte, type ByteOffset, type CharOffset } from './offsets';
 
-type ByteToChar = (byteOffset: number) => number;
+type ByteToChar = (byteOffset: ByteOffset) => CharOffset;
 
 /** One core diagnostic as a squiggle, carrying what the quick fixes and hints need. */
 export function toDiagnostic(
@@ -19,8 +20,8 @@ export function toDiagnostic(
     document: vscode.TextDocument,
     byteToChar: ByteToChar,
 ): ExtendedDiagnostic {
-    const start = document.positionAt(byteToChar(d.startByte as number));
-    const end = document.positionAt(byteToChar(d.endByte as number));
+    const start = document.positionAt(byteToChar(coreByte(d.startByte)));
+    const end = document.positionAt(byteToChar(coreByte(d.endByte)));
     const range = new vscode.Range(start, end);
 
     let severity = vscode.DiagnosticSeverity.Information;
@@ -36,8 +37,8 @@ export function toDiagnostic(
         diagnostic.code = d.ruleId;
     }
     diagnostic.suggestions = d.suggestions || [];
-    diagnostic.coreStartByte = d.startByte as number;
-    diagnostic.coreEndByte = d.endByte as number;
+    diagnostic.coreStartByte = coreByte(d.startByte);
+    diagnostic.coreEndByte = coreByte(d.endByte);
     if (d.confidence !== null && d.confidence !== undefined) {
         diagnostic.confidence = d.confidence;
     }
@@ -80,16 +81,16 @@ export function toInspectorRanges(
     byteToChar: ByteToChar,
 ): InspectorProseRange[] {
     return protoRanges.map(pr => {
-        const startByte = pr.startByte as number;
-        const endByte = pr.endByte as number;
+        const startByte = coreByte(pr.startByte);
+        const endByte = coreByte(pr.endByte);
         const rawText = textContent.substring(
             byteToChar(startByte),
             byteToChar(endByte),
         );
 
         const exclusions: InspectorExclusion[] = (pr.exclusions ?? []).map(exc => {
-            const excStartByte = exc.startByte as number;
-            const excEndByte = exc.endByte as number;
+            const excStartByte = coreByte(exc.startByte);
+            const excEndByte = coreByte(exc.endByte);
             // Convert document-level byte offsets to char offsets within the range text
             const excStartChar = byteToChar(excStartByte) - byteToChar(startByte);
             const excEndChar = byteToChar(excEndByte) - byteToChar(startByte);
@@ -131,8 +132,8 @@ export function toNameSpans(
     byteToChar: ByteToChar,
 ): InspectorNameSpan[] {
     return names.map(n => {
-        const startByte = n.startByte as number;
-        const endByte = n.endByte as number;
+        const startByte = coreByte(n.startByte);
+        const endByte = coreByte(n.endByte);
         const startChar = byteToChar(startByte);
         return {
             startByte,

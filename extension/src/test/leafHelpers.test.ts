@@ -1,26 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import type * as vscode from 'vscode';
 
-import { byteToCharConverter } from '../checking/offsets';
+import { byteToCharConverter, coreByte } from '../checking/offsets';
 import { proseMetrics } from '../ui/readability';
 import { webviewHtml } from '../ui/webviews/html';
 
 describe('byteToCharConverter', () => {
     it('is the identity on ASCII', () => {
         const toChar = byteToCharConverter('hello world');
-        expect([0, 5, 11].map(toChar)).toEqual([0, 5, 11]);
+        expect([0, 5, 11].map(n => toChar(coreByte(n)))).toEqual([0, 5, 11]);
     });
 
     it('counts multi-byte characters as their UTF-16 length', () => {
         // é is 2 bytes and 1 unit; 😀 is 4 bytes and 2 units.
         const toChar = byteToCharConverter('é😀x');
-        expect(toChar(2)).toBe(1);
-        expect(toChar(6)).toBe(3);
-        expect(toChar(7)).toBe(4);
+        expect(toChar(coreByte(2))).toBe(1);
+        expect(toChar(coreByte(6))).toBe(3);
+        expect(toChar(coreByte(7))).toBe(4);
     });
 
     it('counts a cut through a character as one replacement unit, as Buffer does', () => {
-        expect(byteToCharConverter('é')(1)).toBe(1);
+        expect(byteToCharConverter('é')(coreByte(1))).toBe(1);
     });
 });
 

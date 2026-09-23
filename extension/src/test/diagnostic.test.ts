@@ -12,6 +12,7 @@ import {
     ruleIdOf,
     type ExtendedDiagnostic,
 } from '../diagnostics/diagnostic';
+import { coreByte } from '../checking/offsets';
 import { Position, Range, Uri, WorkspaceEdit } from './__mocks__/vscode';
 
 const range = new Range(new Position(0, 4), new Position(0, 11));
@@ -109,7 +110,7 @@ describe('addSuggestionEdit', () => {
 
 describe('ignoreRequest', () => {
     it('carries the full text and the core offsets', () => {
-        const d = diagnostic('harper.Spelling', { coreStartByte: 4, coreEndByte: 11 });
+        const d = diagnostic('harper.Spelling', { coreStartByte: coreByte(4), coreEndByte: coreByte(11) });
         expect(ignoreRequest(d, documentReading('recieve'), 'We recieve it.')).toEqual({
             ignore: { message: 'm', context: 'recieve', text: 'We recieve it.', startByte: 4, endByte: 11 },
         });

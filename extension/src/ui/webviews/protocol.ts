@@ -1,3 +1,5 @@
+import type { ByteOffset } from '../../checking/offsets';
+
 /** Shared type-safe events between extension host and webviews. */
 
 // ── SpeedFix ──
@@ -51,8 +53,8 @@ export interface InspectorExclusion {
 
 /** A word the name filter recognised as a human name and therefore silenced. */
 export interface InspectorNameSpan {
-    startByte: number;
-    endByte: number;
+    startByte: ByteOffset;
+    endByte: ByteOffset;
     /** The word as it appears in the document. */
     text: string;
     /** Summed signal weight; higher means stronger evidence. */
@@ -63,8 +65,8 @@ export interface InspectorNameSpan {
 }
 
 export interface InspectorProseRange {
-    startByte: number;
-    endByte: number;
+    startByte: ByteOffset;
+    endByte: ByteOffset;
     text: string;
     cleanText: string;
     exclusions: InspectorExclusion[];
@@ -160,7 +162,7 @@ export type ExtensionToInspectorMessage =
 // Messages from Inspector webview → extension
 export type InspectorToExtensionMessage =
     | { type: 'inspectorReady' }
-    | { type: 'highlightRange'; payload: { startByte: number; endByte: number } }
+    | { type: 'highlightRange'; payload: { startByte: ByteOffset; endByte: ByteOffset } }
     | { type: 'healthCheckLT' }
     | { type: 'restartLTDocker' }
     | { type: 'openIssue'; payload: { body: string } }

@@ -5,12 +5,14 @@
  */
 import type * as vscode from 'vscode';
 
+import type { ByteOffset } from '../checking/offsets';
+
 export interface ExtendedDiagnostic extends vscode.Diagnostic {
     suggestions?: string[];
     confidence?: number;
     /** Original byte offsets from the core, needed for fingerprint matching. */
-    coreStartByte?: number;
-    coreEndByte?: number;
+    coreStartByte?: ByteOffset;
+    coreEndByte?: ByteOffset;
     /**
      * The natural language this diagnostic is about, set by the core for the
      * ones that concern a language rather than a word.
