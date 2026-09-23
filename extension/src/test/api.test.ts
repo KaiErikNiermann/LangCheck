@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { createAPI } from '../api';
+import { createAPI, severityToString } from '../api';
+import { languagecheck } from '../proto/checker';
 import type { LanguageClient } from '../core/client';
 
 const check = async () => [];
@@ -17,5 +18,21 @@ describe('createAPI', () => {
     it('reports not running, rather than throwing, when there is no client', () => {
         const api = createAPI(() => null, check, '1.0.0');
         expect(api.isRunning).toBe(false);
+    });
+});
+
+describe('severityToString', () => {
+    it.each([
+        [languagecheck.Severity.SEVERITY_ERROR, 'error'],
+        [languagecheck.Severity.SEVERITY_WARNING, 'warning'],
+        [languagecheck.Severity.SEVERITY_INFORMATION, 'information'],
+        [languagecheck.Severity.SEVERITY_HINT, 'hint'],
+    ] as const)('maps the core\'s %s to %s', (severity, expected) => {
+        expect(severityToString(severity)).toBe(expected);
+    });
+
+    it('treats an unset severity as a warning', () => {
+        expect(severityToString(undefined)).toBe('warning');
+        expect(severityToString(languagecheck.Severity.SEVERITY_UNSPECIFIED)).toBe('warning');
     });
 });

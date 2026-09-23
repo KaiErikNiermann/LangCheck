@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { LanguageClient } from './core/client';
 import type { CoreService } from './core/coreService';
+import { languagecheck } from './proto/checker';
 import { uriKey, type UriKey } from './shared/documents';
 
 /**
@@ -121,16 +122,16 @@ export function getRegisteredIgnoreRanges(_api: ReturnType<typeof createAPI>, _u
 /**
  * The API's severity string for a core severity.
  *
- * Off by one against the proto (1 is INFORMATION, 3 is ERROR there): error and
- * information come out swapped. Kept as it is until a deliberate fix, which
- * changes what other extensions see; the e2e characterization pins it.
+ * Named by the proto's own constants: the numbers used to be spelled out
+ * here, one off, which reported information as "error" and error as
+ * "information" to every extension using the API.
  */
 export function severityToString(severity: number | null | undefined): 'error' | 'warning' | 'information' | 'hint' {
     switch (severity) {
-        case 1: return 'error';
-        case 2: return 'warning';
-        case 3: return 'information';
-        case 4: return 'hint';
+        case languagecheck.Severity.SEVERITY_ERROR: return 'error';
+        case languagecheck.Severity.SEVERITY_WARNING: return 'warning';
+        case languagecheck.Severity.SEVERITY_INFORMATION: return 'information';
+        case languagecheck.Severity.SEVERITY_HINT: return 'hint';
         default: return 'warning';
     }
 }

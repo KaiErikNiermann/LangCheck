@@ -313,10 +313,9 @@ const EXPECTED_ACTIONS: unknown[] = [
     { title: 'Fix: "recipe"', command: null, args: null, preferred: false },
 ];
 const EXPECTED_HINTS: string[] = [' → receive'];
-// "error" for a Harper capitalization finding, which the core sends as
-// SEVERITY_INFORMATION: the API's mapping is off by one against the proto.
-// Pinned as it is; fixing it is a separate, deliberate change.
+// The core sends Harper's capitalization finding as SEVERITY_INFORMATION.
+// The API reported it as "error" until its mapping was fixed.
 const EXPECTED_API: unknown[] = [
-    { text: 'Api', ruleId: 'harper.Capitalization', severity: 'error', firstSuggestion: 'API' },
+    { text: 'Api', ruleId: 'harper.Capitalization', severity: 'information', firstSuggestion: 'API' },
     { text: 'recieve', ruleId: 'harper.Spelling', severity: 'warning', firstSuggestion: 'receive' },
 ];
