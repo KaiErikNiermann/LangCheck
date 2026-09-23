@@ -423,7 +423,15 @@ fn find_math_regions(text: &str) -> Vec<(usize, usize)> {
         if bytes[i] == b'#' && i + 1 < len && bytes[i + 1] == b'{' {
             let start = i;
             let end = shared::skip_balanced_bytes(bytes, i + 2, b'{', b'}', Some(b'\\'));
-            let inner = &text[start + 2..end.saturating_sub(1).max(start + 2)];
+            // Before the closing brace when there is one. An unclosed `#{`
+            // runs to the end of the text, where the byte before the end can
+            // be the middle of a character, not a brace.
+            let inner_end = if end > start + 2 && bytes[end - 1] == b'}' {
+                end - 1
+            } else {
+                end
+            };
+            let inner = &text[start + 2..inner_end];
             let trimmed = inner.trim();
             if single_letter_kept_as_prose(trimmed) {
                 // Skip only the delimiters, not the letter
@@ -448,6 +456,21 @@ mod tests {
     use crate::prose::latex::LatexExtras;
     use crate::prose::{ProseExtractor, ProseRange};
     use anyhow::Result;
+
+    #[test]
+    fn an_unclosed_inline_math_ending_in_a_wide_character_does_not_panic() {
+        // The math's inner text was cut one byte before the end, taken to be
+        // the closing brace. Unclosed, that byte is the last of whatever
+        // character ends the file.
+        for text in ["#{x \u{4e2d}", "#{\u{1f600}", "#{", "#{}", "#{F}", "#{a\\}"] {
+            for (start, end) in super::find_math_regions(text) {
+                assert!(
+                    start <= end && end <= text.len(),
+                    "{text:?}: {start}..{end}"
+                );
+            }
+        }
+    }
 
     fn forester_extractor() -> Result<ProseExtractor> {
         let language: tree_sitter::Language = crate::grammars::FORESTER.into();
