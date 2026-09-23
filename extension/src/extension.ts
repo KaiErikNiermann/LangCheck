@@ -64,6 +64,7 @@ import {
     type ExtendedDiagnostic,
 } from './diagnostics/diagnostic';
 import { findOpenDocument } from './shared/documents';
+import { DiagnosticStore, Suppression } from './diagnostics/store';
 import { COMMANDS, commandLink, executeCommand, registerCommand } from './commands/ids';
 import { getSetting, getUndeclaredSetting, settingId, updateSetting, type SettingValue } from './config/settings';
 import { GITHUB_REPO, openReleasesPage } from './shared/links';
@@ -97,7 +98,8 @@ let coreInitialized = false;
 let schemaExtensions = new Set<string>();
 let traceLogger: TraceLogger | null = null;
 let log: Logger;
-const diagnosticCollection = vscode.languages.createDiagnosticCollection('language-check');
+const store = new DiagnosticStore();
+const suppression = new Suppression();
 let speedFixPanel: vscode.WebviewPanel | null = null;
 let inspectorPanel: vscode.WebviewPanel | null = null;
 let configStatusView: ConfigStatusView | null = null;
@@ -115,6 +117,9 @@ let ltDownNotificationShown = false;
 
 // Inlay hint invalidation
 const inlayHintEmitter = new vscode.EventEmitter<void>();
+// What every diagnostics change refreshes, in this order.
+store.onChange(() => inlayHintEmitter.fire());
+store.onChange(() => updateSpeedFixDiagnostics());
 let inlayHintsEnabled = true;
 
 /**
@@ -439,7 +444,7 @@ export async function activate(context: vscode.ExtensionContext) {
         // soon as Initialize returns.
         if (!client || !coreInitialized) return;
         if (!isCheckable(document)) return;
-        if (diagnosticsMap.has(document.uri.toString())) return;
+        if (store.has(document.uri.toString())) return;
         checkDocument(document);
     };
 
@@ -600,8 +605,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const reinitializeAndRecheck = async () => {
         log.info('Reinitializing and rechecking');
         await initializeClient();
-        diagnosticCollection.clear();
-        diagnosticsMap.clear();
+        store.clear();
         // The inspector reports which language each range was checked in. Under
         // a new config that answer may have changed, and showing the old one is
         // worse than showing none, so it goes until the re-check replaces it.
@@ -635,16 +639,14 @@ export async function activate(context: vscode.ExtensionContext) {
      */
     const applySilencedRules = async (newlyOff: ReadonlySet<string>) => {
         log.info('Config silenced rules, filtering in place', { rules: [...newlyOff] });
-        for (const [uri, diagnostics] of diagnosticsMap) {
+        for (const [uri, diagnostics] of store) {
             const remaining = diagnostics.filter(
                 d => !silencedBy(newlyOff, ruleIdOf(d, undefined), d.unifiedId),
             );
             if (remaining.length === diagnostics.length) continue;
-            diagnosticsMap.set(uri, remaining);
-            diagnosticCollection.set(vscode.Uri.parse(uri), remaining);
+            store.write(uri, vscode.Uri.parse(uri), remaining);
         }
-        inlayHintEmitter.fire();
-        updateSpeedFixDiagnostics();
+        store.notify();
         updateInsightsStatusBar(vscode.window.activeTextEditor);
         // Last, and without clearing anything: the core needs the new config
         // for whatever it is asked next, but nothing on screen depends on it.
@@ -668,7 +670,7 @@ export async function activate(context: vscode.ExtensionContext) {
             onDidChangeInlayHints: inlayHintEmitter.event,
             provideInlayHints(document, _range, _token) {
                 if (!inlayHintsEnabled) return [];
-                const diagnostics = diagnosticsMap.get(document.uri.toString());
+                const diagnostics = store.get(document.uri.toString());
                 if (!diagnostics) return [];
 
                 // Group diagnostics by position to avoid stacking hints
@@ -780,7 +782,7 @@ export async function activate(context: vscode.ExtensionContext) {
             onDidChangeInlayHints: inlayHintEmitter.event,
             provideInlayHints(document, _range, _token) {
                 if (!inlayHintsEnabled) return [];
-                const diagnostics = diagnosticsMap.get(document.uri.toString());
+                const diagnostics = store.get(document.uri.toString());
                 if (!diagnostics || diagnostics.length === 0) return [];
                 const text = document.getText();
                 const hints: vscode.InlayHint[] = [];
@@ -835,7 +837,7 @@ export async function activate(context: vscode.ExtensionContext) {
         supportedLanguageSelector(),
         {
             provideInlineCompletionItems(document, position, _context, _token) {
-                const diagnostics = diagnosticsMap.get(document.uri.toString());
+                const diagnostics = store.get(document.uri.toString());
                 if (!diagnostics) return [];
 
                 const items: vscode.InlineCompletionItem[] = [];
@@ -861,7 +863,7 @@ export async function activate(context: vscode.ExtensionContext) {
         supportedLanguageSelector(),
         {
             provideCodeActions(document, range, context) {
-                const diagnostics = diagnosticsMap.get(document.uri.toString());
+                const diagnostics = store.get(document.uri.toString());
                 if (!diagnostics) return [];
 
                 const actions: vscode.CodeAction[] = [];
@@ -979,7 +981,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
                         // Count matching spelling diagnostics across workspace
                         let workspaceCount = 0;
-                        for (const [entryUri, entryDiags] of diagnosticsMap) {
+                        for (const [entryUri, entryDiags] of store) {
                             const entryDoc = findOpenDocument(entryUri);
                             if (!entryDoc) continue;
                             workspaceCount += entryDiags.filter(d => isSpellingOf(entryDoc, d, word)).length;
@@ -1221,7 +1223,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
             const document = editor.document;
             const uri = document.uri.toString();
-            const diagnostics = diagnosticsMap.get(uri);
+            const diagnostics = store.get(uri);
             if (!diagnostics || diagnostics.length === 0) return;
 
             const start = startOffset ?? document.offsetAt(editor.selection.start);
@@ -1250,10 +1252,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
             const silenced = new Set(chosen.map(c => c.index));
             const remaining = diagnostics.filter((_, index) => !silenced.has(index));
-            diagnosticsMap.set(uri, remaining);
-            diagnosticCollection.set(document.uri, remaining);
-            inlayHintEmitter.fire();
-            updateSpeedFixDiagnostics();
+            store.write(uri, document.uri, remaining);
+            store.notify();
             pushInspectorEvent(
                 'info',
                 'ignoreSelection',
@@ -1263,7 +1263,7 @@ export async function activate(context: vscode.ExtensionContext) {
     ));
 
     context.subscriptions.push(registerCommand(COMMANDS.fixAllSpellingInFile, async (uri: string, word: string, replacement: string) => {
-        const diagnostics = diagnosticsMap.get(uri);
+        const diagnostics = store.get(uri);
         if (!diagnostics) return;
 
         const document = findOpenDocument(uri);
@@ -1280,10 +1280,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // Optimistic removal
         const remaining = diagnostics.filter(d => !matching.includes(d));
-        diagnosticsMap.set(uri, remaining);
-        diagnosticCollection.set(document.uri, remaining);
-        inlayHintEmitter.fire();
-        updateSpeedFixDiagnostics();
+        store.write(uri, document.uri, remaining);
+        store.notify();
 
         // Re-check for consistency
         await checkDocument(document);
@@ -1293,7 +1291,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const edit = new vscode.WorkspaceEdit();
         const affectedUris: string[] = [];
 
-        for (const [uri, diagnostics] of diagnosticsMap) {
+        for (const [uri, diagnostics] of store) {
             const document = findOpenDocument(uri);
             if (!document) continue;
 
@@ -1306,16 +1304,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
             // Optimistic removal
             const remaining = diagnostics.filter(d => !matching.includes(d));
-            diagnosticsMap.set(uri, remaining);
-            diagnosticCollection.set(document.uri, remaining);
+            store.write(uri, document.uri, remaining);
             affectedUris.push(uri);
         }
 
         if (affectedUris.length === 0) return;
 
         await vscode.workspace.applyEdit(edit);
-        inlayHintEmitter.fire();
-        updateSpeedFixDiagnostics();
+        store.notify();
 
         // Re-check all affected files
         for (const uri of affectedUris) {
@@ -1386,13 +1382,13 @@ export async function activate(context: vscode.ExtensionContext) {
                 pushInspectorEvent('info', 'addToDictionary', `Server confirmed "${word}"`, { durationMs: rpcMs });
                 // Suppress this word in any in-flight check results until the re-check completes
                 const wordLower = word.toLowerCase();
-                suppressedWords.add(wordLower);
+                suppression.words.add(wordLower);
                 // Optimistic removal: remove all spelling diagnostics for this word immediately
                 const editor = findEditorWithDiagnostics();
                 let removedCount = 0;
                 if (editor) {
                     const uri = editor.document.uri.toString();
-                    const diagnostics = diagnosticsMap.get(uri);
+                    const diagnostics = store.get(uri);
                     if (diagnostics) {
                         const remaining = diagnostics.filter(d => {
                             const diagWord = editor.document.getText(d.range);
@@ -1403,15 +1399,13 @@ export async function activate(context: vscode.ExtensionContext) {
                             }
                             return true;
                         });
-                        diagnosticsMap.set(uri, remaining);
-                        diagnosticCollection.set(editor.document.uri, remaining);
-                        inlayHintEmitter.fire();
-                        updateSpeedFixDiagnostics();
+                        store.write(uri, editor.document.uri, remaining);
+                        store.notify();
                     }
                     pushInspectorEvent('debug', 'addToDictionary', `Removed ${removedCount} diagnostics, re-checking`);
                     // Full re-check for consistency (dictionary is now server-side updated)
                     await checkDocument(editor.document);
-                    suppressedWords.delete(wordLower);
+                    suppression.words.delete(wordLower);
                 }
                 const extra = removedCount > 1 ? vscode.l10n.t(' ({0} occurrences resolved)', removedCount) : '';
                 vscode.window.showInformationMessage(vscode.l10n.t('Added "{0}" to dictionary', word) + extra);
@@ -1444,21 +1438,18 @@ export async function activate(context: vscode.ExtensionContext) {
             }
 
             // Suppress this rule in any in-flight check results
-            suppressedRules.add(ruleId);
+            suppression.rules.add(ruleId);
 
             // Immediately remove matching diagnostics from all open documents
-            for (const [uri, diagnostics] of diagnosticsMap) {
+            for (const [uri, diagnostics] of store) {
                 const remaining = diagnostics.filter(d => {
                     return ruleIdOf(d, '') !== ruleId;
                 });
                 if (remaining.length !== diagnostics.length) {
-                    diagnosticsMap.set(uri, remaining);
-                    const docUri = vscode.Uri.parse(uri);
-                    diagnosticCollection.set(docUri, remaining);
+                    store.write(uri, vscode.Uri.parse(uri), remaining);
                 }
             }
-            inlayHintEmitter.fire();
-            updateSpeedFixDiagnostics();
+            store.notify();
 
             vscode.window.showInformationMessage(
                 alreadyDeactivated
@@ -1473,7 +1464,7 @@ export async function activate(context: vscode.ExtensionContext) {
             // what is already drawn. The file watcher reaches the same
             // conclusion for a config edited by hand.
             await initializeClient();
-            suppressedRules.delete(ruleId);
+            suppression.rules.delete(ruleId);
         } catch (err) {
             vscode.window.showErrorMessage(vscode.l10n.t('Failed to deactivate rule: {0}', String(err)));
         }
@@ -1700,7 +1691,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     // If no diagnostics exist yet, auto-run a check using the
                     // editor captured before the panel stole focus.
                     const editorForCheck = originEditor ?? vscode.window.activeTextEditor;
-                    if (editorForCheck && !diagnosticsMap.has(editorForCheck.document.uri.toString())) {
+                    if (editorForCheck && !store.has(editorForCheck.document.uri.toString())) {
                         sendSpeedFixLoading(true);
                         checkDocument(editorForCheck.document).then(() => {
                             sendSpeedFixLoading(false);
@@ -1722,7 +1713,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 case 'goToLocation': {
                     const editor = findEditorWithDiagnostics();
                     if (!editor) break;
-                    const diagnostics = diagnosticsMap.get(editor.document.uri.toString());
+                    const diagnostics = store.get(editor.document.uri.toString());
                     if (!diagnostics) break;
                     const idx = parseDiagId(message.payload.diagnosticId);
                     const diag = diagnostics[idx];
@@ -1793,7 +1784,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 case 'inspectorReady': {
                     // Use the editor captured before the panel stole focus.
                     const editorForCheck = originEditor ?? vscode.window.activeTextEditor;
-                    if (editorForCheck && !diagnosticsMap.has(editorForCheck.document.uri.toString())) {
+                    if (editorForCheck && !store.has(editorForCheck.document.uri.toString())) {
                         await checkDocument(editorForCheck.document);
                     }
                     await updateInspectorData();
@@ -1888,7 +1879,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // ── Initial check on reload ──
     // An editor open before the extension activated raises no open event, so
     // it is checked here. `bootClient` does the same once the core is ready;
-    // whichever runs second finds the document already in `diagnosticsMap` and
+    // whichever runs second finds the document already in the store and
     // does nothing, so the two cannot double-check it.
     checkVisibleUnchecked();
 
@@ -2084,7 +2075,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const applyAcceptedWords = async (added: ReadonlySet<string>) => {
         if (added.size > 0) {
             log.info('Wordlist gained words, filtering in place', { words: [...added] });
-            for (const [uri, diagnostics] of diagnosticsMap) {
+            for (const [uri, diagnostics] of store) {
                 const document = findOpenDocument(uri);
                 if (!document) continue;
                 const remaining = diagnostics.filter(d => {
@@ -2093,11 +2084,9 @@ export async function activate(context: vscode.ExtensionContext) {
                     return !added.has(document.getText(d.range).toLowerCase());
                 });
                 if (remaining.length === diagnostics.length) continue;
-                diagnosticsMap.set(uri, remaining);
-                diagnosticCollection.set(document.uri, remaining);
+                store.write(uri, document.uri, remaining);
             }
-            inlayHintEmitter.fire();
-            updateSpeedFixDiagnostics();
+            store.notify();
         }
         await initializeClient();
         // No clear: `checkDocument` replaces a document's diagnostics in one
@@ -2201,7 +2190,7 @@ export async function activate(context: vscode.ExtensionContext) {
         updateSpeedFixDiagnostics();
     }));
 
-    context.subscriptions.push(diagnosticCollection);
+    context.subscriptions.push(store);
     context.subscriptions.push(inlayHintEmitter);
 
     // Expose public API for other extensions
@@ -2530,7 +2519,7 @@ async function updateInspectorData() {
     }
 
     // Send diagnostic summary
-    const diags = diagnosticsMap.get(uri);
+    const diags = store.get(uri);
     if (diags && diags.length > 0) {
         const byRule = new Map<string, number>();
         const bySeverity = new Map<string, number>();
@@ -2581,13 +2570,13 @@ function findEditorWithDiagnostics(): vscode.TextEditor | undefined {
         const target = vscode.window.visibleTextEditors.find(
             e => e.document.uri.toString() === speedFixTargetUri
         );
-        if (target && diagnosticsMap.has(speedFixTargetUri)) return target;
+        if (target && store.has(speedFixTargetUri)) return target;
     }
     const active = vscode.window.activeTextEditor;
-    if (active && diagnosticsMap.has(active.document.uri.toString())) return active;
+    if (active && store.has(active.document.uri.toString())) return active;
     // Fallback: find a visible editor that has diagnostics
     return vscode.window.visibleTextEditors.find(e =>
-        diagnosticsMap.has(e.document.uri.toString())
+        store.has(e.document.uri.toString())
     );
 }
 
@@ -2597,7 +2586,7 @@ async function applyFix(diagnosticId: string, suggestion: string) {
 
     const uri = editor.document.uri;
     const uriStr = uri.toString();
-    const diagnostics = diagnosticsMap.get(uriStr);
+    const diagnostics = store.get(uriStr);
     if (!diagnostics) return;
 
     const index = parseDiagId(diagnosticId);
@@ -2621,10 +2610,8 @@ async function applyFix(diagnosticId: string, suggestion: string) {
 
         // Optimistic removal: remove the fixed diagnostic immediately
         const remaining = diagnostics.filter((_, i) => i !== index);
-        diagnosticsMap.set(uriStr, remaining);
-        diagnosticCollection.set(uri, remaining);
-        inlayHintEmitter.fire();
-        updateSpeedFixDiagnostics();
+        store.write(uriStr, uri, remaining);
+        store.notify();
 
         // Background re-check for full consistency
         pushInspectorEvent('debug', 'applyFix', 'Re-checking after fix', { durationMs: performance.now() - t0 });
@@ -2641,7 +2628,7 @@ async function ignoreDiagnostic(diagnosticId: string) {
     if (!editor || !client) return;
 
     const uri = editor.document.uri.toString();
-    const diagnostics = diagnosticsMap.get(uri);
+    const diagnostics = store.get(uri);
     if (!diagnostics) return;
 
     const index = parseDiagId(diagnosticId);
@@ -2657,10 +2644,8 @@ async function ignoreDiagnostic(diagnosticId: string) {
 
         // Optimistic removal: remove the ignored diagnostic immediately
         const remaining = diagnostics.filter((_, i) => i !== index);
-        diagnosticsMap.set(uri, remaining);
-        diagnosticCollection.set(editor.document.uri, remaining);
-        inlayHintEmitter.fire();
-        updateSpeedFixDiagnostics();
+        store.write(uri, editor.document.uri, remaining);
+        store.notify();
         sendSpeedFixLoading(false);
         pushInspectorEvent('info', 'ignoreDiagnostic', 'Ignore confirmed, re-checking', { durationMs: performance.now() - t0 });
 
@@ -2668,8 +2653,6 @@ async function ignoreDiagnostic(diagnosticId: string) {
         checkDocument(editor.document);
     }
 }
-
-const diagnosticsMap = new Map<string, ExtendedDiagnostic[]>();
 
 /** Build the SpeedFix webview payload for one diagnostic, precomputing the
  *  display labels so all formatting lives in `inlayLabels`. */
@@ -2695,17 +2678,13 @@ function toSpeedFixDiagnostic(
     };
 }
 
-/** Words recently added to dictionary — suppress spelling diagnostics until the server catches up. */
-const suppressedWords = new Set<string>();
-/** Rule IDs recently deactivated — suppress matching diagnostics until the server catches up. */
-const suppressedRules = new Set<string>();
 
 function updateSpeedFixDiagnostics() {
     if (!speedFixPanel) return;
     const editor = findEditorWithDiagnostics() ?? vscode.window.activeTextEditor;
 
     if (editor) {
-        const diagnostics = diagnosticsMap.get(editor.document.uri.toString());
+        const diagnostics = store.get(editor.document.uri.toString());
         if (diagnostics && diagnostics.length > 0) {
             speedFixTargetUri = editor.document.uri.toString();
             const fileName = path.basename(editor.document.uri.fsPath);
@@ -2730,7 +2709,7 @@ function updateSpeedFixDiagnostics() {
 
 /** In workspace mode, find and open the next file that has diagnostics. */
 async function advanceToNextFileWithDiagnostics(currentUri?: string): Promise<void> {
-    for (const [uriStr, diags] of diagnosticsMap) {
+    for (const [uriStr, diags] of store) {
         if (uriStr === currentUri || diags.length === 0) continue;
 
         const uri = vscode.Uri.parse(uriStr);
@@ -2755,7 +2734,7 @@ async function advanceToNextFileWithDiagnostics(currentUri?: string): Promise<vo
 function sendWorkspaceProgress() {
     if (!speedFixPanel || speedFixScope !== 'workspace') return;
     let filesWithIssues = 0;
-    for (const [, diags] of diagnosticsMap) {
+    for (const [, diags] of store) {
         if (diags.length > 0) filesWithIssues++;
     }
     speedFixPanel.webview.postMessage({
@@ -2902,13 +2881,13 @@ async function runCheck(
             timings.push({ name: 'Map diagnostics', durationMs: performance.now() - t2 });
 
             // Filter out diagnostics for suppressed words / deactivated rules
-            if (suppressedWords.size > 0 || suppressedRules.size > 0) {
+            if (suppression.words.size > 0 || suppression.rules.size > 0) {
                 const filtered = extendedDiagnostics.filter(d => {
                     const ruleId = ruleIdOf(d, '');
-                    if (suppressedRules.size > 0 && ruleId && suppressedRules.has(ruleId)) return false;
-                    if (suppressedWords.size > 0 && isSpellingRule(ruleId)) {
+                    if (suppression.rules.size > 0 && ruleId && suppression.rules.has(ruleId)) return false;
+                    if (suppression.words.size > 0 && isSpellingRule(ruleId)) {
                         const word = document.getText(d.range).toLowerCase();
-                        if (suppressedWords.has(word)) return false;
+                        if (suppression.words.has(word)) return false;
                     }
                     return true;
                 });
@@ -2918,10 +2897,8 @@ async function runCheck(
 
             const t3 = performance.now();
             lastCheckServedFromCache = response.checkProse.servedFromCache === true;
-            diagnosticCollection.set(document.uri, extendedDiagnostics);
-            diagnosticsMap.set(document.uri.toString(), extendedDiagnostics);
-            inlayHintEmitter.fire();
-            updateSpeedFixDiagnostics();
+            store.publishCheck(document.uri, extendedDiagnostics);
+            store.notify();
             timings.push({ name: 'Update UI', durationMs: performance.now() - t3 });
 
             updateInsightsStatusBar(vscode.window.activeTextEditor);

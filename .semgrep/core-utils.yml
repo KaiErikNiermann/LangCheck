@@ -466,3 +466,24 @@ rules:
       - pattern-regex: "commands\\.(?:registerCommand|executeCommand)\\(\\s*'language-check\\."
       - pattern-regex: "command\\s*[:=]\\s*'language-check\\."
       - pattern-regex: "getConfiguration\\(\\s*'languageCheck'"
+
+  - id: diagnostics-through-diagnostic-store
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      Change the diagnostics on screen through `DiagnosticStore` (diagnostics/store.ts): `write`
+      then `notify`, `publishCheck`, `clear`. The collection that draws squiggles and the map that
+      carries the core's extra data must move together, and every change must refresh the inlay
+      hints and SpeedFix, in that order. Ten call sites did all four steps by hand; run against
+      8b9a812, the revision before the store existed, this rule reports 13 findings, which
+      is the answer it must keep finding if the shape comes back.
+    paths:
+      include:
+        - "**/extension/src/"
+      exclude:
+        - "**/extension/src/diagnostics/store.ts"
+        - "**/extension/src/test/"
+    pattern-either:
+      - pattern-regex: "createDiagnosticCollection\\('language-check'\\)"
+      - pattern-regex: 'diagnosticCollection\.(?:set|clear)\('
+      - pattern-regex: 'new Map<string, ExtendedDiagnostic\[\]>'
