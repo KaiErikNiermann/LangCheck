@@ -1,0 +1,199 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-18 00:56+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../../reference/cli.md:1
+msgid "CLI Reference"
+msgstr "CLI Reference"
+
+#: ../../reference/cli.md:3
+msgid "The `language-check` CLI provides standalone access to the checking engine."
+msgstr "The `language-check` CLI provides standalone access to the checking engine."
+
+#: ../../reference/cli.md:5
+msgid "Usage"
+msgstr "Usage"
+
+#: ../../reference/cli.md:11
+msgid "Commands"
+msgstr "Commands"
+
+#: ../../reference/cli.md:13
+msgid "`check`"
+msgstr "`check`"
+
+#: ../../reference/cli.md:15
+msgid "Check files for prose issues."
+msgstr "Check files for prose issues."
+
+#: ../../reference/cli.md:21
+#: ../../reference/cli.md:51
+#: ../../reference/cli.md:67
+msgid "**Options:**"
+msgstr "**Options:**"
+
+#: ../../reference/cli.md:0
+msgid "Flag"
+msgstr "Flag"
+
+#: ../../reference/cli.md:0
+msgid "Description"
+msgstr "Description"
+
+#: ../../reference/cli.md:0
+msgid "Default"
+msgstr "Default"
+
+#: ../../reference/cli.md:0
+msgid "`--config <PATH>`"
+msgstr "`--config <PATH>`"
+
+#: ../../reference/cli.md:0
+msgid "Path to config file"
+msgstr "Path to config file"
+
+#: ../../reference/cli.md:0
+msgid "Auto-detect"
+msgstr "Auto-detect"
+
+#: ../../reference/cli.md:0
+msgid "`--language <ID>`"
+msgstr "`--language <ID>`"
+
+#: ../../reference/cli.md:0
+msgid "Checking language (e.g., `en-US`)"
+msgstr "Checking language (e.g., `en-US`)"
+
+#: ../../reference/cli.md:0
+msgid "`--format <FMT>`"
+msgstr "`--format <FMT>`"
+
+#: ../../reference/cli.md:0
+msgid "Output format: `text`, `json`, `sarif`"
+msgstr "Output format: `text`, `json`, `sarif`"
+
+#: ../../reference/cli.md:0
+msgid "`text`"
+msgstr "`text`"
+
+#: ../../reference/cli.md:0
+msgid "`--severity <LVL>`"
+msgstr "`--severity <LVL>`"
+
+#: ../../reference/cli.md:0
+msgid "Minimum severity: `error`, `warning`, `info`, `hint`"
+msgstr "Minimum severity: `error`, `warning`, `info`, `hint`"
+
+#: ../../reference/cli.md:0
+msgid "`hint`"
+msgstr "`hint`"
+
+#: ../../reference/cli.md:30
+msgid "**Examples:**"
+msgstr "**Examples:**"
+
+#: ../../reference/cli.md:43
+msgid "`fix`"
+msgstr "`fix`"
+
+#: ../../reference/cli.md:45
+msgid "Auto-fix issues in files (applies suggestions with high confidence)."
+msgstr "Auto-fix issues in files (applies suggestions with high confidence)."
+
+#: ../../reference/cli.md:0
+msgid "`--dry-run`"
+msgstr "`--dry-run`"
+
+#: ../../reference/cli.md:0
+msgid "Show changes without applying them"
+msgstr "Show changes without applying them"
+
+#: ../../reference/cli.md:0
+msgid "`false`"
+msgstr "`false`"
+
+#: ../../reference/cli.md:0
+msgid "`--min-confidence`"
+msgstr "`--min-confidence`"
+
+#: ../../reference/cli.md:0
+msgid "Minimum confidence for auto-fix (0.0-1.0)"
+msgstr "Minimum confidence for auto-fix (0.0-1.0)"
+
+#: ../../reference/cli.md:0
+msgid "`0.9`"
+msgstr "`0.9`"
+
+#: ../../reference/cli.md:59
+msgid "`workspace`"
+msgstr "`workspace`"
+
+#: ../../reference/cli.md:61
+msgid "Check all supported files in a directory."
+msgstr "Check all supported files in a directory."
+
+#: ../../reference/cli.md:0
+msgid "Output format"
+msgstr "Output format"
+
+#: ../../reference/cli.md:0
+msgid "`--jobs <N>`"
+msgstr "`--jobs <N>`"
+
+#: ../../reference/cli.md:0
+msgid "Number of parallel workers"
+msgstr "Number of parallel workers"
+
+#: ../../reference/cli.md:0
+msgid "CPU count"
+msgstr "CPU count"
+
+#: ../../reference/cli.md:75
+msgid "Exit Codes"
+msgstr "Exit Codes"
+
+#: ../../reference/cli.md:0
+msgid "Code"
+msgstr "Code"
+
+#: ../../reference/cli.md:0
+msgid "Meaning"
+msgstr "Meaning"
+
+#: ../../reference/cli.md:0
+msgid "0"
+msgstr "0"
+
+#: ../../reference/cli.md:0
+msgid "No issues found"
+msgstr "No issues found"
+
+#: ../../reference/cli.md:0
+msgid "1"
+msgstr "1"
+
+#: ../../reference/cli.md:0
+msgid "Issues found"
+msgstr "Issues found"
+
+#: ../../reference/cli.md:0
+msgid "2"
+msgstr "2"
+
+#: ../../reference/cli.md:0
+msgid "Configuration or I/O error"
+msgstr "Configuration or I/O error"

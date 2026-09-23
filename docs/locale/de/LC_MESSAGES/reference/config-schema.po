@@ -1,0 +1,925 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-22 06:27+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../../reference/config-schema.md:1
+msgid "Configuration Schema"
+msgstr "Configuration Schema"
+
+#: ../../reference/config-schema.md:3
+msgid "Complete reference for `.languagecheck.yaml`."
+msgstr "Complete reference for `.languagecheck.yaml`."
+
+#: ../../reference/config-schema.md:5
+msgid "Top-Level Fields"
+msgstr "Top-Level Fields"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "Field"
+msgstr "Field"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "Type"
+msgstr "Type"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "Default"
+msgstr "Default"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "Description"
+msgstr "Description"
+
+#: ../../reference/config-schema.md:0
+msgid "`engines`"
+msgstr "`engines`"
+
+#: ../../reference/config-schema.md:0
+msgid "[`EngineConfig`](#engines)"
+msgstr "[`EngineConfig`](#engines)"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "See below"
+msgstr "See below"
+
+#: ../../reference/config-schema.md:0
+msgid "Checker engine configuration"
+msgstr "Checker engine configuration"
+
+#: ../../reference/config-schema.md:0
+msgid "`rules`"
+msgstr "`rules`"
+
+#: ../../reference/config-schema.md:0
+msgid "`map<string, RuleConfig>`"
+msgstr "`map<string, RuleConfig>`"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "`{}`"
+msgstr "`{}`"
+
+#: ../../reference/config-schema.md:0
+msgid "Per-rule severity overrides"
+msgstr "Per-rule severity overrides"
+
+#: ../../reference/config-schema.md:0
+msgid "`exclude`"
+msgstr "`exclude`"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "`string[]`"
+msgstr "`string[]`"
+
+#: ../../reference/config-schema.md:0
+msgid "`[\"node_modules/**\", \".git/**\"]`"
+msgstr "`[\"node_modules/**\", \".git/**\"]`"
+
+#: ../../reference/config-schema.md:0
+msgid "Glob patterns to skip"
+msgstr "Glob patterns to skip"
+
+#: ../../reference/config-schema.md:0
+msgid "`auto_fix`"
+msgstr "`auto_fix`"
+
+#: ../../reference/config-schema.md:0
+msgid "[`AutoFixRule[]`](#auto-fix)"
+msgstr "[`AutoFixRule[]`](#auto-fix)"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "`[]`"
+msgstr "`[]`"
+
+#: ../../reference/config-schema.md:0
+msgid "Custom find/replace rules"
+msgstr "Custom find/replace rules"
+
+#: ../../reference/config-schema.md:0
+msgid "`performance`"
+msgstr "`performance`"
+
+#: ../../reference/config-schema.md:0
+msgid "[`PerformanceConfig`](#performance)"
+msgstr "[`PerformanceConfig`](#performance)"
+
+#: ../../reference/config-schema.md:0
+msgid "Performance tuning"
+msgstr "Performance tuning"
+
+#: ../../reference/config-schema.md:0
+msgid "`dictionaries`"
+msgstr "`dictionaries`"
+
+#: ../../reference/config-schema.md:0
+msgid "[`DictionaryConfig`](#dictionaries)"
+msgstr "[`DictionaryConfig`](#dictionaries)"
+
+#: ../../reference/config-schema.md:0
+msgid "Bundled and custom wordlists"
+msgstr "Bundled and custom wordlists"
+
+#: ../../reference/config-schema.md:0
+msgid "`morphology`"
+msgstr "`morphology`"
+
+#: ../../reference/config-schema.md:0
+msgid "[`MorphologyConfig`](#morphology)"
+msgstr "[`MorphologyConfig`](#morphology)"
+
+#: ../../reference/config-schema.md:0
+msgid "Affixed forms of known words"
+msgstr "Affixed forms of known words"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "`languages`"
+msgstr "`languages`"
+
+#: ../../reference/config-schema.md:0
+msgid "[`LanguageConfig`](#languages)"
+msgstr "[`LanguageConfig`](#languages)"
+
+#: ../../reference/config-schema.md:0
+msgid "Per-language settings"
+msgstr "Per-language settings"
+
+#: ../../reference/config-schema.md:18
+msgid "Engines"
+msgstr "Engines"
+
+#: ../../reference/config-schema.md:0
+msgid "`harper`"
+msgstr "`harper`"
+
+#: ../../reference/config-schema.md:0
+msgid "`bool` or `HarperConfig`"
+msgstr "`bool` or `HarperConfig`"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "`true`"
+msgstr "`true`"
+
+#: ../../reference/config-schema.md:0
+msgid "Enable Harper engine"
+msgstr "Enable Harper engine"
+
+#: ../../reference/config-schema.md:0
+msgid "`languagetool`"
+msgstr "`languagetool`"
+
+#: ../../reference/config-schema.md:0
+msgid "`bool` or `LanguageToolConfig`"
+msgstr "`bool` or `LanguageToolConfig`"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "`false`"
+msgstr "`false`"
+
+#: ../../reference/config-schema.md:0
+msgid "Enable LanguageTool"
+msgstr "Enable LanguageTool"
+
+#: ../../reference/config-schema.md:0
+msgid "`vale`"
+msgstr "`vale`"
+
+#: ../../reference/config-schema.md:0
+msgid "`bool` or `ValeConfig`"
+msgstr "`bool` or `ValeConfig`"
+
+#: ../../reference/config-schema.md:0
+msgid "Enable Vale"
+msgstr "Enable Vale"
+
+#: ../../reference/config-schema.md:0
+msgid "`proselint`"
+msgstr "`proselint`"
+
+#: ../../reference/config-schema.md:0
+msgid "`bool` or `ProselintConfig`"
+msgstr "`bool` or `ProselintConfig`"
+
+#: ../../reference/config-schema.md:0
+msgid "Enable proselint"
+msgstr "Enable proselint"
+
+#: ../../reference/config-schema.md:0
+msgid "`hunspell`"
+msgstr "`hunspell`"
+
+#: ../../reference/config-schema.md:0
+msgid "`bool` or [`HunspellConfig`](#hunspellconfig)"
+msgstr "`bool` or [`HunspellConfig`](#hunspellconfig)"
+
+#: ../../reference/config-schema.md:0
+msgid "Enable Hunspell"
+msgstr "Enable Hunspell"
+
+#: ../../reference/config-schema.md:0
+msgid "`spell_language`"
+msgstr "`spell_language`"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "`string`"
+msgstr "`string`"
+
+#: ../../reference/config-schema.md:0
+msgid "`\"en-US\"`"
+msgstr "`\"en-US\"`"
+
+#: ../../reference/config-schema.md:0
+msgid "BCP-47 tag to check against"
+msgstr "BCP-47 tag to check against"
+
+#: ../../reference/config-schema.md:0
+msgid "`external`"
+msgstr "`external`"
+
+#: ../../reference/config-schema.md:0
+msgid "[`ExternalProvider[]`](#external-providers)"
+msgstr "[`ExternalProvider[]`](#external-providers)"
+
+#: ../../reference/config-schema.md:0
+msgid "External checker binaries"
+msgstr "External checker binaries"
+
+#: ../../reference/config-schema.md:0
+msgid "`wasm_plugins`"
+msgstr "`wasm_plugins`"
+
+#: ../../reference/config-schema.md:0
+msgid "[`WasmPlugin[]`](#wasm-plugins)"
+msgstr "[`WasmPlugin[]`](#wasm-plugins)"
+
+#: ../../reference/config-schema.md:0
+msgid "WASM checker plugins"
+msgstr "WASM checker plugins"
+
+#: ../../reference/config-schema.md:31
+msgid "Every engine accepts either a bool shorthand (`languagetool: true`) or a nested table. Engine-specific settings — including the LanguageTool server URL — live inside that table:"
+msgstr "Every engine accepts either a bool shorthand (`languagetool: true`) or a nested table. Engine-specific settings — including the LanguageTool server URL — live inside that table:"
+
+#: ../../reference/config-schema.md:44
+msgid "LanguageToolConfig"
+msgstr "LanguageToolConfig"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "`enabled`"
+msgstr "`enabled`"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "`bool`"
+msgstr "`bool`"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "Enable the engine"
+msgstr "Enable the engine"
+
+#: ../../reference/config-schema.md:0
+msgid "`url`"
+msgstr "`url`"
+
+#: ../../reference/config-schema.md:0
+msgid "`\"http://localhost:8010\"`"
+msgstr "`\"http://localhost:8010\"`"
+
+#: ../../reference/config-schema.md:0
+msgid "Server base URL (no `/v2/check`)"
+msgstr "Server base URL (no `/v2/check`)"
+
+#: ../../reference/config-schema.md:0
+msgid "`level`"
+msgstr "`level`"
+
+#: ../../reference/config-schema.md:0
+msgid "`\"default\"`"
+msgstr "`\"default\"`"
+
+#: ../../reference/config-schema.md:0
+msgid "`default` or `picky`"
+msgstr "`default` or `picky`"
+
+#: ../../reference/config-schema.md:0
+msgid "`mother_tongue`"
+msgstr "`mother_tongue`"
+
+#: ../../reference/config-schema.md:0
+msgid "unset"
+msgstr "unset"
+
+#: ../../reference/config-schema.md:0
+msgid "BCP-47 tag for false friends"
+msgstr "BCP-47 tag for false friends"
+
+#: ../../reference/config-schema.md:0
+msgid "`disabled_rules`"
+msgstr "`disabled_rules`"
+
+#: ../../reference/config-schema.md:0
+msgid "Rule IDs to switch off"
+msgstr "Rule IDs to switch off"
+
+#: ../../reference/config-schema.md:0
+msgid "`enabled_rules`"
+msgstr "`enabled_rules`"
+
+#: ../../reference/config-schema.md:0
+msgid "Extra rule IDs to switch on"
+msgstr "Extra rule IDs to switch on"
+
+#: ../../reference/config-schema.md:0
+msgid "`disabled_categories`"
+msgstr "`disabled_categories`"
+
+#: ../../reference/config-schema.md:0
+msgid "Category IDs to switch off"
+msgstr "Category IDs to switch off"
+
+#: ../../reference/config-schema.md:0
+msgid "`enabled_categories`"
+msgstr "`enabled_categories`"
+
+#: ../../reference/config-schema.md:0
+msgid "Extra category IDs to switch on"
+msgstr "Extra category IDs to switch on"
+
+#: ../../reference/config-schema.md:0
+msgid "`max_concurrent_requests`"
+msgstr "`max_concurrent_requests`"
+
+#: ../../reference/config-schema.md:0
+msgid "`int`"
+msgstr "`int`"
+
+#: ../../reference/config-schema.md:0
+msgid "`8`"
+msgstr "`8`"
+
+#: ../../reference/config-schema.md:0
+msgid "In-flight `/v2/check` requests"
+msgstr "In-flight `/v2/check` requests"
+
+#: ../../reference/config-schema.md:0
+msgid "`max_request_bytes`"
+msgstr "`max_request_bytes`"
+
+#: ../../reference/config-schema.md:0
+#: ../../reference/config-schema.md:59
+msgid "`4096`"
+msgstr "`4096`"
+
+#: ../../reference/config-schema.md:0
+msgid "Prose per request; `0` sends one request per range"
+msgstr "Prose per request; `0` sends one request per range"
+
+#: ../../reference/config-schema.md:60
+msgid "The flat `engines.languagetool_url` and `engines.vale_config` keys are aliases for `engines.languagetool.url` and `engines.vale.config`. They are still read, but they log a warning and will be removed in a future release."
+msgstr "The flat `engines.languagetool_url` and `engines.vale_config` keys are aliases for `engines.languagetool.url` and `engines.vale.config`. They are still read, but they log a warning and will be removed in a future release."
+
+#: ../../reference/config-schema.md:65
+msgid "External Providers"
+msgstr "External Providers"
+
+#: ../../reference/config-schema.md:59
+msgid "Required"
+msgstr "Required"
+
+#: ../../reference/config-schema.md:59
+msgid "`name`"
+msgstr "`name`"
+
+#: ../../reference/config-schema.md:59
+msgid "Yes"
+msgstr "Yes"
+
+#: ../../reference/config-schema.md:59
+msgid "Display name"
+msgstr "Display name"
+
+#: ../../reference/config-schema.md:59
+msgid "`command`"
+msgstr "`command`"
+
+#: ../../reference/config-schema.md:59
+msgid "Path to executable"
+msgstr "Path to executable"
+
+#: ../../reference/config-schema.md:59
+msgid "`args`"
+msgstr "`args`"
+
+#: ../../reference/config-schema.md:59
+msgid "No"
+msgstr "No"
+
+#: ../../reference/config-schema.md:59
+msgid "Command-line arguments"
+msgstr "Command-line arguments"
+
+#: ../../reference/config-schema.md:59
+msgid "`extensions`"
+msgstr "`extensions`"
+
+#: ../../reference/config-schema.md:59
+msgid "File extensions to check (empty=all)"
+msgstr "File extensions to check (empty=all)"
+
+#: ../../reference/config-schema.md:74
+msgid "WASM Plugins"
+msgstr "WASM Plugins"
+
+#: ../../reference/config-schema.md:59
+msgid "`path`"
+msgstr "`path`"
+
+#: ../../reference/config-schema.md:59
+msgid "Path to `.wasm` file"
+msgstr "Path to `.wasm` file"
+
+#: ../../reference/config-schema.md:82
+msgid "Rule Config"
+msgstr "Rule Config"
+
+#: ../../reference/config-schema.md:59
+msgid "`severity`"
+msgstr "`severity`"
+
+#: ../../reference/config-schema.md:59
+msgid "`\"error\"`, `\"warning\"`, `\"info\"`, `\"hint\"`, or `\"off\"`"
+msgstr "`\"error\"`, `\"warning\"`, `\"info\"`, `\"hint\"`, or `\"off\"`"
+
+#: ../../reference/config-schema.md:88
+msgid "Auto-Fix"
+msgstr "Auto-Fix"
+
+#: ../../reference/config-schema.md:59
+msgid "`find`"
+msgstr "`find`"
+
+#: ../../reference/config-schema.md:59
+msgid "Text pattern to find"
+msgstr "Text pattern to find"
+
+#: ../../reference/config-schema.md:59
+msgid "`replace`"
+msgstr "`replace`"
+
+#: ../../reference/config-schema.md:59
+msgid "Replacement text"
+msgstr "Replacement text"
+
+#: ../../reference/config-schema.md:59
+msgid "`context`"
+msgstr "`context`"
+
+#: ../../reference/config-schema.md:59
+msgid "Only apply when context string exists"
+msgstr "Only apply when context string exists"
+
+#: ../../reference/config-schema.md:59
+msgid "`description`"
+msgstr "`description`"
+
+#: ../../reference/config-schema.md:59
+msgid "Human-readable rule description"
+msgstr "Human-readable rule description"
+
+#: ../../reference/config-schema.md:97
+msgid "Performance"
+msgstr "Performance"
+
+#: ../../reference/config-schema.md:59
+msgid "`high_performance_mode`"
+msgstr "`high_performance_mode`"
+
+#: ../../reference/config-schema.md:59
+msgid "Only use Harper (skip LT/externals)"
+msgstr "Only use Harper (skip LT/externals)"
+
+#: ../../reference/config-schema.md:59
+msgid "`debounce_ms`"
+msgstr "`debounce_ms`"
+
+#: ../../reference/config-schema.md:59
+msgid "`number`"
+msgstr "`number`"
+
+#: ../../reference/config-schema.md:59
+msgid "`500`"
+msgstr "`500`"
+
+#: ../../reference/config-schema.md:59
+msgid "Delay after the last keystroke, in milliseconds; `0` checks every change"
+msgstr "Delay after the last keystroke, in milliseconds; `0` checks every change"
+
+#: ../../reference/config-schema.md:59
+msgid "`max_file_size`"
+msgstr "`max_file_size`"
+
+#: ../../reference/config-schema.md:59
+msgid "`0`"
+msgstr "`0`"
+
+#: ../../reference/config-schema.md:59
+msgid "Max file size in bytes (0=unlimited)"
+msgstr "Max file size in bytes (0=unlimited)"
+
+#: ../../reference/config-schema.md:59
+msgid "`result_cache_entries`"
+msgstr "`result_cache_entries`"
+
+#: ../../reference/config-schema.md:59
+msgid "Engine answers kept, keyed by the prose that produced them; `0` disables"
+msgstr "Engine answers kept, keyed by the prose that produced them; `0` disables"
+
+#: ../../reference/config-schema.md:59
+msgid "`max_range_bytes`"
+msgstr "`max_range_bytes`"
+
+#: ../../reference/config-schema.md:59
+msgid "`2048`"
+msgstr "`2048`"
+
+#: ../../reference/config-schema.md:59
+msgid "Longest prose range handed on; longer ones split at sentence bounds. `0` disables"
+msgstr "Longest prose range handed on; longer ones split at sentence bounds. `0` disables"
+
+#: ../../reference/config-schema.md:107
+msgid "Languages"
+msgstr "Languages"
+
+#: ../../reference/config-schema.md:59
+msgid "`map<string, string[]>`"
+msgstr "`map<string, string[]>`"
+
+#: ../../reference/config-schema.md:59
+msgid "Additional file extensions per language ID"
+msgstr "Additional file extensions per language ID"
+
+#: ../../reference/config-schema.md:59
+msgid "`latex`"
+msgstr "`latex`"
+
+#: ../../reference/config-schema.md:59
+msgid "[`LaTeXConfig`](#languages-latex)"
+msgstr "[`LaTeXConfig`](#languages-latex)"
+
+#: ../../reference/config-schema.md:59
+msgid "LaTeX-specific settings"
+msgstr "LaTeX-specific settings"
+
+#: ../../reference/config-schema.md:115
+msgid "HunspellConfig"
+msgstr "HunspellConfig"
+
+#: ../../reference/config-schema.md:117
+msgid "Spelling for the languages the other engines do not read. See [Hunspell Setup](../guide/hunspell-setup.md)."
+msgstr "Spelling for the languages the other engines do not read. See [Hunspell Setup](../guide/hunspell-setup.md)."
+
+#: ../../reference/config-schema.md:59
+msgid "BCP-47 tags to check; empty means any language with a pack"
+msgstr "BCP-47 tags to check; empty means any language with a pack"
+
+#: ../../reference/config-schema.md:59
+msgid "`dictionary_paths`"
+msgstr "`dictionary_paths`"
+
+#: ../../reference/config-schema.md:59
+msgid "`map<string,string>`"
+msgstr "`map<string,string>`"
+
+#: ../../reference/config-schema.md:59
+msgid "Per-language override: a directory, a stem, or either file"
+msgstr "Per-language override: a directory, a stem, or either file"
+
+#: ../../reference/config-schema.md:59
+msgid "`search_paths`"
+msgstr "`search_paths`"
+
+#: ../../reference/config-schema.md:59
+msgid "Extra directories, searched before the platform's own"
+msgstr "Extra directories, searched before the platform's own"
+
+#: ../../reference/config-schema.md:59
+msgid "`auto_install`"
+msgstr "`auto_install`"
+
+#: ../../reference/config-schema.md:59
+msgid "Fetch a missing pack without asking"
+msgstr "Fetch a missing pack without asking"
+
+#: ../../reference/config-schema.md:137
+msgid "Dictionaries are not bundled — Hspell is AGPL-3.0 and the Latin pack is GPL, so neither can ship inside an MIT binary. Install one with `language-check packs install <lang>`, through your package manager, or by naming an existing pair under `dictionary_paths`."
+msgstr "Dictionaries are not bundled — Hspell is AGPL-3.0 and the Latin pack is GPL, so neither can ship inside an MIT binary. Install one with `language-check packs install <lang>`, through your package manager, or by naming an existing pair under `dictionary_paths`."
+
+#: ../../reference/config-schema.md:142
+msgid "`languages.latex`"
+msgstr "`languages.latex`"
+
+#: ../../reference/config-schema.md:59
+msgid "`skip_environments`"
+msgstr "`skip_environments`"
+
+#: ../../reference/config-schema.md:59
+msgid "Extra environment names to skip during prose extraction"
+msgstr "Extra environment names to skip during prose extraction"
+
+#: ../../reference/config-schema.md:148
+msgid "Environments listed here are skipped in addition to the built-in set (algorithm, equation, tikzpicture, tabular, etc.). Use this for custom or niche environments whose content should not be grammar-checked."
+msgstr "Environments listed here are skipped in addition to the built-in set (algorithm, equation, tikzpicture, tabular, etc.). Use this for custom or niche environments whose content should not be grammar-checked."
+
+#: ../../reference/config-schema.md:160
+msgid "Dictionaries"
+msgstr "Dictionaries"
+
+#: ../../reference/config-schema.md:162
+msgid "Words listed in a dictionary are never reported as spelling mistakes. Five domain wordlists ship with the checker and all of them load by default."
+msgstr "Words listed in a dictionary are never reported as spelling mistakes. Five domain wordlists ship with the checker and all of them load by default."
+
+#: ../../reference/config-schema.md:59
+msgid "`bundled`"
+msgstr "`bundled`"
+
+#: ../../reference/config-schema.md:59
+msgid "Load the bundled domain wordlists"
+msgstr "Load the bundled domain wordlists"
+
+#: ../../reference/config-schema.md:59
+msgid "`disabled`"
+msgstr "`disabled`"
+
+#: ../../reference/config-schema.md:59
+msgid "Names of individual bundled wordlists to skip"
+msgstr "Names of individual bundled wordlists to skip"
+
+#: ../../reference/config-schema.md:59
+msgid "`paths`"
+msgstr "`paths`"
+
+#: ../../reference/config-schema.md:59
+msgid "Extra wordlist files, one word per line, `#` comments"
+msgstr "Extra wordlist files, one word per line, `#` comments"
+
+#: ../../reference/config-schema.md:178
+msgid "Bundled wordlists"
+msgstr "Bundled wordlists"
+
+#: ../../reference/config-schema.md:180
+msgid "These are the names accepted by `disabled`:"
+msgstr "These are the names accepted by `disabled`:"
+
+#: ../../reference/config-schema.md:59
+msgid "Name"
+msgstr "Name"
+
+#: ../../reference/config-schema.md:59
+msgid "Contents"
+msgstr "Contents"
+
+#: ../../reference/config-schema.md:59
+msgid "`software-terms`"
+msgstr "`software-terms`"
+
+#: ../../reference/config-schema.md:59
+msgid "Development tools, acronyms, and compound technical terms"
+msgstr "Development tools, acronyms, and compound technical terms"
+
+#: ../../reference/config-schema.md:59
+msgid "`typescript`"
+msgstr "`typescript`"
+
+#: ../../reference/config-schema.md:59
+msgid "TypeScript and JavaScript keywords, builtins, and API names"
+msgstr "TypeScript and JavaScript keywords, builtins, and API names"
+
+#: ../../reference/config-schema.md:59
+msgid "`companies`"
+msgstr "`companies`"
+
+#: ../../reference/config-schema.md:59
+msgid "Well-known company and brand names"
+msgstr "Well-known company and brand names"
+
+#: ../../reference/config-schema.md:59
+msgid "`jargon`"
+msgstr "`jargon`"
+
+#: ../../reference/config-schema.md:59
+msgid "Computing jargon, hardware terms, and domain vocabulary"
+msgstr "Computing jargon, hardware terms, and domain vocabulary"
+
+#: ../../reference/config-schema.md:59
+msgid "`mathematics`"
+msgstr "`mathematics`"
+
+#: ../../reference/config-schema.md:59
+msgid "Mathematics, category theory, type theory, and mathematical physics"
+msgstr "Mathematics, category theory, type theory, and mathematical physics"
+
+#: ../../reference/config-schema.md:190
+msgid "Set `bundled: false` to switch all five off at once; `disabled` turns off only the ones you name and is ignored when `bundled` is false. An unrecognized name is warned about in the server log and otherwise ignored, so a typo here never takes the other wordlists down with it."
+msgstr "Set `bundled: false` to switch all five off at once; `disabled` turns off only the ones you name and is ignored when `bundled` is false. An unrecognized name is warned about in the server log and otherwise ignored, so a typo here never takes the other wordlists down with it."
+
+#: ../../reference/config-schema.md:195
+msgid "See `rust-core/dictionaries/THIRD_PARTY_NOTICES.md` for each list's source and licensing."
+msgstr "See `rust-core/dictionaries/THIRD_PARTY_NOTICES.md` for each list's source and licensing."
+
+#: ../../reference/config-schema.md:198
+msgid "Hyphenated words"
+msgstr "Hyphenated words"
+
+#: ../../reference/config-schema.md:200
+msgid "A hyphenated compound is accepted when every one of its parts is known individually, so `Chern-Simons` resolves from `chern` and `simons`. This matters because engines disagree about what they report: Harper flags the parts of a compound separately, while LanguageTool flags the whole span. Requiring *all* parts to be known keeps genuine typos visible — `Chern-Simmmons` and `well-knownn` are still reported."
+msgstr "A hyphenated compound is accepted when every one of its parts is known individually, so `Chern-Simons` resolves from `chern` and `simons`. This matters because engines disagree about what they report: Harper flags the parts of a compound separately, while LanguageTool flags the whole span. Requiring *all* parts to be known keeps genuine typos visible — `Chern-Simmmons` and `well-knownn` are still reported."
+
+#: ../../reference/config-schema.md:207
+msgid "The same rule applies to words you add yourself and to any file listed in `paths`, not just the bundled wordlists."
+msgstr "The same rule applies to words you add yourself and to any file listed in `paths`, not just the bundled wordlists."
+
+#: ../../reference/config-schema.md:210
+msgid "Your own words"
+msgstr "Your own words"
+
+#: ../../reference/config-schema.md:212
+msgid "*Add to dictionary* in the editor writes to `.languagecheck/dictionary.txt` in the workspace. That file is yours; the bundled wordlists are never written back to it."
+msgstr "*Add to dictionary* in the editor writes to `.languagecheck/dictionary.txt` in the workspace. That file is yours; the bundled wordlists are never written back to it."
+
+#: ../../reference/config-schema.md:215
+msgid "Morphology"
+msgstr "Morphology"
+
+#: ../../reference/config-schema.md:217
+msgid "One dictionary entry covers the words built on it. Adding `algebra` also accepts `algebras`, `subalgebra`, `sub-algebra` and `algebraicity`, so the dictionary stops growing one line per inflection. On by default."
+msgstr "One dictionary entry covers the words built on it. Adding `algebra` also accepts `algebras`, `subalgebra`, `sub-algebra` and `algebraicity`, so the dictionary stops growing one line per inflection. On by default."
+
+#: ../../reference/config-schema.md:59
+msgid "Accept a flagged word that decomposes into a known root"
+msgstr "Accept a flagged word that decomposes into a known root"
+
+#: ../../reference/config-schema.md:59
+msgid "`inflections`"
+msgstr "`inflections`"
+
+#: ../../reference/config-schema.md:59
+msgid "Also accept the regular inflections of dictionary words"
+msgstr "Also accept the regular inflections of dictionary words"
+
+#: ../../reference/config-schema.md:232
+msgid "Two switches because the two halves work differently, and can fail differently."
+msgstr "Two switches because the two halves work differently, and can fail differently."
+
+#: ../../reference/config-schema.md:235
+msgid "Prefixes and derivational suffixes are recognized"
+msgstr "Prefixes and derivational suffixes are recognized"
+
+#: ../../reference/config-schema.md:237
+msgid "A word that is flagged as a misspelling is re-read as a productive prefix (`sub-`, `semi-`, `non-`, `quasi-`, `counter-`, … — the full list is in `rust-core/dictionaries/affixes/prefixes.txt`) and/or a derivational suffix (`-ness`, `-ity`, `-able`, `-ly`, …) over a root. The root has to be a real word — one of yours, one from a bundled list, or one Harper knows — so `subalgebra` is accepted and `subxyzzy` is not. The closed and hyphenated spellings take the same path, because Harper and LanguageTool disagree about which one they report."
+msgstr "A word that is flagged as a misspelling is re-read as a productive prefix (`sub-`, `semi-`, `non-`, `quasi-`, `counter-`, … — the full list is in `rust-core/dictionaries/affixes/prefixes.txt`) and/or a derivational suffix (`-ness`, `-ity`, `-able`, `-ly`, …) over a root. The root has to be a real word — one of yours, one from a bundled list, or one Harper knows — so `subalgebra` is accepted and `subxyzzy` is not. The closed and hyphenated spellings take the same path, because Harper and LanguageTool disagree about which one they report."
+
+#: ../../reference/config-schema.md:246
+msgid "This is done by taking the word apart rather than by listing the results, because prefixes stack freely: the set of words `algebra` licenses is unbounded, so there is nothing to list."
+msgstr "This is done by taking the word apart rather than by listing the results, because prefixes stack freely: the set of words `algebra` licenses is unbounded, so there is nothing to list."
+
+#: ../../reference/config-schema.md:250
+msgid "Inflections are generated"
+msgstr "Inflections are generated"
+
+#: ../../reference/config-schema.md:252
+msgid "Plurals, and the past and progressive of `-ate`/`-ize`/`-ise`/`-ify` verbs, are generated from each dictionary word when the workspace loads and then matched like any other entry."
+msgstr "Plurals, and the past and progressive of `-ate`/`-ize`/`-ise`/`-ify` verbs, are generated from each dictionary word when the workspace loads and then matched like any other entry."
+
+#: ../../reference/config-schema.md:256
+msgid "Generated, not stripped, because the spelling rules only run one way. `occur` plus `-ed` is `occurred`; a checker that instead removed `-ed` from `occured` would find `occur` and accept a misspelling. The same shape accepts `childs` and `mouses`, which is why plurals are never recognized by taking a word apart."
+msgstr "Generated, not stripped, because the spelling rules only run one way. `occur` plus `-ed` is `occurred`; a checker that instead removed `-ed` from `occured` would find `occur` and accept a misspelling. The same shape accepts `childs` and `mouses`, which is why plurals are never recognized by taking a word apart."
+
+#: ../../reference/config-schema.md:261
+msgid "What keeps typos visible"
+msgstr "What keeps typos visible"
+
+#: ../../reference/config-schema.md:263
+msgid "A decomposition on its own is weak evidence: `untill` reads as `un-` + `till`, and `till` really is a word. So the engine's own correction has the final say — if it can offer something one edit away from what you typed, the squiggle stays. A word with no plausible correction is what a genuine coinage looks like."
+msgstr "A decomposition on its own is weak evidence: `untill` reads as `un-` + `till`, and `till` really is a word. So the engine's own correction has the final say — if it can offer something one edit away from what you typed, the squiggle stays. A word with no plausible correction is what a genuine coinage looks like."
+
+#: ../../reference/config-schema.md:268
+msgid "Names"
+msgstr "Names"
+
+#: ../../reference/config-schema.md:270
+msgid "Opt-in suppression of spelling diagnostics on human names. Off by default."
+msgstr "Opt-in suppression of spelling diagnostics on human names. Off by default."
+
+#: ../../reference/config-schema.md:59
+msgid "Drop spelling diagnostics on tokens detected as human names"
+msgstr "Drop spelling diagnostics on tokens detected as human names"
+
+#: ../../reference/config-schema.md:59
+msgid "`aggressiveness`"
+msgstr "`aggressiveness`"
+
+#: ../../reference/config-schema.md:59
+msgid "`\"balanced\"`"
+msgstr "`\"balanced\"`"
+
+#: ../../reference/config-schema.md:59
+msgid "`conservative`, `balanced`, or `aggressive`"
+msgstr "`conservative`, `balanced`, or `aggressive`"
+
+#: ../../reference/config-schema.md:283
+msgid "The detector is engine-agnostic — it works the same whether Harper or LanguageTool produced the diagnostic, because it reads only the flagged token, the surrounding text, and the engine's own suggestion list."
+msgstr "The detector is engine-agnostic — it works the same whether Harper or LanguageTool produced the diagnostic, because it reads only the flagged token, the surrounding text, and the engine's own suggestion list."
+
+#: ../../reference/config-schema.md:287
+msgid "A word is treated as a name only when **at least two independent signals** agree:"
+msgstr "A word is treated as a name only when **at least two independent signals** agree:"
+
+#: ../../reference/config-schema.md:59
+msgid "Signal"
+msgstr "Signal"
+
+#: ../../reference/config-schema.md:59
+msgid "Meaning"
+msgstr "Meaning"
+
+#: ../../reference/config-schema.md:59
+msgid "`gazetteer`"
+msgstr "`gazetteer`"
+
+#: ../../reference/config-schema.md:59
+msgid "The word is a known given name or surname"
+msgstr "The word is a known given name or surname"
+
+#: ../../reference/config-schema.md:59
+msgid "`orphan`"
+msgstr "`orphan`"
+
+#: ../../reference/config-schema.md:59
+msgid "No suggestion is within edit distance 3 — not a plausible typo"
+msgstr "No suggestion is within edit distance 3 — not a plausible typo"
+
+#: ../../reference/config-schema.md:59
+msgid "`no-suggestions`"
+msgstr "`no-suggestions`"
+
+#: ../../reference/config-schema.md:59
+msgid "The engine offered no correction at all"
+msgstr "The engine offered no correction at all"
+
+#: ../../reference/config-schema.md:59
+msgid "`repetition`"
+msgstr "`repetition`"
+
+#: ../../reference/config-schema.md:59
+msgid "The same spelling occurs more than once in the document"
+msgstr "The same spelling occurs more than once in the document"
+
+#: ../../reference/config-schema.md:59
+msgid "A title, salutation, possessive or citation pattern surrounds it"
+msgstr "A title, salutation, possessive or citation pattern surrounds it"
+
+#: ../../reference/config-schema.md:59
+msgid "`shape`"
+msgstr "`shape`"
+
+#: ../../reference/config-schema.md:59
+msgid "Capitalized away from the start of a sentence"
+msgstr "Capitalized away from the start of a sentence"
+
+#: ../../reference/config-schema.md:298
+msgid "Requiring two signals is what keeps real misspellings visible. `Hoare` is suppressed because it is a known surname *and* capitalized mid-sentence; `thier` is not, because it is lowercase and sits one edit from `their`. Raising `aggressiveness` lowers that bar and will eventually cost you real typos."
+msgstr "Requiring two signals is what keeps real misspellings visible. `Hoare` is suppressed because it is a known surname *and* capitalized mid-sentence; `thier` is not, because it is lowercase and sits one edit from `their`. Raising `aggressiveness` lowers that bar and will eventually cost you real typos."
+
+#: ../../reference/config-schema.md:303
+msgid "Capitalization is ignored as a signal for German (`de-*`), where every noun is capitalized and the shape carries no information."
+msgstr "Capitalization is ignored as a signal for German (`de-*`), where every noun is capitalized and the shape carries no information."
+
+#: ../../reference/config-schema.md:306
+msgid "Use the **Names** tab in the Inspector to see exactly which words were suppressed and which signals fired for each."
+msgstr "Use the **Names** tab in the Inspector to see exactly which words were suppressed and which signals fired for each."

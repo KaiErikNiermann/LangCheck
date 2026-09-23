@@ -1,0 +1,261 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-22 06:27+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../../guide/hunspell-setup.md:1
+msgid "Hunspell Setup"
+msgstr "Hunspell Setup"
+
+#: ../../guide/hunspell-setup.md:3
+msgid "Harper reads English. LanguageTool reads about forty languages. Hunspell fills what is left — Hebrew, Latin, Welsh, Old English, and a long tail besides — using the dictionary format that LibreOffice, Firefox and every desktop spell checker already use."
+msgstr "Harper reads English. LanguageTool reads about forty languages. Hunspell fills what is left — Hebrew, Latin, Welsh, Old English, and a long tail besides — using the dictionary format that LibreOffice, Firefox and every desktop spell checker already use."
+
+#: ../../guide/hunspell-setup.md:8
+msgid "It checks spelling and nothing else. There are no grammar rules here, so a language served by Hunspell alone gets a narrower check than one LanguageTool supports. Where both are available, prefer LanguageTool."
+msgstr "It checks spelling and nothing else. There are no grammar rules here, so a language served by Hunspell alone gets a narrower check than one LanguageTool supports. Where both are available, prefer LanguageTool."
+
+#: ../../guide/hunspell-setup.md:12
+msgid "Why dictionaries are not bundled"
+msgstr "Why dictionaries are not bundled"
+
+#: ../../guide/hunspell-setup.md:14
+msgid "Language Check ships no dictionaries and cannot. Hspell, which supplies Hebrew, is AGPL-3.0; the Latin dictionary is GPL. Neither belongs inside an MIT binary published to crates.io and the VS Code Marketplace."
+msgstr "Language Check ships no dictionaries and cannot. Hspell, which supplies Hebrew, is AGPL-3.0; the Latin dictionary is GPL. Neither belongs inside an MIT binary published to crates.io and the VS Code Marketplace."
+
+#: ../../guide/hunspell-setup.md:18
+msgid "They are installed separately instead, into your own data directory, under their own licenses — the same arrangement VS Code, Firefox and LibreOffice use for the same reason. The installer states a dictionary's license and where its words came from before fetching anything."
+msgstr "They are installed separately instead, into your own data directory, under their own licenses — the same arrangement VS Code, Firefox and LibreOffice use for the same reason. The installer states a dictionary's license and where its words came from before fetching anything."
+
+#: ../../guide/hunspell-setup.md:23
+msgid "Enabling it"
+msgstr "Enabling it"
+
+#: ../../guide/hunspell-setup.md:32
+msgid "`languages` names the tags Hunspell answers for. Naming them is what keeps this engine to the gaps: leave English out and Harper keeps it. An empty list means \"any language with a pack behind it\", which is the discovery mode rather than the tidy one."
+msgstr "`languages` names the tags Hunspell answers for. Naming them is what keeps this engine to the gaps: leave English out and Harper keeps it. An empty list means \"any language with a pack behind it\", which is the discovery mode rather than the tidy one."
+
+#: ../../guide/hunspell-setup.md:37
+msgid "Getting a dictionary"
+msgstr "Getting a dictionary"
+
+#: ../../guide/hunspell-setup.md:39
+msgid "In the editor"
+msgstr "In the editor"
+
+#: ../../guide/hunspell-setup.md:41
+msgid "Open a document declaring a language none of the enabled engines read and the extension offers to install it. Decline and it will not ask again — the offer stays available as a quick fix on the squiggle, under the lightbulb."
+msgstr "Open a document declaring a language none of the enabled engines read and the extension offers to install it. Decline and it will not ask again — the offer stays available as a quick fix on the squiggle, under the lightbulb."
+
+#: ../../guide/hunspell-setup.md:45
+msgid "From the command line"
+msgstr "From the command line"
+
+#: ../../guide/hunspell-setup.md:54
+msgid "From your package manager"
+msgstr "From your package manager"
+
+#: ../../guide/hunspell-setup.md:56
+msgid "A pack you already have is found without downloading a second copy. On Arch:"
+msgstr "A pack you already have is found without downloading a second copy. On Arch:"
+
+#: ../../guide/hunspell-setup.md:62
+msgid "Debian, Fedora, and Homebrew carry the same dictionaries under similar names."
+msgstr "Debian, Fedora, and Homebrew carry the same dictionaries under similar names."
+
+#: ../../guide/hunspell-setup.md:64
+msgid "By hand"
+msgstr "By hand"
+
+#: ../../guide/hunspell-setup.md:66
+msgid "Any `.aff`/`.dic` pair works. Point at it and Language Check uses that one in preference to everything else:"
+msgstr "Any `.aff`/`.dic` pair works. Point at it and Language Check uses that one in preference to everything else:"
+
+#: ../../guide/hunspell-setup.md:78
+msgid "The value may be a directory, an `.aff`/`.dic` stem, or either file of the pair. This is how to use a language with no published download — Latin, for instance, ships only as a LibreOffice `.oxt` archive, so unpack it and name the directory here."
+msgstr "The value may be a directory, an `.aff`/`.dic` stem, or either file of the pair. This is how to use a language with no published download — Latin, for instance, ships only as a LibreOffice `.oxt` archive, so unpack it and name the directory here."
+
+#: ../../guide/hunspell-setup.md:83
+msgid "Where packs are looked for"
+msgstr "Where packs are looked for"
+
+#: ../../guide/hunspell-setup.md:85
+msgid "In order, first match winning:"
+msgstr "In order, first match winning:"
+
+#: ../../guide/hunspell-setup.md:87
+msgid "`dictionary_paths`, for the language in question"
+msgstr "`dictionary_paths`, for the language in question"
+
+#: ../../guide/hunspell-setup.md:88
+msgid "`search_paths`, in the order given"
+msgstr "`search_paths`, in the order given"
+
+#: ../../guide/hunspell-setup.md:89
+msgid "the directory `language-check packs install` writes to"
+msgstr "the directory `language-check packs install` writes to"
+
+#: ../../guide/hunspell-setup.md:90
+msgid "the platform's own: `/usr/share/hunspell`, `/usr/share/myspell`, `~/.local/share/hunspell` on Linux; `~/Library/Spelling` and `/Library/Spelling` on macOS"
+msgstr "the platform's own: `/usr/share/hunspell`, `/usr/share/myspell`, `~/.local/share/hunspell` on Linux; `~/Library/Spelling` and `/Library/Spelling` on macOS"
+
+#: ../../guide/hunspell-setup.md:94
+msgid "A tag resolves to the pack it is actually shipped as, so `he` finds `he_IL`. Where several regional packs could serve one bare tag, the choice is sorted rather than whatever the directory yields, so it is the same on every machine."
+msgstr "A tag resolves to the pack it is actually shipped as, so `he` finds `he_IL`. Where several regional packs could serve one bare tag, the choice is sorted rather than whatever the directory yields, so it is the same on every machine."
+
+#: ../../guide/hunspell-setup.md:98
+msgid "`language-check packs list` prints each pack and the directory it was found in."
+msgstr "`language-check packs list` prints each pack and the directory it was found in."
+
+#: ../../guide/hunspell-setup.md:101
+msgid "Settings"
+msgstr "Settings"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "Field"
+msgstr "Field"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "Type"
+msgstr "Type"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "Default"
+msgstr "Default"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "Description"
+msgstr "Description"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "`enabled`"
+msgstr "`enabled`"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "`bool`"
+msgstr "`bool`"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "`false`"
+msgstr "`false`"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "Enable the engine"
+msgstr "Enable the engine"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "`languages`"
+msgstr "`languages`"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "`string[]`"
+msgstr "`string[]`"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "`[]`"
+msgstr "`[]`"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "BCP-47 tags to check; empty means any language with a pack"
+msgstr "BCP-47 tags to check; empty means any language with a pack"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "`dictionary_paths`"
+msgstr "`dictionary_paths`"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "`map<string,string>`"
+msgstr "`map<string,string>`"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "`{}`"
+msgstr "`{}`"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "Per-language override: a directory, a stem, or either file"
+msgstr "Per-language override: a directory, a stem, or either file"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "`search_paths`"
+msgstr "`search_paths`"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "Extra directories, searched before the platform's own"
+msgstr "Extra directories, searched before the platform's own"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "`auto_install`"
+msgstr "`auto_install`"
+
+#: ../../guide/hunspell-setup.md:0
+msgid "Fetch a missing pack without asking"
+msgstr "Fetch a missing pack without asking"
+
+#: ../../guide/hunspell-setup.md:111
+msgid "`auto_install` is off because a dictionary is a third-party download under its own license, and that is a decision to put to you rather than make for you."
+msgstr "`auto_install` is off because a dictionary is a third-party download under its own license, and that is a decision to put to you rather than make for you."
+
+#: ../../guide/hunspell-setup.md:114
+msgid "What can go wrong"
+msgstr "What can go wrong"
+
+#: ../../guide/hunspell-setup.md:116
+msgid "Every failure names the file and the reason, in the editor rather than only in a log."
+msgstr "Every failure names the file and the reason, in the editor rather than only in a log."
+
+#: ../../guide/hunspell-setup.md:119
+msgid "**No pack for a language.** The passage is reported as unchecked instead of passing as clean, and the editor offers to install one where a download exists."
+msgstr "**No pack for a language.** The passage is reported as unchecked instead of passing as clean, and the editor offers to install one where a download exists."
+
+#: ../../guide/hunspell-setup.md:122
+msgid "**A pack that will not load.** Real dictionaries carry real defects: the 2013 Latin pack has two lines reading `SFK` where `SFX` belongs, so its affix header promises 129 rows and the parser finds 2. Hunspell skips a line it does not recognize; the stricter parser here does not, which is why a pack can work in LibreOffice and fail here. `language-check packs verify <lang>` says which file and which line."
+msgstr "**A pack that will not load.** Real dictionaries carry real defects: the 2013 Latin pack has two lines reading `SFK` where `SFX` belongs, so its affix header promises 129 rows and the parser finds 2. Hunspell skips a line it does not recognize; the stricter parser here does not, which is why a pack can work in LibreOffice and fail here. `language-check packs verify <lang>` says which file and which line."
+
+#: ../../guide/hunspell-setup.md:129
+msgid "**A download that does not match.** Every fetchable pack is pinned to a SHA-256 and a byte count. A download differing in either is discarded before it reaches the parser or your disk. An upstream update and a tampered mirror look identical over the wire, so both stop and say so rather than trusting what arrived — if a pack you expect starts refusing to install, that is what it means."
+msgstr "**A download that does not match.** Every fetchable pack is pinned to a SHA-256 and a byte count. A download differing in either is discarded before it reaches the parser or your disk. An upstream update and a tampered mirror look identical over the wire, so both stop and say so rather than trusting what arrived — if a pack you expect starts refusing to install, that is what it means."
+
+#: ../../guide/hunspell-setup.md:136
+msgid "**No room.** Free space is checked before fetching. Hspell's Hebrew is about 8 MB."
+msgstr "**No room.** Free space is checked before fetching. Hspell's Hebrew is about 8 MB."
+
+#: ../../guide/hunspell-setup.md:139
+msgid "Verifying it works"
+msgstr "Verifying it works"
+
+#: ../../guide/hunspell-setup.md:151
+msgid "The second word doubles its final letter and is not a word. A pack that is installed and working reports it, with suggestions:"
+msgstr "The second word doubles its final letter and is not a word. A pack that is installed and working reports it, with suggestions:"
+
+#: ../../guide/hunspell-setup.md:159
+msgid "A pack that is missing reports the passage as unchecked instead:"
+msgstr "A pack that is missing reports the passage as unchecked instead:"
+
+#: ../../guide/hunspell-setup.md:165
+msgid "See also"
+msgstr "See also"
+
+#: ../../guide/hunspell-setup.md:167
+msgid "[Language Support](languages.md) — how a document declares its languages"
+msgstr "[Language Support](languages.md) — how a document declares its languages"
+
+#: ../../guide/hunspell-setup.md:168
+msgid "[Directives](../reference/directives.md) — `lang-check-begin lang:xx`"
+msgstr "[Directives](../reference/directives.md) — `lang-check-begin lang:xx`"
+
+#: ../../guide/hunspell-setup.md:169
+msgid "[Configuration](configuration.md) — the rest of the config file"
+msgstr "[Configuration](configuration.md) — the rest of the config file"

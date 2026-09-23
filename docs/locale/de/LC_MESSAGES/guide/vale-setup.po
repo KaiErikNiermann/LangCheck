@@ -1,0 +1,245 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-18 00:56+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../../guide/vale-setup.md:1
+msgid "Vale Setup"
+msgstr "Vale Setup"
+
+#: ../../guide/vale-setup.md:3
+msgid "[Vale](https://vale.sh/) is a syntax-aware prose linter with a rich plugin ecosystem. Language Check integrates Vale as a first-class engine alongside Harper and LanguageTool."
+msgstr "[Vale](https://vale.sh/) is a syntax-aware prose linter with a rich plugin ecosystem. Language Check integrates Vale as a first-class engine alongside Harper and LanguageTool."
+
+#: ../../guide/vale-setup.md:7
+msgid "Installing Vale"
+msgstr "Installing Vale"
+
+#: ../../guide/vale-setup.md:0
+msgid "Homebrew (macOS/Linux)"
+msgstr "Homebrew (macOS/Linux)"
+
+#: ../../guide/vale-setup.md:0
+msgid "Scoop (Windows)"
+msgstr "Scoop (Windows)"
+
+#: ../../guide/vale-setup.md:0
+msgid "Binary download"
+msgstr "Binary download"
+
+#: ../../guide/vale-setup.md:25
+msgid "Download from [GitHub Releases](https://github.com/errata-ai/vale/releases) and place `vale` on your `$PATH`."
+msgstr "Download from [GitHub Releases](https://github.com/errata-ai/vale/releases) and place `vale` on your `$PATH`."
+
+#: ../../guide/vale-setup.md:30
+msgid "Verify with:"
+msgstr "Verify with:"
+
+#: ../../guide/vale-setup.md:36
+msgid "Enabling Vale"
+msgstr "Enabling Vale"
+
+#: ../../guide/vale-setup.md:38
+msgid "Add `vale: true` to your `.languagecheck.yaml`:"
+msgstr "Add `vale: true` to your `.languagecheck.yaml`:"
+
+#: ../../guide/vale-setup.md:46
+msgid "Or use the **Language Check: Toggle Vale** command from the VS Code command palette."
+msgstr "Or use the **Language Check: Toggle Vale** command from the VS Code command palette."
+
+#: ../../guide/vale-setup.md:49
+msgid "Vale Configuration"
+msgstr "Vale Configuration"
+
+#: ../../guide/vale-setup.md:51
+msgid "Vale uses its own `.vale.ini` config file for styles, packages, and per-glob settings. Language Check does **not** replace this — you manage Vale's config separately and Language Check invokes Vale with it."
+msgstr "Vale uses its own `.vale.ini` config file for styles, packages, and per-glob settings. Language Check does **not** replace this — you manage Vale's config separately and Language Check invokes Vale with it."
+
+#: ../../guide/vale-setup.md:55
+msgid "Minimal `.vale.ini`"
+msgstr "Minimal `.vale.ini`"
+
+#: ../../guide/vale-setup.md:66
+msgid "After creating the config, run:"
+msgstr "After creating the config, run:"
+
+#: ../../guide/vale-setup.md:72
+msgid "This downloads the packages listed in `Packages` into the `StylesPath` directory."
+msgstr "This downloads the packages listed in `Packages` into the `StylesPath` directory."
+
+#: ../../guide/vale-setup.md:75
+msgid "Pointing to a custom config"
+msgstr "Pointing to a custom config"
+
+#: ../../guide/vale-setup.md:77
+msgid "If your `.vale.ini` is not in the workspace root, specify the path:"
+msgstr "If your `.vale.ini` is not in the workspace root, specify the path:"
+
+#: ../../guide/vale-setup.md:86
+msgid "When omitted, Vale uses its own config search logic (current directory upward, then the global config)."
+msgstr "When omitted, Vale uses its own config search logic (current directory upward, then the global config)."
+
+#: ../../guide/vale-setup.md:89
+msgid "Style Packages"
+msgstr "Style Packages"
+
+#: ../../guide/vale-setup.md:91
+msgid "Vale's [style explorer](https://vale.sh/explorer) offers curated packages:"
+msgstr "Vale's [style explorer](https://vale.sh/explorer) offers curated packages:"
+
+#: ../../guide/vale-setup.md:24
+msgid "Package"
+msgstr "Package"
+
+#: ../../guide/vale-setup.md:24
+msgid "Focus"
+msgstr "Focus"
+
+#: ../../guide/vale-setup.md:24
+msgid "Google"
+msgstr "Google"
+
+#: ../../guide/vale-setup.md:24
+msgid "Google developer documentation"
+msgstr "Google developer documentation"
+
+#: ../../guide/vale-setup.md:24
+msgid "Microsoft"
+msgstr "Microsoft"
+
+#: ../../guide/vale-setup.md:24
+msgid "Microsoft writing guidelines"
+msgstr "Microsoft writing guidelines"
+
+#: ../../guide/vale-setup.md:24
+msgid "write-good"
+msgstr "write-good"
+
+#: ../../guide/vale-setup.md:24
+msgid "English prose (weasel words, passive voice)"
+msgstr "English prose (weasel words, passive voice)"
+
+#: ../../guide/vale-setup.md:24
+msgid "proselint"
+msgstr "proselint"
+
+#: ../../guide/vale-setup.md:24
+msgid "General prose advice"
+msgstr "General prose advice"
+
+#: ../../guide/vale-setup.md:24
+msgid "Readability"
+msgstr "Readability"
+
+#: ../../guide/vale-setup.md:24
+msgid "Flesch-Kincaid, Gunning Fog, etc."
+msgstr "Flesch-Kincaid, Gunning Fog, etc."
+
+#: ../../guide/vale-setup.md:24
+msgid "alex"
+msgstr "alex"
+
+#: ../../guide/vale-setup.md:24
+msgid "Inclusive, considerate writing"
+msgstr "Inclusive, considerate writing"
+
+#: ../../guide/vale-setup.md:102
+msgid "Enable packages in `.vale.ini`:"
+msgstr "Enable packages in `.vale.ini`:"
+
+#: ../../guide/vale-setup.md:111
+msgid "How it Works"
+msgstr "How it Works"
+
+#: ../../guide/vale-setup.md:113
+msgid "Language Check sends document text to Vale via stdin with:"
+msgstr "Language Check sends document text to Vale via stdin with:"
+
+#: ../../guide/vale-setup.md:119
+msgid "Vale's JSON output is parsed and converted to Language Check diagnostics:"
+msgstr "Vale's JSON output is parsed and converted to Language Check diagnostics:"
+
+#: ../../guide/vale-setup.md:24
+msgid "Vale field"
+msgstr "Vale field"
+
+#: ../../guide/vale-setup.md:24
+msgid "Language Check mapping"
+msgstr "Language Check mapping"
+
+#: ../../guide/vale-setup.md:24
+msgid "`Severity: \"error\"`"
+msgstr "`Severity: \"error\"`"
+
+#: ../../guide/vale-setup.md:24
+msgid "Error severity"
+msgstr "Error severity"
+
+#: ../../guide/vale-setup.md:24
+msgid "`Severity: \"warning\"`"
+msgstr "`Severity: \"warning\"`"
+
+#: ../../guide/vale-setup.md:24
+msgid "Warning severity"
+msgstr "Warning severity"
+
+#: ../../guide/vale-setup.md:24
+msgid "`Severity: \"suggestion\"`"
+msgstr "`Severity: \"suggestion\"`"
+
+#: ../../guide/vale-setup.md:24
+msgid "Hint severity"
+msgstr "Hint severity"
+
+#: ../../guide/vale-setup.md:24
+msgid "`Check`"
+msgstr "`Check`"
+
+#: ../../guide/vale-setup.md:24
+msgid "Rule ID prefixed with `vale.`"
+msgstr "Rule ID prefixed with `vale.`"
+
+#: ../../guide/vale-setup.md:24
+msgid "`Action.Params`"
+msgstr "`Action.Params`"
+
+#: ../../guide/vale-setup.md:24
+msgid "Fix suggestions"
+msgstr "Fix suggestions"
+
+#: ../../guide/vale-setup.md:24
+msgid "`Line` + `Span`"
+msgstr "`Line` + `Span`"
+
+#: ../../guide/vale-setup.md:24
+msgid "Byte offsets"
+msgstr "Byte offsets"
+
+#: ../../guide/vale-setup.md:130
+msgid "Rule Overrides"
+msgstr "Rule Overrides"
+
+#: ../../guide/vale-setup.md:132
+msgid "Override Vale rule severities in `.languagecheck.yaml` using the `vale.<Style>.<Rule>` format:"
+msgstr "Override Vale rule severities in `.languagecheck.yaml` using the `vale.<Style>.<Rule>` format:"
+
+#: ../../guide/vale-setup.md:143
+msgid "High Performance Mode"
+msgstr "High Performance Mode"
+
+#: ../../guide/vale-setup.md:145
+msgid "Vale is skipped when `performance.high_performance_mode` is enabled, since it requires spawning an external process."
+msgstr "Vale is skipped when `performance.high_performance_mode` is enabled, since it requires spawning an external process."

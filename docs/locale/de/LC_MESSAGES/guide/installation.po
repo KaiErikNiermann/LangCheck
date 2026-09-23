@@ -1,0 +1,140 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-22 06:27+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../../guide/installation.md:1
+msgid "Installation"
+msgstr "Installation"
+
+#: ../../guide/installation.md:3
+msgid "VS Code Extension"
+msgstr "VS Code Extension"
+
+#: ../../guide/installation.md:5
+msgid "Install from the VS Code marketplace:"
+msgstr "Install from the VS Code marketplace:"
+
+#: ../../guide/installation.md:7
+msgid "Open VS Code"
+msgstr "Open VS Code"
+
+#: ../../guide/installation.md:8
+#: ../../guide/installation.md:21
+msgid "Press `Ctrl+Shift+X` (or `Cmd+Shift+X` on macOS)"
+msgstr "Press `Ctrl+Shift+X` (or `Cmd+Shift+X` on macOS)"
+
+#: ../../guide/installation.md:9
+#: ../../guide/installation.md:22
+msgid "Search for **Language Check**"
+msgstr "Search for **Language Check**"
+
+#: ../../guide/installation.md:10
+#: ../../guide/installation.md:23
+msgid "Click **Install**"
+msgstr "Click **Install**"
+
+#: ../../guide/installation.md:12
+msgid "On first activation, the extension will prompt you to download the core binary for your platform. You can also install it manually."
+msgstr "On first activation, the extension will prompt you to download the core binary for your platform. You can also install it manually."
+
+#: ../../guide/installation.md:14
+msgid "VSCodium and other non-Microsoft builds"
+msgstr "VSCodium and other non-Microsoft builds"
+
+#: ../../guide/installation.md:16
+msgid "VSCodium, Code — OSS, Cursor, Windsurf, and similar builds cannot reach the Microsoft marketplace. The same extension is published to [Open VSX](https://open-vsx.org/extension/KaiErikNiermann/language-check), which those editors query by default:"
+msgstr "VSCodium, Code — OSS, Cursor, Windsurf, and similar builds cannot reach the Microsoft marketplace. The same extension is published to [Open VSX](https://open-vsx.org/extension/KaiErikNiermann/language-check), which those editors query by default:"
+
+#: ../../guide/installation.md:20
+msgid "Open VSCodium"
+msgstr "Open VSCodium"
+
+#: ../../guide/installation.md:25
+msgid "Or from the command line:"
+msgstr "Or from the command line:"
+
+#: ../../guide/installation.md:31
+msgid "The published VSIX is platform-independent — the core binary is fetched separately on first activation, so there is a single artifact for every editor and platform."
+msgstr "The published VSIX is platform-independent — the core binary is fetched separately on first activation, so there is a single artifact for every editor and platform."
+
+#: ../../guide/installation.md:34
+msgid "If your editor is not wired to Open VSX, grab the `.vsix` from [GitHub Releases](https://github.com/KaiErikNiermann/LangCheck/releases) and install it directly:"
+msgstr "If your editor is not wired to Open VSX, grab the `.vsix` from [GitHub Releases](https://github.com/KaiErikNiermann/LangCheck/releases) and install it directly:"
+
+#: ../../guide/installation.md:42
+msgid "Offline or proxied installs"
+msgstr "Offline or proxied installs"
+
+#: ../../guide/installation.md:44
+msgid "The extension downloads `language-check-server` from GitHub Releases the first time it activates. On a machine without direct GitHub access, install the binary yourself (see [CLI Binary](#cli-binary) below) and point the extension at it:"
+msgstr "The extension downloads `language-check-server` from GitHub Releases the first time it activates. On a machine without direct GitHub access, install the binary yourself (see [CLI Binary](#cli-binary) below) and point the extension at it:"
+
+#: ../../guide/installation.md:54
+msgid "With that set the extension never attempts a download."
+msgstr "With that set the extension never attempts a download."
+
+#: ../../guide/installation.md:56
+msgid "CLI Binary"
+msgstr "CLI Binary"
+
+#: ../../guide/installation.md:58
+msgid "Pre-built binaries"
+msgstr "Pre-built binaries"
+
+#: ../../guide/installation.md:60
+msgid "Download the latest release for your platform from [GitHub Releases](https://github.com/KaiErikNiermann/LangCheck/releases)."
+msgstr "Download the latest release for your platform from [GitHub Releases](https://github.com/KaiErikNiermann/LangCheck/releases)."
+
+#: ../../guide/installation.md:62
+msgid "Available targets:"
+msgstr "Available targets:"
+
+#: ../../guide/installation.md:63
+msgid "`x86_64-unknown-linux-gnu` — Linux x86_64"
+msgstr "`x86_64-unknown-linux-gnu` — Linux x86_64"
+
+#: ../../guide/installation.md:64
+msgid "`aarch64-unknown-linux-gnu` — Linux ARM64"
+msgstr "`aarch64-unknown-linux-gnu` — Linux ARM64"
+
+#: ../../guide/installation.md:65
+msgid "`x86_64-apple-darwin` — macOS Intel"
+msgstr "`x86_64-apple-darwin` — macOS Intel"
+
+#: ../../guide/installation.md:66
+msgid "`aarch64-apple-darwin` — macOS Apple Silicon"
+msgstr "`aarch64-apple-darwin` — macOS Apple Silicon"
+
+#: ../../guide/installation.md:67
+msgid "`x86_64-pc-windows-msvc.exe` — Windows x86_64"
+msgstr "`x86_64-pc-windows-msvc.exe` — Windows x86_64"
+
+#: ../../guide/installation.md:69
+msgid "From source"
+msgstr "From source"
+
+#: ../../guide/installation.md:77
+msgid "The binary will be at `target/release/language-check-server`."
+msgstr "The binary will be at `target/release/language-check-server`."
+
+#: ../../guide/installation.md:79
+msgid "Verify the download"
+msgstr "Verify the download"
+
+#: ../../guide/installation.md:81
+msgid "Each release includes `.sha256` checksum files:"
+msgstr "Each release includes `.sha256` checksum files:"

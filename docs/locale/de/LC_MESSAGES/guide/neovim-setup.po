@@ -1,0 +1,201 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-18 00:56+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../../guide/neovim-setup.md:1
+msgid "Neovim Setup"
+msgstr "Neovim Setup"
+
+#: ../../guide/neovim-setup.md:3
+msgid "Language Check provides a native Neovim plugin that connects to the `language-check-server` binary via LSP. It supports Neovim 0.10+ and works with lazy.nvim, packer.nvim, vim-plug, or the built-in Neovim 0.11+ LSP config."
+msgstr "Language Check provides a native Neovim plugin that connects to the `language-check-server` binary via LSP. It supports Neovim 0.10+ and works with lazy.nvim, packer.nvim, vim-plug, or the built-in Neovim 0.11+ LSP config."
+
+#: ../../guide/neovim-setup.md:8
+msgid "Installing the Binary"
+msgstr "Installing the Binary"
+
+#: ../../guide/neovim-setup.md:10
+msgid "The plugin needs the `language-check-server` binary. Pick one method:"
+msgstr "The plugin needs the `language-check-server` binary. Pick one method:"
+
+#: ../../guide/neovim-setup.md:0
+msgid ":LangCheck install (recommended)"
+msgstr ":LangCheck install (recommended)"
+
+#: ../../guide/neovim-setup.md:16
+msgid "After installing the plugin, run inside Neovim:"
+msgstr "After installing the plugin, run inside Neovim:"
+
+#: ../../guide/neovim-setup.md:22
+msgid "This downloads the correct binary for your platform from GitHub Releases into `~/.local/share/nvim/lang-check/bin/`."
+msgstr "This downloads the correct binary for your platform from GitHub Releases into `~/.local/share/nvim/lang-check/bin/`."
+
+#: ../../guide/neovim-setup.md:0
+msgid "cargo"
+msgstr "cargo"
+
+#: ../../guide/neovim-setup.md:0
+msgid "Manual download"
+msgstr "Manual download"
+
+#: ../../guide/neovim-setup.md:33
+msgid "Download from [GitHub Releases](https://github.com/KaiErikNiermann/LangCheck/releases), extract, and place `language-check-server` somewhere on your `$PATH`."
+msgstr "Download from [GitHub Releases](https://github.com/KaiErikNiermann/LangCheck/releases), extract, and place `language-check-server` somewhere on your `$PATH`."
+
+#: ../../guide/neovim-setup.md:38
+msgid "Plugin Installation"
+msgstr "Plugin Installation"
+
+#: ../../guide/neovim-setup.md:0
+msgid "lazy.nvim"
+msgstr "lazy.nvim"
+
+#: ../../guide/neovim-setup.md:53
+msgid "The `ft` key ensures the plugin loads only when you open a supported file type. `opts = {}` calls `setup()` with defaults."
+msgstr "The `ft` key ensures the plugin loads only when you open a supported file type. `opts = {}` calls `setup()` with defaults."
+
+#: ../../guide/neovim-setup.md:0
+msgid "packer.nvim"
+msgstr "packer.nvim"
+
+#: ../../guide/neovim-setup.md:0
+msgid "Neovim 0.11+ (no plugin manager)"
+msgstr "Neovim 0.11+ (no plugin manager)"
+
+#: ../../guide/neovim-setup.md:69
+msgid "No plugin manager needed. The plugin ships an `lsp/lang_check.lua` file that works with the native LSP config:"
+msgstr "No plugin manager needed. The plugin ships an `lsp/lang_check.lua` file that works with the native LSP config:"
+
+#: ../../guide/neovim-setup.md:77
+msgid "Make sure the plugin directory is on your runtime path, or clone it directly:"
+msgstr "Make sure the plugin directory is on your runtime path, or clone it directly:"
+
+#: ../../guide/neovim-setup.md:87
+msgid "Configuration"
+msgstr "Configuration"
+
+#: ../../guide/neovim-setup.md:89
+msgid "Pass options to `setup()` to override defaults. Here is a full example with all available keys and their defaults:"
+msgstr "Pass options to `setup()` to override defaults. Here is a full example with all available keys and their defaults:"
+
+#: ../../guide/neovim-setup.md:129
+msgid "Common Configurations"
+msgstr "Common Configurations"
+
+#: ../../guide/neovim-setup.md:131
+msgid "**LanguageTool enabled with German checking:**"
+msgstr "**LanguageTool enabled with German checking:**"
+
+#: ../../guide/neovim-setup.md:147
+msgid "**All engines enabled (Harper + LanguageTool + Vale + Proselint):**"
+msgstr "**All engines enabled (Harper + LanguageTool + Vale + Proselint):**"
+
+#: ../../guide/neovim-setup.md:164
+msgid "**High performance mode (Harper only, no network):**"
+msgstr "**High performance mode (Harper only, no network):**"
+
+#: ../../guide/neovim-setup.md:178
+msgid "**Custom binary path:**"
+msgstr "**Custom binary path:**"
+
+#: ../../guide/neovim-setup.md:188
+msgid "Workspace Configuration"
+msgstr "Workspace Configuration"
+
+#: ../../guide/neovim-setup.md:190
+msgid "In addition to LSP settings above, Language Check reads a `.languagecheck.yaml` file from your project root for per-project configuration (rule overrides, exclude patterns, auto-fix rules, etc.). See [Configuration](configuration.md) for the full schema."
+msgstr "In addition to LSP settings above, Language Check reads a `.languagecheck.yaml` file from your project root for per-project configuration (rule overrides, exclude patterns, auto-fix rules, etc.). See [Configuration](configuration.md) for the full schema."
+
+#: ../../guide/neovim-setup.md:195
+msgid "The LSP settings passed via `setup()` and the YAML config are complementary — the YAML file is the primary source of truth for engine toggles and rules, while LSP settings provide an initial configuration before the server reads the YAML file."
+msgstr "The LSP settings passed via `setup()` and the YAML config are complementary — the YAML file is the primary source of truth for engine toggles and rules, while LSP settings provide an initial configuration before the server reads the YAML file."
+
+#: ../../guide/neovim-setup.md:200
+msgid "Commands"
+msgstr "Commands"
+
+#: ../../guide/neovim-setup.md:68
+msgid "Command"
+msgstr "Command"
+
+#: ../../guide/neovim-setup.md:68
+msgid "Description"
+msgstr "Description"
+
+#: ../../guide/neovim-setup.md:68
+msgid "`:LangCheck install`"
+msgstr "`:LangCheck install`"
+
+#: ../../guide/neovim-setup.md:68
+msgid "Download the server binary for your platform"
+msgstr "Download the server binary for your platform"
+
+#: ../../guide/neovim-setup.md:68
+msgid "`:LangCheck info`"
+msgstr "`:LangCheck info`"
+
+#: ../../guide/neovim-setup.md:68
+msgid "Print binary path, config, and platform info"
+msgstr "Print binary path, config, and platform info"
+
+#: ../../guide/neovim-setup.md:68
+msgid "`:LangCheck start`"
+msgstr "`:LangCheck start`"
+
+#: ../../guide/neovim-setup.md:68
+msgid "Manually start the LSP client"
+msgstr "Manually start the LSP client"
+
+#: ../../guide/neovim-setup.md:208
+msgid "Health Check"
+msgstr "Health Check"
+
+#: ../../guide/neovim-setup.md:210
+msgid "Run the built-in health check to verify your setup:"
+msgstr "Run the built-in health check to verify your setup:"
+
+#: ../../guide/neovim-setup.md:216
+msgid "This checks:"
+msgstr "This checks:"
+
+#: ../../guide/neovim-setup.md:217
+msgid "Neovim version (0.10+ required)"
+msgstr "Neovim version (0.10+ required)"
+
+#: ../../guide/neovim-setup.md:218
+msgid "Binary availability and version"
+msgstr "Binary availability and version"
+
+#: ../../guide/neovim-setup.md:219
+msgid "`.languagecheck.yaml` detection"
+msgstr "`.languagecheck.yaml` detection"
+
+#: ../../guide/neovim-setup.md:220
+msgid "LanguageTool connectivity (if configured)"
+msgstr "LanguageTool connectivity (if configured)"
+
+#: ../../guide/neovim-setup.md:222
+msgid "Diagnostics"
+msgstr "Diagnostics"
+
+#: ../../guide/neovim-setup.md:224
+msgid "Diagnostics appear inline via Neovim's built-in LSP diagnostic system. Use standard keybindings to navigate:"
+msgstr "Diagnostics appear inline via Neovim's built-in LSP diagnostic system. Use standard keybindings to navigate:"
+
+#: ../../guide/neovim-setup.md:239
+msgid "Code actions (quickfixes) are available via `vim.lsp.buf.code_action()` on a diagnostic."
+msgstr "Code actions (quickfixes) are available via `vim.lsp.buf.code_action()` on a diagnostic."

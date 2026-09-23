@@ -1,0 +1,365 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-18 00:56+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../../tinylang-spec.md:1
+msgid "TinyLang Specification"
+msgstr "TinyLang Specification"
+
+#: ../../tinylang-spec.md:3
+msgid "TinyLang is a minimal demo markup language designed to showcase how to add language support to lang-check. It is intentionally trivial — just complex enough to demonstrate prose extraction, math exclusion, and structural commands."
+msgstr "TinyLang is a minimal demo markup language designed to showcase how to add language support to lang-check. It is intentionally trivial — just complex enough to demonstrate prose extraction, math exclusion, and structural commands."
+
+#: ../../tinylang-spec.md:7
+msgid "File Extension"
+msgstr "File Extension"
+
+#: ../../tinylang-spec.md:9
+msgid "`.tiny`"
+msgstr "`.tiny`"
+
+#: ../../tinylang-spec.md:11
+msgid "Syntax"
+msgstr "Syntax"
+
+#: ../../tinylang-spec.md:13
+msgid "Prose Text"
+msgstr "Prose Text"
+
+#: ../../tinylang-spec.md:15
+msgid "Any text that isn't inside a special construct is **prose** and will be grammar-checked."
+msgstr "Any text that isn't inside a special construct is **prose** and will be grammar-checked."
+
+#: ../../tinylang-spec.md:22
+msgid "Headings"
+msgstr "Headings"
+
+#: ../../tinylang-spec.md:24
+msgid "Lines starting with one or more `#` characters followed by a space:"
+msgstr "Lines starting with one or more `#` characters followed by a space:"
+
+#: ../../tinylang-spec.md:32
+msgid "The heading text (after `# `) is prose."
+msgstr "The heading text (after `# `) is prose."
+
+#: ../../tinylang-spec.md:34
+msgid "Bold and Italic"
+msgstr "Bold and Italic"
+
+#: ../../tinylang-spec.md:36
+msgid "Bold: `*text*`"
+msgstr "Bold: `*text*`"
+
+#: ../../tinylang-spec.md:37
+msgid "Italic: `_text_`"
+msgstr "Italic: `_text_`"
+
+#: ../../tinylang-spec.md:39
+msgid "The text inside markers is prose (markers are stripped for checking)."
+msgstr "The text inside markers is prose (markers are stripped for checking)."
+
+#: ../../tinylang-spec.md:41
+msgid "Code Spans"
+msgstr "Code Spans"
+
+#: ../../tinylang-spec.md:43
+msgid "Inline code: `` `code` ``"
+msgstr "Inline code: `` `code` ``"
+
+#: ../../tinylang-spec.md:45
+msgid "Code content is **not** prose and is excluded from checking."
+msgstr "Code content is **not** prose and is excluded from checking."
+
+#: ../../tinylang-spec.md:47
+msgid "Code Blocks"
+msgstr "Code Blocks"
+
+#: ../../tinylang-spec.md:49
+msgid "Fenced with `~~~` on their own lines:"
+msgstr "Fenced with `~~~` on their own lines:"
+
+#: ../../tinylang-spec.md:59
+msgid "Everything between `~~~` fences is excluded from checking."
+msgstr "Everything between `~~~` fences is excluded from checking."
+
+#: ../../tinylang-spec.md:61
+msgid "Comments"
+msgstr "Comments"
+
+#: ../../tinylang-spec.md:63
+msgid "Line comments starting with `//`:"
+msgstr "Line comments starting with `//`:"
+
+#: ../../tinylang-spec.md:69
+msgid "Comments are excluded from checking."
+msgstr "Comments are excluded from checking."
+
+#: ../../tinylang-spec.md:71
+msgid "Math"
+msgstr "Math"
+
+#: ../../tinylang-spec.md:73
+msgid "Inline math: `$expression$` Display math: `$$expression$$`"
+msgstr "Inline math: `$expression$` Display math: `$$expression$$`"
+
+#: ../../tinylang-spec.md:76
+msgid "Math content is excluded from checking. Display math creates an exclusion zone (content replaced with spaces to preserve offsets, same as LaTeX `\\[...\\]` and Forester `##{...}`)."
+msgstr "Math content is excluded from checking. Display math creates an exclusion zone (content replaced with spaces to preserve offsets, same as LaTeX `\\[...\\]` and Forester `##{...}`)."
+
+#: ../../tinylang-spec.md:80
+msgid "Structural Commands"
+msgstr "Structural Commands"
+
+#: ../../tinylang-spec.md:82
+msgid "Commands starting with `@` that take arguments in `{...}`:"
+msgstr "Commands starting with `@` that take arguments in `{...}`:"
+
+#: ../../tinylang-spec.md:93
+msgid "**Structural commands** — arguments are identifiers/metadata, not prose:"
+msgstr "**Structural commands** — arguments are identifiers/metadata, not prose:"
+
+#: ../../tinylang-spec.md:94
+msgid "`@author`, `@date`, `@import`, `@ref`, `@tag`, `@id`, `@class`"
+msgstr "`@author`, `@date`, `@import`, `@ref`, `@tag`, `@id`, `@class`"
+
+#: ../../tinylang-spec.md:96
+msgid "**Prose commands** — arguments contain prose to check:"
+msgstr "**Prose commands** — arguments contain prose to check:"
+
+#: ../../tinylang-spec.md:97
+msgid "`@title`, `@note`, `@caption`, `@quote`, `@footnote`"
+msgstr "`@title`, `@note`, `@caption`, `@quote`, `@footnote`"
+
+#: ../../tinylang-spec.md:98
+msgid "Any unknown `@command` defaults to prose"
+msgstr "Any unknown `@command` defaults to prose"
+
+#: ../../tinylang-spec.md:100
+msgid "Links"
+msgstr "Links"
+
+#: ../../tinylang-spec.md:102
+msgid "Links use `[text](url)` syntax:"
+msgstr "Links use `[text](url)` syntax:"
+
+#: ../../tinylang-spec.md:108
+msgid "The link text (`the documentation`) is prose. The URL is not."
+msgstr "The link text (`the documentation`) is prose. The URL is not."
+
+#: ../../tinylang-spec.md:110
+msgid "Paragraphs"
+msgstr "Paragraphs"
+
+#: ../../tinylang-spec.md:112
+msgid "Paragraphs are separated by blank lines (`\\n\\n`). Text within a paragraph is merged into a single prose range for checking."
+msgstr "Paragraphs are separated by blank lines (`\\n\\n`). Text within a paragraph is merged into a single prose range for checking."
+
+#: ../../tinylang-spec.md:115
+msgid "Example Document"
+msgstr "Example Document"
+
+#: ../../tinylang-spec.md:158
+msgid "Tree-Sitter Node Types"
+msgstr "Tree-Sitter Node Types"
+
+#: ../../tinylang-spec.md:0
+msgid "Node"
+msgstr "Node"
+
+#: ../../tinylang-spec.md:0
+msgid "Description"
+msgstr "Description"
+
+#: ../../tinylang-spec.md:0
+msgid "Prose?"
+msgstr "Prose?"
+
+#: ../../tinylang-spec.md:0
+msgid "`source_file`"
+msgstr "`source_file`"
+
+#: ../../tinylang-spec.md:0
+msgid "Root"
+msgstr "Root"
+
+#: ../../tinylang-spec.md:0
+msgid "—"
+msgstr "—"
+
+#: ../../tinylang-spec.md:0
+msgid "`heading`"
+msgstr "`heading`"
+
+#: ../../tinylang-spec.md:0
+msgid "`# text`"
+msgstr "`# text`"
+
+#: ../../tinylang-spec.md:0
+msgid "Heading text is prose"
+msgstr "Heading text is prose"
+
+#: ../../tinylang-spec.md:0
+msgid "`paragraph`"
+msgstr "`paragraph`"
+
+#: ../../tinylang-spec.md:0
+msgid "Block of text"
+msgstr "Block of text"
+
+#: ../../tinylang-spec.md:0
+msgid "Yes"
+msgstr "Yes"
+
+#: ../../tinylang-spec.md:0
+msgid "`text`"
+msgstr "`text`"
+
+#: ../../tinylang-spec.md:0
+msgid "Plain text runs"
+msgstr "Plain text runs"
+
+#: ../../tinylang-spec.md:0
+msgid "**Yes**"
+msgstr "**Yes**"
+
+#: ../../tinylang-spec.md:0
+msgid "`bold`"
+msgstr "`bold`"
+
+#: ../../tinylang-spec.md:0
+msgid "`*text*`"
+msgstr "`*text*`"
+
+#: ../../tinylang-spec.md:0
+msgid "Content is prose"
+msgstr "Content is prose"
+
+#: ../../tinylang-spec.md:0
+msgid "`italic`"
+msgstr "`italic`"
+
+#: ../../tinylang-spec.md:0
+msgid "`_text_`"
+msgstr "`_text_`"
+
+#: ../../tinylang-spec.md:0
+msgid "`code_span`"
+msgstr "`code_span`"
+
+#: ../../tinylang-spec.md:0
+msgid "`` `code` ``"
+msgstr "`` `code` ``"
+
+#: ../../tinylang-spec.md:0
+msgid "No"
+msgstr "No"
+
+#: ../../tinylang-spec.md:0
+msgid "`code_block`"
+msgstr "`code_block`"
+
+#: ../../tinylang-spec.md:0
+msgid "`~~~...~~~`"
+msgstr "`~~~...~~~`"
+
+#: ../../tinylang-spec.md:0
+msgid "`comment`"
+msgstr "`comment`"
+
+#: ../../tinylang-spec.md:0
+msgid "`// ...`"
+msgstr "`// ...`"
+
+#: ../../tinylang-spec.md:0
+msgid "`inline_math`"
+msgstr "`inline_math`"
+
+#: ../../tinylang-spec.md:0
+msgid "`$...$`"
+msgstr "`$...$`"
+
+#: ../../tinylang-spec.md:0
+msgid "`display_math`"
+msgstr "`display_math`"
+
+#: ../../tinylang-spec.md:0
+msgid "`$$...$$`"
+msgstr "`$$...$$`"
+
+#: ../../tinylang-spec.md:0
+msgid "No (exclusion zone)"
+msgstr "No (exclusion zone)"
+
+#: ../../tinylang-spec.md:0
+msgid "`command`"
+msgstr "`command`"
+
+#: ../../tinylang-spec.md:0
+msgid "`@name{args}`"
+msgstr "`@name{args}`"
+
+#: ../../tinylang-spec.md:0
+msgid "Depends on name"
+msgstr "Depends on name"
+
+#: ../../tinylang-spec.md:0
+msgid "`command_name`"
+msgstr "`command_name`"
+
+#: ../../tinylang-spec.md:0
+msgid "The `@identifier`"
+msgstr "The `@identifier`"
+
+#: ../../tinylang-spec.md:0
+msgid "`command_arg`"
+msgstr "`command_arg`"
+
+#: ../../tinylang-spec.md:0
+msgid "`{content}`"
+msgstr "`{content}`"
+
+#: ../../tinylang-spec.md:0
+msgid "Depends on parent"
+msgstr "Depends on parent"
+
+#: ../../tinylang-spec.md:0
+msgid "`link`"
+msgstr "`link`"
+
+#: ../../tinylang-spec.md:0
+msgid "`[text](url)`"
+msgstr "`[text](url)`"
+
+#: ../../tinylang-spec.md:0
+msgid "Text is prose, URL is not"
+msgstr "Text is prose, URL is not"
+
+#: ../../tinylang-spec.md:0
+msgid "`link_text`"
+msgstr "`link_text`"
+
+#: ../../tinylang-spec.md:0
+msgid "Text inside `[...]`"
+msgstr "Text inside `[...]`"
+
+#: ../../tinylang-spec.md:0
+msgid "`link_url`"
+msgstr "`link_url`"
+
+#: ../../tinylang-spec.md:0
+msgid "URL inside `(...)`"
+msgstr "URL inside `(...)`"

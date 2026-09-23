@@ -70,6 +70,7 @@ languages = [
     ("fr", "Français"),
     ("es", "Español"),
     ("ja", "日本語"),
+    ("de", "Deutsch"),
 ]
 
 # Languages with enough translations to deploy (add codes as translations land)
@@ -85,7 +86,7 @@ repo_url = "https://github.com/KaiErikNiermann/LangCheck"
 release_url = f"{repo_url}/releases/tag/v{release}"
 
 # Context for templates
-html_context = {
+html_context = {  # type: ignore
     "release_url": release_url,
     "marketplace_url": marketplace_url,
     "crates_url": crates_url,

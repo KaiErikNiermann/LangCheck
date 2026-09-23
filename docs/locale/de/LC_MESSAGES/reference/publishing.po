@@ -1,0 +1,149 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-22 06:27+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../../reference/publishing.md:1
+msgid "Package Registry Publishing"
+msgstr "Package Registry Publishing"
+
+#: ../../reference/publishing.md:3
+msgid "Distribution plan for the Language Check CLI binary across package registries."
+msgstr "Distribution plan for the Language Check CLI binary across package registries."
+
+#: ../../reference/publishing.md:5
+msgid "crates.io"
+msgstr "crates.io"
+
+#: ../../reference/publishing.md:7
+msgid "The Rust crate is published directly from the `rust-core` directory."
+msgstr "The Rust crate is published directly from the `rust-core` directory."
+
+#: ../../reference/publishing.md:15
+msgid "**Checklist:**"
+msgstr "**Checklist:**"
+
+#: ../../reference/publishing.md:16
+msgid "Ensure `Cargo.toml` has correct `name`, `version`, `description`, `license`, `repository`"
+msgstr "Ensure `Cargo.toml` has correct `name`, `version`, `description`, `license`, `repository`"
+
+#: ../../reference/publishing.md:17
+msgid "Add `categories` and `keywords` for discoverability"
+msgstr "Add `categories` and `keywords` for discoverability"
+
+#: ../../reference/publishing.md:18
+msgid "Verify `README.md` is included via `readme` field"
+msgstr "Verify `README.md` is included via `readme` field"
+
+#: ../../reference/publishing.md:20
+msgid "Open VSX (VSCodium)"
+msgstr "Open VSX (VSCodium)"
+
+#: ../../reference/publishing.md:22
+msgid "VSCodium, Code — OSS and other non-Microsoft builds cannot query the Microsoft marketplace; they read [Open VSX](https://open-vsx.org). The release workflow publishes the same VSIX to both registries, so no separate build is needed — the artifact is platform-independent and the core binary is fetched at first activation."
+msgstr "VSCodium, Code — OSS and other non-Microsoft builds cannot query the Microsoft marketplace; they read [Open VSX](https://open-vsx.org). The release workflow publishes the same VSIX to both registries, so no separate build is needed — the artifact is platform-independent and the core binary is fetched at first activation."
+
+#: ../../reference/publishing.md:27
+msgid "**One-time maintainer setup:**"
+msgstr "**One-time maintainer setup:**"
+
+#: ../../reference/publishing.md:29
+msgid "Sign in at [open-vsx.org](https://open-vsx.org) with the GitHub account that owns the repository, then create an access token under *Settings -> Access Tokens*."
+msgstr "Sign in at [open-vsx.org](https://open-vsx.org) with the GitHub account that owns the repository, then create an access token under *Settings -> Access Tokens*."
+
+#: ../../reference/publishing.md:31
+msgid "Create the publisher namespace (it must exist before the first publish):"
+msgstr "Create the publisher namespace (it must exist before the first publish):"
+
+#: ../../reference/publishing.md:37
+msgid "Add the token as the `OVSX_PAT` repository secret in GitHub (*Settings -> Secrets and variables -> Actions*)."
+msgstr "Add the token as the `OVSX_PAT` repository secret in GitHub (*Settings -> Secrets and variables -> Actions*)."
+
+#: ../../reference/publishing.md:40
+msgid "Optionally, claim namespace ownership by opening an issue on [EclipseFdn/open-vsx.org](https://github.com/EclipseFdn/open-vsx.org/issues) — this removes the \"unverified publisher\" notice. Publishing works without it."
+msgstr "Optionally, claim namespace ownership by opening an issue on [EclipseFdn/open-vsx.org](https://github.com/EclipseFdn/open-vsx.org/issues) — this removes the \"unverified publisher\" notice. Publishing works without it."
+
+#: ../../reference/publishing.md:44
+msgid "**Per release:** nothing. The `publish-vsix` job pushes to Open VSX whenever `OVSX_PAT` is set, and emits a workflow warning when it is not. To publish by hand:"
+msgstr "**Per release:** nothing. The `publish-vsix` job pushes to Open VSX whenever `OVSX_PAT` is set, and emits a workflow warning when it is not. To publish by hand:"
+
+#: ../../reference/publishing.md:52
+msgid "**Note on `engines.vscode`:** VSCodium lags upstream VS Code by days to weeks, and Open VSX serves the newest VSIX the client's version allows. Keep `extension/package.json`'s `engines.vscode` at the oldest API level the code actually compiles against (verify by pinning `@types/vscode` to the same version and running `pnpm typecheck`) rather than at the current VS Code release, or fresh versions become uninstallable on VSCodium."
+msgstr "**Note on `engines.vscode`:** VSCodium lags upstream VS Code by days to weeks, and Open VSX serves the newest VSIX the client's version allows. Keep `extension/package.json`'s `engines.vscode` at the oldest API level the code actually compiles against (verify by pinning `@types/vscode` to the same version and running `pnpm typecheck`) rather than at the current VS Code release, or fresh versions become uninstallable on VSCodium."
+
+#: ../../reference/publishing.md:58
+msgid "Homebrew (macOS/Linux)"
+msgstr "Homebrew (macOS/Linux)"
+
+#: ../../reference/publishing.md:60
+msgid "Formula"
+msgstr "Formula"
+
+#: ../../reference/publishing.md:98
+msgid "Tap setup"
+msgstr "Tap setup"
+
+#: ../../reference/publishing.md:106
+msgid "winget (Windows)"
+msgstr "winget (Windows)"
+
+#: ../../reference/publishing.md:108
+msgid "Manifest"
+msgstr "Manifest"
+
+#: ../../reference/publishing.md:110
+msgid "Create `manifests/g/KaiErikNiermann/language-check/0.1.0/` in the [winget-pkgs](https://github.com/microsoft/winget-pkgs) repository:"
+msgstr "Create `manifests/g/KaiErikNiermann/language-check/0.1.0/` in the [winget-pkgs](https://github.com/microsoft/winget-pkgs) repository:"
+
+#: ../../reference/publishing.md:112
+msgid "**KaiErikNiermann.language-check.yaml:**"
+msgstr "**KaiErikNiermann.language-check.yaml:**"
+
+#: ../../reference/publishing.md:129
+msgid "Submit via PR to `microsoft/winget-pkgs`."
+msgstr "Submit via PR to `microsoft/winget-pkgs`."
+
+#: ../../reference/publishing.md:131
+msgid "AUR (Arch Linux)"
+msgstr "AUR (Arch Linux)"
+
+#: ../../reference/publishing.md:133
+msgid "PKGBUILD"
+msgstr "PKGBUILD"
+
+#: ../../reference/publishing.md:156
+msgid "Publishing"
+msgstr "Publishing"
+
+#: ../../reference/publishing.md:169
+msgid "Debian/Ubuntu (.deb)"
+msgstr "Debian/Ubuntu (.deb)"
+
+#: ../../reference/publishing.md:171
+msgid "Using cargo-deb"
+msgstr "Using cargo-deb"
+
+#: ../../reference/publishing.md:179
+msgid "Add to `Cargo.toml`:"
+msgstr "Add to `Cargo.toml`:"
+
+#: ../../reference/publishing.md:192
+msgid "Release Automation"
+msgstr "Release Automation"
+
+#: ../../reference/publishing.md:194
+msgid "GitHub Actions workflow"
+msgstr "GitHub Actions workflow"

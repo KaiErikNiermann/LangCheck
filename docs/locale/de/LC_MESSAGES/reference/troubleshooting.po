@@ -1,0 +1,209 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-18 00:56+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../../reference/troubleshooting.md:1
+msgid "Troubleshooting"
+msgstr "Troubleshooting"
+
+#: ../../reference/troubleshooting.md:3
+msgid "Common Issues"
+msgstr "Common Issues"
+
+#: ../../reference/troubleshooting.md:5
+msgid "Extension not activating"
+msgstr "Extension not activating"
+
+#: ../../reference/troubleshooting.md:7
+msgid "**Symptoms:** No diagnostics appear; status bar items are missing."
+msgstr "**Symptoms:** No diagnostics appear; status bar items are missing."
+
+#: ../../reference/troubleshooting.md:9
+#: ../../reference/troubleshooting.md:18
+#: ../../reference/troubleshooting.md:27
+#: ../../reference/troubleshooting.md:34
+#: ../../reference/troubleshooting.md:41
+msgid "**Solutions:**"
+msgstr "**Solutions:**"
+
+#: ../../reference/troubleshooting.md:10
+msgid "Check the VS Code Output panel (View > Output > Language Check) for error messages."
+msgstr "Check the VS Code Output panel (View > Output > Language Check) for error messages."
+
+#: ../../reference/troubleshooting.md:11
+msgid "Ensure the active file is a supported type (Markdown, HTML, or LaTeX)."
+msgstr "Ensure the active file is a supported type (Markdown, HTML, or LaTeX)."
+
+#: ../../reference/troubleshooting.md:12
+msgid "Run `Language Check: Check Current Document` from the Command Palette."
+msgstr "Run `Language Check: Check Current Document` from the Command Palette."
+
+#: ../../reference/troubleshooting.md:14
+msgid "Core binary not found"
+msgstr "Core binary not found"
+
+#: ../../reference/troubleshooting.md:16
+msgid "**Symptoms:** Error message about missing binary on activation."
+msgstr "**Symptoms:** Error message about missing binary on activation."
+
+#: ../../reference/troubleshooting.md:19
+msgid "Click **Download** when prompted to auto-download the binary."
+msgstr "Click **Download** when prompted to auto-download the binary."
+
+#: ../../reference/troubleshooting.md:20
+msgid "Or download manually from [GitHub Releases](https://github.com/KaiErikNiermann/LangCheck/releases)."
+msgstr "Or download manually from [GitHub Releases](https://github.com/KaiErikNiermann/LangCheck/releases)."
+
+#: ../../reference/troubleshooting.md:21
+msgid "Set a custom path: `languageCheck.core.binaryPath` in VS Code settings."
+msgstr "Set a custom path: `languageCheck.core.binaryPath` in VS Code settings."
+
+#: ../../reference/troubleshooting.md:23
+msgid "LanguageTool connection errors"
+msgstr "LanguageTool connection errors"
+
+#: ../../reference/troubleshooting.md:25
+msgid "**Symptoms:** Only Harper diagnostics appear; LT errors in output."
+msgstr "**Symptoms:** Only Harper diagnostics appear; LT errors in output."
+
+#: ../../reference/troubleshooting.md:28
+msgid "Start a local LanguageTool server: `docker compose up -d`"
+msgstr "Start a local LanguageTool server: `docker compose up -d`"
+
+#: ../../reference/troubleshooting.md:29
+msgid "Verify the URL in config: `engines.languagetool.url`"
+msgstr "Verify the URL in config: `engines.languagetool.url`"
+
+#: ../../reference/troubleshooting.md:30
+msgid "Or disable LT: set `engines.languagetool: false`"
+msgstr "Or disable LT: set `engines.languagetool: false`"
+
+#: ../../reference/troubleshooting.md:32
+msgid "High memory usage"
+msgstr "High memory usage"
+
+#: ../../reference/troubleshooting.md:35
+msgid "Enable High Performance Mode to disable LT and external providers."
+msgstr "Enable High Performance Mode to disable LT and external providers."
+
+#: ../../reference/troubleshooting.md:36
+msgid "Set `performance.max_file_size` to skip large files."
+msgstr "Set `performance.max_file_size` to skip large files."
+
+#: ../../reference/troubleshooting.md:37
+msgid "Add large directories to `exclude` patterns."
+msgstr "Add large directories to `exclude` patterns."
+
+#: ../../reference/troubleshooting.md:39
+msgid "SpeedFix panel is blank"
+msgstr "SpeedFix panel is blank"
+
+#: ../../reference/troubleshooting.md:42
+msgid "Reload the VS Code window (`Ctrl+Shift+P` > Reload Window)."
+msgstr "Reload the VS Code window (`Ctrl+Shift+P` > Reload Window)."
+
+#: ../../reference/troubleshooting.md:43
+msgid "Check that the webview assets exist in the extension directory."
+msgstr "Check that the webview assets exist in the extension directory."
+
+#: ../../reference/troubleshooting.md:45
+msgid "Debug Tools"
+msgstr "Debug Tools"
+
+#: ../../reference/troubleshooting.md:47
+msgid "Protobuf Trace"
+msgstr "Protobuf Trace"
+
+#: ../../reference/troubleshooting.md:49
+msgid "Enable message tracing to see all communication between the extension and core:"
+msgstr "Enable message tracing to see all communication between the extension and core:"
+
+#: ../../reference/troubleshooting.md:51
+msgid "Run `Language Check: Toggle Protobuf Trace`"
+msgstr "Run `Language Check: Toggle Protobuf Trace`"
+
+#: ../../reference/troubleshooting.md:52
+msgid "Run `Language Check: Show Protobuf Trace` to open the output channel"
+msgstr "Run `Language Check: Show Protobuf Trace` to open the output channel"
+
+#: ../../reference/troubleshooting.md:53
+msgid "Check and fix a document to see traced messages"
+msgstr "Check and fix a document to see traced messages"
+
+#: ../../reference/troubleshooting.md:55
+msgid "Inspector Panel"
+msgstr "Inspector Panel"
+
+#: ../../reference/troubleshooting.md:57
+msgid "Open the Inspector debug panel for advanced diagnostics:"
+msgstr "Open the Inspector debug panel for advanced diagnostics:"
+
+#: ../../reference/troubleshooting.md:59
+msgid "Run `Language Check: Open Inspector`"
+msgstr "Run `Language Check: Open Inspector`"
+
+#: ../../reference/troubleshooting.md:60
+msgid "View the AST structure, extracted prose ranges, and pipeline latency"
+msgstr "View the AST structure, extracted prose ranges, and pipeline latency"
+
+#: ../../reference/troubleshooting.md:62
+msgid "Core Channel Switching"
+msgstr "Core Channel Switching"
+
+#: ../../reference/troubleshooting.md:64
+msgid "Switch between different core binary builds:"
+msgstr "Switch between different core binary builds:"
+
+#: ../../reference/troubleshooting.md:66
+msgid "Run `Language Check: Switch Core Binary`"
+msgstr "Run `Language Check: Switch Core Binary`"
+
+#: ../../reference/troubleshooting.md:67
+msgid "Choose **Stable**, **Canary**, or **Dev**"
+msgstr "Choose **Stable**, **Canary**, or **Dev**"
+
+#: ../../reference/troubleshooting.md:68
+msgid "Dev builds include debug symbols and verbose logging"
+msgstr "Dev builds include debug symbols and verbose logging"
+
+#: ../../reference/troubleshooting.md:70
+msgid "Reporting Issues"
+msgstr "Reporting Issues"
+
+#: ../../reference/troubleshooting.md:73
+msgid "Including all of the items below helps us diagnose the problem faster."
+msgstr "Including all of the items below helps us diagnose the problem faster."
+
+#: ../../reference/troubleshooting.md:76
+msgid "VS Code version (`Help > About`)"
+msgstr "VS Code version (`Help > About`)"
+
+#: ../../reference/troubleshooting.md:77
+msgid "Extension version (Extensions panel)"
+msgstr "Extension version (Extensions panel)"
+
+#: ../../reference/troubleshooting.md:78
+msgid "Core binary version (from output channel)"
+msgstr "Core binary version (from output channel)"
+
+#: ../../reference/troubleshooting.md:79
+msgid "Protobuf trace output (see above)"
+msgstr "Protobuf trace output (see above)"
+
+#: ../../reference/troubleshooting.md:80
+msgid "Minimal reproduction file"
+msgstr "Minimal reproduction file"

@@ -1,0 +1,197 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-22 06:27+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../../advanced/providers.md:1
+msgid "Custom Providers"
+msgstr "Custom Providers"
+
+#: ../../advanced/providers.md:3
+msgid "Language Check supports external checker binaries that communicate via stdin/stdout JSON."
+msgstr "Language Check supports external checker binaries that communicate via stdin/stdout JSON."
+
+#: ../../advanced/providers.md:6
+msgid "[Vale](https://vale.sh/) has built-in first-class support — use `engines.vale: true` instead of registering it as a custom provider. See [Vale Setup](../guide/vale-setup.md)."
+msgstr "[Vale](https://vale.sh/) has built-in first-class support — use `engines.vale: true` instead of registering it as a custom provider. See [Vale Setup](../guide/vale-setup.md)."
+
+#: ../../advanced/providers.md:10
+msgid "Configuration"
+msgstr "Configuration"
+
+#: ../../advanced/providers.md:12
+msgid "Register external providers in `.languagecheck.yaml`:"
+msgstr "Register external providers in `.languagecheck.yaml`:"
+
+#: ../../advanced/providers.md:26
+msgid "`extensions` and `languages` are different questions, and a provider is skipped when either excludes the document. Leaving one out means \"all of them\"."
+msgstr "`extensions` and `languages` are different questions, and a provider is skipped when either excludes the document. Leaving one out means \"all of them\"."
+
+#: ../../advanced/providers.md:29
+msgid "Declaring `languages` matters more than it looks: a provider that claims every language makes the checker believe the passage was checked, which suppresses the report saying nothing could read it — so a provider that only speaks English silently hides the fact that a Hebrew paragraph went unchecked."
+msgstr "Declaring `languages` matters more than it looks: a provider that claims every language makes the checker believe the passage was checked, which suppresses the report saying nothing could read it — so a provider that only speaks English silently hides the fact that a Hebrew paragraph went unchecked."
+
+#: ../../advanced/providers.md:34
+msgid "Protocol"
+msgstr "Protocol"
+
+#: ../../advanced/providers.md:36
+msgid "Request (stdin)"
+msgstr "Request (stdin)"
+
+#: ../../advanced/providers.md:38
+msgid "The provider receives a JSON object on stdin:"
+msgstr "The provider receives a JSON object on stdin:"
+
+#: ../../advanced/providers.md:47
+msgid "`language_id` is the **natural** language being checked as a BCP-47 tag, not the markup format — `en-US`, `de-DE`, `fr`. The document's markup is not sent; declare `extensions` if the provider needs to know it."
+msgstr "`language_id` is the **natural** language being checked as a BCP-47 tag, not the markup format — `en-US`, `de-DE`, `fr`. The document's markup is not sent; declare `extensions` if the provider needs to know it."
+
+#: ../../advanced/providers.md:51
+msgid "`text` is one extracted prose range, not the whole file. A document is checked range by range, so a provider is invoked once per range and its byte offsets are relative to the text it was given."
+msgstr "`text` is one extracted prose range, not the whole file. A document is checked range by range, so a provider is invoked once per range and its byte offsets are relative to the text it was given."
+
+#: ../../advanced/providers.md:55
+msgid "Response (stdout)"
+msgstr "Response (stdout)"
+
+#: ../../advanced/providers.md:57
+msgid "The provider must return a JSON array of diagnostics on stdout:"
+msgstr "The provider must return a JSON array of diagnostics on stdout:"
+
+#: ../../advanced/providers.md:73
+msgid "Diagnostic Fields"
+msgstr "Diagnostic Fields"
+
+#: ../../advanced/providers.md:5
+msgid "Field"
+msgstr "Field"
+
+#: ../../advanced/providers.md:5
+msgid "Type"
+msgstr "Type"
+
+#: ../../advanced/providers.md:5
+msgid "Required"
+msgstr "Required"
+
+#: ../../advanced/providers.md:5
+msgid "Description"
+msgstr "Description"
+
+#: ../../advanced/providers.md:5
+msgid "`start_byte`"
+msgstr "`start_byte`"
+
+#: ../../advanced/providers.md:5
+msgid "`number`"
+msgstr "`number`"
+
+#: ../../advanced/providers.md:5
+msgid "Yes"
+msgstr "Yes"
+
+#: ../../advanced/providers.md:5
+msgid "Start byte offset (UTF-8)"
+msgstr "Start byte offset (UTF-8)"
+
+#: ../../advanced/providers.md:5
+msgid "`end_byte`"
+msgstr "`end_byte`"
+
+#: ../../advanced/providers.md:5
+msgid "End byte offset (UTF-8)"
+msgstr "End byte offset (UTF-8)"
+
+#: ../../advanced/providers.md:5
+msgid "`message`"
+msgstr "`message`"
+
+#: ../../advanced/providers.md:5
+msgid "`string`"
+msgstr "`string`"
+
+#: ../../advanced/providers.md:5
+msgid "Human-readable description"
+msgstr "Human-readable description"
+
+#: ../../advanced/providers.md:5
+msgid "`suggestions`"
+msgstr "`suggestions`"
+
+#: ../../advanced/providers.md:5
+msgid "`string[]`"
+msgstr "`string[]`"
+
+#: ../../advanced/providers.md:5
+msgid "No"
+msgstr "No"
+
+#: ../../advanced/providers.md:5
+msgid "Replacement suggestions (default: `[]`)"
+msgstr "Replacement suggestions (default: `[]`)"
+
+#: ../../advanced/providers.md:5
+msgid "`rule_id`"
+msgstr "`rule_id`"
+
+#: ../../advanced/providers.md:5
+msgid "Rule identifier (default: provider name)"
+msgstr "Rule identifier (default: provider name)"
+
+#: ../../advanced/providers.md:5
+msgid "`severity`"
+msgstr "`severity`"
+
+#: ../../advanced/providers.md:5
+msgid "1=Error, 2=Warning, 3=Info, 4=Hint"
+msgstr "1=Error, 2=Warning, 3=Info, 4=Hint"
+
+#: ../../advanced/providers.md:5
+msgid "`confidence`"
+msgstr "`confidence`"
+
+#: ../../advanced/providers.md:5
+msgid "0.0–1.0 confidence score (default: 0.7)"
+msgstr "0.0–1.0 confidence score (default: 0.7)"
+
+#: ../../advanced/providers.md:85
+msgid "Rule IDs are automatically prefixed with `external.<provider-name>.` for namespacing."
+msgstr "Rule IDs are automatically prefixed with `external.<provider-name>.` for namespacing."
+
+#: ../../advanced/providers.md:87
+msgid "Error Handling"
+msgstr "Error Handling"
+
+#: ../../advanced/providers.md:89
+msgid "If the binary is not found, the provider is silently skipped."
+msgstr "If the binary is not found, the provider is silently skipped."
+
+#: ../../advanced/providers.md:90
+msgid "If the binary exits non-zero, the error is logged and no diagnostics are returned."
+msgstr "If the binary exits non-zero, the error is logged and no diagnostics are returned."
+
+#: ../../advanced/providers.md:91
+msgid "If the output is not valid JSON, the error is logged and no diagnostics are returned."
+msgstr "If the output is not valid JSON, the error is logged and no diagnostics are returned."
+
+#: ../../advanced/providers.md:93
+msgid "High Performance Mode"
+msgstr "High Performance Mode"
+
+#: ../../advanced/providers.md:95
+msgid "External providers are skipped when `performance.high_performance_mode` is enabled."
+msgstr "External providers are skipped when `performance.high_performance_mode` is enabled."

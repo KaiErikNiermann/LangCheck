@@ -1,0 +1,425 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-22 06:27+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../../guide-wasm-plugin.md:1
+msgid "Writing a WASM Plugin"
+msgstr "Writing a WASM Plugin"
+
+#: ../../guide-wasm-plugin.md:3
+msgid "This guide walks through building a WASM plugin for Language Check using Go and TinyGo. The same principles apply to any language with an [Extism PDK](https://extism.org/docs/write-a-plugin/)."
+msgstr "This guide walks through building a WASM plugin for Language Check using Go and TinyGo. The same principles apply to any language with an [Extism PDK](https://extism.org/docs/write-a-plugin/)."
+
+#: ../../guide-wasm-plugin.md:5
+msgid "Overview"
+msgstr "Overview"
+
+#: ../../guide-wasm-plugin.md:7
+msgid "Language Check loads WASM plugins via [Extism](https://extism.org/). Each plugin exports a `check` function that receives prose text and returns diagnostics. Plugins run in a sandboxed WebAssembly environment — they cannot access the filesystem, network, or host memory."
+msgstr "Language Check loads WASM plugins via [Extism](https://extism.org/). Each plugin exports a `check` function that receives prose text and returns diagnostics. Plugins run in a sandboxed WebAssembly environment — they cannot access the filesystem, network, or host memory."
+
+#: ../../guide-wasm-plugin.md:9
+msgid "Protocol"
+msgstr "Protocol"
+
+#: ../../guide-wasm-plugin.md:11
+msgid "Input"
+msgstr "Input"
+
+#: ../../guide-wasm-plugin.md:13
+msgid "Your `check` function receives a JSON string:"
+msgstr "Your `check` function receives a JSON string:"
+
+#: ../../guide-wasm-plugin.md:22
+msgid "Output"
+msgstr "Output"
+
+#: ../../guide-wasm-plugin.md:24
+msgid "Return a JSON string — an array of diagnostics:"
+msgstr "Return a JSON string — an array of diagnostics:"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "Field"
+msgstr "Field"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "Type"
+msgstr "Type"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "Required"
+msgstr "Required"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "Description"
+msgstr "Description"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`start_byte`"
+msgstr "`start_byte`"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "integer"
+msgstr "integer"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "yes"
+msgstr "yes"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "Start byte offset in the input text"
+msgstr "Start byte offset in the input text"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`end_byte`"
+msgstr "`end_byte`"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "End byte offset (exclusive)"
+msgstr "End byte offset (exclusive)"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`message`"
+msgstr "`message`"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "string"
+msgstr "string"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "Human-readable description of the issue"
+msgstr "Human-readable description of the issue"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`suggestions`"
+msgstr "`suggestions`"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "string[]"
+msgstr "string[]"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "no"
+msgstr "no"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "Replacement suggestions (first is preferred)"
+msgstr "Replacement suggestions (first is preferred)"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`rule_id`"
+msgstr "`rule_id`"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "Rule identifier (namespaced as `wasm.<plugin>.<rule_id>`)"
+msgstr "Rule identifier (namespaced as `wasm.<plugin>.<rule_id>`)"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`severity`"
+msgstr "`severity`"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "1 = Information, 2 = Warning (default), 3 = Error"
+msgstr "1 = Information, 2 = Warning (default), 3 = Error"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`confidence`"
+msgstr "`confidence`"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "float"
+msgstr "float"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "0.0–1.0, defaults to 0.7 if omitted"
+msgstr "0.0–1.0, defaults to 0.7 if omitted"
+
+#: ../../guide-wasm-plugin.md:50
+msgid "Diagnostics from plugins are treated identically to built-in engine results — `suggestions` automatically appear in the SpeedFix panel, inlay hints, inline ghost text completions, and code actions. The first suggestion in the array is used as the preferred quick-fix. An empty string `\"\"` suggestion means \"remove the matched text\", and suggestions prefixed with `Insert \"...\"` insert text at the diagnostic end position rather than replacing."
+msgstr "Diagnostics from plugins are treated identically to built-in engine results — `suggestions` automatically appear in the SpeedFix panel, inlay hints, inline ghost text completions, and code actions. The first suggestion in the array is used as the preferred quick-fix. An empty string `\"\"` suggestion means \"remove the matched text\", and suggestions prefixed with `Insert \"...\"` insert text at the diagnostic end position rather than replacing."
+
+#: ../../guide-wasm-plugin.md:52
+msgid "Setting Up"
+msgstr "Setting Up"
+
+#: ../../guide-wasm-plugin.md:54
+msgid "Prerequisites"
+msgstr "Prerequisites"
+
+#: ../../guide-wasm-plugin.md:56
+msgid "[Go](https://go.dev/dl/) 1.22+"
+msgstr "[Go](https://go.dev/dl/) 1.22+"
+
+#: ../../guide-wasm-plugin.md:57
+msgid "[TinyGo](https://tinygo.org/getting-started/install/) 0.34+"
+msgstr "[TinyGo](https://tinygo.org/getting-started/install/) 0.34+"
+
+#: ../../guide-wasm-plugin.md:59
+msgid "Project Structure"
+msgstr "Project Structure"
+
+#: ../../guide-wasm-plugin.md:72
+msgid "Writing the Plugin"
+msgstr "Writing the Plugin"
+
+#: ../../guide-wasm-plugin.md:74
+msgid "Step 1: Define Types"
+msgstr "Step 1: Define Types"
+
+#: ../../guide-wasm-plugin.md:76
+msgid "Create `detect.go` with your data types and detection logic:"
+msgstr "Create `detect.go` with your data types and detection logic:"
+
+#: ../../guide-wasm-plugin.md:97
+msgid "Step 2: Implement Detection"
+msgstr "Step 2: Implement Detection"
+
+#: ../../guide-wasm-plugin.md:99
+msgid "Add your checking logic to `detect.go`. Keep it in a pure function that takes a string and returns diagnostics:"
+msgstr "Add your checking logic to `detect.go`. Keep it in a pure function that takes a string and returns diagnostics:"
+
+#: ../../guide-wasm-plugin.md:108
+msgid "This separation is important — `detect.go` uses only standard library imports and can be tested with `go test`."
+msgstr "This separation is important — `detect.go` uses only standard library imports and can be tested with `go test`."
+
+#: ../../guide-wasm-plugin.md:110
+msgid "Step 3: Wire Up Extism"
+msgstr "Step 3: Wire Up Extism"
+
+#: ../../guide-wasm-plugin.md:112
+msgid "Create `main.go` with the Extism PDK glue. Use a `//go:build tinygo` tag so standard Go ignores it during testing:"
+msgstr "Create `main.go` with the Extism PDK glue. Use a `//go:build tinygo` tag so standard Go ignores it during testing:"
+
+#: ../../guide-wasm-plugin.md:149
+msgid "Key points:"
+msgstr "Key points:"
+
+#: ../../guide-wasm-plugin.md:150
+msgid "The `//export check` directive exposes the function to the host"
+msgstr "The `//export check` directive exposes the function to the host"
+
+#: ../../guide-wasm-plugin.md:151
+msgid "`pdk.Input()` reads the JSON input from the host"
+msgstr "`pdk.Input()` reads the JSON input from the host"
+
+#: ../../guide-wasm-plugin.md:152
+msgid "`pdk.Output()` writes the JSON response back"
+msgstr "`pdk.Output()` writes the JSON response back"
+
+#: ../../guide-wasm-plugin.md:153
+msgid "`pdk.SetError()` reports errors to the host"
+msgstr "`pdk.SetError()` reports errors to the host"
+
+#: ../../guide-wasm-plugin.md:154
+msgid "Return `0` for success, non-zero for failure"
+msgstr "Return `0` for success, non-zero for failure"
+
+#: ../../guide-wasm-plugin.md:155
+msgid "`func main() {}` is required but unused"
+msgstr "`func main() {}` is required but unused"
+
+#: ../../guide-wasm-plugin.md:157
+msgid "Step 4: Initialize the Module"
+msgstr "Step 4: Initialize the Module"
+
+#: ../../guide-wasm-plugin.md:164
+msgid "Testing"
+msgstr "Testing"
+
+#: ../../guide-wasm-plugin.md:166
+msgid "Unit Tests"
+msgstr "Unit Tests"
+
+#: ../../guide-wasm-plugin.md:168
+msgid "Write tests in `detect_test.go` that exercise `FindIssues()` directly:"
+msgstr "Write tests in `detect_test.go` that exercise `FindIssues()` directly:"
+
+#: ../../guide-wasm-plugin.md:183
+msgid "Run with standard Go (no TinyGo needed):"
+msgstr "Run with standard Go (no TinyGo needed):"
+
+#: ../../guide-wasm-plugin.md:189
+msgid "Building"
+msgstr "Building"
+
+#: ../../guide-wasm-plugin.md:195
+msgid "Manual Integration Test"
+msgstr "Manual Integration Test"
+
+#: ../../guide-wasm-plugin.md:197
+msgid "Create a test config and run the CLI:"
+msgstr "Create a test config and run the CLI:"
+
+#: ../../guide-wasm-plugin.md:211
+msgid "Integrating with Language Check"
+msgstr "Integrating with Language Check"
+
+#: ../../guide-wasm-plugin.md:213
+msgid "Explicit Configuration"
+msgstr "Explicit Configuration"
+
+#: ../../guide-wasm-plugin.md:215
+msgid "Register your plugin in `.languagecheck.yaml`:"
+msgstr "Register your plugin in `.languagecheck.yaml`:"
+
+#: ../../guide-wasm-plugin.md:225
+msgid "Auto-Discovery"
+msgstr "Auto-Discovery"
+
+#: ../../guide-wasm-plugin.md:227
+msgid "Place the `.wasm` file in the auto-discovery directory:"
+msgstr "Place the `.wasm` file in the auto-discovery directory:"
+
+#: ../../guide-wasm-plugin.md:233
+msgid "The filename (minus `.wasm`) becomes the plugin name."
+msgstr "The filename (minus `.wasm`) becomes the plugin name."
+
+#: ../../guide-wasm-plugin.md:235
+msgid "Debugging"
+msgstr "Debugging"
+
+#: ../../guide-wasm-plugin.md:237
+msgid "**Extism errors**: The host logs plugin errors at `warn` level. Enable tracing in VS Code or use `--trace` on the CLI."
+msgstr "**Extism errors**: The host logs plugin errors at `warn` level. Enable tracing in VS Code or use `--trace` on the CLI."
+
+#: ../../guide-wasm-plugin.md:238
+msgid "**JSON parse failures**: If your output isn't valid JSON, the host silently returns empty diagnostics. Test your JSON serialization in unit tests."
+msgstr "**JSON parse failures**: If your output isn't valid JSON, the host silently returns empty diagnostics. Test your JSON serialization in unit tests."
+
+#: ../../guide-wasm-plugin.md:239
+msgid "**Byte offsets**: Offsets must be valid UTF-8 byte positions in the input text. Off-by-one errors here cause garbled diagnostic ranges."
+msgstr "**Byte offsets**: Offsets must be valid UTF-8 byte positions in the input text. Off-by-one errors here cause garbled diagnostic ranges."
+
+#: ../../guide-wasm-plugin.md:240
+msgid "**Empty output**: Return `[]` (empty JSON array), not an empty string, when there are no issues."
+msgstr "**Empty output**: Return `[]` (empty JSON array), not an empty string, when there are no issues."
+
+#: ../../guide-wasm-plugin.md:242
+msgid "Other Languages"
+msgstr "Other Languages"
+
+#: ../../guide-wasm-plugin.md:244
+msgid "The Extism PDK is available for many languages:"
+msgstr "The Extism PDK is available for many languages:"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "Language"
+msgstr "Language"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "PDK"
+msgstr "PDK"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "Build Target"
+msgstr "Build Target"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "**Rust**"
+msgstr "**Rust**"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`extism-pdk` crate"
+msgstr "`extism-pdk` crate"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`cargo build --target wasm32-unknown-unknown`"
+msgstr "`cargo build --target wasm32-unknown-unknown`"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "**Go**"
+msgstr "**Go**"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`github.com/extism/go-pdk`"
+msgstr "`github.com/extism/go-pdk`"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`tinygo build -target wasi`"
+msgstr "`tinygo build -target wasi`"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "**JavaScript**"
+msgstr "**JavaScript**"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`@nicolo-ribaudo/extism-pdk`"
+msgstr "`@nicolo-ribaudo/extism-pdk`"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "Javy / QuickJS"
+msgstr "Javy / QuickJS"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "**AssemblyScript**"
+msgstr "**AssemblyScript**"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "asc compiler"
+msgstr "asc compiler"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "**Zig**"
+msgstr "**Zig**"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`extism-pdk-zig`"
+msgstr "`extism-pdk-zig`"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`zig build -Dtarget=wasm32-wasi`"
+msgstr "`zig build -Dtarget=wasm32-wasi`"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "**C/C++**"
+msgstr "**C/C++**"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`extism-pdk.h`"
+msgstr "`extism-pdk.h`"
+
+#: ../../guide-wasm-plugin.md:0
+msgid "`clang --target=wasm32-wasi`"
+msgstr "`clang --target=wasm32-wasi`"
+
+#: ../../guide-wasm-plugin.md:255
+msgid "See the [Extism documentation](https://extism.org/docs/write-a-plugin/) and the [WASM plugins reference](advanced/plugins.md) for details."
+msgstr "See the [Extism documentation](https://extism.org/docs/write-a-plugin/) and the [WASM plugins reference](advanced/plugins.md) for details."
+
+#: ../../guide-wasm-plugin.md:257
+msgid "Reference Implementation"
+msgstr "Reference Implementation"
+
+#: ../../guide-wasm-plugin.md:259
+msgid "The `plugins/wordiness-check/` directory in the Language Check repository is a complete working example. It detects wordy phrases (e.g. \"in order to\" -> \"to\") and includes:"
+msgstr "The `plugins/wordiness-check/` directory in the Language Check repository is a complete working example. It detects wordy phrases (e.g. \"in order to\" -> \"to\") and includes:"
+
+#: ../../guide-wasm-plugin.md:261
+msgid "Detection logic with word-boundary matching"
+msgstr "Detection logic with word-boundary matching"
+
+#: ../../guide-wasm-plugin.md:262
+msgid "Comprehensive unit tests"
+msgstr "Comprehensive unit tests"
+
+#: ../../guide-wasm-plugin.md:263
+msgid "TinyGo build configuration"
+msgstr "TinyGo build configuration"
+
+#: ../../guide-wasm-plugin.md:264
+msgid "Rust integration tests (`rust-core/tests/wasm_plugin.rs`)"
+msgstr "Rust integration tests (`rust-core/tests/wasm_plugin.rs`)"

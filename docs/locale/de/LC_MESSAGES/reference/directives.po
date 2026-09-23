@@ -1,0 +1,258 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025, KaiErikNiermann
+# This file is distributed under the same license as the Language Check package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Language Check \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-22 06:27+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../../reference/directives.md:1
+msgid "Inline Directives"
+msgstr "Inline Directives"
+
+#: ../../reference/directives.md:3
+msgid "lang-check supports inline comment directives that control checking behavior within specific regions of a document. Directives are placed inside comments using any of the four supported comment formats."
+msgstr "lang-check supports inline comment directives that control checking behavior within specific regions of a document. Directives are placed inside comments using any of the four supported comment formats."
+
+#: ../../reference/directives.md:7
+msgid "Comment Formats"
+msgstr "Comment Formats"
+
+#: ../../reference/directives.md:9
+msgid "All directives work inside these comment styles:"
+msgstr "All directives work inside these comment styles:"
+
+#: ../../reference/directives.md:0
+msgid "Format"
+msgstr "Format"
+
+#: ../../reference/directives.md:0
+msgid "Syntax"
+msgstr "Syntax"
+
+#: ../../reference/directives.md:0
+msgid "HTML / Markdown"
+msgstr "HTML / Markdown"
+
+#: ../../reference/directives.md:0
+msgid "`<!-- directive -->`"
+msgstr "`<!-- directive -->`"
+
+#: ../../reference/directives.md:0
+msgid "Line comment"
+msgstr "Line comment"
+
+#: ../../reference/directives.md:0
+msgid "`// directive`"
+msgstr "`// directive`"
+
+#: ../../reference/directives.md:0
+msgid "Block comment"
+msgstr "Block comment"
+
+#: ../../reference/directives.md:0
+msgid "`/* directive */`"
+msgstr "`/* directive */`"
+
+#: ../../reference/directives.md:0
+msgid "LaTeX"
+msgstr "LaTeX"
+
+#: ../../reference/directives.md:0
+msgid "`% directive`"
+msgstr "`% directive`"
+
+#: ../../reference/directives.md:18
+msgid "Basic Directives"
+msgstr "Basic Directives"
+
+#: ../../reference/directives.md:20
+msgid "Disable / Enable"
+msgstr "Disable / Enable"
+
+#: ../../reference/directives.md:22
+msgid "Suppress all (or specific) diagnostics between a disable and enable pair:"
+msgstr "Suppress all (or specific) diagnostics between a disable and enable pair:"
+
+#: ../../reference/directives.md:30
+#: ../../reference/directives.md:50
+msgid "With rule IDs:"
+msgstr "With rule IDs:"
+
+#: ../../reference/directives.md:38
+msgid "An unclosed `lang-check-disable` extends to the end of the file."
+msgstr "An unclosed `lang-check-disable` extends to the end of the file."
+
+#: ../../reference/directives.md:40
+msgid "Disable Next Line"
+msgstr "Disable Next Line"
+
+#: ../../reference/directives.md:42
+msgid "Suppress diagnostics on the line immediately following the directive:"
+msgstr "Suppress diagnostics on the line immediately following the directive:"
+
+#: ../../reference/directives.md:57
+msgid "Scoped Begin / End"
+msgstr "Scoped Begin / End"
+
+#: ../../reference/directives.md:59
+msgid "The `lang-check-begin` / `lang-check-end` directives define scoped regions with richer options than basic disable/enable."
+msgstr "The `lang-check-begin` / `lang-check-end` directives define scoped regions with richer options than basic disable/enable."
+
+#: ../../reference/directives.md:68
+msgid "An unclosed `lang-check-begin` extends to the end of the file."
+msgstr "An unclosed `lang-check-begin` extends to the end of the file."
+
+#: ../../reference/directives.md:70
+msgid "Options"
+msgstr "Options"
+
+#: ../../reference/directives.md:72
+msgid "Options are space-separated tokens after `lang-check-begin`."
+msgstr "Options are space-separated tokens after `lang-check-begin`."
+
+#: ../../reference/directives.md:74
+msgid "Rule IDs"
+msgstr "Rule IDs"
+
+#: ../../reference/directives.md:76
+msgid "Bare tokens (not matching any option prefix) are treated as rule IDs. Only those rules are suppressed within the region:"
+msgstr "Bare tokens (not matching any option prefix) are treated as rule IDs. Only those rules are suppressed within the region:"
+
+#: ../../reference/directives.md:85
+msgid "With no rule IDs and no language override, all diagnostics in the region are suppressed."
+msgstr "With no rule IDs and no language override, all diagnostics in the region are suppressed."
+
+#: ../../reference/directives.md:88
+msgid "Language Override (`lang:xx`)"
+msgstr "Language Override (`lang:xx`)"
+
+#: ../../reference/directives.md:90
+msgid "Check the region in another natural language. Every prose range that starts inside it is checked in that language; the rest of the document keeps `engines.spell_language`."
+msgstr "Check the region in another natural language. Every prose range that starts inside it is checked in that language; the rest of the document keeps `engines.spell_language`."
+
+#: ../../reference/directives.md:100
+msgid "A region with **only** a `lang:` option (no rule IDs) is a pure language override — it suppresses nothing."
+msgstr "A region with **only** a `lang:` option (no rule IDs) is a pure language override — it suppresses nothing."
+
+#: ../../reference/directives.md:103
+msgid "Regions nest, and the innermost one wins. A `lang:` directive also beats whatever the markup itself declares, which is how one quoted passage inside a `#set text(lang: \"de\")` document gets checked in another language without touching the typesetting."
+msgstr "Regions nest, and the innermost one wins. A `lang:` directive also beats whatever the markup itself declares, which is how one quoted passage inside a `#set text(lang: \"de\")` document gets checked in another language without touching the typesetting."
+
+#: ../../reference/directives.md:108
+msgid "A tag with no region is resolved before it reaches the engines. It takes the document default's region when the language agrees — `lang:en` under an `en-GB` document means `en-GB` — and a known variant otherwise. This matters: LanguageTool accepts bare `en` and `de` and then reports no spelling errors at all in them, so an unresolved tag silently checks nothing."
+msgstr "A tag with no region is resolved before it reaches the engines. It takes the document default's region when the language agrees — `lang:en` under an `en-GB` document means `en-GB` — and a known variant otherwise. This matters: LanguageTool accepts bare `en` and `de` and then reports no spelling errors at all in them, so an unresolved tag silently checks nothing."
+
+#: ../../reference/directives.md:114
+msgid "An engine that cannot read the language says so rather than passing the text. LanguageTool has no Hebrew, so a `lang:he` region produces a `languagecheck.no-provider` diagnostic naming the language, and the LanguageTool engine is *not* marked unhealthy for declining it."
+msgstr "An engine that cannot read the language says so rather than passing the text. LanguageTool has no Hebrew, so a `lang:he` region produces a `languagecheck.no-provider` diagnostic naming the language, and the LanguageTool engine is *not* marked unhealthy for declining it."
+
+#: ../../reference/directives.md:119
+msgid "Line Slice (`check[a:b]`)"
+msgstr "Line Slice (`check[a:b]`)"
+
+#: ../../reference/directives.md:121
+msgid "Auto-close the region using slice notation. No `lang-check-end` is needed. `a` and `b` are 0-indexed line offsets after the directive (like Python slicing):"
+msgstr "Auto-close the region using slice notation. No `lang-check-end` is needed. `a` and `b` are 0-indexed line offsets after the directive (like Python slicing):"
+
+#: ../../reference/directives.md:133
+msgid "`check[:5]` covers lines 0–4 (the first 5 lines). You can also start from an offset — `check[2:5]` would cover only lines 2–4:"
+msgstr "`check[:5]` covers lines 0–4 (the first 5 lines). You can also start from an offset — `check[2:5]` would cover only lines 2–4:"
+
+#: ../../reference/directives.md:136
+msgid "Match Filter (`match:/PATTERN/`)"
+msgstr "Match Filter (`match:/PATTERN/`)"
+
+#: ../../reference/directives.md:138
+msgid "Only apply the directive to lines matching the given regex:"
+msgstr "Only apply the directive to lines matching the given regex:"
+
+#: ../../reference/directives.md:147
+msgid "Exclude Filter (`exclude:/PATTERN/`)"
+msgstr "Exclude Filter (`exclude:/PATTERN/`)"
+
+#: ../../reference/directives.md:149
+msgid "Skip lines matching the given regex — the directive does not apply to them:"
+msgstr "Skip lines matching the given regex — the directive does not apply to them:"
+
+#: ../../reference/directives.md:158
+msgid "Type Override (`type:FORMAT`)"
+msgstr "Type Override (`type:FORMAT`)"
+
+#: ../../reference/directives.md:160
+msgid "Re-parse the region using a different tree-sitter grammar. The content inside the region is extracted as if it were a standalone document of the specified format:"
+msgstr "Re-parse the region using a different tree-sitter grammar. The content inside the region is extracted as if it were a standalone document of the specified format:"
+
+#: ../../reference/directives.md:170
+msgid "The format must be a supported language ID (e.g. `latex`, `html`, `rst`, `org`). Unknown formats are skipped with a warning."
+msgstr "The format must be a supported language ID (e.g. `latex`, `html`, `rst`, `org`). Unknown formats are skipped with a warning."
+
+#: ../../reference/directives.md:173
+msgid "Combining Options"
+msgstr "Combining Options"
+
+#: ../../reference/directives.md:175
+msgid "Multiple options can be combined in a single directive:"
+msgstr "Multiple options can be combined in a single directive:"
+
+#: ../../reference/directives.md:184
+msgid "Nesting"
+msgstr "Nesting"
+
+#: ../../reference/directives.md:186
+msgid "Begin/end regions can be nested. The inner `lang-check-end` closes the most recent `lang-check-begin` (stack semantics):"
+msgstr "Begin/end regions can be nested. The inner `lang-check-end` closes the most recent `lang-check-begin` (stack semantics):"
+
+#: ../../reference/directives.md:199
+msgid "Scope markers"
+msgstr "Scope markers"
+
+#: ../../reference/directives.md:201
+msgid "A bare `lang:` marker on its own line switches the language from there until the next marker, with no closing directive:"
+msgstr "A bare `lang:` marker on its own line switches the language from there until the next marker, with no closing directive:"
+
+#: ../../reference/directives.md:216
+msgid "The comment syntax follows the file: `<!-- lang: fr -->`, `// @lang: fr`, `/* @lang: fr */`, `% @lang: fr`. Prose before the first marker keeps `engines.spell_language`."
+msgstr "The comment syntax follows the file: `<!-- lang: fr -->`, `// @lang: fr`, `/* @lang: fr */`, `% @lang: fr`. Prose before the first marker keeps `engines.spell_language`."
+
+#: ../../reference/directives.md:220
+msgid "Where both apply to the same position, `lang-check-begin lang:xx` wins — it names a region, the marker only names a point."
+msgstr "Where both apply to the same position, `lang-check-begin lang:xx` wins — it names a region, the marker only names a point."
+
+#: ../../reference/directives.md:223
+msgid "Languages the markup declares itself"
+msgstr "Languages the markup declares itself"
+
+#: ../../reference/directives.md:225
+msgid "Some formats already carry the information, and it is read directly — no directive needed:"
+msgstr "Some formats already carry the information, and it is read directly — no directive needed:"
+
+#: ../../reference/directives.md:0
+msgid "Declaration"
+msgstr "Declaration"
+
+#: ../../reference/directives.md:0
+msgid "Typst"
+msgstr "Typst"
+
+#: ../../reference/directives.md:0
+msgid "`#set text(lang: \"fr\", region: \"CH\")` for the rest of the enclosing block, and `#text(lang: \"en\")[…]` for that content"
+msgstr "`#set text(lang: \"fr\", region: \"CH\")` for the rest of the enclosing block, and `#text(lang: \"en\")[…]` for that content"
+
+#: ../../reference/directives.md:232
+msgid "Typst's `region:` becomes the BCP-47 subtag, so `lang: \"de\", region: \"CH\"` is checked as `de-CH`. Only `text` is read; `lang` means something else on other functions."
+msgstr "Typst's `region:` becomes the BCP-47 subtag, so `lang: \"de\", region: \"CH\"` is checked as `de-CH`. Only `text` is read; `lang` means something else on other functions."
+
+#: ../../reference/directives.md:236
+msgid "A directive beats the markup, so a document can keep its typesetting language and still have one passage checked in another."
+msgstr "A directive beats the markup, so a document can keep its typesetting language and still have one passage checked in another."
