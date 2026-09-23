@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { LanguageClient } from './core/client';
+import type { CoreService } from './core/coreService';
 
 /**
  * Public API for the Language Check extension.
@@ -127,5 +128,38 @@ export function severityToString(severity: number | null | undefined): 'error' |
         case 3: return 'information';
         case 4: return 'hint';
         default: return 'warning';
+    }
+}
+
+/**
+ * The API's checkDocument: open the document and ask the core, whatever state
+ * the editor's own diagnostics are in.
+ *
+ * Reads the client again after opening the document, as it always has: a
+ * restart in between replaces it.
+ */
+export async function apiCheckDocument(core: CoreService, uri: vscode.Uri): Promise<LanguageCheckDiagnostic[]> {
+    if (!core.client) return [];
+    const document = await vscode.workspace.openTextDocument(uri);
+    const text = document.getText();
+    const languageId = document.languageId;
+
+    try {
+        const response = await core.client.sendRequest({
+            checkProse: { text, languageId, filePath: uri.fsPath }
+        });
+        if (!response.checkProse?.diagnostics) return [];
+        return response.checkProse.diagnostics.map(d => ({
+            startByte: d.startByte ?? 0,
+            endByte: d.endByte ?? 0,
+            message: d.message ?? '',
+            ruleId: d.ruleId ?? '',
+            unifiedId: d.unifiedId ?? '',
+            severity: severityToString(d.severity),
+            suggestions: d.suggestions ?? [],
+            confidence: d.confidence ?? 0,
+        }));
+    } catch {
+        return [];
     }
 }
