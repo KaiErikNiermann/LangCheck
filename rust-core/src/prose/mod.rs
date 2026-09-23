@@ -6,6 +6,7 @@ mod markdown_depth;
 mod org;
 mod query;
 mod rst;
+mod rst_runs;
 mod shared;
 mod sweave;
 mod tinylang;
@@ -30,6 +31,9 @@ pub struct ProseExtractor {
     /// Whether this is tree-sitter-md's block grammar, whose scanner aborts
     /// the process on deep enough nesting (see [`markdown_depth`]).
     is_markdown: bool,
+    /// Whether this is tree-sitter-rst, which is quadratic on long unbroken
+    /// runs (see [`rst_runs`]).
+    is_rst: bool,
 }
 
 impl ProseExtractor {
@@ -37,10 +41,12 @@ impl ProseExtractor {
         let mut parser = Parser::new();
         parser.set_language(&language)?;
         let is_markdown = language == tree_sitter_md::LANGUAGE.into();
+        let is_rst = language == tree_sitter_rst::LANGUAGE.into();
         Ok(Self {
             parser,
             language,
             is_markdown,
+            is_rst,
         })
     }
 
@@ -50,11 +56,13 @@ impl ProseExtractor {
         lang_id: &str,
         latex_extras: &latex::LatexExtras,
     ) -> Result<Vec<ProseRange>> {
-        // What the parser reads, which only differs from `text` for Markdown
-        // nested past what its scanner survives; same length either way, so
-        // the tree's offsets are offsets into `text`.
+        // What the parser reads, which only differs from `text` where a
+        // grammar would abort or go quadratic on it; same length either way,
+        // so the tree's offsets are offsets into `text`.
         let parsed = if self.is_markdown {
             markdown_depth::defang(text)
+        } else if self.is_rst {
+            rst_runs::break_long_runs(text)
         } else {
             Cow::Borrowed(text)
         };
