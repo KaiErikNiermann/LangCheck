@@ -205,6 +205,20 @@ test-wasm:
     cd plugins/wordiness-check && go test -v ./...
     cd rust-core && cargo test --test wasm_plugin
 
+# --- Tree-sitter parsers ---
+
+# Standalone parse binary for one grammar (typst or tree-sitter-typst) in rust-core/target/ts-parse/; prints its path
+build-ts-parser name:
+    @./scripts/ts-parse/build.sh {{name}}
+
+# Build every grammar as a standalone parse binary
+build-ts-parsers:
+    @./scripts/ts-parse/build.sh --all
+
+# List the grammars build-ts-parser accepts
+list-ts-parsers:
+    @./scripts/ts-parse/build.sh --list
+
 # --- Pattern lint ---
 
 # Reuse + convention patterns (.semgrep/). Advisory: not part of `check` while the count comes down.
