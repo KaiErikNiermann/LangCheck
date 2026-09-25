@@ -86,11 +86,32 @@ include:
 file_types:
   - "md"
 
+# exclude:
+#   - "docs/_build/**"
+#   - "docs/locale/**"
+#   # How to build the docs, aimed at whoever is editing them.
+#   - "docs/README.md"
+
 exclude:
-  - "docs/_build/**"
-  - "docs/locale/**"
-  # How to build the docs, aimed at whoever is editing them.
-  - "docs/README.md"
+  - "**/node_modules/**"
+  - "**/.git/**"
+  - "**/target/**"
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/.next/**"
+  - "**/.nuxt/**"
+  - "**/vendor/**"
+  - "**/__pycache__/**"
+  - "**/.venv/**"
+  - "**/venv/**"
+  - "**/.tox/**"
+  - "**/.mypy_cache/**"
+  - "*.min.js"
+  - "*.min.css"
+  - "*.bundle.js"
+  - "package-lock.json"
+  - "yarn.lock"
+  - "pnpm-lock.yaml"
 
 rules:
   # Every `ai-tells` finding lands here: Vale rules carry no category of their
