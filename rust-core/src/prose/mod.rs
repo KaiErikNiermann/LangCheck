@@ -545,15 +545,18 @@ pub struct ProseUnit {
 }
 
 /// The prose ranges as checkable units, each carrying its resolved language.
+///
+/// An undeclared range is resolved too, not handed `default_language` as
+/// written: `LanguageTool` accepts a bare `en` and then spell-checks none of it.
 #[must_use]
 pub fn range_units(ranges: &[ProseRange], text: &str, default_language: &str) -> Vec<ProseUnit> {
     ranges
         .iter()
         .map(|r| ProseUnit {
             text: r.extract_text(text).into_owned(),
-            language: r.language.as_ref().map_or_else(
-                || default_language.to_string(),
-                |declared| crate::languages::resolve_spell_language(declared, default_language),
+            language: crate::languages::resolve_spell_language(
+                r.language.as_deref().unwrap_or(default_language),
+                default_language,
             ),
         })
         .collect()
@@ -1464,5 +1467,12 @@ Last paragraph after.";
     fn prose_before_the_first_marker_takes_the_configured_language() {
         let text = "Before any marker.\n\n<!-- lang: fr -->\n\nApres.\n";
         assert_eq!(languages_of(text, "markdown", "en-GB")[0].1, "en-GB");
+    }
+
+    #[test]
+    fn a_bare_configured_language_resolves_to_a_variant() {
+        // `spell_language: en` sent as-is made LanguageTool skip spelling (#92).
+        let text = "This is a spellllling mistake.\n";
+        assert_eq!(languages_of(text, "markdown", "en")[0].1, "en-US");
     }
 }

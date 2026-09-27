@@ -197,12 +197,15 @@ const AMBIGUOUS_SPELL_LANGUAGES: &[(&str, &str)] = &[("en", "en-US"), ("de", "de
 ///
 /// `default_language` supplies the region when it agrees on the language, so a
 /// document set to `en-GB` keeps British spelling in a section that only says
-/// `en`.
+/// `en`. The default is resolved the same way first: `spell_language: en` is
+/// as region-less as `lang: "en"`, and a document that declares nothing is
+/// checked in it (#92).
 #[must_use]
 pub fn resolve_spell_language(declared: &str, default_language: &str) -> String {
     if declared.contains('-') {
         return declared.to_string();
     }
+    let default_language = with_spell_variant(default_language);
     let default_primary = default_language
         .split('-')
         .next()
@@ -210,13 +213,16 @@ pub fn resolve_spell_language(declared: &str, default_language: &str) -> String 
     if default_primary.eq_ignore_ascii_case(declared) {
         return default_language.to_string();
     }
+    with_spell_variant(declared).to_string()
+}
+
+/// `tag`, or the variant from [`AMBIGUOUS_SPELL_LANGUAGES`] when `tag` is a
+/// bare primary subtag that cannot be spell-checked on its own.
+fn with_spell_variant(tag: &str) -> &str {
     AMBIGUOUS_SPELL_LANGUAGES
         .iter()
-        .find(|(primary, _)| primary.eq_ignore_ascii_case(declared))
-        .map_or_else(
-            || declared.to_string(),
-            |(_, variant)| (*variant).to_string(),
-        )
+        .find(|(primary, _)| primary.eq_ignore_ascii_case(tag))
+        .map_or(tag, |(_, variant)| variant)
 }
 
 #[cfg(test)]
@@ -474,5 +480,14 @@ languages:
     fn a_bare_unambiguous_tag_stays_bare() {
         assert_eq!(resolve_spell_language("fr", "en-US"), "fr");
         assert_eq!(resolve_spell_language("nl", "en-US"), "nl");
+    }
+
+    #[test]
+    fn a_bare_ambiguous_default_gets_a_variant_too() {
+        // `spell_language: en` with nothing declared (#92).
+        assert_eq!(resolve_spell_language("en", "en"), "en-US");
+        assert_eq!(resolve_spell_language("DE", "de"), "de-DE");
+        assert_eq!(resolve_spell_language("en-GB", "en"), "en-GB");
+        assert_eq!(resolve_spell_language("fr", "fr"), "fr");
     }
 }
