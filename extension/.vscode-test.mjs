@@ -106,6 +106,13 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 150_000 },
     },
     {
+        label: 'language-hints',
+        files: 'out/test/e2e/languageHints.test.js',
+        workspaceFolder: './src/test/fixtures/languageHints',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 150_000 },
+    },
+    {
         label: 'scope',
         files: 'out/test/e2e/scope.test.js',
         workspaceFolder: './src/test/fixtures/scope',

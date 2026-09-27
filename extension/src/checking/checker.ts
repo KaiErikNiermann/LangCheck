@@ -178,16 +178,9 @@ export class Checker {
                     extendedDiagnostics.push(...filtered);
                 }
 
-                const t3 = performance.now();
-                results.servedFromCache = response.checkProse.servedFromCache === true;
-                store.publishCheck(document.uri, extendedDiagnostics);
-                store.notify();
-                timings.push({ name: 'Update UI', durationMs: performance.now() - t3 });
-
-                statusBars.updateInsights(vscode.window.activeTextEditor);
-                observer.diagnosticsPublished(extendedDiagnostics);
-
-                // Cache extraction data from real Rust core response
+                // Cached before the store notifies, because the notification
+                // is what refreshes the inlay hints, and the language hints
+                // are read from these ranges.
                 const inspectorRanges = toInspectorRanges(
                     response.checkProse.extraction?.proseRanges ?? [], textContent, byteToChar);
 
@@ -198,6 +191,15 @@ export class Checker {
                     maxRangeBytes: (response.checkProse.extraction?.maxRangeBytes as number) ?? 0,
                     version,
                 });
+
+                const t3 = performance.now();
+                results.servedFromCache = response.checkProse.servedFromCache === true;
+                store.publishCheck(document.uri, extendedDiagnostics);
+                store.notify();
+                timings.push({ name: 'Update UI', durationMs: performance.now() - t3 });
+
+                statusBars.updateInsights(vscode.window.activeTextEditor);
+                observer.diagnosticsPublished(extendedDiagnostics);
 
                 results.names.set(uriKey(document.uri), toNameSpans(
                     response.checkProse.extraction?.names ?? [], textContent, document, byteToChar));

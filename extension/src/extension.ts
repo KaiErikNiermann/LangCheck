@@ -26,6 +26,7 @@ import { Packs } from './core/packs';
 import { DiagnosticActions } from './diagnostics/actions';
 import { registerCodeActions } from './providers/codeActions';
 import { registerInlayHints } from './providers/inlayHints';
+import { registerLanguageHints } from './providers/languageHints';
 import { registerInlineCompletions } from './providers/inlineCompletions';
 import { createServices } from './services';
 import { uriKey } from './shared/documents';
@@ -145,6 +146,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const reloader = new Reloader({ log, core, store, results, statusBars, inspector, checker, isCheckable });
 
     registerInlayHints(context.subscriptions, { store, configState, log, emitter: inlayHintEmitter, hintSwitch: inlayHintSwitch });
+    registerLanguageHints(context.subscriptions, { results, configStatus: configStatusView, emitter: inlayHintEmitter, hintSwitch: inlayHintSwitch });
     registerInlineCompletions(context.subscriptions, { store });
     registerCodeActions(context.subscriptions, { store });
     registerCommands(context.subscriptions, {

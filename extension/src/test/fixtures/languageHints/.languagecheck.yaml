@@ -1,0 +1,4 @@
+# A bare default, quoted, so the hint has to land inside the quotes.
+engines:
+  harper: true
+  spell_language: "en"

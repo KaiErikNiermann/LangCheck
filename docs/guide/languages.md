@@ -127,7 +127,9 @@ A declaration with no region is resolved before it reaches the engines: it
 takes the document default's region when the language agrees, so `lang: "en"`
 under an `en-GB` document means `en-GB`, and a known variant otherwise. The
 default is resolved the same way, so `spell_language: en` checks as `en-US`
-and `spell_language: de` as `de-DE`.
+and `spell_language: de` as `de-DE`. In VS Code the resolved region is shown
+as ghost text after the tag, so `lang: "en"` reads `en-US` where it is
+written; the inlay hint toggle hides it along with the suggestion hints.
 
 This is not cosmetic. LanguageTool accepts bare `en` and `de` and then reports
 no spelling errors at all in them, so an unresolved tag would check nothing and

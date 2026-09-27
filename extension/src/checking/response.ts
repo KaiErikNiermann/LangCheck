@@ -117,6 +117,10 @@ export function toInspectorRanges(
             cleanText,
             exclusions,
             language: pr.language ?? '',
+            declaredLanguage: pr.declaredLanguage ?? '',
+            declaredTagEnd: pr.declaredTagEndByte === null || pr.declaredTagEndByte === undefined
+                ? null
+                : byteToChar(coreByte(pr.declaredTagEndByte)),
         };
     });
 }

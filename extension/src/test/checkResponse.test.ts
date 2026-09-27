@@ -45,7 +45,20 @@ describe('toInspectorRanges', () => {
             cleanText: 'é is     here',
             exclusions: [{ startChar: 5, endChar: 8, kind: 'inline_math', text: '$x$' }],
             language: 'en',
+            declaredLanguage: '',
+            declaredTagEnd: null,
         });
+    });
+
+    it('places the declared tag end in characters, for the resolution hint', () => {
+        const text = 'é #text(lang: "en")[Hi]';
+        const toChar = byteToCharConverter(text);
+        // "é" is two bytes, so the byte just past `en` is 18 and the char 17.
+        const [range] = toInspectorRanges(
+            [{ startByte: 21, endByte: 23, language: 'en-US', declaredLanguage: 'en', declaredTagEndByte: 18 }],
+            text, toChar);
+        expect(range?.declaredLanguage).toBe('en');
+        expect(text.slice(0, range?.declaredTagEnd ?? 0)).toBe('é #text(lang: "en');
     });
 });
 

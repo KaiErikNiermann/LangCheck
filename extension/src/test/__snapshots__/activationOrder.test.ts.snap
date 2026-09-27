@@ -27,6 +27,8 @@ exports[`activation order > in production, when the core has to be downloaded fi
   "languages.registerInlayHintsProvider([markdown,html,latex,forester,tinylang,rst,sweave,bibtex,org,typst,mdx,xhtml], object)",
   "languages.registerInlayHintsProvider([latex], object)",
   "languages.registerInlayHintsProvider([latex], object)",
+  "languages.registerInlayHintsProvider([markdown,html,latex,forester,tinylang,rst,sweave,bibtex,org,typst,mdx,xhtml], object)",
+  "languages.registerInlayHintsProvider([yaml,json], object)",
   "languages.registerInlineCompletionItemProvider([markdown,html,latex,forester,tinylang,rst,sweave,bibtex,org,typst,mdx,xhtml], object)",
   "languages.registerCodeActionsProvider([markdown,html,latex,forester,tinylang,rst,sweave,bibtex,org,typst,mdx,xhtml], object)",
   "commands.registerCommand("language-check.downloadBinary", function)",
@@ -76,7 +78,7 @@ exports[`activation order > in production, when the core has to be downloaded fi
   "workspace.createFileSystemWatcher.onDidDelete()",
   "languages.onDidChangeDiagnostics(function)",
   "--- activated ---",
-  "--- 53 subscriptions ---",
+  "--- 56 subscriptions ---",
 ]
 `;
 
@@ -117,6 +119,8 @@ exports[`activation order > under the test host, with a local core build 1`] = `
   "languages.registerInlayHintsProvider([markdown,html,latex,forester,tinylang,rst,sweave,bibtex,org,typst,mdx,xhtml], object)",
   "languages.registerInlayHintsProvider([latex], object)",
   "languages.registerInlayHintsProvider([latex], object)",
+  "languages.registerInlayHintsProvider([markdown,html,latex,forester,tinylang,rst,sweave,bibtex,org,typst,mdx,xhtml], object)",
+  "languages.registerInlayHintsProvider([yaml,json], object)",
   "languages.registerInlineCompletionItemProvider([markdown,html,latex,forester,tinylang,rst,sweave,bibtex,org,typst,mdx,xhtml], object)",
   "languages.registerCodeActionsProvider([markdown,html,latex,forester,tinylang,rst,sweave,bibtex,org,typst,mdx,xhtml], object)",
   "commands.registerCommand("language-check.downloadBinary", function)",
@@ -167,7 +171,7 @@ exports[`activation order > under the test host, with a local core build 1`] = `
   "workspace.createFileSystemWatcher.onDidDelete()",
   "languages.onDidChangeDiagnostics(function)",
   "--- activated ---",
-  "--- 53 subscriptions ---",
+  "--- 56 subscriptions ---",
 ]
 `;
 
@@ -209,6 +213,8 @@ exports[`activation order > under the test host, with no local core build 1`] = 
   "languages.registerInlayHintsProvider([markdown,html,latex,forester,tinylang,rst,sweave,bibtex,org,typst,mdx,xhtml], object)",
   "languages.registerInlayHintsProvider([latex], object)",
   "languages.registerInlayHintsProvider([latex], object)",
+  "languages.registerInlayHintsProvider([markdown,html,latex,forester,tinylang,rst,sweave,bibtex,org,typst,mdx,xhtml], object)",
+  "languages.registerInlayHintsProvider([yaml,json], object)",
   "languages.registerInlineCompletionItemProvider([markdown,html,latex,forester,tinylang,rst,sweave,bibtex,org,typst,mdx,xhtml], object)",
   "languages.registerCodeActionsProvider([markdown,html,latex,forester,tinylang,rst,sweave,bibtex,org,typst,mdx,xhtml], object)",
   "commands.registerCommand("language-check.downloadBinary", function)",
@@ -259,7 +265,7 @@ exports[`activation order > under the test host, with no local core build 1`] = 
   "workspace.createFileSystemWatcher.onDidDelete()",
   "languages.onDidChangeDiagnostics(function)",
   "--- activated ---",
-  "--- 53 subscriptions ---",
+  "--- 56 subscriptions ---",
 ]
 `;
 

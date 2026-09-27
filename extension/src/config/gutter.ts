@@ -42,6 +42,9 @@ export interface ConfigStatusSnapshot {
      *  than for a duration. */
     readonly revision: number;
     readonly parseError: string;
+    /** `engines.spell_language` as the engines receive it, empty until the
+     *  core has answered or when this file is not the one in effect. */
+    readonly resolvedSpellLanguage: string;
 }
 
 const SEVERITY: Record<ConfigStatus, number> = {
@@ -110,6 +113,10 @@ export class ConfigStatusView implements vscode.Disposable {
     private readonly subscriptions: vscode.Disposable[] = [];
     /** Guards against a slow probe overwriting a newer one's result. */
     private readonly inFlight = new Map<string, number>();
+    private readonly resolvedSpellLanguage = new Map<string, string>();
+    private readonly rendered = new vscode.EventEmitter<void>();
+    /** Fired whenever the model is redrawn, for views that read snapshots. */
+    public readonly onDidRender = this.rendered.event;
     private revision = 0;
 
     constructor(
@@ -200,6 +207,7 @@ export class ConfigStatusView implements vscode.Disposable {
         this.timers.delete(uri);
         this.snapshots.delete(uri);
         this.inFlight.delete(uri);
+        this.resolvedSpellLanguage.delete(uri);
         this.diagnostics.delete(document.uri);
     }
 
@@ -234,6 +242,7 @@ export class ConfigStatusView implements vscode.Disposable {
         // and its answer is not resurrected into an empty snapshot.
         if (this.inFlight.get(uri) !== generation) return;
         if (response === null) return;
+        this.resolvedSpellLanguage.set(uri, response.resolvedSpellLanguage ?? '');
 
         this.apply(
             document,
@@ -406,6 +415,7 @@ export class ConfigStatusView implements vscode.Disposable {
             })),
             revision: this.revision,
             parseError,
+            resolvedSpellLanguage: this.resolvedSpellLanguage.get(uriKey(document.uri)) ?? '',
         });
 
         // The block and the leaf can carry the same sentence -- a URL nothing
@@ -445,6 +455,7 @@ export class ConfigStatusView implements vscode.Disposable {
             diagnostics: [{ line: 0, message, severity: vscode.DiagnosticSeverity[diagnostic.severity] }],
             revision: this.revision,
             parseError: '',
+            resolvedSpellLanguage: '',
         });
         this.diagnostics.set(document.uri, [diagnostic]);
         this.renderAll();
@@ -475,6 +486,7 @@ export class ConfigStatusView implements vscode.Disposable {
                 }));
             }
         }
+        this.rendered.fire();
     }
 
     public dispose(): void {
@@ -482,6 +494,7 @@ export class ConfigStatusView implements vscode.Disposable {
         this.timers.clear();
         for (const decoration of Object.values(this.decorations)) decoration.dispose();
         this.diagnostics.dispose();
+        this.rendered.dispose();
         for (const subscription of this.subscriptions) subscription.dispose();
     }
 }

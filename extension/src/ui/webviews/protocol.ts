@@ -1,4 +1,4 @@
-import type { ByteOffset } from '../../checking/offsets';
+import type { ByteOffset, CharOffset } from '../../checking/offsets';
 import type { DiagId } from '../../diagnostics/diagnostic';
 
 /** Shared type-safe events between extension host and webviews. */
@@ -78,6 +78,14 @@ export interface InspectorProseRange {
      * reporting it.
      */
     language: string;
+    /** The tag as the document wrote it, empty when nothing declared one. */
+    declaredLanguage: string;
+    /**
+     * Where the declared language subtag ends in the document, for the hint
+     * that shows what a bare tag was checked as. `null` when there is no
+     * declaration or the core could not locate its tag.
+     */
+    declaredTagEnd: CharOffset | null;
 }
 
 export interface InspectorLatencyStage {
