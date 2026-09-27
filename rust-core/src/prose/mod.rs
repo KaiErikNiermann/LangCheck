@@ -263,9 +263,13 @@ fn apply_language_overrides(
 /// `tag` is matched literally, so a line that mentions `lang:` more than once
 /// -- `lang-check-begin match:/lang:xx/ lang:he` -- is narrowed to the token
 /// that actually declared the language. The whole line is kept when no token
-/// matches, which is what a declaration written some other way gets.
-fn declaration_span(text: &str, line: Range<usize>, tag: Option<&str>) -> (usize, usize) {
-    let whole = (line.start, line.end);
+/// matches, which is what a declaration written some other way gets, and it
+/// then has no tag end to hang a resolution hint on.
+fn declaration_span(text: &str, line: Range<usize>, tag: Option<&str>) -> LanguageSpan {
+    let whole = LanguageSpan {
+        report: (line.start, line.end),
+        tag_end: None,
+    };
     let Some(tag) = tag.filter(|t| !t.is_empty()) else {
         return whole;
     };
@@ -295,7 +299,10 @@ fn declaration_span(text: &str, line: Range<usize>, tag: Option<&str>) -> (usize
         {
             continue;
         }
-        return (line.start + key, line.start + end);
+        return LanguageSpan {
+            report: (line.start + key, line.start + end),
+            tag_end: Some(line.start + end),
+        };
     }
 
     whole
@@ -382,7 +389,20 @@ pub struct ProseRange {
     /// declaration when there is one: the comment is what the reader changes,
     /// and the passage is only where the consequence shows. With no
     /// declaration the prose is all there is to point at.
-    pub language_span: Option<(usize, usize)>,
+    pub language_span: Option<LanguageSpan>,
+}
+
+/// Where a document declared a language, as two spans for two readers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LanguageSpan {
+    /// What an unreadable-language report is placed on: the `lang:he` token of
+    /// a directive, or the whole Typst `#set text(lang: "he")`.
+    pub report: (usize, usize),
+    /// The byte just past the language subtag as written, which is where an
+    /// editor shows what a bare tag resolved to (`en` checked as `en-US`).
+    /// `None` when the declaration was written some way the tag cannot be
+    /// found in.
+    pub tag_end: Option<usize>,
 }
 
 impl ProseRange {
@@ -572,7 +592,11 @@ pub fn range_units(ranges: &[ProseRange], text: &str, default_language: &str) ->
 ///
 /// A passage with no declaration keeps the report at its first word.
 pub fn place_language_reports(range: &ProseRange, diagnostics: &mut [crate::checker::Diagnostic]) {
-    let Some((start, end)) = range.language_span else {
+    let Some(LanguageSpan {
+        report: (start, end),
+        ..
+    }) = range.language_span
+    else {
         return;
     };
     for diagnostic in diagnostics
@@ -851,28 +875,28 @@ mod tests {
     fn a_declaration_span_covers_the_tag_and_its_key() {
         let text = "<!-- lang-check-begin lang:he -->\n";
         let span = declaration_span(text, 0..32, Some("he"));
-        assert_eq!(&text[span.0..span.1], "lang:he");
+        assert_eq!(&text[span.report.0..span.report.1], "lang:he");
     }
 
     #[test]
     fn a_declaration_span_keeps_the_space_a_marker_writes() {
         let text = "<!-- lang: fr -->\n";
         let span = declaration_span(text, 0..17, Some("fr"));
-        assert_eq!(&text[span.0..span.1], "lang: fr");
+        assert_eq!(&text[span.report.0..span.report.1], "lang: fr");
     }
 
     #[test]
     fn a_declaration_span_skips_a_tag_a_filter_only_mentions() {
         let text = "<!-- lang-check-begin match:/lang:xx/ lang:he -->\n";
         let span = declaration_span(text, 0..48, Some("he"));
-        assert_eq!(&text[span.0..span.1], "lang:he");
+        assert_eq!(&text[span.report.0..span.report.1], "lang:he");
     }
 
     #[test]
     fn a_declaration_span_does_not_stop_inside_a_longer_tag() {
         let text = "<!-- lang-check-begin lang:de-CH -->\n";
         let span = declaration_span(text, 0..35, Some("de-CH"));
-        assert_eq!(&text[span.0..span.1], "lang:de-CH");
+        assert_eq!(&text[span.report.0..span.report.1], "lang:de-CH");
     }
 
     #[test]
@@ -882,7 +906,15 @@ mod tests {
         // fallback any other declaration form gets.
         let text = "#set text(lang: \"he\")\n";
         let span = declaration_span(text, 0..21, Some("he"));
-        assert_eq!(span, (0, 21));
+        assert_eq!(span.report, (0, 21));
+        assert_eq!(span.tag_end, None, "no tag found, nowhere to hint");
+    }
+
+    #[test]
+    fn a_declaration_span_ends_its_tag_where_the_tag_ends() {
+        let text = "<!-- lang: en -->\n";
+        let span = declaration_span(text, 0..17, Some("en"));
+        assert_eq!(span.tag_end.map(|end| &text[..end]), Some("<!-- lang: en"));
     }
 
     #[test]

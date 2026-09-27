@@ -216,6 +216,12 @@ pub fn resolve_spell_language(declared: &str, default_language: &str) -> String 
     with_spell_variant(declared).to_string()
 }
 
+/// The configured `spell_language` as the engines receive it.
+#[must_use]
+pub fn resolve_default_spell_language(default_language: &str) -> String {
+    resolve_spell_language(default_language, default_language)
+}
+
 /// `tag`, or the variant from [`AMBIGUOUS_SPELL_LANGUAGES`] when `tag` is a
 /// bare primary subtag that cannot be spell-checked on its own.
 fn with_spell_variant(tag: &str) -> &str {

@@ -434,7 +434,10 @@ async fn probe_cli_engine(
 /// is configured to check nothing -- which today produces a clean document
 /// and no explanation.
 async fn probe_spell_language(config: &Config, workspace_root: &Path) -> Vec<Probe> {
-    let tag = config.engines.spell_language.clone();
+    let written = &config.engines.spell_language;
+    // Probed as the engines receive it, so a bare `en` is asked about as
+    // `en-US` -- the tag LanguageTool and Hunspell are actually handed.
+    let tag = crate::languages::resolve_default_spell_language(written);
     if tag.is_empty() {
         return vec![Probe::new(
             "engines.spell_language",
@@ -491,7 +494,14 @@ async fn probe_spell_language(config: &Config, workspace_root: &Path) -> Vec<Pro
         "engines.spell_language",
         "",
         ProbeStatus::Ok,
-        format!("\"{tag}\" is checked by {}.", servers.join(" and ")),
+        if *written == tag {
+            format!("\"{tag}\" is checked by {}.", servers.join(" and "))
+        } else {
+            format!(
+                "\"{written}\" is checked as \"{tag}\" by {}.",
+                servers.join(" and ")
+            )
+        },
     )]
 }
 
@@ -897,6 +907,18 @@ mod tests {
         let probe = find(&probes, "engines.spell_language").expect("reported");
         assert_eq!(probe.status, ProbeStatus::Ok);
         assert!(probe.detail.contains("Harper"), "{}", probe.detail);
+    }
+
+    #[tokio::test]
+    async fn a_bare_spell_language_names_what_it_is_checked_as() {
+        let config = config_from("engines:\n  harper: true\n  spell_language: en\n");
+        let probes = probe_spell_language(&config, Path::new("/tmp")).await;
+        let probe = find(&probes, "engines.spell_language").expect("reported");
+        assert!(
+            probe.detail.contains("\"en\" is checked as \"en-US\""),
+            "{}",
+            probe.detail
+        );
     }
 
     #[tokio::test]

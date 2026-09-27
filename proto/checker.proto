@@ -119,6 +119,13 @@ message ExtractionProseRange {
   // reached the engines. Resolved, so a range that declared a bare "en" under
   // an en-GB document reads "en-GB" here and not "en".
   string language = 4;
+  // The tag as the document wrote it, before resolution. Empty when nothing
+  // declared one and the configured default applied.
+  string declared_language = 5;
+  // The byte just past the declared language subtag in the document, where
+  // the editor shows what a bare tag resolved to: `lang: "en[-US]"`. Unset
+  // when there is no declaration or its tag could not be located.
+  optional uint32 declared_tag_end_byte = 6;
 }
 
 // A span the name filter recognised as a human name and therefore silenced.
@@ -258,6 +265,9 @@ message ProbeConfigResponse {
   // no gutter mark: a mark means something outside the file was reached, and
   // a tick next to a spelling check would say nothing.
   repeated ConfigIssue issues = 3;
+  // `engines.spell_language` as the engines receive it. A bare `en` is
+  // checked as `en-US`, and the editor shows the difference beside the value.
+  string resolved_spell_language = 4;
 }
 
 // Something wrong with the config that reading it is enough to establish.

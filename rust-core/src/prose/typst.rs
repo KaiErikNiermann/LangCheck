@@ -1,7 +1,7 @@
 use tree_sitter::Node;
 
-use super::ProseRange;
 use super::shared::child_of_kind;
+use super::{LanguageSpan, ProseRange};
 
 /// Node types whose own text is never prose.
 ///
@@ -161,7 +161,7 @@ fn collect_nested_content(
 /// where the consequence shows.
 struct Declared {
     tag: String,
-    span: (usize, usize),
+    span: LanguageSpan,
 }
 
 /// The BCP-47 tag a `text(…)` call names, if it names one.
@@ -173,10 +173,13 @@ struct Declared {
 /// Only `text` is read: `lang` means something else on `#set page` and friends.
 fn call_language(node: Node, text: &str) -> Option<Declared> {
     let call = child_of_kind(node, "call")?;
-    let tag = text_call_language(call, text)?;
+    let (tag, tag_end) = text_call_language(call, text)?;
     Some(Declared {
         tag,
-        span: (call.start_byte(), call.end_byte()),
+        span: LanguageSpan {
+            report: (call.start_byte(), call.end_byte()),
+            tag_end: Some(tag_end),
+        },
     })
 }
 
@@ -187,30 +190,36 @@ fn call_language(node: Node, text: &str) -> Option<Declared> {
 fn set_rule_language(node: Node, text: &str) -> Option<Declared> {
     let set = child_of_kind(node, "set")?;
     let call = child_of_kind(set, "call")?;
-    let tag = text_call_language(call, text)?;
+    let (tag, tag_end) = text_call_language(call, text)?;
     // The whole `#set text(lang: "de")`, not just the tag: that is the line a
     // reader changes when nothing can read the language it names.
     Some(Declared {
         tag,
-        span: (node.start_byte(), node.end_byte()),
+        span: LanguageSpan {
+            report: (node.start_byte(), node.end_byte()),
+            tag_end: Some(tag_end),
+        },
     })
 }
 
-/// Read `lang:` and `region:` off a `text(…)` call node.
-fn text_call_language(call: Node, text: &str) -> Option<String> {
+/// Read `lang:` and `region:` off a `text(…)` call node, with the byte just
+/// past the `lang` value.
+fn text_call_language(call: Node, text: &str) -> Option<(String, usize)> {
     if &text[child_of_kind(call, "ident")?.byte_range()] != "text" {
         return None;
     }
     let group = child_of_kind(call, "group")?;
-    let lang = tagged_string(group, text, "lang")?;
-    Some(
-        tagged_string(group, text, "region")
-            .map_or_else(|| lang.to_string(), |region| format!("{lang}-{region}")),
-    )
+    let (lang, lang_end) = tagged_string(group, text, "lang")?;
+    let tag = tagged_string(group, text, "region").map_or_else(
+        || lang.to_string(),
+        |(region, _)| format!("{lang}-{region}"),
+    );
+    Some((tag, lang_end))
 }
 
-/// The string value of `name:` inside an argument `group`.
-fn tagged_string<'a>(group: Node, text: &'a str, name: &str) -> Option<&'a str> {
+/// The string value of `name:` inside an argument `group`, and the byte just
+/// past it (before the closing quote).
+fn tagged_string<'a>(group: Node, text: &'a str, name: &str) -> Option<(&'a str, usize)> {
     let mut cursor = group.walk();
     for tagged in group.children(&mut cursor) {
         if tagged.kind() != "tagged" {
@@ -230,9 +239,10 @@ fn tagged_string<'a>(group: Node, text: &'a str, name: &str) -> Option<&'a str> 
             && let Some(value) = value
         {
             // The node spans the quotes; the value is what sits between them.
-            return text[value.byte_range()]
+            let unquoted = text[value.byte_range()]
                 .strip_prefix('"')
-                .and_then(|v| v.strip_suffix('"'));
+                .and_then(|v| v.strip_suffix('"'))?;
+            return Some((unquoted, value.end_byte() - 1));
         }
     }
     None
@@ -682,6 +692,32 @@ mod tests {
         )?;
         let tagged: Vec<_> = ranges.iter().map(|(_, lang)| lang.as_deref()).collect();
         assert_eq!(tagged, vec![None, Some("en"), None]);
+        Ok(())
+    }
+
+    /// What precedes each tagged range's `tag_end`, which should stop right
+    /// after the language subtag, inside its quotes.
+    fn text_before_tag_ends(text: &str) -> Result<Vec<String>> {
+        let mut extractor = typst_extractor()?;
+        Ok(extractor
+            .extract(text, "typst", &LatexExtras::default())?
+            .iter()
+            .filter_map(|r| r.language_span?.tag_end)
+            .map(|end| text[..end].to_string())
+            .collect())
+    }
+
+    #[test]
+    fn a_text_call_ends_its_tag_inside_the_quotes() -> Result<()> {
+        let ends = text_before_tag_ends("#text(lang: \"en\")[An English aside.]\n")?;
+        assert_eq!(ends, vec!["#text(lang: \"en".to_string()]);
+        Ok(())
+    }
+
+    #[test]
+    fn a_set_rule_ends_its_tag_inside_the_quotes() -> Result<()> {
+        let ends = text_before_tag_ends("#set text(lang: \"de\", size: 11pt)\n\nEin Satz.\n")?;
+        assert_eq!(ends, vec!["#set text(lang: \"de".to_string()]);
         Ok(())
     }
 

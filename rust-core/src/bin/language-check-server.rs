@@ -649,6 +649,11 @@ async fn main() -> Result<()> {
                                             })
                                             .collect(),
                                         language: unit.language.clone(),
+                                        declared_language: r.language.clone().unwrap_or_default(),
+                                        declared_tag_end_byte: r
+                                            .language_span
+                                            .and_then(|span| span.tag_end)
+                                            .map(|end| end as u32),
                                     })
                                     .collect(),
                                 names: Vec::new(),
@@ -902,6 +907,10 @@ async fn main() -> Result<()> {
                                 probes,
                                 issues,
                                 parse_error: String::new(),
+                                resolved_spell_language:
+                                    lang_check::languages::resolve_default_spell_language(
+                                        &config.engines.spell_language,
+                                    ),
                             }))
                         }
                         // A config that does not parse is not an RPC failure:
@@ -912,6 +921,7 @@ async fn main() -> Result<()> {
                             probes: Vec::new(),
                             issues: Vec::new(),
                             parse_error: message,
+                            resolved_spell_language: String::new(),
                         })),
                     }
                 }

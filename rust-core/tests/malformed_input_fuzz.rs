@@ -314,12 +314,20 @@ fn check_ranges(text: &str, ranges: &[ProseRange], context: &str) {
             );
             previous_end = end;
         }
-        if let Some((start, end)) = range.language_span {
+        if let Some(span) = range.language_span {
+            let (start, end) = span.report;
             assert!(
                 start <= end && end <= text.len(),
                 "{}: language span {start}..{end} out of bounds",
                 what()
             );
+            if let Some(tag_end) = span.tag_end {
+                assert!(
+                    text.is_char_boundary(tag_end),
+                    "{}: language tag end {tag_end} off a char boundary",
+                    what()
+                );
+            }
         }
     }
 }
