@@ -24,6 +24,7 @@ export type CommandKey =
   | "language-check.manageEngines"
   | "language-check.skipLatexEnv"
   | "language-check.skipLatexCommand"
+  | "language-check.excludeCurrentFile"
   | "language-check.downloadBinary"
   | "language-check.restartLTDocker"
   | "language-check.restartLanguageServer"
@@ -92,6 +93,11 @@ export const commands = {
    * @value `language-check.skipLatexCommand`
    */
   skipLatexCommand: "language-check.skipLatexCommand",
+  /**
+   * %command.excludeCurrentFile%
+   * @value `language-check.excludeCurrentFile`
+   */
+  excludeCurrentFile: "language-check.excludeCurrentFile",
   /**
    * %command.downloadBinary%
    * @value `language-check.downloadBinary`

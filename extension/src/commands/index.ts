@@ -42,6 +42,7 @@ const REGISTRATION_ORDER = [
     COMMANDS.skipLatexEnv,
     COMMANDS.hideLatexEnvHint,
     COMMANDS.skipLatexCommand,
+    COMMANDS.excludeCurrentFile,
     COMMANDS.checkDocument,
     COMMANDS.checkWorkspace,
     COMMANDS.openSpeedFix,

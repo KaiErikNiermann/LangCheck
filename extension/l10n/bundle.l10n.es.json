@@ -72,11 +72,11 @@
   "Report copied to clipboard.": "Informe copiado al portapapeles.",
   "Switched to check on save": "Verificación al guardar activada",
   "Switched to check on change": "Verificación al modificar activada",
-  "Deactivate rule \"{0}\"": "Desactivar regla «{0}»",
-  "Rule \"{0}\" deactivated in project config": "Regla «{0}» desactivada en la configuración del proyecto",
-  "Rule \"{0}\" is already deactivated in project config": "La regla «{0}» ya está desactivada en la configuración del proyecto",
+  "Deactivate rule \"{0}\"": "Desactivar regla \"{0}\"",
+  "Rule \"{0}\" deactivated in project config": "Regla \"{0}\" desactivada en la configuración del proyecto",
+  "Rule \"{0}\" is already deactivated in project config": "La regla \"{0}\" ya está desactivada en la configuración del proyecto",
   "Failed to deactivate rule: {0}": "Error al desactivar la regla: {0}",
-  "Hint hidden for \"{0}\". Checking continues.": "Indicación oculta para «{0}». La verificación continúa.",
+  "Hint hidden for \"{0}\". Checking continues.": "Indicación oculta para \"{0}\". La verificación continúa.",
   "Language Check inlay hints enabled": "Sugerencias en línea de Language Check activadas",
   "Language Check inlay hints disabled": "Sugerencias en línea de Language Check desactivadas",
   "Language Check server restarted": "Servidor de Language Check reiniciado",
@@ -102,5 +102,9 @@
   "Another language-check server (process {0}, version {1}) is using this workspace's index: {2}. This window's server (process {3}) runs without it.": "Otro servidor de language-check (proceso {0}, versión {1}) está usando el índice de este espacio de trabajo: {2}. El servidor de esta ventana (proceso {3}) funciona sin él.",
   "Language Check: {0}": "Language Check: {0}",
   "Show Log": "Mostrar registro",
-  "Another copy of Language Check is installed ({0}, version {1}, at {2}). Each copy starts its own checker; disable one of them.": "Hay otra copia de Language Check instalada ({0}, versión {1}, en {2}). Cada copia inicia su propio corrector; desactive una de ellas."
+  "Another copy of Language Check is installed ({0}, version {1}, at {2}). Each copy starts its own checker; disable one of them.": "Hay otra copia de Language Check instalada ({0}, versión {1}, en {2}). Cada copia inicia su propio corrector; desactive una de ellas.",
+  "Open a file to exclude it from checking.": "Abra un archivo para excluirlo de la comprobación.",
+  "\"{0}\" is outside the workspace folder.": "\"{0}\" está fuera de la carpeta del espacio de trabajo.",
+  "\"{0}\" is already excluded.": "\"{0}\" ya está excluido.",
+  "Excluded \"{0}\". Reloading...": "\"{0}\" excluido. Recargando..."
 }

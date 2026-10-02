@@ -102,5 +102,9 @@
   "Another language-check server (process {0}, version {1}) is using this workspace's index: {2}. This window's server (process {3}) runs without it.": "Another language-check server (process {0}, version {1}) is using this workspace's index: {2}. This window's server (process {3}) runs without it.",
   "Language Check: {0}": "Language Check: {0}",
   "Show Log": "Show Log",
-  "Another copy of Language Check is installed ({0}, version {1}, at {2}). Each copy starts its own checker; disable one of them.": "Another copy of Language Check is installed ({0}, version {1}, at {2}). Each copy starts its own checker; disable one of them."
+  "Another copy of Language Check is installed ({0}, version {1}, at {2}). Each copy starts its own checker; disable one of them.": "Another copy of Language Check is installed ({0}, version {1}, at {2}). Each copy starts its own checker; disable one of them.",
+  "Open a file to exclude it from checking.": "Open a file to exclude it from checking.",
+  "\"{0}\" is outside the workspace folder.": "\"{0}\" is outside the workspace folder.",
+  "\"{0}\" is already excluded.": "\"{0}\" is already excluded.",
+  "Excluded \"{0}\". Reloading...": "Excluded \"{0}\". Reloading..."
 }

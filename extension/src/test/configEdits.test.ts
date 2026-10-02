@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    addExclude,
     addLatexListEntry,
     deactivateRule,
     engineEnabled,
@@ -118,5 +119,36 @@ describe('deactivateRule', () => {
 
     it('treats regex metacharacters in the rule id literally', () => {
         expect(deactivateRule('rules:\n  aXb:\n', 'a.b').alreadyDeactivated).toBe(false);
+    });
+});
+
+describe('addExclude', () => {
+    it('creates the key last in a file without it', () => {
+        expect(addExclude('engines:\n  harper: true\n', 'docs/a.md')).toEqual({
+            content: 'engines:\n  harper: true\n\nexclude:\n  - docs/a.md\n',
+            alreadyExcluded: false,
+        });
+    });
+
+    it('creates the key in an empty file', () => {
+        expect(addExclude('', 'a.md').content).toBe('exclude:\n  - a.md\n');
+    });
+
+    it('puts the path at the end of an existing list', () => {
+        expect(addExclude('exclude:\n  - a.md\nengines: {}\n', 'b.md').content)
+            .toBe('exclude:\n  - a.md\n  - b.md\nengines: {}\n');
+    });
+
+    it('fills a bare exclude: without writing the key twice', () => {
+        expect(addExclude('exclude:\nengines: {}\n', 'b.md').content).toBe('engines: {}\n\nexclude:\n  - b.md\n');
+    });
+
+    it('leaves a path that is already there alone', () => {
+        const content = 'exclude:\n  - a.md\n';
+        expect(addExclude(content, 'a.md')).toEqual({ content, alreadyExcluded: true });
+    });
+
+    it('refuses a file that does not parse', () => {
+        expect(() => addExclude('exclude: [a\n', 'b.md')).toThrow(/not valid YAML/);
     });
 });

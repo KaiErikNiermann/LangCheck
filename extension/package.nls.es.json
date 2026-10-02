@@ -10,6 +10,7 @@
   "command.manageEngines": "Language Check: Gestionar motores",
   "command.skipLatexEnv": "Language Check: Omitir entorno LaTeX",
   "command.skipLatexCommand": "Language Check: Omitir comando LaTeX",
+  "command.excludeCurrentFile": "Language Check: Excluir el archivo actual de la comprobación",
   "command.downloadBinary": "Language Check: Descargar binario core",
   "command.restartLTDocker": "Language Check: Reiniciar Docker de LanguageTool",
   "command.restartLanguageServer": "Language Check: Reiniciar servidor de idioma",

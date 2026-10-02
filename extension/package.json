@@ -99,6 +99,10 @@
         "title": "%command.skipLatexCommand%"
       },
       {
+        "command": "language-check.excludeCurrentFile",
+        "title": "%command.excludeCurrentFile%"
+      },
+      {
         "command": "language-check.downloadBinary",
         "title": "%command.downloadBinary%"
       },

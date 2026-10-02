@@ -219,3 +219,28 @@ export function deactivateRule(content: string, ruleId: string): { content: stri
     }
     return { content: finishEdit(edit, content), alreadyDeactivated: false };
 }
+
+/**
+ * Add `pattern` to the end of `exclude`, creating the key -- last in the file,
+ * like `rules` -- when it is missing. The built-in excludes are merged in by
+ * the core, so a new list does not replace them.
+ */
+export function addExclude(content: string, pattern: string): { content: string; alreadyExcluded: boolean } {
+    const edit = beginEdit(content);
+    const existing = edit.root.get('exclude', true);
+    if (YAML.isSeq(existing)) {
+        if (existing.items.some((item) => isScalar(item) && item.value === pattern)) {
+            return { content, alreadyExcluded: true };
+        }
+        existing.items.push(edit.doc.createNode(pattern));
+    } else {
+        const created = edit.doc.createNode([pattern]);
+        created.flow = edit.root.flow ?? false;
+        const pair = edit.doc.createPair('exclude', created);
+        if (edit.root.items.length > 0 && isScalar(pair.key)) pair.key.spaceBefore = true;
+        // A bare `exclude:` holds null; drop it so the key is not written twice.
+        if (edit.root.has('exclude')) edit.root.delete('exclude');
+        edit.root.items.push(pair);
+    }
+    return { content: finishEdit(edit, content), alreadyExcluded: false };
+}

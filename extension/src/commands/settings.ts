@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import {
+    addExclude,
     addLatexListEntry,
     engineEnabled,
     setEngineEnabled,
@@ -20,6 +21,9 @@ import {
 import { getSetting, updateSetting } from '../config/settings';
 import type { App } from '../services';
 import { COMMANDS, type CommandHandlers } from './ids';
+
+/** Escape glob metacharacters so a file name matches only itself. */
+const globEscape = (name: string): string => name.replace(/[*?[\]]/g, '[$&]');
 
 export function settingsCommands(app: App) {
     const { statusBars, configState, inlayHintEmitter, inlayHintSwitch, reloader } = app;
@@ -147,10 +151,13 @@ export function settingsCommands(app: App) {
                 const content = setSpellLanguage(await readTextOrEmpty(targetUri), selected.label);
                 await writeConfigText(targetUri, content);
                 statusBars.setLanguage(selected.label);
-                vscode.window.showInformationMessage(
-                    vscode.l10n.t('Spell-check language set to "{0}". Reloading...', selected.label)
-                );
-                await reloader.reinitializeAndRecheck();
+                vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: vscode.l10n.t('Spell-check language set to "{0}". Reloading...', selected.label),
+                    cancellable: false,
+                }, async () => {
+                    await reloader.reinitializeAndRecheck();
+                })
             } catch (err) {
                 showConfigUpdateError(err);
             }
@@ -210,6 +217,44 @@ export function settingsCommands(app: App) {
                     vscode.l10n.t('Engines updated: {0}. Reloading...', names)
                 );
                 await reloader.reinitializeAndRecheck();
+            } catch (err) {
+                showConfigUpdateError(err);
+            }
+        },
+        [COMMANDS.excludeCurrentFile]: async () => {
+            const uri = vscode.window.activeTextEditor?.document.uri;
+            if (uri?.scheme !== 'file') {
+                vscode.window.showWarningMessage(vscode.l10n.t('Open a file to exclude it from checking.'));
+                return;
+            }
+            const folder = vscode.workspace.getWorkspaceFolder(uri) ?? workspaceFolderOrWarn();
+            if (!folder) return;
+            const relative = path.relative(folder.uri.fsPath, uri.fsPath);
+            if (relative.startsWith('..') || path.isAbsolute(relative)) {
+                vscode.window.showWarningMessage(vscode.l10n.t('"{0}" is outside the workspace folder.', uri.fsPath));
+                return;
+            }
+            // Patterns are workspace-relative globs with `/` separators.
+            const pattern = globEscape(relative.split(path.sep).join('/'));
+
+            const targetUri = await resolveConfigForEdit(folder);
+            try {
+                const { content, alreadyExcluded } = addExclude(await readTextOrEmpty(targetUri), pattern);
+                if (alreadyExcluded) {
+                    vscode.window.showInformationMessage(vscode.l10n.t('"{0}" is already excluded.', pattern));
+                    return;
+                }
+                await writeConfigText(targetUri, content);
+                // vscode.window.showInformationMessage(vscode.l10n.t('Excluded "{0}". Reloading...', pattern));
+                // await reloader.reinitializeAndRecheck();
+
+                vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: vscode.l10n.t('Excluded "{0}". Reloading...', pattern),
+                    cancellable: false,
+                }, async () => {
+                    await reloader.reinitializeAndRecheck();
+                })
             } catch (err) {
                 showConfigUpdateError(err);
             }

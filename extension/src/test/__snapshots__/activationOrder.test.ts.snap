@@ -53,6 +53,7 @@ exports[`activation order > in production, when the core has to be downloaded fi
   "commands.registerCommand("language-check.skipLatexEnv", function)",
   "commands.registerCommand("language-check.hideLatexEnvHint", function)",
   "commands.registerCommand("language-check.skipLatexCommand", function)",
+  "commands.registerCommand("language-check.excludeCurrentFile", function)",
   "commands.registerCommand("language-check.checkDocument", function)",
   "commands.registerCommand("language-check.checkWorkspace", function)",
   "commands.registerCommand("language-check.openSpeedFix", function)",
@@ -78,7 +79,7 @@ exports[`activation order > in production, when the core has to be downloaded fi
   "workspace.createFileSystemWatcher.onDidDelete()",
   "languages.onDidChangeDiagnostics(function)",
   "--- activated ---",
-  "--- 56 subscriptions ---",
+  "--- 57 subscriptions ---",
 ]
 `;
 
@@ -145,6 +146,7 @@ exports[`activation order > under the test host, with a local core build 1`] = `
   "commands.registerCommand("language-check.skipLatexEnv", function)",
   "commands.registerCommand("language-check.hideLatexEnvHint", function)",
   "commands.registerCommand("language-check.skipLatexCommand", function)",
+  "commands.registerCommand("language-check.excludeCurrentFile", function)",
   "commands.registerCommand("language-check.checkDocument", function)",
   "commands.registerCommand("language-check.checkWorkspace", function)",
   "commands.registerCommand("language-check.openSpeedFix", function)",
@@ -171,7 +173,7 @@ exports[`activation order > under the test host, with a local core build 1`] = `
   "workspace.createFileSystemWatcher.onDidDelete()",
   "languages.onDidChangeDiagnostics(function)",
   "--- activated ---",
-  "--- 56 subscriptions ---",
+  "--- 57 subscriptions ---",
 ]
 `;
 
@@ -239,6 +241,7 @@ exports[`activation order > under the test host, with no local core build 1`] = 
   "commands.registerCommand("language-check.skipLatexEnv", function)",
   "commands.registerCommand("language-check.hideLatexEnvHint", function)",
   "commands.registerCommand("language-check.skipLatexCommand", function)",
+  "commands.registerCommand("language-check.excludeCurrentFile", function)",
   "commands.registerCommand("language-check.checkDocument", function)",
   "commands.registerCommand("language-check.checkWorkspace", function)",
   "commands.registerCommand("language-check.openSpeedFix", function)",
@@ -265,7 +268,7 @@ exports[`activation order > under the test host, with no local core build 1`] = 
   "workspace.createFileSystemWatcher.onDidDelete()",
   "languages.onDidChangeDiagnostics(function)",
   "--- activated ---",
-  "--- 56 subscriptions ---",
+  "--- 57 subscriptions ---",
 ]
 `;
 
