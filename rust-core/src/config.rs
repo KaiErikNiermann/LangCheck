@@ -61,6 +61,8 @@ pub struct Config {
     pub names: NameConfig,
     #[serde(default)]
     pub morphology: MorphologyConfig,
+    #[serde(default)]
+    pub identifiers: IdentifierConfig,
 }
 
 /// Opt-in suppression of spelling diagnostics on human names.
@@ -115,6 +117,32 @@ impl Default for MorphologyConfig {
             enabled: true,
             inflections: true,
         }
+    }
+}
+
+/// Silencing of everything engines report inside identifier-shaped tokens.
+///
+/// On by default, like [`MorphologyConfig`] and for a stronger reason: the decision
+/// reads the token's shape and nothing else, so it cannot be fooled by a gazetteer or
+/// an unlucky suggestion list. `parse_json_blob` and `getElementById` are not words.
+///
+/// ```yaml
+/// identifiers:
+///   enabled: true   # skip snake_case and camelCase tokens
+/// ```
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
+#[schemars(
+    description = "Skip identifier-shaped tokens: nothing reported inside `parse_json_blob` or `getElementById` is shown."
+)]
+pub struct IdentifierConfig {
+    /// Drop diagnostics whose span lies inside a `snake_case` or `camelCase` token.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+impl Default for IdentifierConfig {
+    fn default() -> Self {
+        Self { enabled: true }
     }
 }
 
@@ -1118,6 +1146,7 @@ const KNOWN_TOP_LEVEL_KEYS: &[&str] = &[
     "workspace",
     "names",
     "morphology",
+    "identifiers",
 ];
 
 /// Keys [`EngineConfig`] understands, including the deprecated flat aliases.
@@ -1194,6 +1223,7 @@ impl Default for Config {
             workspace: WorkspaceConfig::default(),
             names: NameConfig::default(),
             morphology: MorphologyConfig::default(),
+            identifiers: IdentifierConfig::default(),
         }
     }
 }
@@ -1271,6 +1301,14 @@ engines:
         assert!(!config.morphology.enabled);
         // An unmentioned field keeps its default rather than falling to `false`.
         assert!(config.morphology.inflections);
+    }
+
+    #[test]
+    fn identifiers_are_skipped_by_default_and_can_be_checked() {
+        assert!(Config::default().identifiers.enabled);
+        let yaml = "identifiers:\n  enabled: false\n";
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(!config.identifiers.enabled);
     }
 
     #[test]

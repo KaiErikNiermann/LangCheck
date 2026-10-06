@@ -311,6 +311,7 @@ struct CliSuppression {
     dictionary: Dictionary,
     morphology: Option<AffixAnalyzer>,
     names: Option<NameFilter>,
+    identifiers: bool,
 }
 
 impl CliSuppression {
@@ -349,13 +350,15 @@ impl CliSuppression {
             dictionary,
             morphology,
             names,
+            identifiers: config.identifiers.enabled,
         }
     }
 
     const fn context<'a>(&'a self, directives: &'a InlineDirectives) -> SuppressionContext<'a> {
         let mut ctx = SuppressionContext::new()
             .with_dictionary(&self.dictionary)
-            .with_directives(directives);
+            .with_directives(directives)
+            .with_identifiers(self.identifiers);
         if let Some(analyzer) = &self.morphology {
             ctx = ctx.with_morphology(analyzer);
         }

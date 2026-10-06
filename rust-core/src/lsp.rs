@@ -339,6 +339,7 @@ impl Backend {
             range.adopt_diagnostics(text, &mut diags);
 
             {
+                let identifiers = self.config.lock().await.identifiers.enabled;
                 let ignore = self.ignore_store.lock().await;
                 let dict = self.dictionary.lock().await;
                 let morphology = self.morphology.lock().await;
@@ -346,7 +347,8 @@ impl Backend {
                 let mut ctx = SuppressionContext::new()
                     .with_ignore(&ignore)
                     .with_dictionary(&dict)
-                    .with_directives(&directives);
+                    .with_directives(&directives)
+                    .with_identifiers(identifiers);
                 if let Some(analyzer) = morphology.as_ref() {
                     ctx = ctx.with_morphology(analyzer);
                 }

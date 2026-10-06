@@ -17,6 +17,7 @@ use tracing::debug;
 use crate::checker::Diagnostic;
 use crate::dictionary::Dictionary;
 use crate::hashing::{DiagnosticFingerprint, IgnoreStore};
+use crate::identifiers::Identifier;
 use crate::ignore_rules::{IgnoreParser, ResolvedDirectives};
 use crate::morphology::AffixAnalyzer;
 use crate::names::{NameFilter, NameQuery, NameVerdict};
@@ -27,6 +28,9 @@ use crate::text_util::{min_suggestion_distance, safe_slice};
 ///
 /// Each is optional because the entry points differ in what they have: the CLI has no
 /// ignore store, and the name filter is only present when the user opts in.
+///
+/// `identifiers` is a switch rather than a source: the check reads only the document.
+/// It starts off so that an empty context suppresses nothing.
 #[derive(Default, Clone, Copy)]
 pub struct SuppressionContext<'a> {
     pub ignore: Option<&'a IgnoreStore>,
@@ -34,6 +38,7 @@ pub struct SuppressionContext<'a> {
     pub morphology: Option<&'a AffixAnalyzer>,
     pub names: Option<&'a NameFilter>,
     pub directives: Option<&'a InlineDirectives>,
+    pub identifiers: bool,
 }
 
 /// Inline `lang-check-*` directives resolved from a whole document.
@@ -83,6 +88,7 @@ impl<'a> SuppressionContext<'a> {
             morphology: None,
             names: None,
             directives: None,
+            identifiers: false,
         }
     }
 
@@ -113,6 +119,12 @@ impl<'a> SuppressionContext<'a> {
     #[must_use]
     pub const fn with_directives(mut self, directives: &'a InlineDirectives) -> Self {
         self.directives = Some(directives);
+        self
+    }
+
+    #[must_use]
+    pub const fn with_identifiers(mut self, enabled: bool) -> Self {
+        self.identifiers = enabled;
         self
     }
 }
@@ -147,6 +159,12 @@ fn classify(diagnostic: &Diagnostic, text: &str, ctx: &SuppressionContext<'_>) -
         if ignore.is_ignored(&fingerprint) {
             return Outcome::Drop;
         }
+    }
+
+    // Before the spelling gate: for `parse_json_blob` Harper reports `json` as a
+    // capitalisation error, and no category has anything useful to say there.
+    if ctx.identifiers && is_inside_identifier(diagnostic, text) {
+        return Outcome::Drop;
     }
 
     if !is_spelling_category(&diagnostic.unified_id) {
@@ -209,6 +227,26 @@ fn is_known_derivation(word: &str, diagnostic: &Diagnostic, ctx: &SuppressionCon
     // Suppression is otherwise silent, and a feature that hides squiggles without
     // saying why cannot be debugged from a bug report.
     debug!(word, decomposition = %analysis.describe(), "Suppressed as an affixed form");
+    true
+}
+
+/// Whether the diagnostic's span lies inside a `snake_case` or `camelCase` token.
+fn is_inside_identifier(diagnostic: &Diagnostic, text: &str) -> bool {
+    let Some(ident) = Identifier::enclosing(
+        text,
+        diagnostic.start_byte as usize,
+        diagnostic.end_byte as usize,
+    ) else {
+        return false;
+    };
+    if ident.is_casing_slip(&diagnostic.suggestions) {
+        return false;
+    }
+    debug!(
+        token = ident.token,
+        shape = ident.shape.tag(),
+        "Suppressed inside an identifier"
+    );
     true
 }
 
@@ -339,6 +377,54 @@ mod tests {
         let mut d = spelling_diagnostic(6, 16);
         d.unified_id = "grammar.agreement".to_string();
         assert!(!should_suppress(&d, text, &ctx));
+    }
+
+    /// Harper's actual report on `parse_json_blob`: `json`, as a capitalisation error.
+    #[test]
+    fn any_category_inside_snake_case_is_suppressed() {
+        let text = "Call parse_json_blob first.";
+        let mut d = with_suggestions(10, 14, &["JSON"]);
+        d.unified_id = "typography.capitalization".to_string();
+        let ctx = SuppressionContext::new().with_identifiers(true);
+        assert!(should_suppress(&d, text, &ctx));
+        assert!(!should_suppress(&d, text, &SuppressionContext::new()));
+    }
+
+    #[test]
+    fn a_camel_case_misspelling_is_suppressed() {
+        let text = "Use fooBarBaz here.";
+        let ctx = SuppressionContext::new().with_identifiers(true);
+        assert!(should_suppress(
+            &with_suggestions(4, 13, &["foobar"]),
+            text,
+            &ctx
+        ));
+    }
+
+    /// `LanguageTool`'s `THE_THEY` on `tHe` offers no case variant, so only Harper's
+    /// capitalisation report survives — which is the one that names the fix.
+    #[test]
+    fn a_casing_slip_is_kept_when_the_engine_names_the_word() {
+        let text = "A typo like tHe stays.";
+        let ctx = SuppressionContext::new().with_identifiers(true);
+        assert!(!should_suppress(
+            &with_suggestions(12, 15, &["the"]),
+            text,
+            &ctx
+        ));
+        assert!(should_suppress(
+            &with_suggestions(12, 15, &["they"]),
+            text,
+            &ctx
+        ));
+    }
+
+    #[test]
+    fn identifiers_leave_plain_words_and_wider_spans_alone() {
+        let text = "the teh fooBar thing";
+        let ctx = SuppressionContext::new().with_identifiers(true);
+        assert!(!should_suppress(&spelling_diagnostic(4, 7), text, &ctx));
+        assert!(!should_suppress(&spelling_diagnostic(0, 14), text, &ctx));
     }
 
     #[test]

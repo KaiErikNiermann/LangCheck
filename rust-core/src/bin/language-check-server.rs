@@ -126,6 +126,8 @@ async fn process_file_for_indexing(
         Vec::new()
     });
     let directives = InlineDirectives::parse(&text);
+    // Read once and released at once, so it never joins the locks taken below.
+    let identifiers = config_arc.lock().await.identifiers.enabled;
     for (range, mut diagnostics) in ranges.iter().zip(batch) {
         range.adopt_diagnostics(&text, &mut diagnostics);
         let ignore_store_lock = ignore_store_arc.lock().await;
@@ -135,7 +137,8 @@ async fn process_file_for_indexing(
         let mut ctx = SuppressionContext::new()
             .with_ignore(&ignore_store_lock)
             .with_dictionary(&dictionary_lock)
-            .with_directives(&directives);
+            .with_directives(&directives)
+            .with_identifiers(identifiers);
         if let Some(analyzer) = morphology_lock.as_ref() {
             ctx = ctx.with_morphology(analyzer);
         }
@@ -822,6 +825,7 @@ async fn main() -> Result<()> {
                             // check and not to a reused one.
                             {
                                 let directives = InlineDirectives::parse(&req.text);
+                                let identifiers = config_arc.lock().await.identifiers.enabled;
                                 let ignore_store = ignore_store_arc.lock().await;
                                 let dict = dictionary_arc.lock().await;
                                 let morphology = morphology_arc.lock().await;
@@ -829,7 +833,8 @@ async fn main() -> Result<()> {
                                 let mut ctx = SuppressionContext::new()
                                     .with_ignore(&ignore_store)
                                     .with_dictionary(&dict)
-                                    .with_directives(&directives);
+                                    .with_directives(&directives)
+                                    .with_identifiers(identifiers);
                                 if let Some(analyzer) = morphology.as_ref() {
                                     ctx = ctx.with_morphology(analyzer);
                                 }

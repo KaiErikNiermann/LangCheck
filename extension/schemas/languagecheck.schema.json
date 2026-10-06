@@ -370,6 +370,20 @@
       "description": "An engine written either as a bool shorthand or as its full settings table.",
       "markdownDescription": "An engine written either as a bool shorthand or as its full settings table."
     },
+    "IdentifierConfig": {
+      "additionalProperties": false,
+      "description": "Skip identifier-shaped tokens: nothing reported inside `parse_json_blob` or `getElementById` is shown.",
+      "markdownDescription": "Skip identifier-shaped tokens: nothing reported inside `parse_json_blob` or `getElementById` is shown.",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Drop diagnostics whose span lies inside a `snake_case` or `camelCase` token.",
+          "markdownDescription": "Drop diagnostics whose span lies inside a `snake_case` or `camelCase` token.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
     "LaTeXConfig": {
       "additionalProperties": false,
       "description": "LaTeX-specific configuration.\n\n```yaml\nlanguages:\n  latex:\n    skip_environments:\n      - prooftree\n      - mycustomenv\n```",
@@ -879,6 +893,16 @@
       },
       "markdownDescription": "Which file types to check, as extensions without the leading dot.\n\nEmpty means every type the grammars recognise, which is the default\nand what this did before the key existed. `[\"md\"]` restricts the whole\nproject to Markdown however wide `include` is, which is the common\ncase that `include` alone can only express by repeating the extension\nin every pattern.\n\nMatched case-insensitively, and a leading dot is accepted and ignored,\nbecause `.md` is how half of everyone will write it.",
       "type": "array"
+    },
+    "identifiers": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/IdentifierConfig"
+        }
+      ],
+      "default": {
+        "enabled": true
+      }
     },
     "include": {
       "default": [],
