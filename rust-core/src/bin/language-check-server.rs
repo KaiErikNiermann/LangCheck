@@ -26,12 +26,14 @@ use lang_check::suppression::{InlineDirectives, SuppressionContext, retain_visib
 use lang_check::{checker, config, dictionary, hashing, insights, orchestrator, prose, workspace};
 use orchestrator::Orchestrator;
 use prost::Message;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::fs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Mutex, Notify};
+use tokio::task::JoinSet;
 use tracing::{debug, error, info, warn};
 use workspace::{IndexOwner, IndexUnavailable, WorkspaceIndex};
 
@@ -49,6 +51,17 @@ struct IndexingContext {
     schema_registry: Arc<Mutex<SchemaRegistry>>,
     workspace_index: Arc<Mutex<Option<WorkspaceIndex>>>,
     config: Arc<Mutex<Config>>,
+}
+
+/// Files read and checked at once by background indexing.
+const INDEXING_CONCURRENCY: usize = 4;
+
+fn log_indexing_outcome(outcome: Option<std::result::Result<Result<()>, tokio::task::JoinError>>) {
+    match outcome {
+        Some(Ok(Err(e))) => warn!("Could not index a file: {e:#}"),
+        Some(Err(e)) => warn!("Error joining indexing task: {e}"),
+        Some(Ok(Ok(()))) | None => {}
+    }
 }
 
 async fn process_file_for_indexing(
@@ -254,7 +267,9 @@ async fn main() -> Result<()> {
                     let indexing_orchestrator =
                         Arc::new(Mutex::new(Orchestrator::new(config.clone())));
 
-                    let mut tasks = Vec::new();
+                    let mut tasks = JoinSet::new();
+                    // A file two patterns match is indexed once.
+                    let mut seen = HashSet::new();
                     let mut file_patterns = lang_check::languages::all_file_patterns(&config);
                     file_patterns.extend(schema_registry_arc.lock().await.fallback_file_patterns());
 
@@ -264,7 +279,7 @@ async fn main() -> Result<()> {
                             for path in entries.flatten() {
                                 // `include` selects and `exclude` subtracts;
                                 // the editor asks the same question below.
-                                if !config.checks(&path, &root) {
+                                if !config.checks(&path, &root) || !seen.insert(path.clone()) {
                                     continue;
                                 }
 
@@ -280,17 +295,19 @@ async fn main() -> Result<()> {
                                 };
                                 let lang_id = lang.clone();
 
-                                tasks.push(tokio::spawn(process_file_for_indexing(
-                                    path, task_ctx, lang_id,
-                                )));
+                                // The indexing orchestrator checks one file at a
+                                // time regardless; more in flight only holds more
+                                // files in memory and more descriptors open.
+                                if tasks.len() >= INDEXING_CONCURRENCY {
+                                    log_indexing_outcome(tasks.join_next().await);
+                                }
+                                tasks.spawn(process_file_for_indexing(path, task_ctx, lang_id));
                             }
                         }
                     }
 
-                    for task in tasks {
-                        if let Err(e) = task.await {
-                            warn!("Error joining indexing task: {e}");
-                        }
+                    while let Some(outcome) = tasks.join_next().await {
+                        log_indexing_outcome(Some(outcome));
                     }
                     info!(root = %root.display(), "Finished workspace indexing");
                 }
