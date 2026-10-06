@@ -211,4 +211,41 @@ suite('optional engines', () => {
             warnings.restore();
         }
     });
+
+    /** The unchecked-passage reports on the document, joined for a message. */
+    const engineErrors = () => ours(document.uri)
+        .filter(d => d.code === 'languagecheck.engine-error')
+        .map(d => d.message)
+        .join(' | ');
+
+    test('an external checker that cannot start is reported, not read as clean', async function () {
+        this.timeout(BUDGET_MS + 30_000);
+        // A provider that failed used to answer with no findings. The core
+        // cached that per text and marked the provider healthy, so prose it
+        // never read came back looking clean.
+        await write(
+            'engines:\n  harper: false\n  external:\n'
+            + '    - name: missing\n      command: lang-check-no-such-checker\n',
+        );
+
+        await settlesTo(
+            'the unchecked-passage report for the missing checker',
+            () => engineErrors().includes('could not start lang-check-no-such-checker'),
+        );
+    });
+
+    test('an external checker that writes something other than JSON is reported', async function () {
+        this.timeout(BUDGET_MS + 30_000);
+        await write(
+            'engines:\n  harper: false\n  external:\n'
+            + '    - name: garbled\n      command: sh\n'
+            + '      args: ["-c", "cat >/dev/null; echo not json"]\n',
+        );
+
+        await settlesTo(
+            'the unchecked-passage report naming the garbled checker',
+            () => engineErrors().includes('garbled wrote output that is not a diagnostics list'),
+        );
+    });
 });
+
