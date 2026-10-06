@@ -62,6 +62,13 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 120_000 },
     },
     {
+        label: 'identifiers',
+        files: 'out/test/e2e/identifiers.test.js',
+        workspaceFolder: './src/test/fixtures/identifiers',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 120_000 },
+    },
+    {
         label: 'pragmas',
         files: 'out/test/e2e/pragmas.test.js',
         workspaceFolder: './src/test/fixtures/pragmas',
