@@ -14,10 +14,48 @@ import { coreByte, type ByteOffset, type CharOffset } from './offsets';
 
 type ByteToChar = (byteOffset: ByteOffset) => CharOffset;
 
+/** What the conversions need of a document: where a character offset falls. */
+export type Positions = Pick<vscode.TextDocument, 'positionAt'>;
+
+/**
+ * `positionAt` over `text`, the text a check read.
+ *
+ * The live document may have moved on by the time the core answers -- typing
+ * after a save under the onSave trigger -- and its `positionAt` would put each
+ * squiggle wherever the old offset lands in the new text. Line breaks are the
+ * editor's: `\r\n`, `\n` and a lone `\r`.
+ */
+export function positionsIn(text: string): Positions {
+    const starts = [0];
+    const ends: number[] = [];
+    for (let i = 0; i < text.length; i++) {
+        const c = text.charCodeAt(i);
+        if (c !== 0x0a && c !== 0x0d) continue;
+        ends.push(i);
+        if (c === 0x0d && text.charCodeAt(i + 1) === 0x0a) i++;
+        starts.push(i + 1);
+    }
+    ends.push(text.length);
+    return {
+        positionAt(offset: number): vscode.Position {
+            const at = Math.min(Math.max(Math.trunc(offset) || 0, 0), text.length);
+            let lo = 0;
+            let hi = starts.length - 1;
+            while (lo < hi) {
+                const mid = (lo + hi + 1) >> 1;
+                if ((starts[mid] ?? 0) <= at) lo = mid; else hi = mid - 1;
+            }
+            const start = starts[lo] ?? 0;
+            // An offset inside a line break is the end of its line, as in the editor.
+            return new vscode.Position(lo, Math.min(at, ends[lo] ?? at) - start);
+        },
+    };
+}
+
 /** One core diagnostic as a squiggle, carrying what the quick fixes and hints need. */
 export function toDiagnostic(
     d: languagecheck.IDiagnostic,
-    document: vscode.TextDocument,
+    document: Positions,
     byteToChar: ByteToChar,
 ): ExtendedDiagnostic {
     const start = document.positionAt(byteToChar(coreByte(d.startByte)));
@@ -132,7 +170,7 @@ export function toInspectorRanges(
 export function toNameSpans(
     names: readonly languagecheck.INameSpan[],
     textContent: string,
-    document: vscode.TextDocument,
+    document: Positions,
     byteToChar: ByteToChar,
 ): InspectorNameSpan[] {
     return names.map(n => {

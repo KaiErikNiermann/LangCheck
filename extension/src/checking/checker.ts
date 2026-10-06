@@ -14,7 +14,7 @@ import type { Logger } from '../shared/logger';
 import type { InspectorLog } from '../ui/inspectorLog';
 import type { StatusBars } from '../ui/statusBars';
 import { byteToCharConverter } from './offsets';
-import { toDiagnostic, toInspectorRanges, toNameSpans } from './response';
+import { positionsIn, toDiagnostic, toInspectorRanges, toNameSpans } from './response';
 import type { CheckResults } from './results';
 import { CheckSlots } from './scheduler';
 import { uriKey } from '../shared/documents';
@@ -63,6 +63,13 @@ export class Checker {
     private readonly slots = new CheckSlots(MAX_CONCURRENT_CHECKS);
     /** Checks currently running, keyed by document URI, with the text they cover. */
     private readonly inFlight = new Map<string, { text: string; result: Promise<number> }>();
+    /**
+     * The newest check started per document URI. Checks run concurrently, so
+     * an older one can finish after a newer one, and its answer must not
+     * replace the newer answer on screen.
+     */
+    private readonly latest = new Map<string, number>();
+    private generation = 0;
     private ltDownNotificationShown = false;
 
     constructor(private readonly deps: CheckerDeps) {}
@@ -105,7 +112,9 @@ export class Checker {
             return inFlight.result;
         }
 
-        const result = this.run(document, core.client, textContent, version, readMs);
+        const generation = ++this.generation;
+        this.latest.set(uri, generation);
+        const result = this.run(document, core.client, textContent, version, readMs, generation);
         this.inFlight.set(uri, { text: textContent, result });
         try {
             return await result;
@@ -114,6 +123,9 @@ export class Checker {
             // has already claimed the slot and must stay joinable.
             if (this.inFlight.get(uri)?.result === result) {
                 this.inFlight.delete(uri);
+            }
+            if (this.latest.get(uri) === generation) {
+                this.latest.delete(uri);
             }
         }
     }
@@ -126,6 +138,8 @@ export class Checker {
         /** The document version `textContent` was read at. */
         version: number,
         readMs: number,
+        /** This check's place in {@link latest}. */
+        generation: number,
     ): Promise<number> {
         const { log, store, suppression, results, statusBars, inspectorLog, observer } = this.deps;
         const shortName = path.basename(document.fileName);
@@ -155,12 +169,20 @@ export class Checker {
             timings.push({ name: 'Core RPC (checkProse)', durationMs: rpcMs });
             inspectorLog.push('info', 'checkDocument', `RPC response received`, { durationMs: rpcMs });
 
+            if (response.checkProse && this.latest.get(uriKey(document.uri)) !== generation) {
+                // A newer check of this document has started since; its
+                // answer is the one to show, whenever it arrives.
+                inspectorLog.push('debug', 'checkDocument', `Dropping a superseded result for ${shortName}`);
+                return response.checkProse.diagnostics?.length ?? 0;
+            }
             if (response.checkProse) {
                 const t2 = performance.now();
                 // Core returns UTF-8 byte offsets; positionAt expects char offsets.
                 const byteToChar = byteToCharConverter(textContent);
+                // Positions in the text that was checked, not the live document.
+                const positions = positionsIn(textContent);
                 const extendedDiagnostics: ExtendedDiagnostic[] = response.checkProse.diagnostics!.map(
-                    d => toDiagnostic(d, document, byteToChar));
+                    d => toDiagnostic(d, positions, byteToChar));
                 timings.push({ name: 'Map diagnostics', durationMs: performance.now() - t2 });
 
                 // Filter out diagnostics for suppressed words / deactivated rules
@@ -169,7 +191,8 @@ export class Checker {
                         const ruleId = ruleIdOf(d, '');
                         if (suppression.rules.size > 0 && ruleId && suppression.rules.has(ruleId)) return false;
                         if (suppression.words.size > 0 && isSpellingRule(ruleId)) {
-                            const word = document.getText(d.range).toLowerCase();
+                            const word = textContent.substring(
+                                byteToChar(d.coreStartByte!), byteToChar(d.coreEndByte!)).toLowerCase();
                             if (suppression.words.has(word)) return false;
                         }
                         return true;
@@ -202,7 +225,7 @@ export class Checker {
                 observer.diagnosticsPublished(extendedDiagnostics);
 
                 results.names.set(uriKey(document.uri), toNameSpans(
-                    response.checkProse.extraction?.names ?? [], textContent, document, byteToChar));
+                    response.checkProse.extraction?.names ?? [], textContent, positions, byteToChar));
 
                 // Store timings and check info for inspector
                 results.timings = timings;

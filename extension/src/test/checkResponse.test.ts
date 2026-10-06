@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type * as vscode from 'vscode';
 
 import { byteToCharConverter } from '../checking/offsets';
-import { exclusionKind, toDiagnostic, toInspectorRanges, toNameSpans } from '../checking/response';
+import { exclusionKind, positionsIn, toDiagnostic, toInspectorRanges, toNameSpans } from '../checking/response';
 import { languagecheck } from '../proto/checker';
 import { DiagnosticSeverity, Position } from './__mocks__/vscode';
 
@@ -89,5 +89,30 @@ describe('toDiagnostic', () => {
         expect(toDiagnostic({ startByte: 0, endByte: 1, message: 'm' }, oneLine, toChar).severity).toBe(DiagnosticSeverity.Information);
         expect(toDiagnostic({ startByte: 0, endByte: 1, message: 'm', severity: languagecheck.Severity.SEVERITY_ERROR }, oneLine, toChar).severity)
             .toBe(DiagnosticSeverity.Error);
+    });
+});
+
+describe('positionsIn', () => {
+    const at = (text: string, offset: number) => {
+        const p = positionsIn(text).positionAt(offset);
+        return [p.line, p.character];
+    };
+
+    it('counts lines across every kind of line break', () => {
+        const text = 'ab\ncd\r\nef\rgh';
+        expect(at(text, 0)).toEqual([0, 0]);
+        expect(at(text, text.indexOf('d'))).toEqual([1, 1]);
+        expect(at(text, text.indexOf('f'))).toEqual([2, 1]);
+        expect(at(text, text.indexOf('h'))).toEqual([3, 1]);
+    });
+
+    it('puts an offset inside a CRLF at the end of its line', () => {
+        expect(at('ab\r\ncd', 3)).toEqual([0, 2]);
+    });
+
+    it('clamps offsets outside the text', () => {
+        expect(at('ab\ncd', -4)).toEqual([0, 0]);
+        expect(at('ab\ncd', 99)).toEqual([1, 2]);
+        expect(at('', 3)).toEqual([0, 0]);
     });
 });
