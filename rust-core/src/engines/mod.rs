@@ -1,5 +1,6 @@
 pub mod hunspell;
 mod proselint;
+mod subprocess;
 mod vale;
 
 pub use proselint::ProselintEngine;
@@ -812,40 +813,27 @@ impl Engine for ExternalEngine {
         let request = ExternalRequest { text, language_id };
         let input = serde_json::to_string(&request)?;
 
-        let output = match Command::new(&self.command)
-            .args(&self.args)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-        {
-            Ok(mut child) => {
-                use tokio::io::AsyncWriteExt;
-                if let Some(mut stdin) = child.stdin.take() {
-                    // Ignore write errors — the process may exit before reading stdin.
-                    let _ = stdin.write_all(input.as_bytes()).await;
-                    let _ = stdin.shutdown().await;
-                }
-                child.wait_with_output().await?
-            }
+        let mut cmd = Command::new(&self.command);
+        cmd.args(&self.args);
+        let output = match subprocess::run(&mut cmd, input.as_bytes()).await {
+            Ok(output) => output,
             Err(e) => {
-                warn!(provider = %self.name, "Failed to spawn external provider: {e}");
+                warn!(provider = %self.name, "Failed to run external provider: {e:#}");
                 return Ok(vec![]);
             }
         };
 
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
             warn!(
                 provider = %self.name,
                 status = %output.status,
-                stderr = stderr.trim(),
+                stderr = output.stderr.trim(),
                 "External provider exited with error"
             );
             return Ok(vec![]);
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stdout = output.stdout;
         let ext_diagnostics: Vec<ExternalDiagnostic> = match serde_json::from_str(&stdout) {
             Ok(d) => d,
             Err(e) => {

@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use tracing::{debug, warn};
 
-use super::Engine;
+use super::{Engine, subprocess};
 
 pub struct ProselintEngine {
     config_path: Option<String>,
@@ -89,7 +89,6 @@ impl Engine for ProselintEngine {
     }
 
     async fn check(&mut self, text: &str, _language_id: &str) -> Result<Vec<Diagnostic>> {
-        use tokio::io::AsyncWriteExt;
         use tokio::process::Command;
 
         let mut cmd = Command::new("proselint");
@@ -99,20 +98,10 @@ impl Engine for ProselintEngine {
             cmd.arg("--config").arg(cfg);
         }
 
-        cmd.stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
-
-        let output = match cmd.spawn() {
-            Ok(mut child) => {
-                if let Some(mut stdin) = child.stdin.take() {
-                    let _ = stdin.write_all(text.as_bytes()).await;
-                    let _ = stdin.shutdown().await;
-                }
-                child.wait_with_output().await?
-            }
+        let output = match subprocess::run(&mut cmd, text.as_bytes()).await {
+            Ok(output) => output,
             Err(e) => {
-                warn!("Failed to spawn proselint: {e}");
+                warn!("Failed to run proselint: {e:#}");
                 return Ok(vec![]);
             }
         };
@@ -121,12 +110,11 @@ impl Engine for ProselintEngine {
         // Exit code >= 2 = actual error
         let code = output.status.code().unwrap_or(4);
         if code >= 2 {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            warn!(code, stderr = stderr.trim(), "Proselint error");
+            warn!(code, stderr = output.stderr.trim(), "Proselint error");
             return Ok(vec![]);
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stdout = output.stdout;
         if stdout.trim().is_empty() {
             return Ok(vec![]);
         }

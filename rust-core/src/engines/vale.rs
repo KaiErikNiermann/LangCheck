@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use tracing::{debug, warn};
 
-use super::Engine;
+use super::{Engine, subprocess};
 
 pub struct ValeEngine {
     config_path: Option<String>,
@@ -115,7 +115,6 @@ impl Engine for ValeEngine {
     }
 
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
-        use tokio::io::AsyncWriteExt;
         use tokio::process::Command;
 
         let ext = ext_for_language_id(language_id);
@@ -128,32 +127,21 @@ impl Engine for ValeEngine {
             cmd.arg(format!("--config={cfg}"));
         }
 
-        cmd.stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
-
-        let output = match cmd.spawn() {
-            Ok(mut child) => {
-                if let Some(mut stdin) = child.stdin.take() {
-                    let _ = stdin.write_all(text.as_bytes()).await;
-                    let _ = stdin.shutdown().await;
-                }
-                child.wait_with_output().await?
-            }
+        let output = match subprocess::run(&mut cmd, text.as_bytes()).await {
+            Ok(output) => output,
             Err(e) => {
-                warn!("Failed to spawn vale: {e}");
+                warn!("Failed to run vale: {e:#}");
                 return Ok(vec![]);
             }
         };
 
         // Vale exit code 2 = runtime error; 0 or 1 = normal
         if output.status.code() == Some(2) {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            warn!(stderr = stderr.trim(), "Vale runtime error");
+            warn!(stderr = output.stderr.trim(), "Vale runtime error");
             return Ok(vec![]);
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stdout = output.stdout;
         if stdout.trim().is_empty() {
             return Ok(vec![]);
         }
