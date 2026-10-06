@@ -98,4 +98,37 @@ suite('excluded paths', () => {
             await vscode.commands.executeCommand('workbench.action.files.revert');
         }
     });
+
+    test('Exclude Current File has reloaded by the time the command returns', async function () {
+        this.timeout(BUDGET_MS + 30_000);
+        // The command announced the reload and returned without waiting for
+        // it, so a failed reload was an unhandled rejection and a caller that
+        // awaited the command still saw the file's old diagnostics.
+        const uri = fixture('byCommand.md');
+        const configUri = fixture('.languagecheck.yaml');
+        const original = await vscode.workspace.fs.readFile(configUri);
+        await openInEditor(uri);
+        await eventually(
+            'the document to be checked before it is excluded',
+            () => (ourDiagnostics(uri).length > 0 ? true : undefined),
+            BUDGET_MS,
+        );
+
+        try {
+            await vscode.commands.executeCommand('language-check.excludeCurrentFile');
+
+            // Read once, straight after the command: no polling, or a reload
+            // still running in the background would pass as well.
+            assert.deepStrictEqual(
+                ourDiagnostics(uri).map(d => d.message),
+                [],
+                'the command returned before its reload had cleared the excluded file',
+            );
+            const config = Buffer.from(await vscode.workspace.fs.readFile(configUri)).toString('utf8');
+            assert.ok(config.includes('byCommand.md'), `the file was not added to exclude:\n${config}`);
+        } finally {
+            await vscode.workspace.fs.writeFile(configUri, original);
+        }
+    });
 });
+
