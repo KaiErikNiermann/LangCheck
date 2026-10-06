@@ -148,6 +148,13 @@ export class Checker {
 
         // Wait for a concurrency slot so we don't flood the server
         await this.slots.acquire();
+        if (this.latest.get(uriKey(document.uri)) !== generation) {
+            // Superseded while queued: its answer would be dropped anyway, and
+            // asking for it holds the core from the check that replaced it.
+            this.slots.release();
+            inspectorLog.push('debug', 'checkDocument', `Skipping a superseded check of ${shortName}`);
+            return -1;
+        }
         statusBars.setChecking(true);
         const timings: { name: string; durationMs: number }[] = [];
 

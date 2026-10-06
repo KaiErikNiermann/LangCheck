@@ -86,4 +86,38 @@ describe('Checker', () => {
 
         expect(published).toEqual([['only']]);
     });
+
+    it('skips a queued check that a newer one replaced before it got a slot', async () => {
+        const { checker, pending, published } = harness();
+        const docs = ['a', 'b', 'c', 'd'].map(n => {
+            const doc = editableDocument(`teh ${n}`);
+            doc.uri = Uri.file(`/w/${n}.md`);
+            return doc;
+        });
+        // Three checks fill every slot; a fourth document queues.
+        const running = docs.slice(0, 3).map(d => checker.check(d as unknown as vscode.TextDocument));
+        const target = docs[3]!;
+        const queued = checker.check(target as unknown as vscode.TextDocument);
+        await settle();
+        target.edit('teh d2');
+        const replacement = checker.check(target as unknown as vscode.TextDocument);
+        await settle();
+        expect(pending).toHaveLength(3);
+
+        pending[0]!(answer('a'));
+        await running[0];
+        await settle();
+        // The freed slot went to the queued check, which gave it up unasked.
+        expect(await queued).toBe(-1);
+        await settle();
+        expect(pending).toHaveLength(4);
+        pending[3]!(answer('d2'));
+        await replacement;
+        pending[1]!(answer('b'));
+        pending[2]!(answer('c'));
+        await Promise.all(running);
+
+        expect(published).toContainEqual(['d2']);
+        expect(published).toHaveLength(4);
+    });
 });
