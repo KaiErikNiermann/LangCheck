@@ -258,15 +258,10 @@ impl Dictionary {
             return Ok(());
         };
 
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
         let mut words: Vec<&str> = self.user_words.iter().map(String::as_str).collect();
         words.sort_unstable();
         let content = words.join("\n");
-        std::fs::write(path, content + "\n")?;
-        Ok(())
+        crate::fs_util::write_replacing(path, (content + "\n").as_bytes())
     }
 }
 

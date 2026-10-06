@@ -175,15 +175,10 @@ impl IgnoreStore {
             return Ok(());
         };
 
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
         let data = IgnoreStoreData {
             fingerprints: self.ignored_fingerprints.iter().copied().collect(),
         };
-        std::fs::write(path, serde_json::to_string_pretty(&data)?)?;
-        Ok(())
+        crate::fs_util::write_replacing(path, serde_json::to_string_pretty(&data)?.as_bytes())
     }
 }
 

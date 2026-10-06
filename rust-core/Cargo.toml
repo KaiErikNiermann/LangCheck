@@ -68,6 +68,7 @@ spellbook = "0.4.2"
 fs4 = "1.1.0"
 sha2 = "0.11.0"
 schemars = "1"
+tempfile = "3.27.0"
 
 [dev-dependencies]
 insta = { version = "1.47", features = ["yaml"] }
@@ -77,7 +78,6 @@ tree-sitter-md = { version = "0.5", default-features = false }
 tree-sitter-html = "0.23"
 divan = "0.1"
 rand = { version = "0.9", features = ["small_rng"] }
-tempfile = "3.27.0"
 jsonschema = "0.58.0"
 
 [[bench]]
