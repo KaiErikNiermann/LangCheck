@@ -418,7 +418,12 @@ impl LanguageServer for Backend {
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let uri = params.text_document.uri;
         if let Some(change) = params.content_changes.into_iter().last() {
-            let lang_id = guess_lang_id(&uri);
+            // The client named the language at open; a guess from the
+            // extension is only for a change to a document never opened.
+            let lang_id = self
+                .documents
+                .get(uri.as_str())
+                .map_or_else(|| guess_lang_id(&uri), |entry| entry.1.clone());
             self.documents
                 .insert(uri.to_string(), (change.text.clone(), lang_id.clone()));
             self.diagnose(&uri, &change.text, &lang_id).await;
@@ -668,6 +673,9 @@ pub async fn run_lsp() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tower_lsp::lsp_types::{
+        TextDocumentContentChangeEvent, TextDocumentItem, VersionedTextDocumentIdentifier,
+    };
 
     fn pos(line: u32, character: u32) -> Position {
         Position { line, character }
@@ -697,5 +705,34 @@ mod tests {
         assert_eq!(position_to_byte(text, pos(0, 99)), Some(2));
         assert_eq!(position_to_byte(text, pos(1, 99)), Some(5));
         assert_eq!(position_to_byte(text, pos(2, 0)), None);
+    }
+
+    #[tokio::test]
+    async fn did_change_keeps_the_language_id_the_document_was_opened_with() {
+        let (service, _socket) = LspService::new(Backend::new);
+        let backend = service.inner();
+        // An extension the guess knows nothing about, and would call markdown.
+        let uri = Url::parse("file:///notes/a.txt").unwrap();
+        backend
+            .did_open(DidOpenTextDocumentParams {
+                text_document: TextDocumentItem::new(
+                    uri.clone(),
+                    "rst".into(),
+                    1,
+                    "Title\n=====\n".into(),
+                ),
+            })
+            .await;
+        backend
+            .did_change(DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(uri.clone(), 2),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "Other\n=====\n".into(),
+                }],
+            })
+            .await;
+        assert_eq!(backend.documents.get(uri.as_str()).unwrap().1, "rst");
     }
 }
