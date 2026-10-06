@@ -55,6 +55,7 @@ export class StatusBars {
         if (active) {
             this.base = `$(sync~spin) Checking...`;
             this.render();
+            this.insights.show();
         } else {
             this.updateInsights(vscode.window.activeTextEditor);
         }
@@ -92,19 +93,19 @@ export class StatusBars {
     updateInsights(editor?: vscode.TextEditor): void {
         if (this.checking) return; // Don't overwrite spinner
 
-        if (!editor) {
+        // Only for a document that was checked, and counted over the prose
+        // the check extracted. Falling back to the raw text put a word count
+        // and a reading level on source code, excluded files and every other
+        // document this extension has nothing to say about. A file the config
+        // excludes is answered with no prose at all, and goes the same way.
+        const cached = editor && this.results.extraction.get(uriKey(editor.document.uri));
+        if (!cached || cached.prose.length === 0) {
             this.base = '';
             this.insights.text = '';
             this.insights.hide();
             return;
         }
-
-        // Use extracted prose from cache (markup-free) for accurate metrics.
-        // Falls back to raw text if no extraction data is cached yet.
-        const cached = this.results.extraction.get(uriKey(editor.document.uri));
-        const proseText = cached
-            ? cached.prose.map(r => r.cleanText).join(' ')
-            : editor.document.getText();
+        const proseText = cached.prose.map(r => r.cleanText).join(' ');
 
         const { wordCount, sentenceCount, charCount, readingLevel } = proseMetrics(proseText);
 

@@ -3,6 +3,7 @@ import type * as vscode from 'vscode';
 
 import { CheckResults } from '../checking/results';
 import { StatusBars } from '../ui/statusBars';
+import type { InspectorProseRange } from '../ui/webviews/protocol';
 import { __statusBarItems, window } from './__mocks__/vscode';
 
 /** An editor over plain prose, enough for the insights to count. */
@@ -19,6 +20,10 @@ describe('StatusBars health indicator', () => {
         __statusBarItems.length = 0;
         (window as { activeTextEditor: unknown }).activeTextEditor = editor;
         results = new CheckResults();
+        results.extraction.set('file:///doc.md', {
+            prose: [{ cleanText: 'One short sentence here.' } as InspectorProseRange],
+            languageId: 'markdown', syntax: 'markdown', maxRangeBytes: 0, version: 1,
+        });
         bars = new StatusBars(results);
         bars.create([]);
         insights = __statusBarItems[1]!;
@@ -48,6 +53,49 @@ describe('StatusBars health indicator', () => {
         bars.updateInsights(editor);
         expect(insights.text).toBe('$(pencil) 4 words | ARI 4.1');
         expect(insights.backgroundColor).toBeUndefined();
+    });
+});
+
+describe('StatusBars insights', () => {
+    const source = {
+        document: { uri: { toString: () => 'file:///main.ts' }, getText: () => 'const answer = computeIt(42);' },
+    } as unknown as vscode.TextEditor;
+
+    it('are hidden for a document that is not checked', () => {
+        __statusBarItems.length = 0;
+        const bars = new StatusBars(new CheckResults());
+        bars.create([]);
+        const insights = __statusBarItems[1]!;
+        bars.updateInsights(source);
+        expect(insights.visible).toBe(false);
+        expect(insights.text).toBe('');
+    });
+
+    it('are hidden for a checked document with no prose, as an excluded one is answered', () => {
+        __statusBarItems.length = 0;
+        const results = new CheckResults();
+        results.extraction.set('file:///doc.md', {
+            prose: [], languageId: 'markdown', syntax: '', maxRangeBytes: 0, version: 1,
+        });
+        const bars = new StatusBars(results);
+        bars.create([]);
+        bars.updateInsights(editor);
+        expect(__statusBarItems[1]!.visible).toBe(false);
+    });
+
+    it('are counted over the extracted prose of a checked document', () => {
+        __statusBarItems.length = 0;
+        const results = new CheckResults();
+        results.extraction.set('file:///doc.md', {
+            prose: [{ cleanText: 'Two words.' } as InspectorProseRange],
+            languageId: 'markdown', syntax: 'markdown', maxRangeBytes: 0, version: 1,
+        });
+        const bars = new StatusBars(results);
+        bars.create([]);
+        const insights = __statusBarItems[1]!;
+        bars.updateInsights(editor);
+        expect(insights.visible).toBe(true);
+        expect(insights.text.startsWith('$(pencil) 2 words')).toBe(true);
     });
 });
 
