@@ -4,7 +4,7 @@
 // Meta info
 export const publisher = "KaiErikNiermann"
 export const name = "language-check"
-export const version = "0.7.1"
+export const version = "0.7.2"
 export const displayName = "Language Check"
 export const description = "Multilingual prose linter powered by tree-sitter extraction and pluggable checking engines"
 export const extensionId = `${publisher}.${name}`
