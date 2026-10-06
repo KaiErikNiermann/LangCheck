@@ -368,7 +368,7 @@ fn chunk_of(range: &ProseRange, start: usize, end: usize) -> ProseRange {
 fn split_point(text: &str, from: usize, limit: usize, exclusions: &[(usize, usize)]) -> usize {
     // Floored to a character boundary: the limit is a byte count, and one
     // landing inside a multi-byte character made the slice below panic.
-    let hard_end = text.floor_char_boundary(limit.min(text.len()));
+    let hard_end = crate::text_util::safe_prefix(text, limit).len();
     let in_exclusion = |at: usize| exclusions.iter().any(|&(es, ee)| at > es && at < ee);
 
     // A sentence end: terminator, then the whitespace after it.
