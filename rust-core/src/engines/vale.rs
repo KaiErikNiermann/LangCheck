@@ -1,8 +1,8 @@
 use crate::checker::{Diagnostic, Severity};
-use anyhow::Result;
+use anyhow::{Result, bail};
 use serde::Deserialize;
 use std::collections::HashMap;
-use tracing::{debug, warn};
+use tracing::debug;
 
 use super::{Engine, subprocess};
 
@@ -127,18 +127,13 @@ impl Engine for ValeEngine {
             cmd.arg(format!("--config={cfg}"));
         }
 
-        let output = match subprocess::run(&mut cmd, text.as_bytes()).await {
-            Ok(output) => output,
-            Err(e) => {
-                warn!("Failed to run vale: {e:#}");
-                return Ok(vec![]);
-            }
-        };
+        // Failures are errors, not empty answers: an empty answer is cached
+        // and reads as clean prose. The orchestrator logs and reports them.
+        let output = subprocess::run(&mut cmd, text.as_bytes()).await?;
 
         // Vale exit code 2 = runtime error; 0 or 1 = normal
         if output.status.code() == Some(2) {
-            warn!(stderr = output.stderr.trim(), "Vale runtime error");
-            return Ok(vec![]);
+            bail!("vale failed: {}", subprocess::first_line(&output.stderr));
         }
 
         let stdout = output.stdout;
@@ -149,9 +144,8 @@ impl Engine for ValeEngine {
         let vale_output: HashMap<String, Vec<ValeAlert>> = match serde_json::from_str(&stdout) {
             Ok(o) => o,
             Err(e) => {
-                warn!("Failed to parse Vale JSON output: {e}");
                 debug!(stdout = %stdout, "Raw Vale output");
-                return Ok(vec![]);
+                bail!("vale wrote output that is not its JSON report: {e}");
             }
         };
 
@@ -346,15 +340,6 @@ The word naïve here";
         let alert: ValeAlert = serde_json::from_str(json).unwrap();
         assert!(alert.action.params.is_empty());
         assert!(alert.action.name.is_empty());
-    }
-
-    #[tokio::test]
-    async fn vale_engine_missing_binary() -> Result<()> {
-        let mut engine = ValeEngine::new(None);
-        // If vale is not on PATH, should return empty (not error)
-        let result = engine.check("test text", "en-US").await;
-        assert!(result.is_ok());
-        Ok(())
     }
 
     /// Live integration test — requires `vale` on PATH with Google style.

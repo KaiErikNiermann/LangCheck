@@ -1,5 +1,5 @@
 use crate::checker::{Diagnostic, Severity};
-use anyhow::Result;
+use anyhow::{Result, bail};
 use serde::Deserialize;
 use std::collections::HashMap;
 use tracing::{debug, warn};
@@ -98,20 +98,18 @@ impl Engine for ProselintEngine {
             cmd.arg("--config").arg(cfg);
         }
 
-        let output = match subprocess::run(&mut cmd, text.as_bytes()).await {
-            Ok(output) => output,
-            Err(e) => {
-                warn!("Failed to run proselint: {e:#}");
-                return Ok(vec![]);
-            }
-        };
+        // Failures are errors, not empty answers: an empty answer is cached
+        // and reads as clean prose. The orchestrator logs and reports them.
+        let output = subprocess::run(&mut cmd, text.as_bytes()).await?;
 
         // Exit code 0 = clean, 1 = found errors (both normal)
         // Exit code >= 2 = actual error
         let code = output.status.code().unwrap_or(4);
         if code >= 2 {
-            warn!(code, stderr = output.stderr.trim(), "Proselint error");
-            return Ok(vec![]);
+            bail!(
+                "proselint exited with {code}: {}",
+                subprocess::first_line(&output.stderr)
+            );
         }
 
         let stdout = output.stdout;
@@ -125,9 +123,8 @@ impl Engine for ProselintEngine {
         let parsed: ProselintOutput = match de.next() {
             Some(Ok(o)) => o,
             Some(Err(e)) => {
-                warn!("Failed to parse proselint JSON: {e}");
                 debug!(stdout = %stdout, "Raw proselint output");
-                return Ok(vec![]);
+                bail!("proselint wrote output that is not its JSON report: {e}");
             }
             None => return Ok(vec![]),
         };
@@ -279,14 +276,6 @@ mod tests {
             }
             ProselintFileResult::Ok { .. } => panic!("expected Err"),
         }
-    }
-
-    #[tokio::test]
-    async fn proselint_engine_missing_binary() -> Result<()> {
-        let mut engine = ProselintEngine::new(None);
-        let result = engine.check("test text", "en-US").await;
-        assert!(result.is_ok());
-        Ok(())
     }
 
     /// Live integration test — requires `proselint` installed.

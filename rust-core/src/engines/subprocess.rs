@@ -82,6 +82,17 @@ async fn run_bounded(
     }
 }
 
+/// The first non-blank line of a checker's stderr, for an error message
+/// that ends up on the document.
+#[must_use]
+pub fn first_line(stderr: &str) -> &str {
+    stderr
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .unwrap_or("no message")
+}
+
 async fn read_stdout(pipe: impl AsyncRead + Unpin, max: usize, program: &str) -> Result<String> {
     let mut buf = Vec::new();
     pipe.take(max as u64 + 1).read_to_end(&mut buf).await?;

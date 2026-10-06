@@ -815,32 +815,24 @@ impl Engine for ExternalEngine {
 
         let mut cmd = Command::new(&self.command);
         cmd.args(&self.args);
-        let output = match subprocess::run(&mut cmd, input.as_bytes()).await {
-            Ok(output) => output,
-            Err(e) => {
-                warn!(provider = %self.name, "Failed to run external provider: {e:#}");
-                return Ok(vec![]);
-            }
-        };
-
+        // Failures are errors, not empty answers: an empty answer is cached
+        // and reads as clean prose. The orchestrator logs and reports them.
+        let output = subprocess::run(&mut cmd, input.as_bytes()).await?;
         if !output.status.success() {
-            warn!(
-                provider = %self.name,
-                status = %output.status,
-                stderr = output.stderr.trim(),
-                "External provider exited with error"
+            anyhow::bail!(
+                "{} exited with {}: {}",
+                self.name,
+                output.status,
+                subprocess::first_line(&output.stderr)
             );
-            return Ok(vec![]);
         }
-
-        let stdout = output.stdout;
-        let ext_diagnostics: Vec<ExternalDiagnostic> = match serde_json::from_str(&stdout) {
-            Ok(d) => d,
-            Err(e) => {
-                warn!(provider = %self.name, "Failed to parse external provider output: {e}");
-                return Ok(vec![]);
-            }
-        };
+        let ext_diagnostics: Vec<ExternalDiagnostic> = serde_json::from_str(&output.stdout)
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "{} wrote output that is not a diagnostics list: {e}",
+                    self.name
+                )
+            })?;
 
         let diagnostics = ext_diagnostics
             .into_iter()
@@ -1144,7 +1136,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn external_engine_missing_binary() -> Result<()> {
+    async fn external_engine_missing_binary_is_an_error() -> Result<()> {
         let mut engine = ExternalEngine::new(
             "nonexistent".to_string(),
             "/nonexistent/binary".to_string(),
@@ -1153,15 +1145,16 @@ mod tests {
             Vec::new(),
         );
 
-        // Should not error, just return empty
-        let diagnostics = engine.check("text", "markdown").await?;
-        assert!(diagnostics.is_empty());
+        // An error, not an empty answer: an empty answer is cached and
+        // reads as clean prose.
+        let err = engine.check("text", "markdown").await.unwrap_err();
+        assert!(err.to_string().contains("could not start"), "{err}");
 
         Ok(())
     }
 
     #[tokio::test]
-    async fn external_engine_bad_json_output() -> Result<()> {
+    async fn external_engine_bad_json_output_is_an_error() -> Result<()> {
         let mut engine = ExternalEngine::new(
             "bad-json".to_string(),
             "echo".to_string(),
@@ -1170,9 +1163,8 @@ mod tests {
             Vec::new(),
         );
 
-        // Should not error, just return empty
-        let diagnostics = engine.check("text", "markdown").await?;
-        assert!(diagnostics.is_empty());
+        let err = engine.check("text", "markdown").await.unwrap_err();
+        assert!(err.to_string().contains("not a diagnostics list"), "{err}");
 
         Ok(())
     }
