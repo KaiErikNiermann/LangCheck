@@ -603,7 +603,9 @@ fn byte_to_position(text: &str, byte_offset: usize) -> Position {
     let prefix = safe_prefix(text, byte_offset);
     let line = prefix.matches('\n').count() as u32;
     let last_newline = prefix.rfind('\n').map_or(0, |i| i + 1);
-    let character = prefix[last_newline..].chars().count() as u32;
+    // LSP characters are UTF-16 code units unless another encoding was
+    // negotiated, and this server negotiates none.
+    let character = prefix[last_newline..].encode_utf16().count() as u32;
     Position { line, character }
 }
 
@@ -634,23 +636,22 @@ fn extract_word_at_range(text: &str, range: Range) -> Option<String> {
 }
 
 fn position_to_byte(text: &str, pos: Position) -> Option<usize> {
-    let mut line = 0u32;
-    let mut byte = 0usize;
-    for (i, ch) in text.char_indices() {
-        if line == pos.line {
-            let col_offset = text[byte..].char_indices().nth(pos.character as usize);
-            return Some(col_offset.map_or(text.len(), |(off, _)| byte + off));
+    let line_start = if pos.line == 0 {
+        0
+    } else {
+        text.match_indices('\n').nth(pos.line as usize - 1)?.0 + 1
+    };
+    let line = &text[line_start..];
+    let line = &line[..line.find('\n').unwrap_or(line.len())];
+    // `character` counts UTF-16 code units; past the end clamps to the line end.
+    let mut units = 0usize;
+    for (off, ch) in line.char_indices() {
+        if units >= pos.character as usize {
+            return Some(line_start + off);
         }
-        if ch == '\n' {
-            line += 1;
-            byte = i + 1;
-        }
+        units += ch.len_utf16();
     }
-    if line == pos.line {
-        let col_offset = text[byte..].char_indices().nth(pos.character as usize);
-        return Some(col_offset.map_or(text.len(), |(off, _)| byte + off));
-    }
-    None
+    Some(line_start + line.len())
 }
 
 // ── Entry point ─────────────────────────────────────────────────────────────
@@ -668,15 +669,33 @@ pub async fn run_lsp() {
 mod tests {
     use super::*;
 
+    fn pos(line: u32, character: u32) -> Position {
+        Position { line, character }
+    }
+
     #[test]
     fn byte_to_position_snaps_an_offset_inside_a_character() {
         // Byte 1 is the continuation byte of `é`.
-        assert_eq!(
-            byte_to_position("é", 1),
-            Position {
-                line: 0,
-                character: 0
-            }
-        );
+        assert_eq!(byte_to_position("é", 1), pos(0, 0));
+    }
+
+    #[test]
+    fn positions_count_utf16_code_units() {
+        // `😀` is four bytes, one char, and two UTF-16 code units.
+        let text = "a😀b\n😀c";
+        let b = text.find('b').unwrap();
+        let c = text.find('c').unwrap();
+        assert_eq!(byte_to_position(text, b), pos(0, 3));
+        assert_eq!(byte_to_position(text, c), pos(1, 2));
+        assert_eq!(position_to_byte(text, pos(0, 3)), Some(b));
+        assert_eq!(position_to_byte(text, pos(1, 2)), Some(c));
+    }
+
+    #[test]
+    fn position_to_byte_clamps_to_the_line_and_rejects_missing_lines() {
+        let text = "ab\ncd";
+        assert_eq!(position_to_byte(text, pos(0, 99)), Some(2));
+        assert_eq!(position_to_byte(text, pos(1, 99)), Some(5));
+        assert_eq!(position_to_byte(text, pos(2, 0)), None);
     }
 }
