@@ -30,6 +30,10 @@ ignore = [
     "RUSTSEC-2026-0114",
     "RUSTSEC-2026-0222",
     "RUSTSEC-2026-0269",
+    # Component-model only (dynamic record lifting, async-lifted callbacks);
+    # extism runs core modules. extism 1.30 still pins wasmtime ^43.
+    "RUSTSEC-2026-0316",
+    "RUSTSEC-2026-0327",
     # im-rc and its bitmaps/sized-chunks deps unmaintained — transitive via
     # extism -> wasmtime -> wasm-compose, no upgrade path
     "RUSTSEC-2026-0247",
