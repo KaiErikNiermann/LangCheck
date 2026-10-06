@@ -29,6 +29,7 @@ Other editors running `yaml-language-server` can load the schema with a modeline
 | `performance` | [`PerformanceConfig`](#performance)| See below     | Performance tuning            |
 | `dictionaries`| [`DictionaryConfig`](#dictionaries)| See below     | Bundled and custom wordlists   |
 | `morphology`  | [`MorphologyConfig`](#morphology)  | See below     | Affixed forms of known words   |
+| `identifiers` | [`IdentifierConfig`](#identifiers) | See below     | Skip `snake_case`/`camelCase`  |
 | `languages`   | [`LanguageConfig`](#languages)     | See below     | Per-language settings          |
 
 ## Engines
@@ -281,7 +282,34 @@ and `till` really is a word. So the engine's own correction has the final say â€
 if it can offer something one edit away from what you typed, the squiggle stays.
 A word with no plausible correction is what a genuine coinage looks like.
 
-## Names
+## Identifiers
+
+Diagnostics inside an identifier-shaped token are dropped: `parse_json_blob`,
+`MAX_RETRIES`, `getElementById`, `GitHub`. On by default.
+
+| Field     | Type   | Default | Description                                                  |
+|-----------|--------|---------|--------------------------------------------------------------|
+| `enabled` | `bool` | `true`  | Drop diagnostics inside `snake_case` and `camelCase` tokens  |
+
+```yaml
+identifiers:
+  enabled: true
+```
+
+Two shapes count. **snake** is an underscore between two letters or digits,
+so the underscores of Markdown emphasis (`_teh_`) do not count and a typo
+inside them is still reported. **camel** is a lowercase letter followed by an
+uppercase one anywhere in the token. Hyphens do not count, because
+`well-known` is English.
+
+Every category is skipped, not only spelling. Harper and LanguageTool both
+split on underscores, so for `parse_json_blob` they report `json` on its own,
+and Harper reports it as a capitalization error. The flagged span is widened
+to the whole token before its shape is checked.
+
+A shift-key slip has the camel shape too: `tHe`. It stays visible when the
+engine suggests the same word in another case, which Harper does.
+
 
 Opt-in suppression of spelling diagnostics on human names. Off by default.
 

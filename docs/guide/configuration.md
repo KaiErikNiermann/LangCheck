@@ -177,6 +177,21 @@ analysis: if it can suggest something one edit away from what you typed, you
 still get a squiggle. See
 [Configuration Schema](../reference/config-schema.md#morphology).
 
+## Identifiers
+
+Code names in prose are not words, so diagnostics inside a `snake_case` or
+`camelCase` token are dropped: `parse_json_blob`, `MAX_RETRIES`,
+`getElementById`, `GitHub`. This matters most in source comments, where
+identifiers are rarely in backticks. It is on by default:
+
+```yaml
+identifiers:
+  enabled: false                # check identifiers like any other word
+```
+
+A typo with a stray capital, like `tHe`, is still reported. See
+[Configuration Schema](../reference/config-schema.md#identifiers).
+
 ## Full Example
 
 Here's a `.languagecheck.yaml` putting it all together:
