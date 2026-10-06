@@ -294,7 +294,7 @@ _release version:
     version=$(just _normalize-version "{{version}}")
     just _sync-versions "$version"
     (cd rust-core && cargo check 2>/dev/null)  # regenerate Cargo.lock
-    git add rust-core/Cargo.toml extension/package.json docs/conf.py
+    git add rust-core/Cargo.toml extension/package.json extension/src/generated/meta.ts docs/conf.py
     git add -f rust-core/Cargo.lock 2>/dev/null || true
     git commit -m "chore(release): v$version"
     git push
@@ -312,6 +312,8 @@ _sync-versions version:
     sed -i "0,/^version = .*/s//version = \"$version\"/" rust-core/Cargo.toml
     # extension/package.json
     (cd extension && npm version "$version" --no-git-tag-version --allow-same-version)
+    # extension/src/generated/meta.ts carries the version too
+    (cd extension && pnpm run gen:meta)
     # docs/conf.py
     sed -i "s/^release = .*/release = \"$version\"/" docs/conf.py
     echo "Synced all versions to v$version"
