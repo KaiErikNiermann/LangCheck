@@ -34,7 +34,7 @@ use crate::orchestrator::Orchestrator;
 use crate::prose;
 use crate::sls::SchemaRegistry;
 use crate::suppression::{InlineDirectives, SuppressionContext, retain_visible};
-use crate::text_util::safe_slice;
+use crate::text_util::{safe_prefix, safe_slice};
 
 // ── LSP settings ────────────────────────────────────────────────────────────
 
@@ -598,8 +598,9 @@ fn byte_range_to_lsp(text: &str, start: usize, end: usize) -> Range {
 }
 
 fn byte_to_position(text: &str, byte_offset: usize) -> Position {
-    let offset = byte_offset.min(text.len());
-    let prefix = &text[..offset];
+    // Offsets come from engines, external ones included; one inside a
+    // multi-byte character must not panic the handler.
+    let prefix = safe_prefix(text, byte_offset);
     let line = prefix.matches('\n').count() as u32;
     let last_newline = prefix.rfind('\n').map_or(0, |i| i + 1);
     let character = prefix[last_newline..].chars().count() as u32;
@@ -661,4 +662,21 @@ pub async fn run_lsp() {
 
     let (service, socket) = LspService::new(Backend::new);
     Server::new(stdin, stdout, socket).serve(service).await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn byte_to_position_snaps_an_offset_inside_a_character() {
+        // Byte 1 is the continuation byte of `é`.
+        assert_eq!(
+            byte_to_position("é", 1),
+            Position {
+                line: 0,
+                character: 0
+            }
+        );
+    }
 }
