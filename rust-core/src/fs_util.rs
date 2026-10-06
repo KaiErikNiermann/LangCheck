@@ -37,13 +37,23 @@ pub fn load_yaml_dir(dir: &Path, mut load: impl FnMut(&Path) -> Result<usize>) -
 /// replaces a symlink at `path` rather than writing through it: these files
 /// live in a repository someone else may have written, and a
 /// `.languagecheck/dictionary.txt` linked to `~/.bashrc` must not get it
-/// overwritten with a word list.
+/// overwritten with a word list. A parent directory that is itself a
+/// symlink is refused for the same reason.
 pub fn write_replacing(path: &Path, contents: &[u8]) -> Result<()> {
     let parent = match path.parent() {
         Some(p) if !p.as_os_str().is_empty() => p,
         _ => Path::new("."),
     };
     std::fs::create_dir_all(parent)?;
+    // The same goes for the directory: a `.languagecheck` linked elsewhere
+    // would put the file wherever it points.
+    if std::fs::symlink_metadata(parent)?.is_symlink() {
+        anyhow::bail!(
+            "refusing to write {}: {} is a symlink",
+            path.display(),
+            parent.display()
+        );
+    }
     let mut tmp = tempfile::NamedTempFile::new_in(parent)?;
     tmp.write_all(contents)?;
     tmp.as_file().sync_all()?;
@@ -78,5 +88,18 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&outside).unwrap(), "precious\n");
         assert!(!std::fs::symlink_metadata(&link).unwrap().is_symlink());
         assert_eq!(std::fs::read_to_string(&link).unwrap(), "word\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_replacing_refuses_a_symlinked_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = dir.path().join("outside");
+        std::fs::create_dir(&outside).unwrap();
+        let linked = dir.path().join(".languagecheck");
+        std::os::unix::fs::symlink(&outside, &linked).unwrap();
+
+        assert!(write_replacing(&linked.join("dictionary.txt"), b"word\n").is_err());
+        assert!(!outside.join("dictionary.txt").exists());
     }
 }
