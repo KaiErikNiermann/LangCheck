@@ -21,6 +21,7 @@ pub mod feedback;
 pub mod fs_util;
 pub mod grammars;
 pub mod hashing;
+pub mod identifiers;
 pub mod ignore_rules;
 pub mod insights;
 pub mod languages;
