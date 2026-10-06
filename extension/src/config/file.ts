@@ -13,8 +13,8 @@ import * as vscode from 'vscode';
 /** Every name the core accepts for the config, in the order it looks. */
 export const CONFIG_FILE_NAMES = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'] as const;
 
-/** The file a command should edit: the first config that exists, else a new `.languagecheck.yaml`. */
-export async function resolveConfigForEdit(folder: vscode.WorkspaceFolder): Promise<vscode.Uri> {
+/** The first of {@link CONFIG_FILE_NAMES} that exists in `folder`. */
+async function existingConfig(folder: vscode.WorkspaceFolder): Promise<vscode.Uri | undefined> {
     for (const name of CONFIG_FILE_NAMES) {
         const uri = vscode.Uri.joinPath(folder.uri, name);
         try {
@@ -22,7 +22,12 @@ export async function resolveConfigForEdit(folder: vscode.WorkspaceFolder): Prom
             return uri;
         } catch { /* not found */ }
     }
-    return vscode.Uri.joinPath(folder.uri, '.languagecheck.yaml');
+    return undefined;
+}
+
+/** The file a command should edit: the first config that exists, else a new `.languagecheck.yaml`. */
+export async function resolveConfigForEdit(folder: vscode.WorkspaceFolder): Promise<vscode.Uri> {
+    return await existingConfig(folder) ?? vscode.Uri.joinPath(folder.uri, '.languagecheck.yaml');
 }
 
 /**
@@ -79,13 +84,5 @@ export function showConfigUpdateError(err: unknown): void {
  */
 export async function configInEffect(): Promise<vscode.Uri | undefined> {
     const folder = vscode.workspace.workspaceFolders?.[0];
-    if (!folder) return undefined;
-    for (const name of CONFIG_FILE_NAMES) {
-        const uri = vscode.Uri.joinPath(folder.uri, name);
-        try {
-            await vscode.workspace.fs.stat(uri);
-            return uri;
-        } catch { /* not found */ }
-    }
-    return undefined;
+    return folder && existingConfig(folder);
 }
