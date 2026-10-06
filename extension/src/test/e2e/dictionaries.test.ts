@@ -13,6 +13,9 @@
  * that went stale.
  */
 import * as assert from 'assert';
+import { promises as fs } from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { eventually, fixture, openInEditor, ourDiagnostics } from './helpers';
@@ -239,6 +242,55 @@ suite('dictionaries and morphology', () => {
                 recursive: true,
                 useTrash: false,
             }).then(undefined, () => undefined);
+        }
+    });
+
+    test('adding a word never writes through a symlinked dictionary', async function () {
+        this.timeout(BUDGET_MS + 30_000);
+        // A cloned repository decides what `.languagecheck/dictionary.txt`
+        // is. Linked to a file of the user's, the first "Add to dictionary"
+        // used to replace that file with a word list.
+        if (process.platform === 'win32') {
+            this.skip();
+            return;
+        }
+        const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lang-check-outside-'));
+        const outside = path.join(outsideDir, 'precious.txt');
+        await fs.writeFile(outside, 'not a word list\n');
+        const linked = fixture('.languagecheck/dictionary.txt').fsPath;
+        await fs.mkdir(path.dirname(linked), { recursive: true });
+        await fs.symlink(outside, linked);
+
+        try {
+            await settlesTo(
+                document,
+                'the word to be reported before it is added',
+                found => found.has('subxyzzy'),
+            );
+            await vscode.commands.executeCommand('language-check.addToDictionary', 'subxyzzy');
+            await settlesTo(
+                document,
+                'the added word to stop being reported',
+                found => !found.has('subxyzzy'),
+            );
+
+            assert.strictEqual(
+                await fs.readFile(outside, 'utf8'),
+                'not a word list\n',
+                'the file the dictionary linked to was overwritten',
+            );
+            const stat = await fs.lstat(linked);
+            assert.ok(!stat.isSymbolicLink(), 'the word went through the link instead of replacing it');
+            assert.ok(
+                (await fs.readFile(linked, 'utf8')).split(/\r?\n/).includes('subxyzzy'),
+                'the word was not recorded in the workspace dictionary',
+            );
+        } finally {
+            await vscode.workspace.fs.delete(fixture('.languagecheck'), {
+                recursive: true,
+                useTrash: false,
+            }).then(undefined, () => undefined);
+            await fs.rm(outsideDir, { recursive: true, force: true });
         }
     });
 
