@@ -86,6 +86,20 @@ suite('inline directives', () => {
         );
     });
 
+    test('a region whose match: pattern does not compile still reports', async function () {
+        this.timeout(BUDGET_MS + 15_000);
+        // A pattern that failed to compile used to be skipped, which left
+        // the region unfiltered: one typo in `match:` hid every finding in it.
+        const uri = fixture('badPattern.md');
+        const document = await openInEditor(uri);
+
+        await eventually(
+            'the typo inside the region to be reported',
+            () => (flagged(document).has(CONTROL) ? true : undefined),
+            BUDGET_MS,
+        );
+    });
+
     test('without a language override the French reads as English misspellings', async function () {
         this.timeout(BUDGET_MS + 15_000);
         // The baseline the next test moves away from. Asserted rather than
