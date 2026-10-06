@@ -493,21 +493,32 @@ pub fn resolve_language<'a>(
 }
 
 /// Check whether a diagnostic position passes the match/exclude regex filters.
+///
+/// A pattern that does not compile filters every line out, so the region
+/// suppresses nothing. Ignoring it instead would leave the region unfiltered,
+/// and a typo in `match:` would hide every finding in it.
 fn line_matches_filters(text: &str, byte_pos: usize, opts: &BeginOptions) -> bool {
     let line = line_at(text, byte_pos);
+    let compile = |pat: &str| {
+        regex::Regex::new(pat)
+            .inspect_err(|e| {
+                tracing::debug!("Ignoring a lang-check-begin region: bad pattern: {e}");
+            })
+            .ok()
+    };
 
-    if let Some(ref pat) = opts.match_pattern
-        && let Ok(re) = regex::Regex::new(pat)
-        && !re.is_match(line)
-    {
-        return false;
+    if let Some(ref pat) = opts.match_pattern {
+        match compile(pat) {
+            Some(re) if re.is_match(line) => {}
+            _ => return false,
+        }
     }
 
-    if let Some(ref pat) = opts.exclude_pattern
-        && let Ok(re) = regex::Regex::new(pat)
-        && re.is_match(line)
-    {
-        return false;
+    if let Some(ref pat) = opts.exclude_pattern {
+        match compile(pat) {
+            Some(re) if !re.is_match(line) => {}
+            _ => return false,
+        }
     }
 
     true
@@ -950,5 +961,22 @@ mod tests {
 
         // Before the region — no override
         assert_eq!(resolve_language(0, &resolved.regions, &[]), None);
+    }
+
+    #[test]
+    fn a_filter_pattern_that_does_not_compile_suppresses_nothing() {
+        // A typo in `match:` once left the region unfiltered, hiding every
+        // finding in it.
+        for option in ["match:/[/", "exclude:/(/"] {
+            let text =
+                format!("<!-- lang-check-begin {option} -->\nBad line\n<!-- lang-check-end -->");
+            let directives = IgnoreParser::parse_directives(&text);
+            let resolved = IgnoreParser::resolve_all(&text, &directives);
+            let d = make_diag(&text, "Bad", "r", "spelling.typo");
+            assert!(
+                !IgnoreParser::should_ignore_by_region(&d, &text, &resolved.regions),
+                "{option}"
+            );
+        }
     }
 }
