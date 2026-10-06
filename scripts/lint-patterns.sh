@@ -37,6 +37,10 @@ SEMGREP_VERSION=1.172.0
 # rather than reporting a clean scan.
 JOBS="${PATTERNS_JOBS:-1}"
 
+# Pinned to a GIL build. Left to choose, uvx may take a free-threaded 3.14t when one is installed,
+# where semgrep's ruamel-yaml-clib has no wheel and does not compile -- and the scan never starts.
+PYTHON="${PATTERNS_PYTHON:-3.13}"
+
 RUST_TARGETS=(rust-core/src rust-core/benches rust-core/examples rust-core/tests)
 TS_TARGETS=(extension/src)
 SH_TARGETS=(scripts)
@@ -90,7 +94,7 @@ run_semgrep() {
   local label="$1" cfg="$2"; shift 2
   [ "$#" -eq 0 ] && return 0
   local out prc
-  out="$(uvx --quiet "semgrep@${SEMGREP_VERSION}" scan \
+  out="$(uvx --quiet --python "$PYTHON" "semgrep@${SEMGREP_VERSION}" scan \
            --metrics=off --jobs "$JOBS" --config "$cfg" \
            "${EXCLUDE_ARGS[@]}" "${EXCLUDE_PATHS[@]}" --error "$@" 2>&1)"
   prc=$?
