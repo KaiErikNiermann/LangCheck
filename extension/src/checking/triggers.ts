@@ -10,6 +10,7 @@ import type { WorkspaceConfigState } from '../config/state';
 import type { DiagnosticStore } from '../diagnostics/store';
 import type { InspectorPanel } from '../ui/webviews/inspector';
 import type { Checker } from './checker';
+import type { CheckResults } from './results';
 import { isCheckableIn } from './languages';
 import { Debouncer } from './scheduler';
 import { uriKey } from '../shared/documents';
@@ -17,6 +18,7 @@ import { uriKey } from '../shared/documents';
 export interface TriggerDeps {
     readonly core: CoreService;
     readonly store: DiagnosticStore;
+    readonly results: CheckResults;
     readonly checker: Checker;
     readonly configState: WorkspaceConfigState;
     readonly inspector: InspectorPanel;
@@ -61,7 +63,12 @@ export class CheckTriggers {
         // soon as Initialize returns.
         if (!this.deps.core.ready()) return;
         if (!this.isCheckable(document)) return;
-        if (this.deps.store.has(uriKey(document.uri))) return;
+        // Checked means checked since it was opened. Closing a document
+        // forgets its results but leaves its diagnostics in the Problems
+        // panel, and a file changed on disk while closed has to be read again
+        // when it is reopened.
+        const key = uriKey(document.uri);
+        if (this.deps.store.has(key) && this.deps.results.extraction.has(key)) return;
         this.deps.checker.check(document);
     }
 

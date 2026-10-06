@@ -94,7 +94,7 @@ export async function activate(context: vscode.ExtensionContext) {
     });
     const actions: DiagnosticActions = new DiagnosticActions({ core, checker, log, inspectorLog, store, fixTarget, speedFix });
     const packs = new Packs({ context, core, configState, log, inspectorLog, reload: () => reloader.reinitializeAndRecheck() });
-    const triggers = new CheckTriggers({ core, store, checker, configState, inspector });
+    const triggers = new CheckTriggers({ core, store, results, checker, configState, inspector });
     deactivateHooks = { core, triggers };
 
     const configStatusView = new ConfigStatusView(
