@@ -14,7 +14,6 @@
 //! expected answer is written in the test rather than inferred from whatever
 //! the engines decided.
 
-use std::path::PathBuf;
 use std::process::Command;
 
 /// A workspace directory that is unique, and removed when the handle drops.

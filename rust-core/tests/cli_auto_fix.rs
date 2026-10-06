@@ -12,7 +12,7 @@
 //! the `fix` subcommand and from nowhere else. `check` does not report these
 //! replacements and the VS Code extension does not apply them.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 /// A workspace directory that is unique, and removed when the handle drops.

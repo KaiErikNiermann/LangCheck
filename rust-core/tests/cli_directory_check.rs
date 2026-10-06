@@ -7,7 +7,7 @@
 //! found zero files, printed "No issues found." and exited 0 — indistinguishable from a
 //! clean corpus.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 /// A workspace directory that is unique, and removed when the handle drops.

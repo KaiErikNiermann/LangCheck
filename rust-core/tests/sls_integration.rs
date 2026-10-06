@@ -4,9 +4,8 @@ use lang_check::prose;
 use lang_check::prose::latex::LatexExtras;
 use lang_check::sls::SchemaRegistry;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// A workspace directory that is unique, and removed when the handle drops.
 ///

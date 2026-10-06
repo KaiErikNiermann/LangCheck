@@ -12,7 +12,7 @@
 //! So these run the shipped binary. A suppression pass that is correct but no
 //! longer wired into an entry point fails here.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 /// The one misspelling used throughout, so a line number identifies a hit.

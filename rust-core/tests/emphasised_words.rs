@@ -12,7 +12,7 @@
 //! in both cases; the diagnostic was thrown away afterwards. So this drives the
 //! shipped binary and asserts on what the user is shown.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 /// Harper alone: no server, no network, and it flags the typo on its own.
