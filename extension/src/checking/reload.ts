@@ -52,6 +52,22 @@ export class Reloader {
     }
 
     /**
+     * `reinitializeAndRecheck` behind a notification titled `title`.
+     *
+     * For a reload the user asked for: the notification stays up until the
+     * core is back and the re-checks are queued, rather than announcing a
+     * reload that may still be running when a fire-and-forget message fades.
+     * Awaited, so a failure reaches the caller instead of an unhandled
+     * rejection.
+     */
+    async reinitializeWithProgress(title: string): Promise<void> {
+        await vscode.window.withProgress(
+            { location: vscode.ProgressLocation.Notification, title, cancellable: false },
+            () => this.reinitializeAndRecheck(),
+        );
+    }
+
+    /**
      * Apply a config change that can only remove diagnostics.
      *
      * Silencing a rule is applied by the core after the engines have run, so

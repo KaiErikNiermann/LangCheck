@@ -151,13 +151,8 @@ export function settingsCommands(app: App) {
                 const content = setSpellLanguage(await readTextOrEmpty(targetUri), selected.label);
                 await writeConfigText(targetUri, content);
                 statusBars.setLanguage(selected.label);
-                vscode.window.withProgress({
-                    location: vscode.ProgressLocation.Notification,
-                    title: vscode.l10n.t('Spell-check language set to "{0}". Reloading...', selected.label),
-                    cancellable: false,
-                }, async () => {
-                    await reloader.reinitializeAndRecheck();
-                })
+                await reloader.reinitializeWithProgress(
+                    vscode.l10n.t('Spell-check language set to "{0}". Reloading...', selected.label));
             } catch (err) {
                 showConfigUpdateError(err);
             }
@@ -213,10 +208,7 @@ export function settingsCommands(app: App) {
 
                 await writeConfigText(targetUri, content);
                 const names = selected.map(s => s.label).join(', ');
-                vscode.window.showInformationMessage(
-                    vscode.l10n.t('Engines updated: {0}. Reloading...', names)
-                );
-                await reloader.reinitializeAndRecheck();
+                await reloader.reinitializeWithProgress(vscode.l10n.t('Engines updated: {0}. Reloading...', names));
             } catch (err) {
                 showConfigUpdateError(err);
             }
@@ -245,16 +237,7 @@ export function settingsCommands(app: App) {
                     return;
                 }
                 await writeConfigText(targetUri, content);
-                // vscode.window.showInformationMessage(vscode.l10n.t('Excluded "{0}". Reloading...', pattern));
-                // await reloader.reinitializeAndRecheck();
-
-                vscode.window.withProgress({
-                    location: vscode.ProgressLocation.Notification,
-                    title: vscode.l10n.t('Excluded "{0}". Reloading...', pattern),
-                    cancellable: false,
-                }, async () => {
-                    await reloader.reinitializeAndRecheck();
-                })
+                await reloader.reinitializeWithProgress(vscode.l10n.t('Excluded "{0}". Reloading...', pattern));
             } catch (err) {
                 showConfigUpdateError(err);
             }
