@@ -13,7 +13,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { eventually, fixture, fixtureRoot, openInEditor, ourDiagnostics } from './helpers';
-import { recordPrompts } from './promptMemory';
+import { recordProgress, recordPrompts } from './promptMemory';
 import { answerQuickPick } from './quickPick';
 
 const BUDGET_MS = 45_000;
@@ -75,31 +75,37 @@ suite('characterization: settings commands', () => {
         this.timeout(BUDGET_MS + 15_000);
         const pick = answerQuickPick(['Harper']);
         const prompts = recordPrompts();
+        const progress = recordProgress();
         try {
             await vscode.commands.executeCommand('language-check.manageEngines');
         } finally {
             pick.restore();
             prompts.restore();
+            progress.restore();
         }
         assert.deepStrictEqual(pick.offered, [['Harper', 'LanguageTool', 'Vale', 'Proselint']]);
         assert.strictEqual(config(), EXPECTED_CONFIG_AFTER_ENGINES);
+        // The reload is announced as progress that lasts until it is done.
+        assert.deepStrictEqual(prompts.seen.map(p => p.message), []);
+        assert.deepStrictEqual(progress.titles, ['Engines updated: Harper. Reloading...']);
     });
 
     test('selectLanguage writes spell_language under engines', async function () {
         this.timeout(BUDGET_MS + 15_000);
         const pick = answerQuickPick(['en-GB']);
         const prompts = recordPrompts();
+        const progress = recordProgress();
         try {
             await vscode.commands.executeCommand('language-check.selectLanguage');
         } finally {
             pick.restore();
             prompts.restore();
+            progress.restore();
         }
         assert.strictEqual(pick.offered[0]?.length, 22, JSON.stringify(pick.offered));
         assert.strictEqual(config(), EXPECTED_CONFIG_AFTER_LANGUAGE);
-        assert.deepStrictEqual(prompts.seen.map(p => p.message), [
-            'Spell-check language set to "en-GB". Reloading...',
-        ]);
+        assert.deepStrictEqual(prompts.seen.map(p => p.message), []);
+        assert.deepStrictEqual(progress.titles, ['Spell-check language set to "en-GB". Reloading...']);
     });
 });
 

@@ -85,3 +85,35 @@ export function recordWarnings(): PromptRecorder {
         },
     };
 }
+
+export interface ProgressRecorder {
+    /** The title of every progress notification started since installing. */
+    readonly titles: string[];
+    /** Put the real function back. Always call it, or later tests inherit this. */
+    restore(): void;
+}
+
+/**
+ * Record the title of every progress notification, running each task as usual.
+ *
+ * The reloads a settings command starts are reported this way, and stay up
+ * until the reload is done, rather than as an information message.
+ */
+export function recordProgress(): ProgressRecorder {
+    const titles: string[] = [];
+    const original = vscode.window.withProgress;
+
+    const replacement: typeof vscode.window.withProgress = (options, task) => {
+        if (options.title !== undefined) titles.push(options.title);
+        return original(options, task);
+    };
+
+    (vscode.window as unknown as Record<string, unknown>).withProgress = replacement;
+
+    return {
+        titles,
+        restore: () => {
+            (vscode.window as unknown as Record<string, unknown>).withProgress = original;
+        },
+    };
+}
