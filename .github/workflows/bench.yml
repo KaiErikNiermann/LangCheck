@@ -55,26 +55,33 @@ jobs:
             const current = fs.readFileSync('rust-core/bench-current.txt', 'utf8');
             const base = fs.readFileSync('base/rust-core/bench-base.txt', 'utf8');
 
+            const toNs = (value, unit) => parseFloat(value) * ({ ns: 1, 'µs': 1e3, ms: 1e6, s: 1e9 }[unit] ?? NaN);
+
+            // Each divan row is "├─ name  fastest │ slowest │ median │ mean │
+            // samples │ iters". The median, not the fastest: a single best
+            // sample is the noisiest number in the row.
             function parseBench(text) {
               const results = {};
               for (const line of text.split('\n')) {
-                // Match divan output: "├─ name  fastest │ ..."
-                const match = line.match(/[├╰]─\s+(\S+)\s+([\d.]+)\s*(ns|µs|ms|s)/);
-                if (match) {
-                  const [, name, value, unit] = match;
-                  let ns = parseFloat(value);
-                  if (unit === 'µs') ns *= 1000;
-                  if (unit === 'ms') ns *= 1e6;
-                  if (unit === 's') ns *= 1e9;
-                  results[name] = ns;
-                }
+                const name = line.match(/[├╰]─\s+(\S+)\s/);
+                if (!name) continue;
+                const times = [...line.matchAll(/([\d.]+)\s*(ns|µs|ms|s)\b/g)];
+                const median = times[2];
+                if (median) results[name[1]] = toNs(median[1], median[2]);
               }
               return results;
             }
 
-            // Runner-to-runner noise routinely moves these benchmarks by ~5-10%,
-            // so only treat a change beyond this as a real regression/improvement.
-            const THRESHOLD_PCT = 15;
+            // A regression has to be both relatively and absolutely large.
+            // Base and current run back to back on one shared runner, and a
+            // sub-microsecond bench (rule_normalize_known is ~50 ns) moves
+            // 25-50% between runs on noise alone, which failed Dependabot PRs
+            // that changed nothing it measures. The table still shows every
+            // change; only the gate needs the floor.
+            const THRESHOLD_PCT = 20;
+            const MIN_DELTA_NS = 500;
+            const regressed = (baseNs, currentNs) =>
+              (currentNs - baseNs) / baseNs * 100 > THRESHOLD_PCT && currentNs - baseNs > MIN_DELTA_NS;
 
             const currentResults = parseBench(current);
             const baseResults = parseBench(base);
@@ -88,8 +95,9 @@ jobs:
               const baseNs = baseResults[name];
               if (baseNs) {
                 const change = (currentNs - baseNs) / baseNs * 100;
-                const emoji = change > THRESHOLD_PCT ? '🔴' : change < -THRESHOLD_PCT ? '🟢' : '⚪';
-                if (change > THRESHOLD_PCT) hasRegression = true;
+                const worse = regressed(baseNs, currentNs);
+                const emoji = worse ? '🔴' : change > THRESHOLD_PCT ? '🟡' : change < -THRESHOLD_PCT ? '🟢' : '⚪';
+                if (worse) hasRegression = true;
                 const fmt = (ns) => ns > 1e6 ? `${(ns/1e6).toFixed(2)}ms` : ns > 1000 ? `${(ns/1000).toFixed(2)}µs` : `${ns.toFixed(0)}ns`;
                 body += `| ${name} | ${fmt(baseNs)} | ${fmt(currentNs)} | ${emoji} ${change.toFixed(1)}% |\n`;
               } else {
@@ -99,7 +107,7 @@ jobs:
             }
 
             if (hasRegression) {
-              body += `\n⚠️ **Performance regression detected (>${THRESHOLD_PCT}% slower)**\n`;
+              body += `\n⚠️ **Performance regression detected (median >${THRESHOLD_PCT}% and >${MIN_DELTA_NS}ns slower)**\n`;
             }
 
             try {
@@ -117,5 +125,5 @@ jobs:
             }
 
             if (hasRegression) {
-              core.setFailed(`Benchmark regression >${THRESHOLD_PCT}% detected`);
+              core.setFailed(`Benchmark regression detected (median >${THRESHOLD_PCT}% and >${MIN_DELTA_NS}ns slower)`);
             }
