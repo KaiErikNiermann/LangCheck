@@ -28,6 +28,15 @@ fn workspace(config: &str) -> tempfile::TempDir {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
+    // Windows cannot start a `.py` file by itself. The spawn failure used to
+    // pass for "no findings", so these tests passed there without the
+    // provider ever running; now it is reported, so give it a launcher.
+    #[cfg(windows)]
+    let script = {
+        let launcher = dir.path().join("provider.cmd");
+        std::fs::write(&launcher, "@python \"%~dp0provider.py\"\r\n").unwrap();
+        launcher
+    };
     // Forward slashes: a backslash in a double-quoted YAML scalar is an escape.
     let command = script.to_string_lossy().replace('\\', "/");
     std::fs::write(
