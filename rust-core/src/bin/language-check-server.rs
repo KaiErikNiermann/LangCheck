@@ -249,6 +249,15 @@ async fn main() -> Result<()> {
 
                 let workspace_root = {
                     let idx_lock = workspace_index_arc.lock().await;
+                    if let Some(idx) = idx_lock.as_ref() {
+                        match idx.prune_missing() {
+                            Ok(0) => {}
+                            Ok(n) => {
+                                debug!(files = n, "Pruned index entries for files that are gone");
+                            }
+                            Err(e) => warn!("Could not prune the workspace index: {e:#}"),
+                        }
+                    }
                     idx_lock
                         .as_ref()
                         .and_then(|idx| idx.get_root_path().map(Path::to_path_buf))

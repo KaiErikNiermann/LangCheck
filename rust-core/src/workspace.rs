@@ -1,7 +1,9 @@
 use crate::checker::Diagnostic;
 use crate::insights::ProseInsights;
 use anyhow::Result;
-use redb::{Database, DatabaseError, ReadableDatabase, StorageError, TableDefinition};
+use redb::{
+    Database, DatabaseError, ReadableDatabase, ReadableTable, StorageError, TableDefinition,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
@@ -367,6 +369,45 @@ impl WorkspaceIndex {
         )
     }
 
+    /// Drop every entry for a file that no longer exists, returning how many
+    /// files were dropped.
+    ///
+    /// Nothing else removes an entry, so without this a renamed or deleted
+    /// file stays in all three tables for as long as the index lives.
+    /// Relative keys are read against the workspace root.
+    pub fn prune_missing(&self) -> Result<usize> {
+        let mut gone = std::collections::BTreeSet::new();
+        {
+            let read_txn = self.db.begin_read()?;
+            for table in [DIAGNOSTICS_TABLE, INSIGHTS_TABLE, FILE_HASHES_TABLE] {
+                let table = match read_txn.open_table(table) {
+                    Ok(table) => table,
+                    Err(redb::TableError::TableDoesNotExist(_)) => continue,
+                    Err(e) => return Err(e.into()),
+                };
+                for entry in table.iter()? {
+                    let (key, _) = entry?;
+                    let key = key.value();
+                    if !self.root_path.join(key).exists() {
+                        gone.insert(key.to_string());
+                    }
+                }
+            }
+        }
+        if gone.is_empty() {
+            return Ok(0);
+        }
+        let write_txn = self.db.begin_write()?;
+        for table in [DIAGNOSTICS_TABLE, INSIGHTS_TABLE, FILE_HASHES_TABLE] {
+            let mut table = write_txn.open_table(table)?;
+            for key in &gone {
+                table.remove(key.as_str())?;
+            }
+        }
+        write_txn.commit()?;
+        Ok(gone.len())
+    }
+
     /// Write `bytes` under `key`, in a transaction of its own.
     fn put_bytes(&self, table: Table, key: &str, bytes: &[u8]) -> Result<()> {
         let write_txn = self.db.begin_write()?;
@@ -709,5 +750,26 @@ mod tests {
         assert_eq!(retrieved[0].message, "second");
 
         cleanup(&dir);
+    }
+
+    #[test]
+    fn pruning_drops_entries_for_files_that_are_gone() {
+        let (idx, dir) = temp_workspace("prune");
+        std::fs::write(dir.join("kept.md"), "kept").unwrap();
+        for name in ["kept.md", "gone.md"] {
+            idx.store_check(name, 1, &[]).unwrap();
+            idx.update_file_hash(name, name).unwrap();
+            idx.update_insights(name, &ProseInsights::default())
+                .unwrap();
+        }
+
+        assert_eq!(idx.prune_missing().unwrap(), 1);
+
+        assert!(idx.cached_check("kept.md", 1).is_some());
+        assert!(idx.is_file_unchanged("kept.md", "kept.md"));
+        assert!(idx.cached_check("gone.md", 1).is_none());
+        assert!(!idx.is_file_unchanged("gone.md", "gone.md"));
+        assert!(idx.get_insights("gone.md").unwrap().is_none());
+        assert_eq!(idx.prune_missing().unwrap(), 0);
     }
 }
