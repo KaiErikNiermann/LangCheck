@@ -122,33 +122,50 @@ function servePort(port: MessagePort, index: number, background: BackgroundLink,
 }
 
 /** One runtime port to the background, reopened on demand after the background restarts. */
-class BackgroundLink {
+export class BackgroundLink {
     private port: Runtime.Port | undefined;
     private nextId = 1;
     private readonly pending = new Map<number, { resolve: (r: PageResponse) => void; pageId: number }>();
 
+    /**
+     * Rejects, at once, when the background cannot be reached: connecting
+     * throws once the extension has been updated or reloaded under an open
+     * tab ("Extension context invalidated"), and posting throws on a port
+     * that has just gone. The page port answers a rejection as unavailable.
+     */
     send(request: PageRequest): Promise<PageResponse> {
-        const port = this.connect();
         const id = this.nextId++;
-        return new Promise((resolve) => {
-            this.pending.set(id, { resolve, pageId: request.id });
-            const message: BackgroundRequest = { id, request };
-            port.postMessage(message);
+        return new Promise((resolve, reject) => {
+            try {
+                const port = this.connect();
+                this.pending.set(id, { resolve, pageId: request.id });
+                const message: BackgroundRequest = { id, request };
+                port.postMessage(message);
+            } catch (error) {
+                this.pending.delete(id);
+                reject(error instanceof Error ? error : new Error(String(error)));
+            }
         });
     }
 
     constructor(
         private readonly onWebview: (message: PanelToPage) => void,
         private readonly onDisconnected: () => void,
+        private readonly connectRuntime: () => Runtime.Port = () => browser.runtime.connect({ name: BACKGROUND_PORT_NAME }),
     ) {}
 
+    /** Dropped when the background cannot be reached (see send). */
     postWebview(message: PageToPanel): void {
-        this.connect().postMessage({ webview: message });
+        try {
+            this.connect().postMessage({ webview: message });
+        } catch {
+            // Nothing to post to; the page's panels are told closed on disconnect.
+        }
     }
 
     private connect(): Runtime.Port {
         if (this.port !== undefined) return this.port;
-        const port = browser.runtime.connect({ name: BACKGROUND_PORT_NAME });
+        const port = this.connectRuntime();
         port.onMessage.addListener((message: unknown) => {
             const panelMessage = parsePanelToPage((message as { webview?: unknown } | null)?.webview);
             if (panelMessage !== undefined) {
