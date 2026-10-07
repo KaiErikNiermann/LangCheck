@@ -1,0 +1,23 @@
+{
+  "path": [
+    "src",
+    "../extension/src"
+  ],
+  "ignore": [
+    "**/proto/**",
+    "**/test/**",
+    "**/generated/**",
+    "../extension/src/test/**"
+  ],
+  "format": [
+    "typescript"
+  ],
+  "minTokens": 35,
+  "maxLines": 20000,
+  "maxSize": "2mb",
+  "threshold": 1,
+  "reporters": [
+    "console"
+  ],
+  "silent": false
+}
