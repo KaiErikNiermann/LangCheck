@@ -6,6 +6,7 @@ import path from 'node:path';
 
 export const WEB = path.resolve(import.meta.dirname, '../..');
 export const RUST_CORE = path.resolve(WEB, '../rust-core');
+export const EXTENSION_ROOT = path.resolve(WEB, '../extension');
 
 // cargo and node from PATH: this is the developer's own toolchain, as when
 // they run the tests by hand.

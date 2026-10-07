@@ -466,6 +466,8 @@ class Host {
     readonly unsupported = new Set<string>();
     /** Opens a panel's page; installed by the composition root. */
     webviews: WebviewOpener | undefined;
+    /** Brings the page's own tab to the front (a panel tab may be in front of it). */
+    focusPage: (() => void) | undefined;
     /** Settings changed through `update`, over the manifest defaults. */
     readonly settings = new Map<string, unknown>();
     private collections = 0;
@@ -878,9 +880,22 @@ export const window = withFallback('window', {
     get visibleTextEditors(): TextEditor[] {
         return [...host.editors.values()];
     },
-    showTextDocument(doc: TextDocument, _options?: unknown, _preserveFocus?: boolean): Promise<TextEditor> {
+    /**
+     * Shows the page's editor (both of VS Code's overloads): selects
+     * `options.selection`, and brings the page's tab forward unless focus is
+     * to be preserved. The column is meaningless with one editor.
+     */
+    showTextDocument(
+        doc: TextDocument,
+        columnOrOptions?: ViewColumn | { readonly selection?: Range; readonly preserveFocus?: boolean },
+        preserveFocus?: boolean,
+    ): Promise<TextEditor> {
         const editor = host.editors.get(doc);
-        return editor === undefined ? Promise.reject(new Error('the document is not open in this page')) : Promise.resolve(editor);
+        if (editor === undefined) return Promise.reject(new Error('the document is not open in this page'));
+        const { selection, preserveFocus: keepFocus = preserveFocus } = typeof columnOrOptions === 'object' ? columnOrOptions : {};
+        if (selection !== undefined) editor.selection = new Selection(selection.start, selection.end);
+        if (keepFocus !== true) host.focusPage?.();
+        return Promise.resolve(editor);
     },
     createWebviewPanel(viewType: string, title: string, _showOptions?: unknown, _options?: WebviewOptions): WebviewPanel {
         if (host.webviews === undefined) throw new Error('webview panels are not available in this page');

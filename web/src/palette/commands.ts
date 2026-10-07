@@ -7,7 +7,7 @@ import { commands } from '../../../extension/src/generated/meta';
 
 type CommandKey = keyof typeof commands;
 
-const ON_THE_WEB = ['checkDocument'] as const satisfies readonly CommandKey[];
+const ON_THE_WEB = ['checkDocument', 'openSpeedFix', 'openInspector'] as const satisfies readonly CommandKey[];
 
 export type PaletteCommandId = (typeof commands)[(typeof ON_THE_WEB)[number]];
 

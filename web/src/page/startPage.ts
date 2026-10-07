@@ -8,6 +8,8 @@ import { startClient, type ClientStats } from './client';
 import { connectCore } from '../messaging/pageClient';
 import type { SitePage, SiteWorkspace } from '../sites/site';
 import { Bridge } from './bridge';
+import { webviewHost } from './webviewHost';
+import { host } from '../shim/vscode';
 
 interface Running {
     readonly bridge: Bridge;
@@ -37,6 +39,9 @@ export function startPage(site: SitePage, workspace: SiteWorkspace): void {
         extensionUri: vscode.Uri.parse('extension:/'),
         extension: { id: 'language-check-web', packageJSON: { version: __LANGUAGE_CHECK_VERSION__ } },
     };
+    const webviews = webviewHost(core);
+    host.webviews = webviews.open;
+    host.focusPage = webviews.focusPage;
     const stats = startClient(context, core);
     const bridge = new Bridge(site, project);
     // Palette commands run like VS Code's: through the command registry.
@@ -53,6 +58,9 @@ export function startPage(site: SitePage, workspace: SiteWorkspace): void {
         stop() {
             bridge.stop();
             for (const s of subscriptions) s.dispose();
+            webviews.closeAll();
+            host.webviews = undefined;
+            host.focusPage = undefined;
             core.dispose();
             // eslint-disable-next-line unicorn/no-global-object-property-assignment -- clearing the same global
             globalThis.__languageCheck = undefined;

@@ -4,11 +4,11 @@
 // Each test gets its own profile and its own data directory (where the
 // host keeps workspaces and dictionaries).
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium, expect, test as base, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { RUST_CORE, WEB } from './globalSetup';
+import { EXTENSION_ROOT, RUST_CORE, WEB } from './globalSetup';
 
 export const BASE = 'http://127.0.0.1:4180';
 export const EXTENSION = path.join(WEB, 'dist-test');
@@ -17,10 +17,13 @@ export const HOST_BINARY = path.join(RUST_CORE, 'target/debug/language-check-nat
 export type Site = 'overleaf' | 'typst';
 export type Cm = 'current' | '6.38';
 
-/** The stand-in page for `site`: Overleaf on 127.0.0.1, Typst on localhost. */
-export function pageUrl(site: Site, cm: Cm, text?: string, project = 'p1'): string {
+/**
+ * The stand-in page for `site`: Overleaf on 127.0.0.1, Typst on localhost.
+ * `name` is the open file's name on Overleaf (its extension sets the language).
+ */
+export function pageUrl(site: Site, cm: Cm, text?: string, project = 'p1', name?: string): string {
     const origin = site === 'overleaf' ? BASE : BASE.replace('127.0.0.1', 'localhost');
-    const query = new URLSearchParams({ cm, ...(text !== undefined && { text }) });
+    const query = new URLSearchParams({ cm, ...(text !== undefined && { text }), ...(name !== undefined && { name }) });
     return `${origin}/project/${project}?${query.toString()}`;
 }
 
@@ -59,6 +62,13 @@ export const test = base.extend<Fixtures>({
             // <profile>/NativeMessagingHosts.
             execFileSync(HOST_BINARY, ['install', '--browser', 'chromium', '--chrome-extension-id', extensionId, '--dir', path.join(profile, 'NativeMessagingHosts')]);
         }
+        context.on('page', (opened) => {
+            const errors: string[] = [];
+            opened.on('pageerror', (e) => {
+                errors.push(e.message);
+            });
+            panelErrors.set(opened, errors);
+        });
         extensionIds.set(context, extensionId);
         await use(context);
         await context.close();
@@ -135,3 +145,69 @@ export async function hoverPainted(page: Page, word: string, nth = 0): Promise<L
 export function notionSaved(page: Page): Promise<string[]> {
     return page.evaluate(() => (globalThis as any).__notion.saved());
 }
+
+export const PALETTE_FRAME = 'iframe[title="Language Check commands"]';
+
+/** Runs a client command from the palette, as a user would: the binding, its title, Enter. */
+export async function runPaletteCommand(page: Page, title: string): Promise<void> {
+    await page.keyboard.press('Control+KeyP');
+    const palette = page.frameLocator(PALETTE_FRAME);
+    await expect(palette.locator('ninja-action').first()).toBeVisible();
+    await page.keyboard.type(title);
+    await page.keyboard.press('Enter');
+    await expect(page.locator(PALETTE_FRAME)).toHaveCount(0);
+}
+
+/** The open tabs showing a `viewType` panel (speedFix, inspector). */
+export function panelPages(context: BrowserContext, viewType: string): Page[] {
+    return context.pages().filter((p) => !p.isClosed() && new URL(p.url()).pathname === `/webview/${viewType}.html`);
+}
+
+/** Runs `title` from the palette and returns the `viewType` panel tab it opens. */
+export async function openPanel(page: Page, title: string, viewType: string): Promise<Page> {
+    const before = new Set(panelPages(page.context(), viewType));
+    await runPaletteCommand(page, title);
+    // Polled, not a `page` event: a new tab can still be about:blank when the event fires.
+    let panel: Page | undefined;
+    await expect.poll(() => (panel = panelPages(page.context(), viewType).find((p) => !before.has(p)))).toBeDefined();
+    if (panel === undefined) throw new Error(`no ${viewType} panel opened`);
+    await panel.waitForLoadState();
+    return panel;
+}
+
+/** Uncaught errors in each tab the extension opened (panels), recorded from the tab's start. */
+export const panelErrors = new WeakMap<Page, string[]>();
+
+/** The native host's directory for a site's project (where its config and dictionary live). */
+export function workspaceDir(dataHome: string, site: Site, project = 'p1'): string {
+    return path.join(dataHome, 'language-check', 'web', `${site}-${project}`);
+}
+
+/** A fixture directory of the VS Code UI tests (extension/src/test/fixtures/<name>). */
+export function uiFixture(name: string): string {
+    return path.join(EXTENSION_ROOT, 'src/test/fixtures', name);
+}
+
+/**
+ * Gives the project the VS Code UI fixture's config, so both hosts check
+ * under the same settings. Before the page loads: the host reads it when
+ * the workspace starts.
+ */
+export function seedWorkspace(dataHome: string, fixture: string, site: Site = 'overleaf', project = 'p1'): void {
+    const config = path.join(uiFixture(fixture), '.languagecheck.yaml');
+    if (!existsSync(config)) return;
+    const dir = workspaceDir(dataHome, site, project);
+    mkdirSync(dir, { recursive: true });
+    copyFileSync(config, path.join(dir, '.languagecheck.yaml'));
+}
+
+/** Opens a VS Code UI fixture's document on the Overleaf stand-in, under that fixture's config, and waits for its findings. */
+export async function openFixture(page: Page, dataHome: string, fixture: string, file: string): Promise<void> {
+    seedWorkspace(dataHome, fixture);
+    await page.goto(pageUrl('overleaf', 'current', readFileSync(path.join(uiFixture(fixture), file), 'utf8'), 'p1', file));
+    await expect.poll(() => status(page)).toMatchObject({ state: 'attached', languageId: languageOf(file) });
+    await expect(marks(page).first()).toBeVisible();
+    await page.locator('.cm-content').click();
+}
+
+const languageOf = (file: string): string => ({ md: 'markdown', tex: 'latex', typ: 'typst' })[file.split('.').pop() ?? ''] ?? 'plaintext';

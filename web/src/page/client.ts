@@ -10,6 +10,7 @@ import { Debouncer } from '../../../extension/src/checking/scheduler';
 import { checkCommands } from '../../../extension/src/commands/check';
 import { diagnosticsCommands } from '../../../extension/src/commands/diagnostics';
 import { COMMANDS } from '../../../extension/src/commands/ids';
+import { ENGINES } from '../../../extension/src/core/engines';
 import { DiagnosticActions } from '../../../extension/src/diagnostics/actions';
 import { FixTarget } from '../../../extension/src/diagnostics/fixTarget';
 import { DiagnosticStore, Suppression } from '../../../extension/src/diagnostics/store';
@@ -17,6 +18,8 @@ import { registerCodeActions } from '../../../extension/src/providers/codeAction
 import { uriKey } from '../../../extension/src/shared/documents';
 import { formatSuggestionLabel } from '../../../extension/src/shared/inlayLabels';
 import { InspectorLog } from '../../../extension/src/ui/inspectorLog';
+import { InspectorPanel, type InspectorEnvironment } from '../../../extension/src/ui/webviews/inspector';
+import { SpeedFixPanel, speedFixActions } from '../../../extension/src/ui/webviews/speedFix';
 import type { CoreClient } from '../messaging/pageClient';
 import { WebCore } from './transport';
 
@@ -24,7 +27,7 @@ import { WebCore } from './transport';
 export const CHECK_DELAY_MS = 500;
 
 /** The commands the web registers, of all the client's handlers. */
-const WEB_COMMANDS: ReadonlySet<string> = new Set([
+export const WEB_COMMANDS: ReadonlySet<string> = new Set([
     COMMANDS.checkDocument,
     COMMANDS.addToDictionary,
     COMMANDS.applyFix,
@@ -32,6 +35,8 @@ const WEB_COMMANDS: ReadonlySet<string> = new Set([
     COMMANDS.ignoreSelection,
     COMMANDS.fixAllSpellingInFile,
     COMMANDS.fixAllSpellingInWorkspace,
+    COMMANDS.openSpeedFix,
+    COMMANDS.openInspector,
 ]);
 
 const SELECTOR = ['latex', 'typst', 'bibtex', 'markdown', 'plaintext'].map((language) => ({ language }));
@@ -58,9 +63,29 @@ const console_ = {
 
 /** Nothing in the page shows a status bar; the Inspector shows health instead. */
 const NO_STATUS_BARS = { setChecking: () => {}, updateHealth: () => {}, updateInsights: () => {} };
-/** Until the SpeedFix panel exists in the web (see webview host), its loading signals go nowhere. */
-const NO_SPEEDFIX = { sendLoading: () => {}, reveal: () => {}, open: () => {} };
-const NO_INSPECTOR = { open: () => {} };
+/**
+ * What the Inspector reports about the machine, as far as a page can tell. It
+ * cannot run Docker or look on PATH, and the config that turns engines on is
+ * the core's, out of the page's reach (its paths are local). So an engine is
+ * on when the core has reported its health -- it ran -- and an external
+ * engine whose program is missing shows as down, with the core's error,
+ * rather than "not found".
+ */
+function webEnvironment(results: CheckResults): InspectorEnvironment {
+    return {
+        hasDockerCompose: () => false,
+        detectEngineInfo: () =>
+            Promise.resolve(
+                ENGINES.map((engine) => ({
+                    name: engine.name,
+                    enabled: results.engineHealth.some((health) => health.name === engine.name),
+                    type: engine.type,
+                    binaryDetected: true,
+                    configPath: '',
+                })),
+            ),
+    };
+}
 
 export function startClient(context: vscode.ExtensionContext, connection: CoreClient): () => ClientStats {
     let completed = 0;
@@ -90,7 +115,28 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         },
     });
 
-    const checker = new Checker({
+    const speedFix: SpeedFixPanel = new SpeedFixPanel({
+        context,
+        store,
+        fixTarget,
+        actions: speedFixActions(
+            () => actions,
+            () => checker,
+        ),
+    });
+    const inspector = new InspectorPanel({
+        context,
+        store,
+        results,
+        fixTarget,
+        inspectorLog,
+        check: (document) => checker.check(document),
+        // The host refuses config listings to the web (they name local paths).
+        listConfigFiles: () => Promise.resolve(null),
+        environment: webEnvironment(results),
+    });
+
+    const checker: Checker = new Checker({
         core,
         log: console_,
         store,
@@ -100,16 +146,19 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         inspectorLog,
         languageToolRestartable: () => false,
         observer: {
-            checkRecorded: (document) => {
+            checkRecorded: (document, timings) => {
                 completed++;
                 checkedAt.set(uriKey(document.uri), document.version);
                 hintsChanged.fire();
+                inspector.checkRecorded(document, timings);
             },
-            healthUpdated: () => {},
+            healthUpdated: () => {
+                inspector.healthUpdated();
+            },
             diagnosticsPublished: () => {},
         },
     });
-    const actions = new DiagnosticActions({ core, checker, log: console_, inspectorLog, store, fixTarget, speedFix: NO_SPEEDFIX });
+    const actions: DiagnosticActions = new DiagnosticActions({ core, checker, log: console_, inspectorLog, store, fixTarget, speedFix });
 
     const check = (doc: vscode.TextDocument): void => {
         void checker.check(doc);
@@ -119,8 +168,8 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
     };
 
     const handlers: Record<string, (...args: never[]) => unknown> = {
-        ...checkCommands({ results, checker, speedFix: NO_SPEEDFIX, inspector: NO_INSPECTOR }),
-        ...diagnosticsCommands({ log: console_, store, suppression, inspectorLog, fixTarget, core, checker, actions, speedFix: NO_SPEEDFIX }),
+        ...checkCommands({ results, checker, speedFix, inspector }),
+        ...diagnosticsCommands({ log: console_, store, suppression, inspectorLog, fixTarget, core, checker, actions, speedFix }),
     };
     for (const [id, handler] of Object.entries(handlers)) {
         if (WEB_COMMANDS.has(id)) context.subscriptions.push(vscode.commands.registerCommand(id, handler));
@@ -128,6 +177,11 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
 
     registerCodeActions(context.subscriptions, { store, offers: (command) => WEB_COMMANDS.has(command) });
 
+    // The page has one editor, so unlike VS Code there is no active-editor
+    // change for the Inspector to follow.
+    store.onChange(() => {
+        speedFix.update();
+    });
     context.subscriptions.push(
         store,
         hintsChanged,
