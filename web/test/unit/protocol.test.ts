@@ -58,11 +58,8 @@ describe('parsePageResponse', () => {
 });
 
 describe('parseBackgroundRequest', () => {
-    const request = { id: 1, op: 'addWord', word: 'teh' };
-    test.each(['', '.', '..', '.hidden', 'a/b', 'a b', 'x'.repeat(129)])('refuses the key %j', (key) => {
-        expect(parseBackgroundRequest({ id: 1, key, request })).toBeUndefined();
-    });
-    test('accepts a project key', () => {
-        expect(parseBackgroundRequest({ id: 1, key: 'overleaf-691fc1336049c31a479401d0', request })?.key).toBe('overleaf-691fc1336049c31a479401d0');
+    test('carries no workspace: a key in the message is not read', () => {
+        const parsed = parseBackgroundRequest({ id: 1, key: 'typst-someone-else', request: { id: 1, op: 'addWord', word: 'teh' } });
+        expect(parsed).toEqual({ id: 1, request: { id: 1, op: 'addWord', word: 'teh' } });
     });
 });

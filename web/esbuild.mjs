@@ -23,6 +23,7 @@ const result = await esbuild.build({
     target: ['firefox128', 'chrome120'],
     // The feature is written against `vscode`; in the browser that is the shim.
     alias: { vscode: './src/shim/vscode.ts' },
+    define: { __LANGUAGE_CHECK_TEST__: String(test) },
     sourcemap: test ? 'inline' : false,
     minify: !test,
     metafile: true,
@@ -49,3 +50,25 @@ if (test) {
 await mkdir(outdir, { recursive: true });
 await writeFile(`${outdir}/manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
 await copyFile('icon-128.png', `${outdir}/icon.png`);
+
+// The fake site pages, each with its own CodeMirror (current and 6.38).
+if (test) {
+    /** @type {{ name: string, alias: Record<string, string> }[]} */
+    const variants = [
+        { name: 'current', alias: {} },
+        { name: '6-38', alias: { '@codemirror/view': 'cm-view-6-38' } },
+    ];
+    await Promise.all(
+        variants.map(({ name, alias }) =>
+            esbuild.build({
+                entryPoints: ['test/e2e/fakeHost.ts'],
+                outfile: `.e2e/pages/fake-host-${name}.js`,
+                bundle: true,
+                format: 'iife',
+                platform: 'browser',
+                alias,
+                logLevel: 'warning',
+            }),
+        ),
+    );
+}

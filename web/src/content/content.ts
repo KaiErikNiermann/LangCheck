@@ -1,9 +1,9 @@
 // The isolated-world content script: the boundary between the untrusted page
 // world and the extension. It answers the page's announcement with a private
-// MessagePort, parses every request strictly, attaches the workspace key it
-// derived from the tab's URL itself, and relays to the background. A page
-// that spoofs our page script gets exactly what our page script gets: checks
-// of text it already has, in its own project's workspace.
+// MessagePort, parses every request strictly, and relays to the background,
+// which files it under the workspace the browser says this tab is on. A
+// page that spoofs our page script gets exactly what our page script gets:
+// checks of text it already has, in its own project's workspace.
 import browser, { type Runtime } from 'webextension-polyfill';
 import {
     HANDSHAKE_TYPE,
@@ -16,15 +16,14 @@ import {
     type PageResponse,
 } from '../messaging/protocol';
 import { BACKGROUND_PORT_NAME, type BackgroundRequest, type BackgroundResponse } from '../messaging/background';
-import { workspaceKey, type SiteWorkspace } from '../sites/site';
+import type { SiteWorkspace } from '../sites/site';
 
 /** Ports one tab may hold; a page re-announcing in a loop gets no more. */
 const MAX_PORTS_PER_TAB = 4;
 
 export function startContent(site: SiteWorkspace): void {
-    const project = site.projectFromPath(location.pathname);
-    if (project === undefined) return;
-    const key = workspaceKey(site.id, project);
+    // Not a project page: nothing to serve (the background would refuse too).
+    if (site.projectFromPath(location.pathname) === undefined) return;
     const background = new BackgroundLink();
     let ports = 0;
 
@@ -36,12 +35,12 @@ export function startContent(site: SiteWorkspace): void {
         if (type !== PAGE_READY_TYPE || version !== PROTOCOL_VERSION || ports >= MAX_PORTS_PER_TAB) return;
         ports++;
         const channel = new MessageChannel();
-        servePort(channel.port1, key, background);
+        servePort(channel.port1, background);
         window.postMessage({ type: HANDSHAKE_TYPE, version: PROTOCOL_VERSION }, location.origin, [channel.port2]);
     });
 }
 
-function servePort(port: MessagePort, key: string, background: BackgroundLink): void {
+function servePort(port: MessagePort, background: BackgroundLink): void {
     let inFlight = 0;
     const reply = (response: PageResponse): void => { port.postMessage(response); };
     const fail = (id: number, code: ErrorCode, error: string): void => { reply({ id, ok: false, code, error }); };
@@ -59,8 +58,10 @@ function servePort(port: MessagePort, key: string, background: BackgroundLink): 
         }
         inFlight++;
         void background
-            .send(key, request)
-            .then(reply, (error: unknown) => { fail(request.id, 'unavailable', String(error)); })
+            .send(request)
+            .then(reply, () => {
+                fail(request.id, 'unavailable', 'the extension background is not reachable');
+            })
             .finally(() => inFlight--);
     });
     port.start();
@@ -72,12 +73,12 @@ class BackgroundLink {
     private nextId = 1;
     private readonly pending = new Map<number, { resolve: (r: PageResponse) => void; pageId: number }>();
 
-    send(key: string, request: PageRequest): Promise<PageResponse> {
+    send(request: PageRequest): Promise<PageResponse> {
         const port = this.connect();
         const id = this.nextId++;
         return new Promise((resolve) => {
             this.pending.set(id, { resolve, pageId: request.id });
-            const message: BackgroundRequest = { id, key, request };
+            const message: BackgroundRequest = { id, request };
             port.postMessage(message);
         });
     }
