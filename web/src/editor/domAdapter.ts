@@ -15,6 +15,7 @@
 //
 // The site supplies only which leaves hold prose and which inline elements
 // are atoms (domText.ts).
+import { editsHold } from './edits';
 import { MAX_CHECK_TEXT_CHARS } from '../messaging/protocol';
 import { CardController, cardMembers, type Finding } from './card';
 import { buildTextMap, leafAt, offsetOf, pointOf, rangeOf, type TextMap } from './domText';
@@ -245,7 +246,7 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
             if (edit === undefined) return true;
             if (rest.length > 0) throw new Error('this editor applies one edit at a time');
             const map = current();
-            if (edit.from < 0 || edit.to < edit.from || edit.to > map.text.length || map.text.slice(edit.from, edit.to) !== edit.expected) return false;
+            if (!root.isConnected || !editsHold([edit], map.text.length, (from, to) => map.text.slice(from, to))) return false;
             applyEdit(map, edit);
             return true;
         },

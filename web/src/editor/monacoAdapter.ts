@@ -4,6 +4,7 @@
 // decoration types with a gutter icon are glyph-margin decorations with a
 // hover, which is VS Code's gutter. Edits are compare-and-swap, as in every
 // adapter (TextEdit.expected).
+import { editsHold } from './edits';
 import type * as Monaco from 'monaco-editor/editor/editor.api.js';
 import type { EditorAdapter, RenderedDecoration, RenderedDecorationType, RenderedDiagnostic, TextEdit } from './types';
 
@@ -77,7 +78,7 @@ export function createMonacoAdapter(monaco: typeof Monaco, editor: Monaco.editor
         },
         applyEdits: (edits: readonly TextEdit[]) => {
             const text = model.getValue();
-            if (edits.some((e) => e.from < 0 || e.to < e.from || e.to > text.length || text.slice(e.from, e.to) !== e.expected)) return false;
+            if (!editsHold(edits, text.length, (from, to) => text.slice(from, to))) return false;
             model.pushEditOperations([], edits.map((e) => ({ range: range(e.from, e.to), text: e.insert })), () => null);
             return true;
         },

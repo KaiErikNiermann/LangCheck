@@ -3,6 +3,7 @@
 // unchanged. Implemented members forward to the dispatcher (`host`); any
 // namespace member we have not implemented resolves to a logged no-op instead
 // of crashing, which is the "fallback for VS Code-only behaviour".
+import { EDIT_CONTEXT_CHARS } from '../editor/edits';
 import { configs } from '../../../extension/src/generated/meta';
 import type { ActionSource, EditorAdapter, HoverSource, RenderedAction, RenderedDiagnostic, RenderedHint, TextEdit } from '../editor/types';
 
@@ -846,7 +847,13 @@ export const workspace = withFallback('workspace', {
         for (const { doc, replacements } of byUri) {
             if (doc === undefined) continue;
             applied &&= doc.adapter.applyEdits(
-                replacements.map((r): TextEdit => ({ from: doc.offsetAt(r.range.start), to: doc.offsetAt(r.range.end), insert: r.newText, expected: doc.getText(r.range) })),
+                replacements.map((r): TextEdit => {
+                    const from = doc.offsetAt(r.range.start);
+                    const to = doc.offsetAt(r.range.end);
+                    const expectedAt = Math.max(0, from - EDIT_CONTEXT_CHARS);
+                    const expected = doc.getText().slice(expectedAt, to + EDIT_CONTEXT_CHARS);
+                    return { from, to, insert: r.newText, expected, expectedAt };
+                }),
             );
         }
         return Promise.resolve(applied);

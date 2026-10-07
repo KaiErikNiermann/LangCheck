@@ -6,6 +6,7 @@
 //
 // Everything CodeMirror is reached through `kit`, never imported, so the same
 // code runs against our own modules or a host page's (see cm6kit.ts).
+import { editsHold } from './edits';
 import type { Extension, Range as CmRange, StateEffectType, StateField, Text } from '@codemirror/state';
 import type { Decoration as CmDecoration, DecorationSet, EditorView } from '@codemirror/view';
 import { CardController, cardMembers, type Finding } from './card';
@@ -180,9 +181,11 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
             if (!disposed) view.dispatch({ effects: hintsEffect.of(hints) });
         },
         applyEdits: (edits: readonly TextEdit[]) => {
-            if (disposed) return false;
+            // Not after the site swapped in another state (a file switch):
+            // our field is gone with it, and the text is another file's.
+            if (disposed || view.state.field(diagnosticField, false) === undefined) return false;
             const { doc } = view.state;
-            if (edits.some((e) => e.from < 0 || e.to < e.from || e.to > doc.length || doc.sliceString(e.from, e.to) !== e.expected)) return false;
+            if (!editsHold(edits, doc.length, (from, to) => doc.sliceString(from, to))) return false;
             view.dispatch({ changes: edits.map((e) => ({ from: e.from, to: e.to, insert: e.insert })), userEvent: 'input.complete' });
             return true;
         },

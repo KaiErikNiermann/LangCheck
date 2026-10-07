@@ -39,17 +39,22 @@ export interface RenderedHint {
 }
 
 /**
- * Replaces `[from, to)` with `insert`, if that span still holds `expected`:
- * the text the client saw there. An editor's text can change without the
- * client hearing of it in time (a site swapping in another file, a
- * collaborator's edit in flight), and an edit by stale offsets would land
- * on other text; checked here, it is refused instead.
+ * Replaces `[from, to)` with `insert`, if the text from `expectedAt` still
+ * reads `expected`: the span and some context either side of it, as the
+ * client saw them. An editor's text can change without the client hearing
+ * of it in time (a site swapping in another file, a collaborator's edit in
+ * flight), and an edit by stale offsets would land on other text; checked
+ * (editsHold), it is refused instead. The context is what checks an
+ * insertion, whose own span is empty, and what keeps a replacement from
+ * passing on equal text that merely sits at the same offset.
  */
 export interface TextEdit {
     readonly from: number;
     readonly to: number;
     readonly insert: string;
     readonly expected: string;
+    /** Where `expected` starts: at or before `from`, and it runs to `to` or past. */
+    readonly expectedAt: number;
 }
 
 /** Asked by the adapter when the user interacts with the span `[from, to)`. */
