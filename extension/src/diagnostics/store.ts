@@ -10,12 +10,25 @@
 import * as vscode from 'vscode';
 
 import { uriKey, type UriKey } from '../shared/documents';
-import type { ExtendedDiagnostic } from './diagnostic';
+import { diagId, parseDiagId, type DiagId, type ExtendedDiagnostic } from './diagnostic';
+
+/** A finding an action may act on: see {@link DiagnosticStore.resolve}. */
+export interface ResolvedDiagnostic {
+    readonly diagnostic: ExtendedDiagnostic;
+    readonly index: number;
+    /** The whole list it is in, for an optimistic removal. */
+    readonly diagnostics: ExtendedDiagnostic[];
+}
 
 export class DiagnosticStore implements vscode.Disposable, Iterable<[UriKey, ExtendedDiagnostic[]]> {
     private readonly collection = vscode.languages.createDiagnosticCollection('language-check');
     private readonly byUri = new Map<UriKey, ExtendedDiagnostic[]>();
     private readonly listeners: (() => void)[] = [];
+    /** Which list each document has now; bumped on every write, never reused. */
+    private readonly generations = new Map<UriKey, number>();
+    private lastGeneration = 0;
+    /** The document version each document's list was checked at. */
+    private readonly checkedVersions = new Map<UriKey, number>();
 
     has(uri: UriKey): boolean {
         return this.byUri.has(uri);
@@ -35,25 +48,68 @@ export class DiagnosticStore implements vscode.Disposable, Iterable<[UriKey, Ext
      * Callers that change several documents write each and {@link notify}
      * once. `documentUri` is passed rather than parsed from `uri`, because
      * each caller already holds the one it has always drawn with.
+     *
+     * `version`, when given, says the list describes the document at that
+     * version: a list moved over the caller's own edit (rebase.ts). Without
+     * it the list describes whatever the last check did.
      */
-    write(uri: UriKey, documentUri: vscode.Uri, diagnostics: ExtendedDiagnostic[]): void {
+    write(uri: UriKey, documentUri: vscode.Uri, diagnostics: ExtendedDiagnostic[], version?: number): void {
         this.byUri.set(uri, diagnostics);
+        this.generations.set(uri, ++this.lastGeneration);
+        if (version !== undefined) this.checkedVersions.set(uri, version);
         this.collection.set(documentUri, diagnostics);
     }
 
-    /** {@link write} for a finished check, which has always drawn before it records. */
-    publishCheck(documentUri: vscode.Uri, diagnostics: ExtendedDiagnostic[]): void {
+    /**
+     * {@link write} for a finished check of the text at `version`, which has
+     * always drawn before it records. A write leaves the version as it was:
+     * what it removes does not change what the rest describe.
+     */
+    publishCheck(documentUri: vscode.Uri, diagnostics: ExtendedDiagnostic[], version: number): void {
         // The store first, then the collection, as write() does: whatever the
         // collection notifies (a code-action request, the web's card) reads
         // the store and must find the findings it is being told about.
-        this.byUri.set(uriKey(documentUri), diagnostics);
+        const uri = uriKey(documentUri);
+        this.byUri.set(uri, diagnostics);
+        this.generations.set(uri, ++this.lastGeneration);
+        this.checkedVersions.set(uri, version);
         this.collection.set(documentUri, diagnostics);
+    }
+
+    /** Whether `document`'s list was checked at its current text, so its ranges hold the text they were found at. */
+    isCurrent(document: vscode.TextDocument): boolean {
+        return this.checkedVersions.get(uriKey(document.uri)) === document.version;
+    }
+
+    /** The id the finding at `index` of `uri`'s current list goes by. */
+    idOf(uri: UriKey, index: number): DiagId {
+        return diagId(this.generations.get(uri) ?? 0, index);
+    }
+
+    /**
+     * The finding `id` names in `document`, only if it is safe to act on:
+     * the id is from the document's current list, and that list was checked
+     * at the document's current text. Otherwise `undefined`, and the caller
+     * re-checks rather than edit or ignore by a range that no longer holds
+     * the text it was found at (two fixes in a row on one line, or an edit
+     * typed since the check).
+     */
+    resolve(id: string, document: vscode.TextDocument): ResolvedDiagnostic | undefined {
+        const uri = uriKey(document.uri);
+        const parsed = parseDiagId(id);
+        const diagnostics = this.byUri.get(uri);
+        if (parsed === undefined || diagnostics === undefined) return undefined;
+        if (parsed.generation !== this.generations.get(uri) || !this.isCurrent(document)) return undefined;
+        const diagnostic = diagnostics[parsed.index];
+        return diagnostic === undefined ? undefined : { diagnostic, index: parsed.index, diagnostics };
     }
 
     /** Drop everything, silently: used before a full re-check that will publish afresh. */
     clear(): void {
         this.collection.clear();
         this.byUri.clear();
+        this.generations.clear();
+        this.checkedVersions.clear();
     }
 
     /**

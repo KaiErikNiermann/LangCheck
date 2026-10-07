@@ -14,7 +14,7 @@
 import type { Expect, FrameLocator, Locator } from '@playwright/test';
 
 /** The fixture documents, by file name in fixtures/uiSpeedFix. */
-export type SpeedFixFixture = 'apply.md' | 'dictionary.md' | 'ignore.md' | 'markup.md' | 'several.md';
+export type SpeedFixFixture = 'apply.md' | 'dictionary.md' | 'ignore.md' | 'markup.md' | 'rapid.md' | 'several.md';
 
 export interface SpeedFixDriver {
     /** Open `fixture`, wait for its findings, open SpeedFix and give it the keyboard. */
@@ -36,6 +36,8 @@ export interface SpeedFixScenario {
 
 /** Long enough for a refresh's check to have come back. */
 const RECHECK_SETTLE_MS = 3_000;
+/** How often a refused key is pressed again before the test gives up. */
+const MAX_RETRIES = 5;
 
 export const SPEEDFIX_SCENARIOS: readonly SpeedFixScenario[] = [
     {
@@ -119,6 +121,36 @@ export const SPEEDFIX_SCENARIOS: readonly SpeedFixScenario[] = [
             await expect(word).toHaveText(first ?? '');
             await driver.press('l');
             await expect(word).toHaveText(second ?? '');
+        },
+    },
+    {
+        // The first fix changes the line's length, so the second finding's
+        // range moves; the second key comes before any re-check could.
+        name: 'two fixes in quick succession on one line both land where they belong',
+        async run(driver, expect) {
+            const panel = await driver.open('rapid.md');
+            await expect(panel.locator('.error-text')).toHaveText('alot');
+            await expect(panel.locator('.action .action-title').first()).toHaveText('a lot');
+            // Back to back: the second key may come before the findings are
+            // re-checked, when the second finding's range is out of date. It
+            // is then refused (and the panel refreshed), or it lands after
+            // the re-check; it never edits by the old range.
+            await driver.press('1');
+            await driver.press('1');
+            // Whitespace collapsed: VS Code's narrow editor wraps the line.
+            const text = async (): Promise<string> => (await driver.editorText()).replaceAll(/\s+/gu, ' ');
+            await expect.poll(text).toMatch(/We go a lot and rec(?:ie|ei)ve it\./u);
+            // A refused key changes nothing; pressed again once the panel
+            // shows the finding afresh, it lands. Bounded, so a key that is
+            // never honoured fails the test.
+            for (let attempt = 0; attempt < MAX_RETRIES && (await text()).includes('recieve'); attempt++) {
+                await expect(panel.locator('.error-text')).toHaveText('recieve');
+                await driver.press('1');
+                await expect.poll(text, { timeout: RECHECK_SETTLE_MS }).toMatch(/We go a lot and rec(?:ie|ei)ve it\./u);
+                await new Promise((resolve) => setTimeout(resolve, 300));
+            }
+            await expect.poll(text).toContain('We go a lot and receive it.');
+            await expect(panel.locator('.all-done-text')).toBeVisible();
         },
     },
     {

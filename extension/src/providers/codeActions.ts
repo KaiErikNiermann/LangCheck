@@ -8,7 +8,6 @@ import { supportedLanguageSelector } from '../checking/languages';
 import { COMMANDS, commandLink } from '../commands/ids';
 import {
     addSuggestionEdit,
-    diagId,
     getDiagnosticWord,
     insertedText,
     isSpellingOf,
@@ -97,7 +96,7 @@ export function registerCodeActions(subscriptions: vscode.Disposable[], deps: Co
                         'Ignore this issue',
                         vscode.CodeActionKind.QuickFix
                     );
-                    ignoreAction.command = commandLink(COMMANDS.ignoreDiagnostic, 'Ignore', diagId(diagIndex));
+                    ignoreAction.command = commandLink(COMMANDS.ignoreDiagnostic, 'Ignore', store.idOf(uriKey(document.uri), diagIndex));
                     ignoreAction.diagnostics = [diag];
                     singleChoice.push(ignoreAction);
 

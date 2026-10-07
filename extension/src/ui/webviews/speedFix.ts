@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 
 import { COMMANDS, executeCommand } from '../../commands/ids';
 import { getSetting } from '../../config/settings';
-import { diagId, parseDiagId, ruleIdOf, type ExtendedDiagnostic, type DiagId } from '../../diagnostics/diagnostic';
+import { ruleIdOf, type ExtendedDiagnostic, type DiagId } from '../../diagnostics/diagnostic';
 import type { FixTarget } from '../../diagnostics/fixTarget';
 import type { DiagnosticStore } from '../../diagnostics/store';
 import { displayOriginalText, speedFixSuggestionLabel } from '../../shared/inlayLabels';
@@ -48,14 +48,14 @@ export interface SpeedFixDeps {
  *  display labels so all formatting lives in `inlayLabels`. */
 function toSpeedFixDiagnostic(
     d: ExtendedDiagnostic,
-    index: number,
+    id: DiagId,
     document: vscode.TextDocument,
     fileName: string,
 ): SpeedFixDiagnostic {
     const text = document.getText(d.range);
     const suggestions = d.suggestions || [];
     return {
-        id: diagId(index),
+        id,
         message: d.message,
         suggestions,
         suggestionLabels: suggestions.map(s => speedFixSuggestionLabel(text, s)),
@@ -127,10 +127,8 @@ export class SpeedFixPanel {
                 case 'goToLocation': {
                     const editor = this.deps.fixTarget.findEditor();
                     if (!editor) break;
-                    const diagnostics = this.deps.store.get(uriKey(editor.document.uri));
-                    if (!diagnostics) break;
-                    const idx = parseDiagId(message.payload.diagnosticId);
-                    const diag = diagnostics[idx];
+                    // Only a finding still where it was found: an older range selects other text.
+                    const diag = this.deps.store.resolve(message.payload.diagnosticId, editor.document)?.diagnostic;
                     if (diag) {
                         editor.selection = new vscode.Selection(diag.range.start, diag.range.end);
                         editor.revealRange(diag.range, vscode.TextEditorRevealType.InCenter);
@@ -186,7 +184,7 @@ export class SpeedFixPanel {
                 this.deps.fixTarget.uri = uriKey(editor.document.uri);
                 const fileName = path.basename(editor.document.uri.fsPath);
                 const payload: SpeedFixDiagnostic[] = diagnostics.map((d, i) =>
-                    toSpeedFixDiagnostic(d, i, editor.document, fileName));
+                    toSpeedFixDiagnostic(d, this.deps.store.idOf(uriKey(editor.document.uri), i), editor.document, fileName));
                 this.panel.webview.postMessage({ type: 'setDiagnostics', payload });
                 this.sendWorkspaceProgress();
                 return;
@@ -216,7 +214,7 @@ export class SpeedFixPanel {
 
             const fileName = path.basename(doc.uri.fsPath);
             const payload: SpeedFixDiagnostic[] = diags.map((d, i) =>
-                toSpeedFixDiagnostic(d, i, doc, fileName));
+                toSpeedFixDiagnostic(d, this.deps.store.idOf(uriKey(doc.uri), i), doc, fileName));
             this.panel?.webview.postMessage({ type: 'setDiagnostics', payload });
             this.sendWorkspaceProgress();
             this.panel?.reveal(vscode.ViewColumn.Beside, false);

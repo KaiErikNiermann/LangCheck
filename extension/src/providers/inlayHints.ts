@@ -7,7 +7,6 @@ import * as vscode from 'vscode';
 import { supportedLanguageSelector } from '../checking/languages';
 import { COMMANDS, commandLink } from '../commands/ids';
 import type { WorkspaceConfigState } from '../config/state';
-import { diagId } from '../diagnostics/diagnostic';
 import type { DiagnosticStore } from '../diagnostics/store';
 import { formatSuggestionLabel } from '../shared/inlayLabels';
 import type { Logger } from '../shared/logger';
@@ -100,7 +99,7 @@ export function registerInlayHints(subscriptions: vscode.Disposable[], deps: Inl
                         [
                             {
                                 value: label,
-                                command: commandLink(COMMANDS.applyFix, 'Apply Fix', diagId(first.idx), first.fmt.applyValue)
+                                command: commandLink(COMMANDS.applyFix, 'Apply Fix', store.idOf(uriKey(document.uri), first.idx), first.fmt.applyValue)
                             }
                         ],
                         vscode.InlayHintKind.Type

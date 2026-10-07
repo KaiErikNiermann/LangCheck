@@ -224,7 +224,7 @@ export class Checker {
 
                 const t3 = performance.now();
                 results.servedFromCache = response.checkProse.servedFromCache === true;
-                store.publishCheck(document.uri, extendedDiagnostics);
+                store.publishCheck(document.uri, extendedDiagnostics, version);
                 store.notify();
                 timings.push({ name: 'Update UI', durationMs: performance.now() - t3 });
 

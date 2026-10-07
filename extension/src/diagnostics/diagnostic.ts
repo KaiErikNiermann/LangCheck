@@ -68,8 +68,15 @@ export function isSpellingOf(document: vscode.TextDocument, diagnostic: vscode.D
 declare const diagIdBrand: unique symbol;
 
 /**
- * The id a hint, a code action or a webview uses for one diagnostic: its
- * position in the document's list, as `diag-N`.
+ * The id a hint, a code action or a webview uses for one diagnostic: which
+ * of the document's lists it came from (the store's generation) and its
+ * position in that list, as `diag-G-N`.
+ *
+ * The generation is what makes an id safe to act on later: a list is
+ * replaced on every check and every optimistic removal, and position N of
+ * the new list is a different finding. An id from an older list resolves to
+ * nothing (DiagnosticStore.resolve) instead of to whatever moved into its
+ * place.
  *
  * Only {@link diagId} makes one. Every id the extension receives back (a
  * command argument, a webview message) is one it handed out, and typing it so
@@ -78,14 +85,15 @@ declare const diagIdBrand: unique symbol;
  */
 export type DiagId = string & { readonly [diagIdBrand]: true };
 
-/** The id for the diagnostic at `index`. */
-export function diagId(index: number): DiagId {
-    return `diag-${index}` as DiagId;
+/** The id for the diagnostic at `index` of the list of `generation`. */
+export function diagId(generation: number, index: number): DiagId {
+    return `diag-${generation}-${index}` as DiagId;
 }
 
-/** The index back out of a {@link diagId}. `NaN` for anything else, as `parseInt` gives. */
-export function parseDiagId(id: DiagId): number {
-    return parseInt(id.replace('diag-', ''));
+/** The generation and index back out of a {@link diagId}, or `undefined` for anything else. */
+export function parseDiagId(id: string): { readonly generation: number; readonly index: number } | undefined {
+    const match = /^diag-(\d{1,15})-(\d{1,15})$/u.exec(id);
+    return match === null ? undefined : { generation: Number(match[1]), index: Number(match[2]) };
 }
 
 /**

@@ -57,6 +57,13 @@ export function diagnosticsCommands(app: DiagnosticsCommandDeps) {
             const uri = uriKey(document.uri);
             const diagnostics = store.get(uri);
             if (!diagnostics || diagnostics.length === 0) return;
+            // Fingerprints are taken at each finding's range: after an edit
+            // they would describe other text. Re-check, and ask again then.
+            if (!store.isCurrent(document)) {
+                inspectorLog.push('info', 'ignoreSelection', 'The findings are out of date: re-checking instead');
+                void checker.check(document);
+                return;
+            }
 
             const start = startOffset ?? document.offsetAt(editor.selection.start);
             const end = endOffset ?? document.offsetAt(editor.selection.end);

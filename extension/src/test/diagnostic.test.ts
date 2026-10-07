@@ -65,16 +65,19 @@ describe('isSpellingOf', () => {
 });
 
 describe('diag ids', () => {
-    it('round-trip', () => {
-        expect(diagId(7)).toBe('diag-7');
-        expect(parseDiagId(diagId(7))).toBe(7);
+    it('round-trip, generation and index', () => {
+        expect(diagId(3, 7)).toBe('diag-3-7');
+        expect(parseDiagId(diagId(3, 7))).toEqual({ generation: 3, index: 7 });
     });
 
-    it('parse anything else as NaN, the way parseInt does', () => {
-        // The type rules this out, but a webview message is JSON and could
-        // still carry anything, so the runtime answer stays pinned.
-        expect(parseDiagId('nonsense' as DiagId)).toBeNaN();
-    });
+    it.each(['nonsense', 'diag-7', 'diag--1-2', 'diag-1-2-3', 'diag-1-2x', ' diag-1-2', 'diag-1-1e3', `diag-1-${'9'.repeat(16)}`])(
+        'parse %j as nothing',
+        (id) => {
+            // The type rules these out, but a webview message is JSON and
+            // could still carry anything.
+            expect(parseDiagId(id as DiagId)).toBeUndefined();
+        },
+    );
 });
 
 describe('insertedText', () => {

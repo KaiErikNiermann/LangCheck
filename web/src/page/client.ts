@@ -97,8 +97,6 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
     const fixTarget = new FixTarget(store);
     const debouncer = new Debouncer();
     const hintsChanged = new vscode.EventEmitter<void>();
-    /** The document version each document's findings were computed at. */
-    const checkedAt = new Map<string, number>();
 
     const core = new WebCore(connection, {
         unavailable: (reason) => {
@@ -148,7 +146,6 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         observer: {
             checkRecorded: (document, timings) => {
                 completed++;
-                checkedAt.set(uriKey(document.uri), document.version);
                 hintsChanged.fire();
                 inspector.checkRecorded(document, timings);
             },
@@ -196,15 +193,14 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         }),
         vscode.workspace.onDidCloseTextDocument((doc) => {
             debouncer.cancel(uriKey(doc.uri));
-            checkedAt.delete(uriKey(doc.uri));
-            store.publishCheck(doc.uri, []);
+            store.publishCheck(doc.uri, [], doc.version);
         }),
         // The top suggestion as ghost text after each finding, as in VS Code;
         // only while the findings still describe the text.
         vscode.languages.registerInlayHintsProvider(SELECTOR, {
             onDidChangeInlayHints: hintsChanged.event,
             provideInlayHints(doc) {
-                if (checkedAt.get(uriKey(doc.uri)) !== doc.version) return [];
+                if (!store.isCurrent(doc)) return [];
                 return (store.get(uriKey(doc.uri)) ?? []).flatMap((d) => {
                     const label = formatSuggestionLabel(doc.getText(d.range), d.suggestions?.[0]);
                     return label === null ? [] : [new vscode.InlayHint(d.range.end, label.label.trim())];
