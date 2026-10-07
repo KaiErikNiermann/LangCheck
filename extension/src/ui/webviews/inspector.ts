@@ -2,28 +2,27 @@
  * The Inspector: a panel showing what the core extracted from a document, how
  * long each stage took, and how the engines are doing.
  */
-import * as path from 'path';
 import * as vscode from 'vscode';
 
 import type { CheckResults } from '../../checking/results';
 import { COMMANDS, executeCommand } from '../../commands/ids';
-import { hasDockerCompose } from '../../core/languagetool';
 import { ruleIdOf } from '../../diagnostics/diagnostic';
 import type { FixTarget } from '../../diagnostics/fixTarget';
 import type { DiagnosticStore } from '../../diagnostics/store';
 import { byteToCharConverter } from '../../checking/offsets';
 import { GITHUB_REPO } from '../../shared/links';
 import type { InspectorLog } from '../inspectorLog';
-import { detectEngineInfo } from '../../core/engineInfo';
 import { createBesidePanel, webviewHtml } from './html';
 import type { languagecheck } from '../../proto/checker';
 import type {
     ExtensionToInspectorMessage,
     InspectorConfigScope,
     InspectorDiagnosticSummary,
+    InspectorEngineInfo,
     InspectorToExtensionMessage,
 } from './protocol';
 import { uriKey, type UriKey } from '../../shared/documents';
+import { basename } from '../../shared/paths';
 
 export interface InspectorDeps {
     readonly context: vscode.ExtensionContext;
@@ -33,6 +32,19 @@ export interface InspectorDeps {
     readonly inspectorLog: InspectorLog;
     readonly check: (document: vscode.TextDocument) => Promise<number>;
     readonly listConfigFiles: () => Promise<languagecheck.IListConfigFilesResponse | null>;
+    readonly environment: InspectorEnvironment;
+}
+
+/**
+ * What the Inspector reports about the machine, which only the host it runs
+ * in can find out: VS Code probes the shell and the filesystem, the web
+ * extension cannot.
+ */
+export interface InspectorEnvironment {
+    /** Whether LanguageTool runs from a Docker Compose setup that can be restarted. */
+    hasDockerCompose(): boolean;
+    /** Which engines are enabled and whether their binaries are present. */
+    detectEngineInfo(): Promise<InspectorEngineInfo[]>;
 }
 
 /** How long a burst of file creations and deletions settles before the scope is re-listed. */
@@ -99,7 +111,7 @@ export class InspectorPanel {
                     }
                     await this.update();
                     await this.refreshConfigScope();
-                    this.post({ type: 'setDockerAvailable', payload: hasDockerCompose() });
+                    this.post({ type: 'setDockerAvailable', payload: this.deps.environment.hasDockerCompose() });
                     const extVersion = (this.deps.context.extension.packageJSON as { version?: string }).version ?? 'unknown';
                     this.post({ type: 'setExtensionVersion', payload: extVersion });
                     break;
@@ -225,7 +237,7 @@ export class InspectorPanel {
             type: 'setExtraction',
             payload: {
                 prose: cached?.prose ?? [],
-                fileName: path.basename(document.uri.fsPath),
+                fileName: basename(document.uri.fsPath),
                 languageId: cached?.languageId ?? document.languageId,
                 syntax: cached?.syntax ?? '',
                 maxRangeBytes: cached?.maxRangeBytes ?? 0,
@@ -287,7 +299,7 @@ export class InspectorPanel {
         }
 
         // Send engine info (binary detection, config paths)
-        const engineInfo = await detectEngineInfo();
+        const engineInfo = await this.deps.environment.detectEngineInfo();
         this.post({ type: 'setEngineInfo', payload: engineInfo });
     }
 

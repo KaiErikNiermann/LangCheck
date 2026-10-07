@@ -19,8 +19,19 @@ import type { DiagnosticStore } from '../diagnostics/store';
 import { findOpenDocument, uriKey } from '../shared/documents';
 import { engines as enginesBehind, spanned } from '../shared/ignoreSpan';
 
-export function registerCodeActions(subscriptions: vscode.Disposable[], deps: { readonly store: DiagnosticStore }): void {
+export interface CodeActionDeps {
+    readonly store: DiagnosticStore;
+    /**
+     * Whether an action that runs `command` may be offered. VS Code registers
+     * every command, so it offers all of them; the web extension offers only
+     * the ones it has (no config file to deactivate a rule in, say).
+     */
+    readonly offers?: (command: string) => boolean;
+}
+
+export function registerCodeActions(subscriptions: vscode.Disposable[], deps: CodeActionDeps): void {
     const { store } = deps;
+    const offers = deps.offers ?? (() => true);
 
     // Register Code Action Provider (quickfix lightbulb)
     subscriptions.push(vscode.languages.registerCodeActionsProvider(
@@ -196,7 +207,7 @@ export function registerCodeActions(subscriptions: vscode.Disposable[], deps: { 
                     actions.push(silenceAll);
                 }
 
-                return actions;
+                return actions.filter(action => action.command === undefined || offers(action.command.command));
             }
         },
         { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }

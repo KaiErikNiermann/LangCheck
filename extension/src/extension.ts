@@ -23,6 +23,7 @@ import { getSetting } from './config/settings';
 import { bootstrapCore } from './core/binary';
 import { CoreService } from './core/coreService';
 import { Packs } from './core/packs';
+import { detectEngineInfo } from './core/engineInfo';
 import { hasDockerCompose } from './core/languagetool';
 import { DiagnosticActions } from './diagnostics/actions';
 import { registerCodeActions } from './providers/codeActions';
@@ -65,6 +66,7 @@ export async function activate(context: vscode.ExtensionContext) {
         context, store, results, fixTarget, inspectorLog,
         check: document => checker.check(document),
         listConfigFiles: () => core.listConfigFiles(),
+        environment: { hasDockerCompose, detectEngineInfo },
     });
     log.info('Language Check extension activated', { mode: isDev ? 'dev' : 'prod' });
     registerOnboarding(context);
