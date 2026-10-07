@@ -26,6 +26,8 @@ describe('parsePageRequest', () => {
         ['initialize (the background does that)', req({ initialize: { workspaceRoot: '/home' } })],
         ['an unknown language', req({ checkProse: { text: '', languageId: 'rust' } })],
         ['text too long', req({ checkProse: { text: 'a'.repeat(MAX_CHECK_TEXT_CHARS + 1), languageId: 'latex' } })],
+        ['text past the host\'s byte cap (wide characters)', req({ checkProse: { text: 'é€'.repeat(MAX_CHECK_TEXT_BYTES / 4), languageId: 'latex' } })],
+        ['an ignore whose text is past the byte cap', req({ ignore: { message: 'm', context: 'c', text: 'é€'.repeat(MAX_CHECK_TEXT_BYTES / 4), startByte: 0, endByte: 1 } })],
         ['an empty word', req({ addDictionaryWord: { word: '' } })],
         ['a word too long', req({ addDictionaryWord: { word: 'a'.repeat(MAX_WORD_CHARS + 1) } })],
         ['a word with a space', req({ addDictionaryWord: { word: 'two words' } })],

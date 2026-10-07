@@ -108,7 +108,9 @@ function parseCoreRequest(kind: string | undefined, body: unknown): CoreRequest 
     if (!isBag(body)) return undefined;
     switch (kind) {
         case 'checkProse':
-            return isText(body.text, MAX_CHECK_TEXT_CHARS) && isLanguage(body.languageId)
+            // Bytes too, not only characters: past the host's cap, the frame
+            // would end the native connection every tab on the workspace shares.
+            return typeof body.text === 'string' && withinCheckLimits(body.text) && isLanguage(body.languageId)
                 ? { checkProse: { text: body.text, languageId: body.languageId } }
                 : undefined;
         case 'addDictionaryWord':
@@ -117,7 +119,7 @@ function parseCoreRequest(kind: string | undefined, body: unknown): CoreRequest 
                 : undefined;
         case 'ignore': {
             const { message, context, text, startByte, endByte } = body;
-            return isText(message, 10_000) && isText(context, 10_000) && isText(text, MAX_CHECK_TEXT_CHARS) && isByte(startByte) && isByte(endByte) && startByte <= endByte
+            return typeof text === 'string' && isByte(startByte) && isByte(endByte) && startByte <= endByte && isText(message, 10_000) && isText(context, 10_000) && withinCheckLimits(text)
                 ? { ignore: { message, context, text, startByte, endByte } }
                 : undefined;
         }
