@@ -36,7 +36,7 @@ import { Logger } from './shared/logger';
 import { TraceLogger } from './shared/trace';
 import { registerOnboarding, warnAboutOtherCopies } from './ui/onboarding';
 import { InspectorPanel } from './ui/webviews/inspector';
-import { SpeedFixPanel } from './ui/webviews/speedFix';
+import { SpeedFixPanel, speedFixActions } from './ui/webviews/speedFix';
 
 /** What deactivate() has to stop: set once activation has built it. */
 let deactivateHooks: { core: CoreService; triggers: CheckTriggers } | undefined;
@@ -53,11 +53,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // run once activation has built everything they name.
     const speedFix: SpeedFixPanel = new SpeedFixPanel({
         context, store, fixTarget,
-        actions: {
-            applyFix: (diagnosticId, suggestion) => actions.applyFix(diagnosticId, suggestion),
-            ignore: diagnosticId => actions.ignore(diagnosticId),
-            check: document => checker.check(document),
-        },
+        actions: speedFixActions(() => actions, () => checker),
     });
     // What every diagnostics change refreshes, in this order.
     store.onChange(() => inlayHintEmitter.fire());

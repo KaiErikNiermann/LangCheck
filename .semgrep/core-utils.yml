@@ -620,3 +620,26 @@ rules:
       - pattern: document.execCommand(...)
       - pattern-not-inside: |
           function applyEdit(...) { ... }
+
+  - id: speedfix-actions-through-helper
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      Build SpeedFix's button actions with `speedFixActions(() => actions, () => checker)`
+      (extension/src/ui/webviews/speedFix.ts). Both hosts of the panel -- the VS Code extension
+      and the browser extension's page client -- wrote the same three forwarding closures by
+      hand; one place keeps them from drifting (one host's button doing what the other's does
+      not). Matched 1 site on the pre-refactor revision (extension.ts), plus the web client
+      written against it.
+    paths:
+      include:
+        - "**/extension/src/"
+        - "**/web/src/"
+    patterns:
+      - pattern: |
+          new SpeedFixPanel({..., actions: $ACTIONS, ...})
+      # An object literal written in place (semgrep's object patterns miss
+      # these closures, so the literal is matched by its text).
+      - metavariable-regex:
+          metavariable: $ACTIONS
+          regex: ^\{[\s\S]*\bapplyFix\b

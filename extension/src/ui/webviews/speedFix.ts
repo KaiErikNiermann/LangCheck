@@ -21,6 +21,22 @@ export interface SpeedFixActions {
     check(document: vscode.TextDocument): Promise<number>;
 }
 
+/**
+ * SpeedFix's buttons, wired to the diagnostic actions and the checker. Taken
+ * as getters: those are built after the panel (they report to it), so they
+ * are looked up when a button is pressed, not when the panel is made.
+ */
+export function speedFixActions(
+    actions: () => Pick<SpeedFixActions, 'applyFix' | 'ignore'>,
+    checker: () => Pick<SpeedFixActions, 'check'>,
+): SpeedFixActions {
+    return {
+        applyFix: (diagnosticId, suggestion) => actions().applyFix(diagnosticId, suggestion),
+        ignore: diagnosticId => actions().ignore(diagnosticId),
+        check: document => checker().check(document),
+    };
+}
+
 export interface SpeedFixDeps {
     readonly context: vscode.ExtensionContext;
     readonly store: DiagnosticStore;
