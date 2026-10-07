@@ -106,6 +106,29 @@ rules:
       - pattern: Config::load(...).unwrap_or(Config::default())
       - pattern: Config::load(...).ok()
 
+  - id: server-lock-order
+    languages: [rust]
+    severity: ERROR
+    message: >-
+      The server's mutexes are taken in one order (LOCK ORDER at the top of
+      language-check-server.rs): config before schema_registry, dictionary before ignore_store.
+      Requests run in concurrent tasks; two that take a pair in opposite orders deadlock, and
+      every later request waits behind them. Two checks did exactly that (the fingerprint against
+      the suppression pass), and the server answered nothing again. Matched the 4 inverted
+      sites on b8a105e^.
+    paths:
+      include:
+        - "**/rust-core/src/bin/language-check-server.rs"
+    pattern-either:
+      - pattern: |
+          let $A = ignore_store_arc.lock().await;
+          ...
+          let $B = dictionary_arc.lock().await;
+      - pattern: |
+          let $A = schema_registry_arc.lock().await;
+          ...
+          let $B = config_arc.lock().await;
+
   # DELIBERATELY ABSENT: a rule banning `.unwrap()` outside tests.
   #
   # The obvious convention rule, and it does not earn its place here. Non-test `.unwrap()` scores 6,
