@@ -11,6 +11,7 @@ mod shared;
 mod sweave;
 mod tinylang;
 mod typst;
+pub mod window;
 
 use anyhow::{Result, anyhow};
 use std::borrow::Cow;
