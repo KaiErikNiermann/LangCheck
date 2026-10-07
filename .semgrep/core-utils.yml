@@ -643,3 +643,23 @@ rules:
       - metavariable-regex:
           metavariable: $ACTIONS
           regex: ^\{[\s\S]*\bapplyFix\b
+
+  - id: findings-through-store-resolve
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      Look a finding up by its id with `store.resolve(id, document)` (extension/src/diagnostics/
+      store.ts), never by parsing the id and indexing a list. An id is only safe to act on while
+      the list it came from is the store's current one and that list describes the document's
+      current text; indexing skipped both checks, and SpeedFix garbled a document that way (two
+      fixes in a row on one line). Matched 3 sites on the pre-fix revision (actions.ts applyFix
+      and ignore, speedFix.ts goToLocation).
+    paths:
+      include:
+        - "**/extension/src/"
+        - "**/web/src/"
+      exclude:
+        - "**/extension/src/diagnostics/store.ts"
+        - "**/extension/src/diagnostics/diagnostic.ts"
+        - "**/extension/src/test/"
+    pattern: parseDiagId(...)
