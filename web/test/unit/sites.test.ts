@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { notionWorkspaceFromPath } from '../../src/sites/notion';
 import { workspaceForUrl } from '../../src/sites/registry';
 import { languageFromName, projectFromProjectPath, workspaceKey } from '../../src/sites/site';
 
@@ -41,4 +42,23 @@ describe('workspaceForUrl (what the background trusts)', () => {
         'http://127.0.0.1/project/abc',
         'http://localhost/project/abc',
     ])('%s is no workspace', (url) => expect(workspaceForUrl(url)).toBeUndefined());
+});
+
+describe('notionWorkspaceFromPath', () => {
+    test.each([
+        ['/p/applesauce-notes/tests-3f2b8b37e541802f96a1c557a6b01a44', 'applesauce-notes'],
+        ['/applesauce-notes/Misc-aa24b3e9dafd4deb8617a6a09693570f', 'applesauce-notes'],
+        ['/3f2b8b37e541802f96a1c557a6b01a44', 'default'],
+    ])('%s is workspace %s', (path, workspace) => expect(notionWorkspaceFromPath(path)).toBe(workspace));
+
+    test('a /p/<workspace> URL names the segment after p', () => expect(notionWorkspaceFromPath('/p/x')).toBe('x'));
+
+    test.each(['/', '/p', '/login', '/p/../x/y', '/p/a b/c'])('%s is no workspace', (path) => expect(notionWorkspaceFromPath(path)).toBeUndefined());
+
+    test('the background accepts Notion origins and nothing that only resembles them', () => {
+        expect(workspaceForUrl('https://app.notion.com/p/applesauce-notes/tests-3f2b8b37e541802f96a1c557a6b01a44')).toBe('notion-applesauce-notes');
+        expect(workspaceForUrl('https://www.notion.so/team/Page-3f2b8b37e541802f96a1c557a6b01a44')).toBe('notion-team');
+        expect(workspaceForUrl('https://notion.so.evil.example/team/Page-3f2b8b37e541802f96a1c557a6b01a44')).toBeUndefined();
+        expect(workspaceForUrl('http://127.0.0.2/p/test-workspace/tests-3f2b8b37e541802f96a1c557a6b01a44')).toBeUndefined();
+    });
 });

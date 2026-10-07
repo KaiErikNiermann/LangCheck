@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import { activate } from '../feature/checkFeature';
 import { connectCore } from '../messaging/pageClient';
 import { LANGUAGE_IDS, type LanguageId } from '../messaging/protocol';
-import { projectFromProjectPath, type SitePage } from '../sites/site';
+import type { SitePage, SiteWorkspace } from '../sites/site';
 import { Bridge } from './bridge';
 
 interface Running {
@@ -21,8 +21,8 @@ declare global {
     var __languageCheck: Running | undefined;
 }
 
-export function startPage(site: SitePage): void {
-    const project = projectFromProjectPath(location.pathname);
+export function startPage(site: SitePage, workspace: SiteWorkspace): void {
+    const project = workspace.projectFromPath(location.pathname);
     if (project === undefined) return;
     globalThis.__languageCheck?.stop();
 
