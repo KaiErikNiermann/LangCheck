@@ -18,6 +18,14 @@ import { base64ToBytes, bytesToBase64 } from './base64';
 export const HOST_NAME = 'language_check';
 
 export const REQUEST_TIMEOUT_MS = 60_000;
+/**
+ * Timeouts in a row, with no answer between them, after which the host is
+ * taken to be wedged (alive, but no longer answering) and its connection is
+ * dropped: the browser then ends the host, which ends its server, and the
+ * next request starts both afresh. Without this every check waited out its
+ * whole timeout for as long as the tab stayed open.
+ */
+export const MAX_TIMEOUTS_IN_A_ROW = 2;
 const MAX_PENDING = 32;
 /** A response this large (base64 characters, all frames) is not a real one. */
 const MAX_RESPONSE_CHARS = 64 * 1024 * 1024;
@@ -76,6 +84,8 @@ export class CoreConnection {
     private retryAt = 0;
     private lastError = '';
     private answeredSinceConnect = false;
+    /** Timeouts since the last answer (see MAX_TIMEOUTS_IN_A_ROW). */
+    private timeoutsInARow = 0;
     lastUsed: number;
 
     constructor(
@@ -149,6 +159,8 @@ export class CoreConnection {
             const timer = this.clock.setTimeout(() => {
                 this.pending.delete(id);
                 resolve({ failure: 'timeout', message: `the core did not answer within ${REQUEST_TIMEOUT_MS / 1000}s` });
+                this.timeoutsInARow++;
+                if (this.timeoutsInARow >= MAX_TIMEOUTS_IN_A_ROW && this.port === port) this.drop(port, 'the core stopped answering');
             }, REQUEST_TIMEOUT_MS);
             this.pending.set(id, { resolve, timer });
             try {
@@ -192,6 +204,7 @@ export class CoreConnection {
         this.clock.clearTimeout(entry.timer);
         this.answeredSinceConnect = true;
         this.failures = 0;
+        this.timeoutsInARow = 0;
         entry.resolve(response);
     }
 
@@ -203,6 +216,7 @@ export class CoreConnection {
 
     private onDisconnected(reason: string): void {
         this.port = undefined;
+        this.timeoutsInARow = 0;
         this.initialized = undefined;
         this.frames = [];
         this.frameChars = 0;

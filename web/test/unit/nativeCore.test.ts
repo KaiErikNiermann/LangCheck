@@ -1,9 +1,9 @@
 // CoreConnection against a fake native host that speaks the real wire format
 // (base64 protobuf in JSON frames), with a fake clock for timeouts and backoff.
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { languagecheck } from '../../../extension/src/proto/checker';
 import { base64ToBytes, bytesToBase64 } from '../../src/background/base64';
-import { CoreConnection, CoreManager, IDLE_CLOSE_MS, MAX_CONNECTIONS, REQUEST_TIMEOUT_MS, type Clock, type NativePort } from '../../src/background/nativeCore';
+import { CoreConnection, CoreManager, IDLE_CLOSE_MS, MAX_CONNECTIONS, MAX_TIMEOUTS_IN_A_ROW, REQUEST_TIMEOUT_MS, type Clock, type NativePort } from '../../src/background/nativeCore';
 
 class FakeClock implements Clock {
     time = 0;
@@ -26,7 +26,7 @@ class FakeClock implements Clock {
     }
 }
 
-type Behaviour = 'answer' | 'silent' | 'crash-on-start' | 'split';
+type Behaviour = 'answer' | 'silent' | 'crash-on-start' | 'split' | 'wedged-after-init';
 
 /** A host that answers like language-check-native-host, or misbehaves on purpose. */
 class FakeHost implements NativePort {
@@ -48,7 +48,8 @@ class FakeHost implements NativePort {
     postMessage(message: unknown): void {
         const request = languagecheck.Request.decode(base64ToBytes((message as { frame: string }).frame));
         this.received.push(request);
-        if (this.behaviour !== 'answer' && this.behaviour !== 'split') return;
+        const answers = this.behaviour === 'answer' || this.behaviour === 'split' || (this.behaviour === 'wedged-after-init' && request.initialize);
+        if (!answers) return;
         const response = languagecheck.Response.create({ id: request.id });
         if (request.initialize) response.initialize = {};
         else if (request.checkProse) {
@@ -114,6 +115,19 @@ describe('CoreConnection', () => {
         await Promise.resolve();
         clock.advance(REQUEST_TIMEOUT_MS);
         expect(await pending).toMatchObject({ ok: false, code: 'timeout' });
+    });
+
+    test('a host that stops answering is dropped after timeouts in a row, and the next request starts a fresh one', async () => {
+        const { clock, hosts, connection } = setup('wedged-after-init', 'answer');
+        for (let i = 0; i < MAX_TIMEOUTS_IN_A_ROW; i++) {
+            const pending = connection.request({ ...check, id: 10 + i });
+            await vi.waitFor(() => { expect(hosts[0]!.received.some((r) => r.checkProse)).toBe(true); });
+            clock.advance(REQUEST_TIMEOUT_MS);
+            expect(await pending).toMatchObject({ ok: false, code: 'timeout' });
+        }
+        expect(hosts[0]!.disconnected).toBe(true);
+        expect(await connection.request(check)).toMatchObject({ ok: true });
+        expect(hosts).toHaveLength(2);
     });
 
     test('a missing host fails fast, then is not respawned until the backoff passes', async () => {
