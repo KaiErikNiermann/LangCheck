@@ -138,17 +138,19 @@ pub fn admit(mut req: Request, web_root: &Path) -> Result<Request, String> {
             }
             check.file_path = None;
         }
+        // ReadConfig and ListConfigFiles are the config page's. The extension
+        // sends those, writes and probes only for its own config page, never
+        // for a web page (a probe fetches URLs and looks at files, the text
+        // may hold an API key); here they are held to the workspace and a
+        // size, and their answers are scrubbed of paths on the way out
+        // (`scrub`).
         Some(
             request::Payload::AddDictionaryWord(_)
             | request::Payload::Ignore(_)
-            | request::Payload::GetMetadata(_),
+            | request::Payload::GetMetadata(_)
+            | request::Payload::ReadConfig(_)
+            | request::Payload::ListConfigFiles(_),
         ) => {}
-        // The config page's requests. The extension sends them only for its
-        // own config page, never for a web page (a probe fetches URLs and
-        // looks at files, the text may hold an API key); here they are held
-        // to the workspace and a size, and their answers are scrubbed of
-        // paths on the way out (`scrub`).
-        Some(request::Payload::ReadConfig(_) | request::Payload::ListConfigFiles(_)) => {}
         Some(request::Payload::WriteConfig(write)) => {
             if write.text.len() > crate::config::Config::MAX_TEXT_BYTES {
                 return Err(format!(
@@ -188,7 +190,7 @@ pub fn admit(mut req: Request, web_root: &Path) -> Result<Request, String> {
 }
 
 /// `Err` naming every key of `text` a browser workspace's config may not
-/// hold (Config::web_confinement_violations), in any of `formats`.
+/// hold (`Config::web_confinement_violations`), in any of `formats`.
 fn confined(text: &str, formats: &[&str]) -> Result<(), String> {
     let mut violations: Vec<String> = formats
         .iter()
@@ -203,9 +205,11 @@ fn confined(text: &str, formats: &[&str]) -> Result<(), String> {
     }
 }
 
-/// Rewrites what an answer says about where things are: the workspace
-/// directory becomes `.`, the home directory `~`. The extension shows these
-/// answers in web pages, which have no business knowing the user's paths.
+/// Rewrites what an answer says about where things are.
+///
+/// The workspace directory becomes `.`, the home directory `~`. The
+/// extension shows these answers in web pages, which have no business
+/// knowing the user's paths.
 pub fn scrub(response: &mut Response, workspace: Option<&Path>) {
     let home = dirs::home_dir();
     let rewrite = |text: &mut String| {
@@ -394,6 +398,23 @@ fn spawn_server(server: &Path, web_root: &Path) -> Result<tokio::process::Child>
         .with_context(|| format!("cannot start {}", server.display()))
 }
 
+/// The server's answers, scrubbed (`scrub`), to the browser's outbox, until
+/// the server's output ends or the outbox closes.
+async fn relay_answers(
+    mut server_out: tokio::process::ChildStdout,
+    outbox: mpsc::Sender<Response>,
+    workspace: std::sync::Arc<std::sync::Mutex<Option<PathBuf>>>,
+) -> Result<()> {
+    while let Some(mut response) = read_server_frame(&mut server_out).await? {
+        let dir = workspace.lock().map(|dir| dir.clone()).unwrap_or_default();
+        scrub(&mut response, dir.as_deref());
+        if outbox.send(response).await.is_err() {
+            break;
+        }
+    }
+    Ok(())
+}
+
 /// Runs the host over the given browser streams until either side closes.
 pub async fn run<R, W>(server: &Path, web_root: &Path, browser_in: R, browser_out: W) -> Result<()>
 where
@@ -402,7 +423,7 @@ where
 {
     let mut child = spawn_server(server, web_root)?;
     let mut server_in = child.stdin.take().context("server stdin")?;
-    let mut server_out = child.stdout.take().context("server stdout")?;
+    let server_out = child.stdout.take().context("server stdout")?;
     info!(server = %server.display(), "native host started");
 
     // One writer owns the browser's stdout; both directions feed it.
@@ -420,20 +441,11 @@ where
     // The workspace this connection initialized, for scrubbing answers.
     let workspace: std::sync::Arc<std::sync::Mutex<Option<PathBuf>>> = std::sync::Arc::default();
 
-    let to_browser = {
-        let outbox = outbox.clone();
-        let workspace = std::sync::Arc::clone(&workspace);
-        tokio::spawn(async move {
-            while let Some(mut response) = read_server_frame(&mut server_out).await? {
-                let dir = workspace.lock().map(|dir| dir.clone()).unwrap_or_default();
-                scrub(&mut response, dir.as_deref());
-                if outbox.send(response).await.is_err() {
-                    break;
-                }
-            }
-            anyhow::Ok(())
-        })
-    };
+    let to_browser = tokio::spawn(relay_answers(
+        server_out,
+        outbox.clone(),
+        std::sync::Arc::clone(&workspace),
+    ));
 
     let web_root = web_root.to_owned();
     let to_server = tokio::spawn(async move {
