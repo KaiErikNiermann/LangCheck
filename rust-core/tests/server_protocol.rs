@@ -251,3 +251,59 @@ fn overlapping_checks_are_all_answered() {
     ids.sort_unstable();
     assert_eq!(ids, (100..100 + CHECKS).collect::<Vec<_>>(), "checks left unanswered");
 }
+
+/// The server's resident memory, from /proc (Linux only).
+#[cfg(target_os = "linux")]
+fn rss_kib(child: &Child) -> u64 {
+    let status = std::fs::read_to_string(format!("/proc/{}/status", child.id())).expect("proc status");
+    status
+        .lines()
+        .find_map(|line| line.strip_prefix("VmRSS:"))
+        .and_then(|value| value.trim().trim_end_matches("kB").trim().parse().ok())
+        .expect("VmRSS")
+}
+
+/// Checks `count` texts in turn, each answered before the next is sent.
+#[cfg(target_os = "linux")]
+fn check_many(child: &mut Child, first_id: u64, count: u64) {
+    for id in first_id..first_id + count {
+        let request = Request {
+            id,
+            payload: Some(request::Payload::CheckProse(lang_check::checker::CheckRequest {
+                // A different text each time, so nothing is answered from a store.
+                text: format!("Paragraph {id}: teh weather was fine and we recieve {id} letters, seperately."),
+                language_id: "markdown".into(),
+                ..Default::default()
+            })),
+        };
+        send_frame(child, &request.encode_to_vec());
+        assert_eq!(read_response(child).id, id);
+    }
+}
+
+/// A server that checks all day holds what checking needs, not what every
+/// check made. Its resident memory climbs for a long time while bounded
+/// caches (the result cache, Harper's 10 000-entry LRUs) and the allocator
+/// fill -- measured 2026-10-07, debug build, a different text per check:
+/// 315 MiB after 5k checks, 406 MiB after 65k, then 408 MiB from 75k to
+/// 100k. So the test runs past the plateau and allows 8 MiB over the last
+/// 25 000 checks, where a leak of even 400 bytes a check exceeds it.
+///
+/// About seven minutes in a debug build, so not in the default run:
+/// `cargo test --test server_protocol -- --ignored checking_for_long`.
+#[cfg(target_os = "linux")]
+#[test]
+#[ignore = "long: about seven minutes; run on demand with --ignored"]
+fn checking_for_long_does_not_grow_the_server() {
+    const ALLOWANCE_KIB: u64 = 8 * 1024;
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    check_many(&mut child, 1_000_000, 75_000);
+    let settled = rss_kib(&child);
+    check_many(&mut child, 2_000_000, 25_000);
+    let after = rss_kib(&child);
+    child.kill().ok();
+    eprintln!("server RSS: {settled} KiB after 75k checks, {after} KiB after 25k more");
+    assert!(after <= settled + ALLOWANCE_KIB, "server grew from {settled} KiB to {after} KiB over the last 25k checks");
+}
