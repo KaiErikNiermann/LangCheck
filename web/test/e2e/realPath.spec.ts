@@ -93,3 +93,15 @@ test.describe('without the native host', () => {
         await expect(marks(page)).toHaveCount(0);
     });
 });
+
+// A view-only collaborator's editor: a fix would apply locally (a dispatch
+// ignores read-only) and diverge from the server's copy.
+test('a read-only editor is not edited: the fix says so and the text stays', async ({ page }) => {
+    await page.goto(pageUrl('overleaf', 'current', 'I will recieve it.') + '&readonly=1');
+    await expect(marks(page)).toHaveText(['recieve']);
+    const card = await hoverMark(page, 'recieve');
+    await card.getByRole('button', { name: 'Fix: "receive"' }).click();
+    await expect(page.locator('.lc-toast')).toContainText('not applied');
+    expect(await docText(page)).toBe('I will recieve it.');
+});
+

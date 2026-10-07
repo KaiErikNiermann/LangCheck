@@ -184,6 +184,9 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
             // Not after the site swapped in another state (a file switch):
             // our field is gone with it, and the text is another file's.
             if (disposed || view.state.field(diagnosticField, false) === undefined) return false;
+            // A dispatch applies even to a read-only editor (read-only only
+            // stops typing): a view-only collaborator's copy would diverge.
+            if (view.state.readOnly || !view.contentDOM.isContentEditable) return false;
             const { doc } = view.state;
             if (!editsHold(edits, doc.length, (from, to) => doc.sliceString(from, to))) return false;
             view.dispatch({ changes: edits.map((e) => ({ from: e.from, to: e.to, insert: e.insert })), userEvent: 'input.complete' });

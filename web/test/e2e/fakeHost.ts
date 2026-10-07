@@ -26,7 +26,9 @@ const endMarker = StateField.define<DecorationSet>({
 // One theme for every state: a theme built per state mounts a style module
 // that is never removed (what the memory tests look for in ours).
 const baseTheme = EditorView.theme({});
-const hostExtensions = (): Extension => [theme.of(baseTheme), endMarker, EditorView.lineWrapping];
+// ?readonly=1: a view-only collaborator's editor (both facets, as sites set them).
+const readOnly = new URLSearchParams(location.search).get('readonly') === '1' ? [EditorState.readOnly.of(true), EditorView.editable.of(false)] : [];
+const hostExtensions = (): Extension => [theme.of(baseTheme), endMarker, EditorView.lineWrapping, readOnly];
 
 const overleaf = location.hostname === '127.0.0.1';
 const params = new URLSearchParams(location.search);
