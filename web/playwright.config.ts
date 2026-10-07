@@ -16,7 +16,11 @@ export default defineConfig({
     projects: [
         // The whole path: extension, native host and core. Chromium only:
         // Playwright cannot load an extension into Firefox.
-        { name: 'real-path', testMatch: 'realPath*.spec.ts' },
+        // A test's first answer comes from a cold core (a debug build starting
+        // its server and loading Harper's dictionary), and three tests start
+        // one at once: past 5 s under that load was seen (typing test, after
+        // a 500 ms pause). The budget covers the cold start, not a slow check.
+        { name: 'real-path', testMatch: 'realPath*.spec.ts', expect: { timeout: 15_000 } },
         // The page-world half against a stub core, on both engines.
         { name: 'page-chromium', testMatch: 'pageLayer.spec.ts', use: { ...devices['Desktop Chrome'] } },
         { name: 'page-firefox', testMatch: 'pageLayer.spec.ts', use: { ...devices['Desktop Firefox'] } },
