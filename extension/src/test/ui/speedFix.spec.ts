@@ -27,6 +27,14 @@ test('shows the finding with its suggestions first, then the dictionary and igno
     await expect(panel.locator('.progress-text')).toHaveText('1 / 1');
 });
 
+test('the context line is shown as text, markup characters and all, with the finding highlighted', async () => {
+    const panel = await open('markup.md');
+    await expect(panel.locator('.error-text')).toHaveText('teh');
+    await expect(panel.locator('.context')).toHaveText('A teh line where 1 < 2 & "quotes" stay.');
+    await expect(panel.locator('.context .highlight')).toHaveText('teh');
+    await expect(panel.locator('.context > *')).toHaveCount(1);
+});
+
 test('a number key applies that suggestion to the document', async () => {
     const panel = await open('apply.md');
     await expect(panel.locator('.error-text')).toHaveText('Teh');

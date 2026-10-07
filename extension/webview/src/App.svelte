@@ -260,24 +260,15 @@
     vscode.postMessage({ type: 'setScope', payload: scope });
   }
 
-  function highlightInContext(context: string, errorText: string): string {
-    if (!errorText || !context) return escapeHtml(context || '');
-    const escaped = escapeHtml(context);
-    const escapedWord = escapeHtml(errorText);
-    // Highlight first occurrence
-    const idx = escaped.indexOf(escapedWord);
-    if (idx === -1) return escaped;
-    return escaped.substring(0, idx) +
-      `<span class="highlight">${escapedWord}</span>` +
-      escaped.substring(idx + escapedWord.length);
-  }
-
-  function escapeHtml(str: string): string {
-    return str
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+  /**
+   * The context line split around the first occurrence of the finding, for
+   * the template to render as text (Svelte escapes it), so no HTML is built
+   * from document text.
+   */
+  function splitAroundFinding(context: string, errorText: string): { before: string; word: string; after: string } {
+    const idx = errorText ? context.indexOf(errorText) : -1;
+    if (idx === -1) return { before: context, word: '', after: '' };
+    return { before: context.slice(0, idx), word: errorText, after: context.slice(idx + errorText.length) };
   }
 
   let progressPercent = $derived(
@@ -345,6 +336,7 @@
     </div>
   {:else if diagnostics.length > 0}
     {@const current = diagnostics[currentIndex]}
+    {@const context = splitAroundFinding(current.context || '', current.text)}
     <div class="main" class:loading-dim={loading}>
       <!-- File location -->
       <button class="location" onclick={goToLocation} type="button">
@@ -356,7 +348,7 @@
 
       <!-- Context block with highlight -->
       <div class="context">
-        {@html highlightInContext(current.context, current.text)}
+        {context.before}{#if context.word}<span class="highlight">{context.word}</span>{/if}{context.after}
       </div>
 
       <!-- Diagnostic message -->
