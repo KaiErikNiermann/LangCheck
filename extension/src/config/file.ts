@@ -10,6 +10,14 @@
  */
 import * as vscode from 'vscode';
 
+/**
+ * Config files are UTF-8. Decoded as Buffer#toString did: a malformed
+ * sequence becomes U+FFFD and a leading byte-order mark is kept (TextDecoder
+ * strips it unless told not to, and a rewrite would then drop it). Unlike
+ * Buffer, this also runs in a browser.
+ */
+const UTF8 = new TextDecoder('utf-8', { ignoreBOM: true });
+
 /** Every name the core accepts for the config, in the order it looks. */
 export const CONFIG_FILE_NAMES = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'] as const;
 
@@ -39,14 +47,14 @@ export async function resolveConfigForEdit(folder: vscode.WorkspaceFolder): Prom
  */
 export async function readTextOrEmpty(uri: vscode.Uri): Promise<string> {
     try {
-        return Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+        return UTF8.decode(await vscode.workspace.fs.readFile(uri));
     } catch {
         return '';
     }
 }
 
 export async function writeConfigText(uri: vscode.Uri, content: string): Promise<void> {
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf8'));
+    await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(content));
 }
 
 /** The first config that reads, for callers that only look at it. */
@@ -56,7 +64,7 @@ export async function readFirstConfig(
     for (const name of CONFIG_FILE_NAMES) {
         const uri = vscode.Uri.joinPath(folder.uri, name);
         try {
-            return { uri, text: Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8') };
+            return { uri, text: UTF8.decode(await vscode.workspace.fs.readFile(uri)) };
         } catch { /* not found, try next */ }
     }
     return undefined;

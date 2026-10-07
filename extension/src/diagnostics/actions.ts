@@ -19,7 +19,7 @@ import { uriKey } from '../shared/documents';
 export interface DiagnosticActionDeps {
     readonly core: CoreHandle;
     readonly checker: Checker;
-    readonly log: Logger;
+    readonly log: Pick<Logger, 'debug'>;
     readonly inspectorLog: InspectorLog;
     readonly store: DiagnosticStore;
     readonly fixTarget: FixTarget;
