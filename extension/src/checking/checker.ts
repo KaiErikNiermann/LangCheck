@@ -10,10 +10,12 @@ import type { DiagnosticStore, Suppression } from '../diagnostics/store';
 import type { Logger } from '../shared/logger';
 import type { InspectorLog } from '../ui/inspectorLog';
 import type { StatusBars } from '../ui/statusBars';
+import { getSetting } from '../config/settings';
 import { byteToCharConverter } from './offsets';
 import { positionsIn, toDiagnostic, toInspectorRanges, toNameSpans } from './response';
 import type { CheckResults } from './results';
 import { CheckSlots } from './scheduler';
+import { WindowedFindings, windowsFor, type ByteWindow } from './windows';
 import { uriKey } from '../shared/documents';
 import { basename } from '../shared/paths';
 
@@ -51,7 +53,16 @@ export interface CheckerDeps {
     readonly observer: CheckObserver;
     /** Whether a down LanguageTool can be restarted from here (a Docker Compose setup in VS Code; never on the web). */
     readonly languageToolRestartable: () => boolean;
+    /** Where the user is in `document` (a character offset: the cursor, or the top of the view), for a progressive check to start there. */
+    readonly focusOf?: (document: vscode.TextDocument) => number | undefined;
 }
+
+const utf8 = new TextEncoder();
+/** The window sizes `check.windowBytes` may set (package.json says the same). */
+const MIN_WINDOW_BYTES = 1024;
+const MAX_WINDOW_BYTES = 1024 * 1024;
+/** A whole check, as one window: the document's findings are its answer alone. */
+const WHOLE: ByteWindow = { start: 0, end: Number.POSITIVE_INFINITY };
 
 /**
  * Max simultaneous CheckProse RPCs, to avoid flooding the server (each
@@ -130,6 +141,23 @@ export class Checker {
         }
     }
 
+    /**
+     * How a check of `text` is made: whole (`undefined`), within
+     * `check.maxBytes`, or -- a long document's first check, with
+     * `check.progressive` on -- a window at a time, the one in focus first.
+     */
+    private planOf(document: vscode.TextDocument, text: string): (ByteWindow | undefined)[] {
+        // Whole bytes, within bounds whatever the settings file says.
+        const maxBytes = Math.max(0, Math.floor(getSetting('check.maxBytes')) || 0);
+        const bytes = utf8.encode(text).length;
+        const bounded: ByteWindow | undefined = maxBytes > 0 && bytes > maxBytes ? { start: 0, end: maxBytes } : undefined;
+        const width = Math.min(Math.max(Math.floor(getSetting('check.windowBytes')) || MIN_WINDOW_BYTES, MIN_WINDOW_BYTES), MAX_WINDOW_BYTES);
+        if (!getSetting('check.progressive') || this.deps.results.checkedWhole.has(uriKey(document.uri)) || Math.min(bytes, bounded?.end ?? bytes) <= width) return [bounded];
+        const focus = this.deps.focusOf?.(document) ?? 0;
+        const focusByte = utf8.encode(text.slice(0, Math.max(0, Math.min(focus, text.length)))).length;
+        return windowsFor(bytes, width, focusByte, maxBytes);
+    }
+
     /** The check itself, once {@link check} has decided one is needed. */
     private async run(
         document: vscode.TextDocument,
@@ -141,11 +169,45 @@ export class Checker {
         /** This check's place in {@link latest}. */
         generation: number,
     ): Promise<number> {
-        const { log, store, suppression, results, statusBars, inspectorLog, observer } = this.deps;
+        const { log, results, inspectorLog } = this.deps;
         const shortName = basename(document.fileName);
         log.debug('checkDocument', { file: document.fileName, lang: document.languageId });
         inspectorLog.push('info', 'checkDocument', `Checking ${shortName} (${document.languageId})`);
 
+        const plan = this.planOf(document, textContent);
+        if (plan.length > 1) inspectorLog.push('info', 'checkDocument', `Checking ${shortName} in ${plan.length} windows`);
+        // Each window's answer is every finding of its ranges: the
+        // document's are the answers so far, put together.
+        const collected = new WindowedFindings<ExtendedDiagnostic>();
+        let found = -1;
+        for (const window of plan) {
+            const step = await this.checkOnce(document, client, textContent, version, readMs, generation, window, collected);
+            found = step.found;
+            // Superseded by an edit, failed, or cut off: what landed stays
+            // shown, and the document is not taken as checked whole.
+            if (!step.landed) return found;
+        }
+        results.checkedWhole.add(uriKey(document.uri));
+        return found;
+    }
+
+    /**
+     * One request: the whole text, or one window of it, merged into
+     * `collected` and published as the findings so far at `version`.
+     * `landed` says whether an answer was put on screen.
+     */
+    private async checkOnce(
+        document: vscode.TextDocument,
+        client: CoreTransport,
+        textContent: string,
+        version: number,
+        readMs: number,
+        generation: number,
+        window: ByteWindow | undefined,
+        collected: WindowedFindings<ExtendedDiagnostic>,
+    ): Promise<{ found: number; landed: boolean }> {
+        const { log, store, suppression, results, statusBars, inspectorLog, observer } = this.deps;
+        const shortName = basename(document.fileName);
         // Wait for a concurrency slot so we don't flood the server
         await this.slots.acquire();
         if (this.latest.get(uriKey(document.uri)) !== generation) {
@@ -153,7 +215,7 @@ export class Checker {
             // asking for it holds the core from the check that replaced it.
             this.slots.release();
             inspectorLog.push('debug', 'checkDocument', `Skipping a superseded check of ${shortName}`);
-            return -1;
+            return { found: -1, landed: false };
         }
         statusBars.setChecking(true);
         const timings: { name: string; durationMs: number }[] = [];
@@ -169,7 +231,8 @@ export class Checker {
                     text: textContent,
                     languageId: document.languageId,
                     settings: {},
-                    filePath: document.uri.fsPath
+                    filePath: document.uri.fsPath,
+                    ...(window !== undefined && { window: { startByte: window.start, endByte: window.end } }),
                 }
             });
             const rpcMs = performance.now() - t1;
@@ -180,7 +243,7 @@ export class Checker {
                 // A newer check of this document has started since; its
                 // answer is the one to show, whenever it arrives.
                 inspectorLog.push('debug', 'checkDocument', `Dropping a superseded result for ${shortName}`);
-                return response.checkProse.diagnostics?.length ?? 0;
+                return { found: response.checkProse.diagnostics?.length ?? 0, landed: false };
             }
             if (response.checkProse) {
                 const t2 = performance.now();
@@ -207,6 +270,7 @@ export class Checker {
                     extendedDiagnostics.length = 0;
                     extendedDiagnostics.push(...filtered);
                 }
+                const shown = collected.add(window ?? WHOLE, extendedDiagnostics);
 
                 // Cached before the store notifies, because the notification
                 // is what refreshes the inlay hints, and the language hints
@@ -224,12 +288,12 @@ export class Checker {
 
                 const t3 = performance.now();
                 results.servedFromCache = response.checkProse.servedFromCache === true;
-                store.publishCheck(document.uri, extendedDiagnostics, version);
+                store.publishCheck(document.uri, shown, version);
                 store.notify();
                 timings.push({ name: 'Update UI', durationMs: performance.now() - t3 });
 
                 statusBars.updateInsights(vscode.window.activeTextEditor);
-                observer.diagnosticsPublished(extendedDiagnostics);
+                observer.diagnosticsPublished(shown);
 
                 results.names.set(uriKey(document.uri), toNameSpans(
                     response.checkProse.extraction?.names ?? [], textContent, positions, byteToChar));
@@ -243,7 +307,7 @@ export class Checker {
                     languageId: document.languageId,
                     proseRangeCount: inspectorRanges.length,
                     totalProseBytes,
-                    diagnosticCount: extendedDiagnostics.length,
+                    diagnosticCount: shown.length,
                     englishEngine: 'multi', // All enabled engines run concurrently
                 };
                 observer.checkRecorded(document, timings);
@@ -265,12 +329,12 @@ export class Checker {
                     await this.reportLanguageToolDown();
                 }
 
-                inspectorLog.push('info', 'checkDocument', `${extendedDiagnostics.length} issues in ${shortName}`, { durationMs: performance.now() - t0 });
-                return extendedDiagnostics.length;
+                inspectorLog.push('info', 'checkDocument', `${shown.length} issues in ${shortName}`, { durationMs: performance.now() - t0 });
+                return { found: shown.length, landed: true };
             } else if (response.error) {
                 inspectorLog.push('error', 'checkDocument', `Server error: ${response.error.message}`);
                 vscode.window.showErrorMessage(vscode.l10n.t('Language Check Error: {0}', response.error.message ?? ''));
-                return -1;
+                return { found: -1, landed: false };
             }
         } catch (err) {
             const errStr = String(err);
@@ -281,13 +345,15 @@ export class Checker {
             } else {
                 vscode.window.showErrorMessage(vscode.l10n.t('Failed to communicate with language-check core: {0}', errStr));
             }
-            return -1;
+            return { found: -1, landed: false };
         } finally {
             this.slots.release();
             statusBars.setChecking(false);
         }
 
-        return 0;
+        // No answer and no error: the transport dropped it (the web's
+        // background restarted), and asks again itself.
+        return { found: 0, landed: false };
     }
 
     /**

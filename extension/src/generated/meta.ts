@@ -154,6 +154,9 @@ export type ConfigKey =
   | "languageCheck.core.binaryPath"
   | "languageCheck.trace.enable"
   | "languageCheck.check.trigger"
+  | "languageCheck.check.progressive"
+  | "languageCheck.check.windowBytes"
+  | "languageCheck.check.maxBytes"
   | "languageCheck.performance.highPerformanceMode"
   | "languageCheck.dictionaries.bundled"
   | "languageCheck.dictionaries.disabled"
@@ -169,6 +172,9 @@ export interface ConfigKeyTypeMap {
   "languageCheck.core.binaryPath": string,
   "languageCheck.trace.enable": boolean,
   "languageCheck.check.trigger": ("onChange" | "onSave"),
+  "languageCheck.check.progressive": boolean,
+  "languageCheck.check.windowBytes": number,
+  "languageCheck.check.maxBytes": number,
   "languageCheck.performance.highPerformanceMode": boolean,
   "languageCheck.dictionaries.bundled": boolean,
   "languageCheck.dictionaries.disabled": ("software-terms" | "typescript" | "companies" | "jargon" | "mathematics")[],
@@ -185,6 +191,9 @@ export interface ConfigShorthandMap {
   languageCheckCoreBinaryPath: "languageCheck.core.binaryPath",
   languageCheckTraceEnable: "languageCheck.trace.enable",
   languageCheckCheckTrigger: "languageCheck.check.trigger",
+  languageCheckCheckProgressive: "languageCheck.check.progressive",
+  languageCheckCheckWindowBytes: "languageCheck.check.windowBytes",
+  languageCheckCheckMaxBytes: "languageCheck.check.maxBytes",
   languageCheckPerformanceHighPerformanceMode: "languageCheck.performance.highPerformanceMode",
   languageCheckDictionariesBundled: "languageCheck.dictionaries.bundled",
   languageCheckDictionariesDisabled: "languageCheck.dictionaries.disabled",
@@ -201,6 +210,9 @@ export interface ConfigShorthandTypeMap {
   languageCheckCoreBinaryPath: string,
   languageCheckTraceEnable: boolean,
   languageCheckCheckTrigger: ("onChange" | "onSave"),
+  languageCheckCheckProgressive: boolean,
+  languageCheckCheckWindowBytes: number,
+  languageCheckCheckMaxBytes: number,
   languageCheckPerformanceHighPerformanceMode: boolean,
   languageCheckDictionariesBundled: boolean,
   languageCheckDictionariesDisabled: ("software-terms" | "typescript" | "companies" | "jargon" | "mathematics")[],
@@ -262,6 +274,36 @@ export const configs = {
     key: "languageCheck.check.trigger",
     default: "onSave",
   } as ConfigItem<"languageCheck.check.trigger">,
+  /**
+   * %config.check.progressive%
+   * @key `languageCheck.check.progressive`
+   * @default `false`
+   * @type `boolean`
+   */
+  languageCheckCheckProgressive: {
+    key: "languageCheck.check.progressive",
+    default: false,
+  } as ConfigItem<"languageCheck.check.progressive">,
+  /**
+   * %config.check.windowBytes%
+   * @key `languageCheck.check.windowBytes`
+   * @default `16384`
+   * @type `number`
+   */
+  languageCheckCheckWindowBytes: {
+    key: "languageCheck.check.windowBytes",
+    default: 16384,
+  } as ConfigItem<"languageCheck.check.windowBytes">,
+  /**
+   * %config.check.maxBytes%
+   * @key `languageCheck.check.maxBytes`
+   * @default `0`
+   * @type `number`
+   */
+  languageCheckCheckMaxBytes: {
+    key: "languageCheck.check.maxBytes",
+    default: 0,
+  } as ConfigItem<"languageCheck.check.maxBytes">,
   /**
    * %config.performance.hpm%
    * @key `languageCheck.performance.highPerformanceMode`
@@ -374,6 +416,9 @@ export interface NestedConfigs {
     },
     "check": {
       "trigger": ("onChange" | "onSave"),
+      "progressive": boolean,
+      "windowBytes": number,
+      "maxBytes": number,
     },
     "performance": {
       "highPerformanceMode": boolean,

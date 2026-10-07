@@ -55,6 +55,9 @@ For completion and validation in `.languagecheck.yaml`, install the [Red Hat YAM
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `languageCheck.check.trigger` | `onChange` | Check on every change or only on save |
+| `languageCheck.check.progressive` | `false` | Run a long document's first check a window at a time, the part in view first |
+| `languageCheck.check.windowBytes` | `16384` | Size of one progressive-check window, in bytes |
+| `languageCheck.check.maxBytes` | `0` | Check only the first this many bytes (`0`: all) |
 | `languageCheck.core.channel` | `stable` | Core binary release channel (stable/canary/dev) |
 | `languageCheck.core.binaryPath` | — | Path to a custom core binary |
 | `languageCheck.dictionaries.bundled` | `true` | Use bundled dictionaries |

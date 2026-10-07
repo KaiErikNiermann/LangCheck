@@ -43,6 +43,12 @@ export class CheckResults {
      * set it, so there is nothing to key it by.
      */
     servedFromCache = false;
+    /**
+     * Documents checked whole since they opened (or since the config last
+     * changed): their prose is in the core's result cache, so a progressive
+     * check of them is not needed (windows.ts).
+     */
+    readonly checkedWhole = new Set<string>();
 
     /**
      * Forget one document, when it closes.
@@ -56,11 +62,14 @@ export class CheckResults {
     forget(uri: string): void {
         this.extraction.delete(uri);
         this.names.delete(uri);
+        this.checkedWhole.delete(uri);
     }
 
     /** Forget what the checks said about each document, before a re-check under a new config. */
     clearDocuments(): void {
         this.extraction.clear();
         this.names.clear();
+        // A new config rebuilds the core's engines, and their result cache with them.
+        this.checkedWhole.clear();
     }
 }

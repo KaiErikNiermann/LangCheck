@@ -191,6 +191,24 @@
           ],
           "description": "%config.check.trigger%"
         },
+        "languageCheck.check.progressive": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.check.progressive%"
+        },
+        "languageCheck.check.windowBytes": {
+          "type": "number",
+          "default": 16384,
+          "minimum": 1024,
+          "maximum": 1048576,
+          "description": "%config.check.windowBytes%"
+        },
+        "languageCheck.check.maxBytes": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "%config.check.maxBytes%"
+        },
         "languageCheck.performance.highPerformanceMode": {
           "type": "boolean",
           "default": false,

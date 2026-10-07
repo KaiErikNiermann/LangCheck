@@ -83,6 +83,16 @@ export async function activate(context: vscode.ExtensionContext) {
     const checker = new Checker({
         core, log, store, suppression, results, statusBars, inspectorLog,
         languageToolRestartable: hasDockerCompose,
+        // A progressive check starts where the user is: the cursor while it
+        // is in view, else the top of the view.
+        focusOf: document => {
+            const editor = vscode.window.visibleTextEditors.find(e => e.document === document);
+            if (!editor) return undefined;
+            const cursor = editor.selection.active;
+            const seen = editor.visibleRanges;
+            const at = seen.length === 0 || seen.some(r => r.contains(cursor)) ? cursor : seen[0]!.start;
+            return document.offsetAt(at);
+        },
         observer: {
             checkRecorded: (document, timings) => inspector.checkRecorded(document, timings),
             healthUpdated: () => {

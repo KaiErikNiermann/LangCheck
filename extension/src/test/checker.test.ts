@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as vscode from 'vscode';
 
 import { Checker, type CheckerDeps } from '../checking/checker';
 import { CheckResults } from '../checking/results';
-import { Position, Uri } from './__mocks__/vscode';
+import { Position, Uri, workspace } from './__mocks__/vscode';
 
 /** Resolves one pending CheckProse request. */
 type Answer = (response: unknown) => void;
@@ -22,15 +22,19 @@ function editableDocument(text: string) {
     return doc;
 }
 
-function harness() {
+function harness(extra: Partial<CheckerDeps> = {}) {
     const pending: Answer[] = [];
+    const requests: { checkProse: { window?: { startByte: number; endByte: number } } }[] = [];
     const published: string[][] = [];
     const nothing = () => undefined;
     const deps = {
         core: {
             client: {
                 isRunning: true,
-                sendRequest: () => new Promise<unknown>(resolve => pending.push(resolve)),
+                sendRequest: (request: (typeof requests)[number]) => new Promise<unknown>(resolve => {
+                    requests.push(request);
+                    pending.push(resolve);
+                }),
             },
         },
         log: { debug: nothing, info: nothing, warn: nothing, error: nothing },
@@ -45,8 +49,9 @@ function harness() {
         inspectorLog: { push: nothing },
         observer: { checkRecorded: nothing, healthUpdated: nothing, diagnosticsPublished: nothing },
         languageToolRestartable: () => false,
+        ...extra,
     } as unknown as CheckerDeps;
-    return { checker: new Checker(deps), pending, published };
+    return { checker: new Checker(deps), pending, published, requests, results: deps.results };
 }
 
 const answer = (message: string) => ({
@@ -122,3 +127,116 @@ describe('Checker', () => {
         expect(published).toHaveLength(4);
     });
 });
+
+/** Settings for the checks of one test, as `languageCheck.check.*` keys. */
+function withSettings(values: Record<string, unknown>): void {
+    vi.spyOn(workspace, 'getConfiguration').mockReturnValue({
+        get: <T>(key: string, fallback?: T) => (key in values ? values[key] : fallback) as T,
+        update: async () => undefined,
+    } as never);
+}
+
+describe('Checker, progressive', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+    const windowsOf = (requests: { checkProse: { window?: { startByte: number; endByte: number } } }[]) =>
+        requests.map(r => (r.checkProse.window ? [r.checkProse.window.startByte, r.checkProse.window.endByte] : 'whole'));
+
+    it('checks a long document first a window at a time, the one in focus first, showing each as it lands; then whole', async () => {
+        withSettings({ 'check.progressive': true, 'check.windowBytes': 1024 });
+        const { checker, pending, published, requests, results } = harness({ focusOf: () => 1500 });
+        const doc = editableDocument('a'.repeat(3000));
+        const done = checker.check(doc as unknown as vscode.TextDocument);
+        for (const message of ['B', 'A', 'C']) {
+            await settle();
+            pending.shift()!(answer(message));
+        }
+        expect(await done).toBe(3);
+        expect(windowsOf(requests)).toEqual([[1024, 2048], [0, 1024], [2048, 3000]]);
+        // In document order, the windows' answers so far.
+        expect(published).toEqual([['B'], ['A', 'B'], ['A', 'B', 'C']]);
+        expect(results.checkedWhole.has(doc.uri.toString())).toBe(true);
+
+        const again = checker.check(doc as unknown as vscode.TextDocument);
+        await settle();
+        pending.shift()!(answer('A'));
+        await again;
+        expect(windowsOf(requests).at(-1)).toBe('whole');
+    });
+
+    it('an edit stops the windows, and the next check starts over in windows', async () => {
+        withSettings({ 'check.progressive': true, 'check.windowBytes': 1024 });
+        const { checker, pending, requests, results } = harness();
+        const doc = editableDocument('a'.repeat(3000));
+        const first = checker.check(doc as unknown as vscode.TextDocument);
+        await settle();
+        doc.edit('b'.repeat(3000));
+        const second = checker.check(doc as unknown as vscode.TextDocument);
+        pending.shift()!(answer('old'));
+        await first;
+        // The first sequence stopped after its first window.
+        expect(windowsOf(requests)).toEqual([[0, 1024], [0, 1024]]);
+        for (let i = 0; i < 3; i++) {
+            await settle();
+            pending.shift()!(answer('new'));
+        }
+        await second;
+        expect(windowsOf(requests).slice(1)).toEqual([[0, 1024], [1024, 2048], [2048, 3000]]);
+        expect(results.checkedWhole.size).toBe(1);
+    });
+
+    it('a window that brings no answer (cut off on the way) stops the windows, and the document is not taken as checked', async () => {
+        withSettings({ 'check.progressive': true, 'check.windowBytes': 1024 });
+        const { checker, pending, requests, results } = harness();
+        const doc = editableDocument('a'.repeat(3000));
+        const done = checker.check(doc as unknown as vscode.TextDocument);
+        await settle();
+        pending.shift()!(answer('A'));
+        await settle();
+        pending.shift()!({ id: 0 });
+        await done;
+        expect(requests).toHaveLength(2);
+        expect(results.checkedWhole.size).toBe(0);
+    });
+
+    it('is off by default, and a short document is checked whole', async () => {
+        const long = harness();
+        const check = long.checker.check(editableDocument('a'.repeat(100_000)) as unknown as vscode.TextDocument);
+        await settle();
+        long.pending.shift()!(answer('A'));
+        await check;
+        expect(windowsOf(long.requests)).toEqual(['whole']);
+
+        withSettings({ 'check.progressive': true, 'check.windowBytes': 1024 });
+        const short = harness();
+        const shortCheck = short.checker.check(editableDocument('a'.repeat(1024)) as unknown as vscode.TextDocument);
+        await settle();
+        short.pending.shift()!(answer('A'));
+        await shortCheck;
+        expect(windowsOf(short.requests)).toEqual(['whole']);
+    });
+
+    it('maxBytes bounds every check, whole ones too', async () => {
+        withSettings({ 'check.maxBytes': 2000 });
+        const { checker, pending, requests } = harness();
+        const done = checker.check(editableDocument('a'.repeat(3000)) as unknown as vscode.TextDocument);
+        await settle();
+        pending.shift()!(answer('A'));
+        await done;
+        expect(windowsOf(requests)).toEqual([[0, 2000]]);
+    });
+
+    it('a window size outside its bounds is held to them', async () => {
+        withSettings({ 'check.progressive': true, 'check.windowBytes': 3 });
+        const { checker, pending, requests } = harness();
+        const done = checker.check(editableDocument('a'.repeat(2048)) as unknown as vscode.TextDocument);
+        for (let i = 0; i < 2; i++) {
+            await settle();
+            pending.shift()!(answer('A'));
+        }
+        await done;
+        expect(windowsOf(requests)).toEqual([[0, 1024], [1024, 2048]]);
+    });
+});
+
