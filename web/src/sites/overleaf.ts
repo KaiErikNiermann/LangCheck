@@ -2,8 +2,8 @@
 // deliberate if "unstable" export) names the open document; when it is gone
 // or changes shape, the DOM still finds the view and CodeMirror's own
 // `data-language` still gives the language, so the store only refines.
-import type { EditorView } from '@codemirror/view';
 import { isView } from '../editor/cm6kit';
+import { cm6Editor } from '../editor/handle';
 import { languageFromEditor, languageFromName, projectFromProjectPath, viewInDocument, type SitePage, type SiteWorkspace } from './site';
 
 interface StoreItem {
@@ -31,16 +31,16 @@ export const overleafWorkspace: SiteWorkspace = { id: 'overleaf', projectFromPat
 
 export const overleafPage: SitePage = {
     id: 'overleaf',
-    findView(): EditorView | undefined {
+    findEditor() {
         const fromStore = storeValue('editor.view');
-        return isView(fromStore) ? fromStore : viewInDocument();
-    },
-    currentDocument(view) {
+        const view = isView(fromStore) ? fromStore : viewInDocument();
+        if (view === undefined) return;
         const id = storeString('editor.open_doc_id');
         const name = storeString('editor.open_doc_name');
-        return {
-            name: id === undefined ? (name ?? 'document') : `${id}/${name ?? 'document'}`,
-            languageId: (name === undefined ? undefined : languageFromName(name)) ?? languageFromEditor(view) ?? 'latex',
-        };
+        return cm6Editor(
+            view,
+            id === undefined ? (name ?? 'document') : `${id}/${name ?? 'document'}`,
+            (name === undefined ? undefined : languageFromName(name)) ?? languageFromEditor(view) ?? 'latex',
+        );
     },
 };

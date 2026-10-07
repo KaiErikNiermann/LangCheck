@@ -1,16 +1,14 @@
-// Keeps one CodeMirror view joined to the shim's host. Sites swap the view
-// (remount), swap its state (file switch: same view, `setState`), or
-// reconfigure in ways that can drop an appended extension; none of these
-// announce themselves through public API, so the bridge checks a few
-// identities on a timer and re-attaches when one changed. Each check is a
-// handful of comparisons; discovery runs only on a change.
-import type { EditorView } from '@codemirror/view';
-import { createCm6Adapter, type Cm6Adapter } from '../editor/cm6Adapter';
-import { discoverCm6Kit } from '../editor/cm6kit';
+// Keeps the site's editor joined to the shim's host. Sites swap the editor
+// (remount), swap what it shows (file switch, page navigation), or
+// reconfigure in ways that drop what we installed; none of these announce
+// themselves through public API, so the bridge compares a few identities
+// on a timer and re-attaches when one changed. Each check is a handful of
+// comparisons; joining an editor runs only on a change.
+import type { AttachedEditor, EditorHandle } from '../editor/handle';
 import { host, type TextDocument } from '../shim/vscode';
 import type { SitePage } from '../sites/site';
 
-/** How often the bridge looks for a swapped view, a switched file, or a lost extension. */
+/** How often the bridge looks for a swapped editor, a switched document, or a lost install. */
 export const POLL_MS = 500;
 
 export type BridgeStatus =
@@ -19,9 +17,9 @@ export type BridgeStatus =
     | { readonly state: 'stopped' };
 
 interface Attachment {
-    readonly view: EditorView;
+    readonly identity: object;
     readonly document: TextDocument;
-    readonly cm6: Cm6Adapter;
+    readonly editor: AttachedEditor;
 }
 
 export class Bridge {
@@ -53,7 +51,7 @@ export class Bridge {
         this.attachment = undefined;
         if (current === undefined) return;
         host.close(current.document);
-        current.cm6.dispose();
+        current.editor.dispose();
     }
 
     private wait(reason: string): void {
@@ -74,43 +72,32 @@ export class Bridge {
     }
 
     private reconcile(): void {
-        const view = this.site.findView();
-        if (view === undefined) {
+        const handle: EditorHandle | undefined = this.site.findEditor();
+        if (handle === undefined) {
             this.detach();
             this.wait('no editor on the page');
             return;
         }
-        const { name, languageId } = this.site.currentDocument(view);
-        const uri = `${this.site.id}:/${encodeURIComponent(this.project)}/${encodeURIComponent(name)}`;
+        const uri = `${this.site.id}:/${encodeURIComponent(this.project)}/${encodeURIComponent(handle.name)}`;
         const current = this.attachment;
         if (
-            current !== undefined &&
-            current.view === view &&
+            current?.identity === handle.identity &&
             current.document.uri.toString() === uri &&
-            current.document.languageId === languageId &&
-            current.cm6.isInstalled()
+            current.document.languageId === handle.languageId &&
+            current.editor.isInstalled()
         ) {
             return;
         }
         this.detach();
-        const discovery = discoverCm6Kit(view);
-        if (!discovery.ok) {
-            this.wait(`CodeMirror classes not found: ${discovery.missing.join(', ')}`);
+        const result = handle.attach(uri);
+        if (!result.ok) {
+            this.wait(result.reason);
             return;
         }
-        const cm6 = createCm6Adapter(view, discovery.kit, uri, languageId);
-        view.dispatch({ effects: discovery.kit.StateEffect.appendConfig.of(cm6.extension) });
-        // Verified by behaviour, not assumed: if the page's editor did not
-        // take the extension, say so instead of acting attached.
-        if (!cm6.isInstalled()) {
-            cm6.dispose();
-            this.wait('the editor did not accept the extension');
-            return;
-        }
-        const document = host.open(cm6.adapter);
-        this.attachment = { view, document, cm6 };
-        this.status = { state: 'attached', uri, languageId };
+        const document = host.open(result.editor.adapter);
+        this.attachment = { identity: handle.identity, document, editor: result.editor };
+        this.status = { state: 'attached', uri, languageId: handle.languageId };
         this.lastReason = '';
-        console.info(`[language-check] attached to ${uri} (${languageId})`);
+        console.info(`[language-check] attached to ${uri} (${handle.languageId})`);
     }
 }

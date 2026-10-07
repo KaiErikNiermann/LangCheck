@@ -4,6 +4,7 @@
 // editor would bring its own EditorAdapter as well.
 import type { EditorView } from '@codemirror/view';
 import { viewFromContentDom } from '../editor/cm6kit';
+import type { EditorHandle } from '../editor/handle';
 import type { LanguageId } from '../messaging/protocol';
 
 export type SiteId = 'overleaf' | 'typst';
@@ -18,9 +19,8 @@ export interface SiteWorkspace {
 /** Facts read in the page world, from the site's running editor. */
 export interface SitePage {
     readonly id: SiteId;
-    findView(): EditorView | undefined;
-    /** The open document: a stable name within the project and the language to check it as. */
-    currentDocument(view: EditorView): { readonly name: string; readonly languageId: LanguageId };
+    /** The editor on the page now, with the document it shows; undefined while there is none. */
+    findEditor(): EditorHandle | undefined;
 }
 
 /** Project ids on both sites are URL-safe tokens; anything else is not a project URL. */
