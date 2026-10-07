@@ -22,7 +22,11 @@ function editableDocument(text: string) {
     return doc;
 }
 
-function harness(extra: Partial<CheckerDeps> = {}) {
+/**
+ * `extra` deps over the defaults; `echoWindow`: the core says which window
+ * it checked, as one that knows windows does (an older one does not).
+ */
+function harness(extra: Partial<CheckerDeps> = {}, echoWindow = true) {
     const pending: Answer[] = [];
     const requests: { checkProse: { window?: { startByte: number; endByte: number } } }[] = [];
     const published: string[][] = [];
@@ -33,7 +37,11 @@ function harness(extra: Partial<CheckerDeps> = {}) {
                 isRunning: true,
                 sendRequest: (request: (typeof requests)[number]) => new Promise<unknown>(resolve => {
                     requests.push(request);
-                    pending.push(resolve);
+                    pending.push(response => {
+                        const check = (response as { checkProse?: object }).checkProse;
+                        const window = request.checkProse.window;
+                        resolve(echoWindow && check && window ? { ...response as object, checkProse: { ...check, window } } : response);
+                    });
                 }),
             },
         },
@@ -238,5 +246,17 @@ describe('Checker, progressive', () => {
         await done;
         expect(windowsOf(requests)).toEqual([[0, 1024], [1024, 2048]]);
     });
-});
 
+    it('a core older than windows checks the whole text for the first: taken as the whole check, not repeated per window', async () => {
+        withSettings({ 'check.progressive': true, 'check.windowBytes': 1024 });
+        const { checker, pending, published, requests, results } = harness({}, false);
+        const doc = editableDocument('a'.repeat(3000));
+        const done = checker.check(doc as unknown as vscode.TextDocument);
+        await settle();
+        pending.shift()!(answer('A'));
+        expect(await done).toBe(1);
+        expect(requests).toHaveLength(1);
+        expect(published).toEqual([['A']]);
+        expect(results.checkedWhole.size).toBe(1);
+    });
+});

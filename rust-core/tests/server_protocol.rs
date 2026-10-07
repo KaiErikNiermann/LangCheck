@@ -474,6 +474,7 @@ fn the_windows_of_a_tiling_add_up_to_the_whole_check() {
     let mut child = server();
     initialize(&mut child, dir.path(), &dir.path().join("index.db"));
     let whole = check(&mut child, 10, PARAGRAPHS, None, None);
+    assert_eq!(whole.window, None, "a whole check says it was one");
     let expected = findings(&whole);
     assert!(
         expected.len() >= 3,
@@ -488,6 +489,12 @@ fn the_windows_of_a_tiling_add_up_to_the_whole_check() {
             let end = (start + width).min(length);
             let answer = check(&mut child, id, PARAGRAPHS, Some((start, end)), None);
             id += 1;
+            // Echoed: the client tells a windowed answer from an older
+            // core's whole one by it.
+            assert_eq!(
+                answer.window.map(|w| (w.start_byte, w.end_byte)),
+                Some((start, end))
+            );
             let ranges = answer
                 .extraction
                 .as_ref()

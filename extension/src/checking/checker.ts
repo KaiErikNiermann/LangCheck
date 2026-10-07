@@ -61,8 +61,6 @@ const utf8 = new TextEncoder();
 /** The window sizes `check.windowBytes` may set (package.json says the same). */
 const MIN_WINDOW_BYTES = 1024;
 const MAX_WINDOW_BYTES = 1024 * 1024;
-/** A whole check, as one window: the document's findings are its answer alone. */
-const WHOLE: ByteWindow = { start: 0, end: Number.POSITIVE_INFINITY };
 
 /**
  * Max simultaneous CheckProse RPCs, to avoid flooding the server (each
@@ -186,6 +184,8 @@ export class Checker {
             // Superseded by an edit, failed, or cut off: what landed stays
             // shown, and the document is not taken as checked whole.
             if (!step.landed) return found;
+            // The core checked everything (it is older than windows): done.
+            if (step.whole) break;
         }
         results.checkedWhole.add(uriKey(document.uri));
         return found;
@@ -205,7 +205,7 @@ export class Checker {
         generation: number,
         window: ByteWindow | undefined,
         collected: WindowedFindings<ExtendedDiagnostic>,
-    ): Promise<{ found: number; landed: boolean }> {
+    ): Promise<{ found: number; landed: boolean; whole?: boolean }> {
         const { log, store, suppression, results, statusBars, inspectorLog, observer } = this.deps;
         const shortName = basename(document.fileName);
         // Wait for a concurrency slot so we don't flood the server
@@ -270,7 +270,14 @@ export class Checker {
                     extendedDiagnostics.length = 0;
                     extendedDiagnostics.push(...filtered);
                 }
-                const shown = collected.add(window ?? WHOLE, extendedDiagnostics);
+                // A core older than windows ignores one and checks the whole
+                // text, and does not echo it: then this answer is all of it,
+                // not one window's to add to the others (each would repeat it).
+                const whole = window === undefined || response.checkProse.window == null;
+                if (whole && window !== undefined) {
+                    inspectorLog.push('warn', 'checkDocument', 'The core checked the whole text, not the window asked for: it is older than this extension');
+                }
+                const shown = whole ? extendedDiagnostics : collected.add(window, extendedDiagnostics);
 
                 // Cached before the store notifies, because the notification
                 // is what refreshes the inlay hints, and the language hints
@@ -330,7 +337,7 @@ export class Checker {
                 }
 
                 inspectorLog.push('info', 'checkDocument', `${shown.length} issues in ${shortName}`, { durationMs: performance.now() - t0 });
-                return { found: shown.length, landed: true };
+                return { found: shown.length, landed: true, whole };
             } else if (response.error) {
                 inspectorLog.push('error', 'checkDocument', `Server error: ${response.error.message}`);
                 vscode.window.showErrorMessage(vscode.l10n.t('Language Check Error: {0}', response.error.message ?? ''));

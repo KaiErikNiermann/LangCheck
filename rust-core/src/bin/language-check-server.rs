@@ -898,6 +898,7 @@ async fn main() -> Result<()> {
                                 diagnostics: all_diagnostics,
                                 extraction: Some(extraction_info),
                                 engine_health,
+                                window: req.window,
                             }))
                         }
                         Err(e) => Some(response::Payload::Error(ErrorResponse {

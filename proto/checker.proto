@@ -109,6 +109,10 @@ message CheckResponse {
   // from, and so a test can assert reuse as a fact instead of inferring it
   // from how long the check took.
   bool served_from_cache = 4;
+  // The request's window, when it had one and only its ranges were checked.
+  // A core older than windows ignores the field and checks everything: an
+  // answer without it is a whole check, whatever was asked.
+  optional ByteWindow window = 5;
 }
 
 message EngineHealth {
