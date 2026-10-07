@@ -29,3 +29,18 @@ test('toString parses back to the same Uri, whatever the path holds', () => {
         }),
     );
 });
+
+test('a link keeps its query and fragment as written', () => {
+    const link = 'https://github.com/KaiErikNiermann/LangCheck/issues/new?title=Inspector%20bug%20report&body=a%26b#top';
+    const uri = Uri.parse(link);
+    expect(uri.path).toBe('//github.com/KaiErikNiermann/LangCheck/issues/new');
+    expect(uri.query).toBe('title=Inspector%20bug%20report&body=a%26b');
+    expect(uri.fragment).toBe('top');
+    expect(uri.toString()).toBe(link);
+});
+
+test('a file name holding ? or # is a name, not a query', () => {
+    const uri = Uri.joinPath(Uri.parse('overleaf:/p1'), 'what?#1.tex');
+    expect(Uri.parse(uri.toString()).path).toBe('/p1/what?#1.tex');
+});
+

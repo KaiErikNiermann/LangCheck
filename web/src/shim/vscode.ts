@@ -65,10 +65,21 @@ export class Uri {
     private constructor(
         readonly scheme: string,
         readonly path: string,
+        /** As written, unencoded and undecoded: a link built with encodeURIComponent round-trips. */
+        readonly query = '',
+        readonly fragment = '',
     ) {}
     static parse(value: string): Uri {
-        const i = value.indexOf(':');
-        return i === -1 ? new Uri('file', decodePath(value)) : new Uri(value.slice(0, i), decodePath(value.slice(i + 1)));
+        const colon = value.indexOf(':');
+        const scheme = colon === -1 ? 'file' : value.slice(0, colon);
+        let rest = colon === -1 ? value : value.slice(colon + 1);
+        let fragment = '';
+        const fragmentAt = rest.indexOf('#');
+        if (fragmentAt !== -1) [rest, fragment] = [rest.slice(0, fragmentAt), rest.slice(fragmentAt + 1)];
+        let query = '';
+        const question = rest.indexOf('?');
+        if (question !== -1) [rest, query] = [rest.slice(0, question), rest.slice(question + 1)];
+        return new Uri(scheme, decodePath(rest), query, fragment);
     }
     static file(path: string): Uri {
         return new Uri('file', path);
@@ -76,14 +87,17 @@ export class Uri {
     static joinPath(base: Uri, ...segments: string[]): Uri {
         let path = base.path;
         while (path.endsWith('/')) path = path.slice(0, -1);
-        return new Uri(base.scheme, [path, ...segments].join('/'));
+        return new Uri(base.scheme, [path, ...segments].join('/'), base.query, base.fragment);
     }
     get fsPath(): string {
         return this.path;
     }
     toString(): string {
         // A lone surrogate cannot be encoded: it becomes U+FFFD, as UTF-8 would make it.
-        return `${this.scheme}:${this.path.split('/').map((segment) => encodeURIComponent(segment.toWellFormed())).join('/')}`;
+        const path = this.path.split('/').map((segment) => encodeURIComponent(segment.toWellFormed())).join('/');
+        const query = this.query === '' ? '' : '?' + this.query;
+        const fragment = this.fragment === '' ? '' : '#' + this.fragment;
+        return `${this.scheme}:${path}${query}${fragment}`;
     }
 }
 
