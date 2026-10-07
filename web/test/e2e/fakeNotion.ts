@@ -1,0 +1,100 @@
+// A stand-in for a Notion page, built to the contract the live page showed
+// (research/notion-editor.md): a `.notion-frame`, one contenteditable leaf
+// per block, prose leaves `spellcheck="true"` and the code block "false",
+// inline formatting as spans around text nodes, inline code in
+// `.notion-inline-code-container`, an equation as a contenteditable="false"
+// atom whose text is hidden MathML, and `.notion-dark-theme` on the body.
+//
+// Like Notion, it keeps its own model of each block and takes edits only
+// from `input` events: a DOM change that arrives some other way is not in
+// the model, and `rerender()` (Notion re-rendering from its model) wipes it.
+// The model is the "server" the tests read.
+
+interface Block {
+    readonly kind: 'title' | 'text' | 'heading' | 'code';
+    readonly html: string;
+}
+
+const PAGES: Readonly<Record<string, readonly Block[]>> = {
+    '3f2b8b37e541802f96a1c557a6b01a44': [
+        { kind: 'title', html: 'Tests' },
+        { kind: 'heading', html: 'Heading with recieve' },
+        {
+            kind: 'text',
+            html: '<span style="font-weight:600">bold teh</span> and <span style="font-style:italic">italic recieve</span> and <div class="notion-inline-code-container" style="display:inline"><span>inline code teh</span></div> plus <span class="notion-text-equation-token" contenteditable="false">e=mc2<span>e=mc^2</span></span> after, teh end.',
+        },
+        { kind: 'code', html: 'def teh(recieve):\n    return recieve' },
+    ],
+    aa24b3e9dafd4deb8617a6a09693570f: [
+        { kind: 'title', html: 'Other page' },
+        { kind: 'text', html: 'Nothing wrong here, only recieve once.' },
+    ],
+};
+
+const BLOCK_CLASS: Readonly<Record<Block['kind'], string>> = { title: 'text', text: 'text', heading: 'header', code: 'code' };
+
+const frame = document.createElement('div');
+frame.className = 'notion-frame';
+document.body.className = 'notion-body dark notion-dark-theme';
+document.body.append(frame);
+
+/** The saved text of each leaf, by block id. */
+const model = new Map<string, string>();
+
+function render(pageId: string): void {
+    model.clear();
+    const blocks = PAGES[pageId] ?? [];
+    frame.replaceChildren(
+        ...blocks.map((block, i) => {
+            const element = document.createElement('div');
+            const id = `${pageId}-${String(i)}`;
+            element.dataset.blockId = id;
+            element.className = `notion-selectable notion-${BLOCK_CLASS[block.kind]}-block`;
+            const leaf = document.createElement('div');
+            leaf.dataset.contentEditableLeaf = 'true';
+            leaf.contentEditable = 'true';
+            leaf.spellcheck = block.kind !== 'code';
+            leaf.setAttribute('spellcheck', String(block.kind !== 'code'));
+            leaf.style.whiteSpace = 'break-spaces';
+            // Fixed test fixtures, never page input.
+            leaf.innerHTML = block.html;
+            leaf.addEventListener('input', () => {
+                model.set(id, leaf.textContent);
+            });
+            element.append(leaf);
+            model.set(id, leaf.textContent);
+            return element;
+        }),
+    );
+}
+
+let current = '3f2b8b37e541802f96a1c557a6b01a44';
+render(current);
+
+Object.assign(globalThis, {
+    __notion: {
+        /** What Notion would have saved, per leaf, in block order. */
+        saved: () => [...model.values()],
+        /**
+         * Notion re-rendering blocks from its model: unsaved DOM changes are
+         * lost. `all` re-renders every block, replacing its text nodes even
+         * when nothing changed (as a React re-mount does).
+         */
+        rerender(all = false) {
+            for (const element of frame.querySelectorAll<HTMLElement>('[data-block-id]')) {
+                const leaf = element.querySelector('[data-content-editable-leaf]');
+                const text = model.get(element.dataset.blockId ?? '');
+                if (leaf === null || text === undefined) continue;
+                // Unsaved text is lost; a re-mount keeps structure but every node is new.
+                if (leaf.textContent !== text) leaf.textContent = text;
+                else if (all) leaf.replaceChildren(...[...leaf.childNodes].map((node) => node.cloneNode(true)));
+            }
+        },
+        /** Single-page navigation to another page of the same workspace. */
+        navigate(pageId: string) {
+            current = pageId;
+            history.pushState({}, '', `/p/test-workspace/page-${pageId}`);
+            render(current);
+        },
+    },
+});

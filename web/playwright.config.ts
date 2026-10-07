@@ -16,7 +16,7 @@ export default defineConfig({
     projects: [
         // The whole path: extension, native host and core. Chromium only:
         // Playwright cannot load an extension into Firefox.
-        { name: 'real-path', testMatch: 'realPath.spec.ts' },
+        { name: 'real-path', testMatch: 'realPath*.spec.ts' },
         // The page-world half against a stub core, on both engines.
         { name: 'page-chromium', testMatch: 'pageLayer.spec.ts', use: { ...devices['Desktop Chrome'] } },
         { name: 'page-firefox', testMatch: 'pageLayer.spec.ts', use: { ...devices['Desktop Firefox'] } },

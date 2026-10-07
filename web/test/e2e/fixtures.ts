@@ -96,3 +96,34 @@ export function host(page: Page, method: string, ...args: unknown[]): Promise<un
 export function status(page: Page): Promise<{ state: string; uri?: string; languageId?: string; reason?: string }> {
     return page.evaluate(() => (globalThis as any).__languageCheck?.bridge.getStatus() ?? { state: 'absent' });
 }
+
+/** The Notion stand-in: its own loopback origin, Notion's URL shape. */
+export function notionUrl(page = '3f2b8b37e541802f96a1c557a6b01a44'): string {
+    return `${BASE.replace('127.0.0.1', '127.0.0.2')}/p/test-workspace/tests-${page}`;
+}
+
+/** The words painted as findings with the CSS Highlight API (Notion has no marks in the DOM). */
+export function painted(page: Page): Promise<string[]> {
+    return page.evaluate(() => [...(CSS.highlights.get('lc-warning') ?? [])].map((r) => (r as Range).toString()));
+}
+
+/** Moves the real pointer onto the `nth` painted occurrence of `word`. */
+export async function hoverPainted(page: Page, word: string, nth = 0): Promise<Locator> {
+    const point = await page.evaluate(
+        ([w, n]) => {
+            const ranges = [...(CSS.highlights.get('lc-warning') ?? [])].filter((r) => (r as Range).toString() === w);
+            const rect = (ranges[n] as Range | undefined)?.getBoundingClientRect();
+            return rect === undefined ? undefined : { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        },
+        [word, nth] as const,
+    );
+    if (point === undefined) throw new Error(`"${word}" #${String(nth)} is not painted`);
+    await page.mouse.move(0, 0);
+    await page.mouse.move(point.x, point.y);
+    await expect(popover(page)).toBeVisible();
+    return popover(page);
+}
+
+export function notionSaved(page: Page): Promise<string[]> {
+    return page.evaluate(() => (globalThis as any).__notion.saved());
+}

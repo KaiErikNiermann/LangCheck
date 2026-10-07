@@ -1,12 +1,13 @@
 // Builds the extension into dist/. `--test` also matches the local pages the
 // end-to-end tests serve (http://127.0.0.1 stands in for Overleaf,
-// http://localhost for Typst), in a separate dist-test/.
+// http://localhost for Typst, http://127.0.0.2 for Notion), in a separate
+// dist-test/.
 import * as esbuild from 'esbuild';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 
 const test = process.argv.includes('--test');
 const outdir = test ? 'dist-test' : 'dist';
-const SITES = ['overleaf', 'typst'];
+const SITES = ['overleaf', 'typst', 'notion'];
 
 const result = await esbuild.build({
     entryPoints: Object.fromEntries([
@@ -20,7 +21,7 @@ const result = await esbuild.build({
     bundle: true,
     format: 'iife',
     platform: 'browser',
-    target: ['firefox128', 'chrome120'],
+    target: ['firefox128', 'chrome128'],
     // The feature is written against `vscode`; in the browser that is the shim.
     alias: { vscode: './src/shim/vscode.ts' },
     define: { __LANGUAGE_CHECK_TEST__: String(test) },
@@ -41,7 +42,7 @@ for (const [file, output] of Object.entries(result.metafile.outputs)) {
 
 const manifest = JSON.parse(await readFile('manifest.json', 'utf8'));
 if (test) {
-    const local = { overleaf: 'http://127.0.0.1/project/*', typst: 'http://localhost/project/*' };
+    const local = { overleaf: 'http://127.0.0.1/project/*', typst: 'http://localhost/project/*', notion: 'http://127.0.0.2/*' };
     for (const script of manifest.content_scripts) {
         const site = SITES.find((s) => script.js[0].endsWith(`-${s}.js`));
         script.matches.push(local[site]);
@@ -58,6 +59,14 @@ if (test) {
         { name: 'current', alias: {} },
         { name: '6-38', alias: { '@codemirror/view': 'cm-view-6-38' } },
     ];
+    await esbuild.build({
+        entryPoints: ['test/e2e/fakeNotion.ts'],
+        outfile: '.e2e/pages/fake-notion.js',
+        bundle: true,
+        format: 'iife',
+        platform: 'browser',
+        logLevel: 'warning',
+    });
     await esbuild.build({
         entryPoints: ['test/e2e/stubContent.ts'],
         outfile: '.e2e/pages/stub-content.js',

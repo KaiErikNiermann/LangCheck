@@ -3,7 +3,7 @@
 // The built page bundle runs against a stub content script whose "core"
 // can be held, so the window between an edit and its recheck is testable.
 import { expect, test, type Page } from '@playwright/test';
-import { host, pageUrl, type Site } from './fixtures';
+import { host, hoverPainted, notionUrl, pageUrl, painted, type Site } from './fixtures';
 
 const BASE = 'http://127.0.0.1:4180';
 
@@ -129,4 +129,84 @@ test('stop() leaves the editor as it found it', async ({ page }) => {
     await page.evaluate(() => (globalThis as any).__languageCheck.stop());
     await expect(page.locator('[class*="lc-"]')).toHaveCount(0);
     expect(await host(page, 'text')).toBe('teh end.');
+});
+
+test.describe('Notion (DOM editor, CSS highlights)', () => {
+    async function openNotion(page: Page): Promise<void> {
+        const errors: string[] = [];
+        page.on('pageerror', (e) => {
+            errors.push(e.message);
+        });
+        pageErrors.set(page, errors);
+        await page.goto(notionUrl());
+        await page.addScriptTag({ url: `${BASE}/stub-content.js` });
+        await page.addScriptTag({ url: `${BASE}/extension/page-notion.js` });
+        await expect.poll(() => page.evaluate(() => (globalThis as any).__languageCheck?.bridge.getStatus().state)).toBe('attached');
+    }
+
+    test('paints prose findings only, and the card opens on hover and closes on Escape', async ({ page }) => {
+        await openNotion(page);
+        // The stub flags teh/recieve: the heading, bold, italic and the teh
+        // after the equation, not the inline code or the code block.
+        await expect.poll(() => painted(page)).toEqual(['recieve', 'teh', 'recieve', 'teh']);
+        const c = await hoverPainted(page, 'teh', 0);
+        await expect(c.locator('.lc-action')).toHaveText(['Replace with "the"', 'Add "teh" to dictionary', 'Ignore this finding']);
+        await page.keyboard.press('Escape');
+        await expect(card(page)).toHaveCount(0);
+    });
+
+    test('a re-render that replaces the text nodes never leaves a span on the wrong words', async ({ page }) => {
+        await openNotion(page);
+        await expect.poll(() => painted(page)).toHaveLength(4);
+        await page.evaluate(() => (globalThis as any).__notion.rerender(true));
+        // Straight after, the old ranges are collapsed (nothing painted), and
+        // the recheck repaints the same words; at no point anything else.
+        const seen = await painted(page);
+        expect(seen.filter((w) => w !== '' && !['recieve', 'teh'].includes(w))).toEqual([]);
+        await expect.poll(() => painted(page)).toEqual(['recieve', 'teh', 'recieve', 'teh']);
+    });
+
+    test('typed text is checked, and the card offers no fix until the recheck lands', async ({ page }) => {
+        await openNotion(page);
+        await expect.poll(() => painted(page)).toHaveLength(4);
+        await stub(page, '__stub.hold = true');
+        await page.locator('[data-content-editable-leaf]').first().click();
+        await page.keyboard.press('End');
+        await page.keyboard.type(' and teh');
+        const c = await hoverPainted(page, 'teh', 0);
+        await expect(c.locator('.lc-action')).toHaveCount(0);
+        await stub(page, '__stub.release()');
+        await expect.poll(() => painted(page)).toHaveLength(5);
+        await expect(c.locator('.lc-action').first()).toHaveText('Replace with "the"');
+    });
+
+    test('Ctrl+. at a finding opens the card with focus on its first action', async ({ page }) => {
+        await openNotion(page);
+        await expect.poll(() => painted(page)).toHaveLength(4);
+        await page.locator('[data-content-editable-leaf]').nth(1).click();
+        await page.keyboard.press('End');
+        await page.keyboard.press('Control+Period');
+        await expect(card(page)).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Replace with "receive"' })).toBeFocused();
+    });
+
+    test('without the Highlight API it says so instead of attaching', async ({ page }) => {
+        await page.goto(notionUrl());
+        await page.evaluate(() => {
+            Object.defineProperty(globalThis, 'Highlight', { value: undefined });
+        });
+        await page.addScriptTag({ url: `${BASE}/stub-content.js` });
+        await page.addScriptTag({ url: `${BASE}/extension/page-notion.js` });
+        await expect
+            .poll(() => page.evaluate(() => (globalThis as any).__languageCheck?.bridge.getStatus()))
+            .toMatchObject({ state: 'waiting', reason: expect.stringContaining('Highlight API') });
+    });
+
+    test('stop() removes every highlight, card and style', async ({ page }) => {
+        await openNotion(page);
+        await expect.poll(() => painted(page)).toHaveLength(4);
+        await page.evaluate(() => (globalThis as any).__languageCheck.stop());
+        expect(await page.evaluate(() => [...CSS.highlights.keys()])).toEqual([]);
+        await expect(page.locator('.lc-popover, .lc-toast-host')).toHaveCount(0);
+    });
 });
