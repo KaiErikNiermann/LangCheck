@@ -20,13 +20,11 @@ import { CardController, cardMembers, type Finding } from './card';
 import { buildTextMap, leafAt, offsetOf, pointOf, rangeOf, type TextMap } from './domText';
 import type { AttachedEditor } from './handle';
 import { Popover, type PopoverSurface } from './popover';
-import { CARD_DARK_RULES, CARD_RULES, SEVERITY_CLASS, SEVERITY_COLOR, toCss } from './styles';
+import { SEVERITY_CLASS, domCss } from './styles';
 import type { EditorAdapter, RenderedDiagnostic, TextEdit } from './types';
 
 /** Findings painted at once; past this, the rest wait for the user to fix some. */
 const MAX_RENDERED = 2000;
-/** The card and toast sit above the editor's own overlays. */
-const TOP_LAYER_Z = '2147483000';
 
 export interface DomEditorRules {
     /** The prose leaves under `root`, in document order. */
@@ -82,7 +80,7 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
     toastHost.className = 'lc-toast-host';
     document.body.append(toastHost);
     const style = document.createElement('style');
-    style.textContent = stylesheet(rules.darkSelector);
+    style.textContent = domCss(rules.darkSelector);
     document.head.append(style);
 
     const surface: PopoverSurface = {
@@ -93,7 +91,7 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
             const range = rangeOf(now, at, at + 1) ?? collapsedAt(now, at);
             const rect = range?.getBoundingClientRect();
             if (rect === undefined || (rect.width === 0 && rect.height === 0)) return null;
-            return { top: rect.bottom + window.scrollY + 2, left: rect.left + window.scrollX };
+            return { top: rect.bottom + window.scrollY, left: rect.left + window.scrollX };
         },
         measure(read, write) {
             requestAnimationFrame(() => {
@@ -316,15 +314,3 @@ function noWord(): undefined {
     return;
 }
 
-function stylesheet(darkSelector: string | undefined): string {
-    const highlights = SEVERITY_CLASS.map(
-        (name, i) => `::highlight(${name}) { text-decoration: underline wavy ${SEVERITY_COLOR[i] ?? 'steelblue'}; text-decoration-skip-ink: none; text-underline-offset: 3px; }`,
-    );
-    return [
-        ...highlights,
-        toCss(CARD_RULES),
-        darkSelector === undefined ? '' : toCss(CARD_DARK_RULES, `${darkSelector} `),
-        `body > .lc-popover { z-index: ${TOP_LAYER_Z}; }`,
-        `.lc-toast-host { position: fixed; inset-block-end: 16px; inset-inline-end: 16px; z-index: ${TOP_LAYER_Z}; }`,
-    ].join('\n');
-}

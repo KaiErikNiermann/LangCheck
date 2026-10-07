@@ -11,7 +11,7 @@ import type { Decoration as CmDecoration, DecorationSet, EditorView } from '@cod
 import { CardController, cardMembers, type Finding } from './card';
 import type { Cm6Kit } from './cm6kit';
 import { Popover, type PopoverSurface } from './popover';
-import { CARD_DARK_RULES, CARD_RULES, SEVERITY_CLASS, SEVERITY_COLOR } from './styles';
+import { CM6_THEME, SEVERITY_CLASS } from './styles';
 import type { EditorAdapter, RenderedDiagnostic, RenderedHint, TextEdit } from './types';
 
 export interface Cm6Adapter {
@@ -33,7 +33,7 @@ function cm6Surface(view: EditorView): PopoverSurface {
             const coords = view.coordsAtPos(at);
             if (coords === null) return null;
             const box = view.scrollDOM.getBoundingClientRect();
-            return { top: coords.bottom - box.top + view.scrollDOM.scrollTop + 2, left: coords.left - box.left + view.scrollDOM.scrollLeft };
+            return { top: coords.bottom - box.top + view.scrollDOM.scrollTop, left: coords.left - box.left + view.scrollDOM.scrollLeft };
         },
         measure(read, write) {
             view.requestMeasure({ read, write });
@@ -145,7 +145,7 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
             if (update.geometryChanged) card.popover.reposition();
             if (update.transactions.some((tr) => tr.effects.some((e) => e.is(diagnosticsEffect)))) card.republished();
         }),
-        Ev.baseTheme(THEME),
+        Ev.baseTheme(CM6_THEME),
     ];
     const extension: Extension = compartment === undefined ? parts : compartment.of(parts);
 
@@ -200,22 +200,6 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
     };
 }
 
-const THEME = {
-    '.lc-diag': { textDecoration: 'underline wavy', textDecorationSkipInk: 'none', textUnderlineOffset: '3px' },
-    ...Object.fromEntries(SEVERITY_CLASS.map((cls, i) => [`.${cls}`, { textDecorationColor: SEVERITY_COLOR[i] ?? 'steelblue' }])),
-    // inline-block, so the finding's wavy underline does not run under it.
-    '.lc-hint-after::after, .lc-hint-before::before': {
-        content: 'attr(data-lc-hint)',
-        display: 'inline-block',
-        opacity: '0.6',
-        fontStyle: 'italic',
-        paddingInline: '0.3em',
-        pointerEvents: 'none',
-        userSelect: 'none',
-    },
-    ...CARD_RULES,
-    ...Object.fromEntries(Object.entries(CARD_DARK_RULES).map(([selector, rules]) => [`&dark ${selector}`, rules])),
-};
 
 /**
  * One mark per hint position: on the character before it (`::after`), or on

@@ -33,13 +33,16 @@ export interface PopoverSurface {
     readonly mount: HTMLElement;
     /** Where toasts go (positioned, so they sit in its corner). */
     readonly toastMount: HTMLElement;
-    /** Where the card goes for an anchor at document offset `at`, or null when `at` is not on screen. */
+    /** The anchor's bottom-left at document offset `at`, relative to `mount`, or null when `at` is not on screen. */
     place(at: number): Placement | null;
     /** Runs `read` then `write` in the editor's layout cycle (CM: requestMeasure). */
     measure<T>(read: () => T, write: (value: T) => void): void;
     /** Gives the keyboard back to the text after Escape. */
     focusEditor(): void;
 }
+
+/** Space between the anchor's bottom edge and the card. */
+const GAP_BELOW_ANCHOR_PX = 2;
 
 /** How long a toast stays up. */
 const TOAST_MS = 4000;
@@ -84,8 +87,13 @@ export class Popover {
         this.leaveListener = listener;
     }
 
+    /**
+     * Physical top/left on purpose: the placement comes from
+     * getBoundingClientRect, which is physical, so logical insets would put
+     * the card on the wrong side in a right-to-left page.
+     */
     private apply(placement: Placement): void {
-        this.dom.style.top = `${String(placement.top)}px`;
+        this.dom.style.top = `${String(placement.top + GAP_BELOW_ANCHOR_PX)}px`;
         this.dom.style.left = `${String(placement.left)}px`;
     }
 
