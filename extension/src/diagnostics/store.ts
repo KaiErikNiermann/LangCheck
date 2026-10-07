@@ -43,8 +43,11 @@ export class DiagnosticStore implements vscode.Disposable, Iterable<[UriKey, Ext
 
     /** {@link write} for a finished check, which has always drawn before it records. */
     publishCheck(documentUri: vscode.Uri, diagnostics: ExtendedDiagnostic[]): void {
-        this.collection.set(documentUri, diagnostics);
+        // The store first, then the collection, as write() does: whatever the
+        // collection notifies (a code-action request, the web's card) reads
+        // the store and must find the findings it is being told about.
         this.byUri.set(uriKey(documentUri), diagnostics);
+        this.collection.set(documentUri, diagnostics);
     }
 
     /** Drop everything, silently: used before a full re-check that will publish afresh. */
