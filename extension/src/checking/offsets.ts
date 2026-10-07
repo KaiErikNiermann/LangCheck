@@ -42,15 +42,15 @@ export function coreByte(value: number | null | undefined): ByteOffset {
  * offsets.test.ts holds it to the decode on arbitrary text.
  */
 export function byteToCharConverter(text: string): (byteOffset: ByteOffset) => CharOffset {
-    const total = Buffer.byteLength(text, 'utf8');
+    // Sized by the same per-character rule the fill uses, rather than by
+    // `Buffer.byteLength`, so this runs in a browser too (the web build).
+    let total = 0;
+    for (const char of text) total += utf8Length(char);
     const table = new Uint32Array(total + 1);
     let byte = 0;
     let unit = 0;
     for (const char of text) {
-        const point = char.codePointAt(0) ?? 0;
-        // A lone surrogate encodes as U+FFFD, three bytes, like the rest of
-        // its range.
-        const length = point < 0x80 ? 1 : point < 0x800 ? 2 : point < 0x1_0000 ? 3 : 4;
+        const length = utf8Length(char);
         table[byte] = unit;
         table.fill(unit + 1, byte + 1, byte + length);
         byte += length;
@@ -58,6 +58,12 @@ export function byteToCharConverter(text: string): (byteOffset: ByteOffset) => C
     }
     table[byte] = unit;
     return (offset: ByteOffset) => table[prefixEnd(offset, total)] as CharOffset;
+}
+
+/** UTF-8 length of one code point; a lone surrogate encodes as U+FFFD, three bytes, like the rest of its range. */
+function utf8Length(char: string): 1 | 2 | 3 | 4 {
+    const point = char.codePointAt(0) ?? 0;
+    return point < 0x80 ? 1 : point < 0x800 ? 2 : point < 0x1_0000 ? 3 : 4;
 }
 
 /**
