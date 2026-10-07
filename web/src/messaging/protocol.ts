@@ -16,8 +16,19 @@ export const HANDSHAKE_TYPE = 'language-check:port';
 /** The page's "I am loaded" announcement, answered with the port. */
 export const PAGE_READY_TYPE = 'language-check:page-ready';
 
-/** Largest text a check carries (the native host refuses more, too). */
+/** Largest text a check carries, in UTF-16 units. */
 export const MAX_CHECK_TEXT_CHARS = 2 * 1024 * 1024;
+/** Largest text the native host checks, in UTF-8 bytes (`MAX_CHECK_TEXT_BYTES` in rust-core/src/native_host.rs). */
+export const MAX_CHECK_TEXT_BYTES = 4 * 1024 * 1024;
+
+const utf8 = new TextEncoder();
+
+/** Whether `text` is within both caps: the page's (characters) and the host's (bytes). */
+export function withinCheckLimits(text: string): boolean {
+    if (text.length > MAX_CHECK_TEXT_CHARS) return false;
+    // A UTF-16 unit is at most 3 UTF-8 bytes: only a long text needs counting.
+    return text.length * 3 <= MAX_CHECK_TEXT_BYTES || utf8.encode(text).length <= MAX_CHECK_TEXT_BYTES;
+}
 /** Words learned through add-to-dictionary: one token, not prose. */
 export const MAX_WORD_CHARS = 100;
 /** Requests from one page the content script holds before refusing more. */

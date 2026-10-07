@@ -45,6 +45,8 @@ const SELECTOR = ['latex', 'typst', 'bibtex', 'markdown', 'plaintext'].map((lang
 export interface ClientStats {
     /** Checks that ran to completion (the Checker recorded them). */
     readonly checks: number;
+    /** Findings held for the page's documents: what is drawn and what is scrolled out of view. */
+    readonly findings: number;
 }
 
 /**
@@ -105,6 +107,11 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
             reportedUnavailable = true;
             void vscode.window.showErrorMessage(
                 vscode.l10n.t('LangCheck cannot reach its checker: {0}. Install the native host with "language-check-native-host install --browser <firefox|chrome>".', reason),
+            );
+        },
+        tooLong: (limitBytes) => {
+            void vscode.window.showWarningMessage(
+                vscode.l10n.t('This document is too long for LangCheck to check in the browser (more than {0} MB). Findings are hidden until it is shorter.', String(limitBytes / (1024 * 1024))),
             );
         },
         recovered: () => {
@@ -210,5 +217,5 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
     );
 
     checkAll();
-    return () => ({ checks: completed });
+    return () => ({ checks: completed, findings: [...store].reduce((sum, [, list]) => sum + list.length, 0) });
 }

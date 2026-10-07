@@ -3,7 +3,8 @@
 import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
 import { parseBackgroundRequest } from '../../src/messaging/background';
-import { MAX_CHECK_TEXT_CHARS, MAX_WORD_CHARS, parsePageRequest, parsePageResponse } from '../../src/messaging/protocol';
+import { readFileSync } from 'node:fs';
+import { MAX_CHECK_TEXT_BYTES, MAX_CHECK_TEXT_CHARS, MAX_WORD_CHARS, parsePageRequest, parsePageResponse, withinCheckLimits } from '../../src/messaging/protocol';
 
 describe('parsePageRequest', () => {
     const req = (request: unknown) => ({ id: 1, request });
@@ -64,5 +65,22 @@ describe('parseBackgroundRequest', () => {
     test('carries no workspace: a key in the message is not read', () => {
         const parsed = parseBackgroundRequest({ id: 1, key: 'typst-someone-else', request: { id: 1, request: { addDictionaryWord: { word: 'teh' } } } });
         expect(parsed).toEqual({ id: 1, request: { id: 1, request: { addDictionaryWord: { word: 'teh' } } } });
+    });
+});
+
+describe('withinCheckLimits', () => {
+    test('holds the page to both caps: characters, and the host\'s bytes', () => {
+        expect(withinCheckLimits('a'.repeat(MAX_CHECK_TEXT_CHARS))).toBe(true);
+        expect(withinCheckLimits('a'.repeat(MAX_CHECK_TEXT_CHARS + 1))).toBe(false);
+        // Within the character cap, past the byte cap: 3 bytes a character.
+        const wide = 'é€'.repeat(MAX_CHECK_TEXT_BYTES / 4);
+        expect(wide.length).toBeLessThanOrEqual(MAX_CHECK_TEXT_CHARS);
+        expect(withinCheckLimits(wide)).toBe(false);
+    });
+
+    test('the byte cap is the native host\'s', () => {
+        const source = readFileSync(new URL('../../../rust-core/src/native_host.rs', import.meta.url), 'utf8');
+        const match = /pub const MAX_CHECK_TEXT_BYTES: usize = (\d+) \* (\d+) \* (\d+);/u.exec(source);
+        expect(match?.slice(1).reduce((product, factor) => product * Number(factor), 1)).toBe(MAX_CHECK_TEXT_BYTES);
     });
 });

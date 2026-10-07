@@ -9,7 +9,7 @@
 import type { CoreHandle, CoreTransport } from '../../../extension/src/core/transport';
 import type { languagecheck } from '../../../extension/src/proto/checker';
 import type { CoreClient } from '../messaging/pageClient';
-import type { CoreRequest } from '../messaging/protocol';
+import { MAX_CHECK_TEXT_BYTES, withinCheckLimits, type CoreRequest } from '../messaging/protocol';
 
 const PROBE_FIRST_MS = 2000;
 const PROBE_MAX_MS = 60_000;
@@ -19,6 +19,8 @@ export interface AvailabilityEvents {
     unavailable(reason: string): void;
     /** The host answers again after being unavailable. */
     recovered(): void;
+    /** A document is too long to check; said once until a check fits again. */
+    tooLong(limitBytes: number): void;
 }
 
 class WebTransport implements CoreTransport {
@@ -27,6 +29,7 @@ class WebTransport implements CoreTransport {
     private probeDelay = PROBE_FIRST_MS;
     private probeTimer: ReturnType<typeof setTimeout> | undefined;
     private disposed = false;
+    private reportedTooLong = false;
 
     constructor(
         private readonly core: CoreClient,
@@ -34,6 +37,18 @@ class WebTransport implements CoreTransport {
     ) {}
 
     async sendRequest(request: languagecheck.Request.$Properties): Promise<languagecheck.Response> {
+        // Refused here, with a reason a user can act on, rather than sent to
+        // be refused as malformed by the content script, or failed by the
+        // host, on every pause in typing.
+        const text = request.checkProse?.text;
+        if (typeof text === 'string') {
+            if (!withinCheckLimits(text)) {
+                if (!this.reportedTooLong) this.events.tooLong(MAX_CHECK_TEXT_BYTES);
+                this.reportedTooLong = true;
+                return { id: 0 } as unknown as languagecheck.Response;
+            }
+            this.reportedTooLong = false;
+        }
         // The content script parses this against the requests a page may make
         // and rebuilds it from the allowed fields (dropping filePath, settings).
         const response = await this.core.request(request as unknown as CoreRequest);
