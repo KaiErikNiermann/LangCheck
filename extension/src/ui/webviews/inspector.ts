@@ -101,7 +101,9 @@ export class InspectorPanel {
         this.deps.inspectorLog.attach(this.panel.webview);
         this.panel.webview.html = webviewHtml(this.panel.webview, this.deps.context.extensionPath, { script: 'inspector', title: 'Inspector' });
 
-        this.panel.webview.onDidReceiveMessage(async (message: InspectorToExtensionMessage) => {
+        // In liveListeners, disposed when the panel closes: the extension's
+        // subscriptions would keep every closed panel's listener alive.
+        this.liveListeners.push(this.panel.webview.onDidReceiveMessage(async (message: InspectorToExtensionMessage) => {
             switch (message.type) {
                 case 'inspectorReady': {
                     // Use the editor captured before the panel stole focus.
@@ -172,17 +174,18 @@ export class InspectorPanel {
                     break;
                 }
             }
-        }, undefined, this.deps.context.subscriptions);
+        }));
 
         this.listenWhileOpen();
 
+        // Ends with the panel, so it needs no disposing of its own.
         this.panel.onDidDispose(() => {
             this.panel = null;
             this.deps.inspectorLog.detach();
             for (const listener of this.liveListeners) listener.dispose();
             this.liveListeners = [];
             clearTimeout(this.relistTimer);
-        }, null, this.deps.context.subscriptions);
+        });
     }
 
     private post(message: ExtensionToInspectorMessage): void {

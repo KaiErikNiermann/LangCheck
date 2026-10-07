@@ -70,6 +70,12 @@ function toSpeedFixDiagnostic(
 
 export class SpeedFixPanel {
     private panel: vscode.WebviewPanel | null = null;
+    /**
+     * What listens to the open panel, disposed when it closes. Not the
+     * extension's subscriptions: those live as long as the extension, and
+     * kept every closed panel's listeners (and what they hold) alive.
+     */
+    private panelListeners: vscode.Disposable[] = [];
     /** File or workspace: whether finishing one document moves on to the next. */
     private scope: SpeedFixScope = 'file';
 
@@ -91,7 +97,7 @@ export class SpeedFixPanel {
 
         this.panel.webview.html = webviewHtml(this.panel.webview, this.deps.context.extensionPath, { script: 'index', title: 'SpeedFix' });
 
-        this.panel.webview.onDidReceiveMessage(async (message: WebviewToExtensionMessage) => {
+        this.panelListeners.push(this.panel.webview.onDidReceiveMessage(async (message: WebviewToExtensionMessage) => {
             switch (message.type) {
                 case 'ready': {
                     const hpm = getSetting('performance.highPerformanceMode');
@@ -157,12 +163,15 @@ export class SpeedFixPanel {
                     this.panel?.dispose();
                     break;
             }
-        }, undefined, this.deps.context.subscriptions);
+        }));
 
+        // Ends with the panel, so it needs no disposing of its own.
         this.panel.onDidDispose(() => {
             this.panel = null;
             this.deps.fixTarget.uri = null;
-        }, null, this.deps.context.subscriptions);
+            for (const listener of this.panelListeners) listener.dispose();
+            this.panelListeners = [];
+        });
     }
 
     sendLoading(loading: boolean): void {
