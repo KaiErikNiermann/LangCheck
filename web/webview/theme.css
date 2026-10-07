@@ -1,0 +1,66 @@
+/*
+ * The VS Code theme variables the shared webview apps (SpeedFix, Inspector)
+ * are styled with, for when they run in a browser tab instead of a VS Code
+ * webview. Token table: every value here is bound, once, to VS Code's
+ * default Light+ (first) and Dark+ (second) colours; the apps only consume
+ * the variables. light-dark() follows the browser's colour scheme.
+ */
+:root {
+  color-scheme: light dark;
+
+  --vscode-font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --vscode-font-size: 13px;
+  --vscode-font-weight: normal;
+  --vscode-editor-font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --vscode-foreground: light-dark(#616161, #ccc);
+  --vscode-descriptionForeground: light-dark(#717171, #9d9d9d);
+  --vscode-errorForeground: light-dark(#a1260d, #f48771);
+  --vscode-focusBorder: light-dark(#0090f1, #007fd4);
+  --vscode-widget-shadow: light-dark(rgb(0 0 0 / 16%), rgb(0 0 0 / 36%));
+  --vscode-widget-border: light-dark(#d4d4d4, #454545);
+  --vscode-panel-border: light-dark(rgb(128 128 128 / 35%), rgb(128 128 128 / 35%));
+  --vscode-titleBar-activeBackground: light-dark(#ddd, #3c3c3c);
+
+  --vscode-editor-background: light-dark(#fff, #1e1e1e);
+  --vscode-editor-foreground: light-dark(#000, #d4d4d4);
+  --vscode-editorWidget-foreground: light-dark(#616161, #ccc);
+  --vscode-editorError-foreground: light-dark(#e51400, #f14c4c);
+  --vscode-editorWarning-foreground: light-dark(#bf8803, #cca700);
+  --vscode-editorHint-foreground: light-dark(#6c6c6c, rgb(238 238 238 / 70%));
+
+  --vscode-textLink-foreground: light-dark(#006ab1, #3794ff);
+  --vscode-textCodeBlock-background: light-dark(rgb(220 220 220 / 40%), rgb(10 10 10 / 40%));
+  --vscode-textBlockQuote-background: light-dark(#f2f2f2, #222);
+
+  --vscode-list-hoverBackground: light-dark(#e8e8e8, #2a2d2e);
+  --vscode-list-activeSelectionBackground: light-dark(#0060c0, #04395e);
+  --vscode-list-activeSelectionForeground: light-dark(#fff, #fff);
+
+  --vscode-button-background: light-dark(#007acc, #0e639c);
+  --vscode-button-foreground: light-dark(#fff, #fff);
+  --vscode-button-hoverBackground: light-dark(#0062a3, #1177bb);
+  --vscode-button-secondaryBackground: light-dark(#5f6a79, #3a3d41);
+  --vscode-button-secondaryForeground: light-dark(#fff, #ccc);
+  --vscode-button-secondaryHoverBackground: light-dark(#4c5561, #45494e);
+
+  --vscode-badge-background: light-dark(#c4c4c4, #4d4d4d);
+  --vscode-badge-foreground: light-dark(#333, #fff);
+  --vscode-keybindingLabel-background: light-dark(rgb(221 221 221 / 40%), rgb(128 128 128 / 17%));
+  --vscode-keybindingLabel-foreground: light-dark(#555, #ccc);
+  --vscode-keybindingLabel-border: light-dark(rgb(204 204 204 / 40%), rgb(51 51 51 / 60%));
+
+  --vscode-input-background: light-dark(#fff, #3c3c3c);
+  --vscode-input-foreground: light-dark(#616161, #ccc);
+  --vscode-input-border: light-dark(#cecece, transparent);
+  --vscode-progressBar-background: light-dark(#0e70c0, #0e70c0);
+  --vscode-testing-iconPassed: light-dark(#388a34, #73c991);
+}
+
+body {
+  margin: 0;
+  background: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}

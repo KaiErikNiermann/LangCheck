@@ -3,7 +3,7 @@
 // http://localhost for Typst, http://127.0.0.2 for Notion), in a separate
 // dist-test/.
 import * as esbuild from 'esbuild';
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, copyFile, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 
 const test = process.argv.includes('--test');
 const manifestVersion = JSON.parse(await readFile('manifest.json', 'utf8')).version;
@@ -15,6 +15,7 @@ const result = await esbuild.build({
         ['background', 'src/entries/background.ts'],
         ['palette', 'src/palette/page.ts'],
         ['options', 'src/options/options.ts'],
+        ['webview/bridge', 'src/webview/bridge.ts'],
         ...SITES.flatMap((s) => [
             [`content-${s}`, `src/entries/content-${s}.ts`],
             [`page-${s}`, `src/entries/page-${s}.ts`],
@@ -65,6 +66,42 @@ await mkdir(outdir, { recursive: true });
 await writeFile(`${outdir}/manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
 await copyFile('icon-128.png', `${outdir}/icon.png`);
 for (const page of ['palette.html', 'options.html']) await copyFile(page, `${outdir}/${page}`);
+
+// The panels: the client's own webview apps (extension/webview, built by
+// `pnpm run build:webview`), each in a page shaped like the one VS Code gives
+// it (extension/src/ui/webviews/html.ts), plus the theme variables VS Code
+// would set and the bridge that stands in for the webview host.
+const WEBVIEW_DIST = '../extension/webview/dist/assets';
+const PANELS = [
+    { viewType: 'speedFix', script: 'index', title: 'SpeedFix' },
+    { viewType: 'inspector', script: 'inspector', title: 'Inspector' },
+];
+await access(WEBVIEW_DIST).catch(() => {
+    throw new Error(`${WEBVIEW_DIST} is missing: run pnpm run build:webview first`);
+});
+await cp(WEBVIEW_DIST, `${outdir}/webview/assets`, { recursive: true });
+await copyFile('webview/theme.css', `${outdir}/webview/theme.css`);
+for (const { viewType, script, title } of PANELS) {
+    await writeFile(
+        `${outdir}/webview/${viewType}.html`,
+        `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="assets/${script}.css">
+    <title>${title} - LangCheck</title>
+    <script src="bridge.js"></script>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module" src="assets/${script}.js"></script>
+</body>
+</html>
+`,
+    );
+}
 
 // The fake site pages, each with its own CodeMirror (current and 6.38).
 if (test) {

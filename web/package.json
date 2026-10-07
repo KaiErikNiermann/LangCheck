@@ -8,8 +8,9 @@
   "type": "module",
   "scripts": {
     "prepare": "pnpm --dir ../extension run proto:gen",
-    "build": "node esbuild.mjs",
-    "build:test": "node esbuild.mjs --test",
+    "build:webview": "pnpm --dir ../extension run build:webview",
+    "build": "pnpm run build:webview && node esbuild.mjs",
+    "build:test": "pnpm run build:webview && node esbuild.mjs --test",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint src test *.mjs *.mts",
     "test": "vitest run",

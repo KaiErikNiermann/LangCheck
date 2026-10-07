@@ -17,6 +17,7 @@ import {
     type PageResponse,
 } from '../messaging/protocol';
 import { BACKGROUND_PORT_NAME, type BackgroundRequest, type BackgroundResponse } from '../messaging/background';
+import { WEBVIEW_TYPE, parsePageToPanel, parsePanelToPage, type PageToPanel, type PanelToPage } from '../messaging/webview';
 import { startPalette } from '../palette/overlay';
 import type { SiteWorkspace } from '../sites/site';
 
@@ -26,9 +27,20 @@ const MAX_PORTS_PER_TAB = 4;
 export function startContent(site: SiteWorkspace): void {
     // Not a project page: nothing to serve (the background would refuse too).
     if (site.projectFromPath(location.pathname) === undefined) return;
-    const background = new BackgroundLink();
-    /** The page script's most recent port: where a palette command goes. */
+    /** The page script's most recent port: where palette commands and panel messages go. */
     let pagePort: MessagePort | undefined;
+    /** Panels this tab opened, so a background restart can report them closed. */
+    const panels = new Set<string>();
+    const background = new BackgroundLink(
+        (message) => {
+            if (message.op === 'closed') panels.delete(message.panel);
+            pagePort?.postMessage(message);
+        },
+        () => {
+            for (const panel of panels) pagePort?.postMessage({ type: WEBVIEW_TYPE, op: 'closed', panel });
+            panels.clear();
+        },
+    );
     startPalette((id) => {
         pagePort?.postMessage({ type: COMMAND_TYPE, command: id });
     });
@@ -42,18 +54,25 @@ export function startContent(site: SiteWorkspace): void {
         if (type !== PAGE_READY_TYPE || version !== PROTOCOL_VERSION || ports >= MAX_PORTS_PER_TAB) return;
         ports++;
         const channel = new MessageChannel();
-        servePort(channel.port1, background);
+        servePort(channel.port1, background, panels);
         pagePort = channel.port1;
         window.postMessage({ type: HANDSHAKE_TYPE, version: PROTOCOL_VERSION }, location.origin, [channel.port2]);
     });
 }
 
-function servePort(port: MessagePort, background: BackgroundLink): void {
+function servePort(port: MessagePort, background: BackgroundLink, panels: Set<string>): void {
     let inFlight = 0;
     const reply = (response: PageResponse): void => { port.postMessage(response); };
     const fail = (id: number, code: ErrorCode, error: string): void => { reply({ id, ok: false, code, error }); };
 
     port.addEventListener('message', (event: MessageEvent) => {
+        if ((event.data as { type?: unknown } | null)?.type === WEBVIEW_TYPE) {
+            const panelMessage = parsePageToPanel(event.data);
+            if (panelMessage === undefined) return;
+            if (panelMessage.op === 'open') panels.add(panelMessage.panel);
+            background.postWebview(panelMessage);
+            return;
+        }
         const request = parsePageRequest(event.data);
         if (request === undefined) {
             const id = (event.data as { id?: unknown } | null)?.id;
@@ -91,10 +110,24 @@ class BackgroundLink {
         });
     }
 
+    constructor(
+        private readonly onWebview: (message: PanelToPage) => void,
+        private readonly onDisconnected: () => void,
+    ) {}
+
+    postWebview(message: PageToPanel): void {
+        this.connect().postMessage({ webview: message });
+    }
+
     private connect(): Runtime.Port {
         if (this.port !== undefined) return this.port;
         const port = browser.runtime.connect({ name: BACKGROUND_PORT_NAME });
         port.onMessage.addListener((message: unknown) => {
+            const panelMessage = parsePanelToPage((message as { webview?: unknown } | null)?.webview);
+            if (panelMessage !== undefined) {
+                this.onWebview(panelMessage);
+                return;
+            }
             const { id, response } = (message ?? {}) as Partial<BackgroundResponse>;
             if (typeof id !== 'number' || response === undefined) return;
             const entry = this.pending.get(id);
@@ -109,6 +142,7 @@ class BackgroundLink {
                 entry.resolve({ id: entry.pageId, ok: false, code: 'unavailable', error: 'the extension background restarted' });
             }
             this.pending.clear();
+            this.onDisconnected();
         });
         this.port = port;
         return port;

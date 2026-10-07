@@ -4,6 +4,7 @@
 // once. Load order between the two scripts is not guaranteed, so the
 // announcement repeats until a port arrives.
 import { isPaletteCommand, type PaletteCommandId } from '../palette/commands';
+import { WEBVIEW_TYPE, parsePanelToPage, type PageToPanel, type PanelToPage } from './webview';
 import {
     COMMAND_TYPE,
     HANDSHAKE_TYPE,
@@ -44,6 +45,10 @@ export interface CoreClient {
     request(core: CoreRequest): Promise<PageResponse>;
     /** Commands chosen in the palette, for the page to run. */
     onCommand(listener: (id: PaletteCommandId) => void): void;
+    /** Sends a panel message (no answer is awaited). */
+    post(message: PageToPanel): void;
+    /** Messages from panels, and their closing. */
+    onWebview(listener: (message: PanelToPage) => void): void;
     dispose(): void;
 }
 
@@ -51,6 +56,7 @@ export function connectCore(target: Window = window): CoreClient {
     let nextId = 1;
     const pending = new Map<number, Pending>();
     const commandListeners: ((id: PaletteCommandId) => void)[] = [];
+    const webviewListeners: ((message: PanelToPage) => void)[] = [];
     let disposed = false;
 
     const port = new Promise<MessagePort>((resolve, reject) => {
@@ -86,6 +92,11 @@ export function connectCore(target: Window = window): CoreClient {
                 const command = (event.data as { type?: unknown; command?: unknown } | null) ?? {};
                 if (command.type === COMMAND_TYPE) {
                     if (isPaletteCommand(command.command)) for (const listener of commandListeners) listener(command.command);
+                    return;
+                }
+                if (command.type === WEBVIEW_TYPE) {
+                    const panelMessage = parsePanelToPage(event.data);
+                    if (panelMessage !== undefined) for (const listener of webviewListeners) listener(panelMessage);
                     return;
                 }
                 const response = parsePageResponse(event.data);
@@ -127,9 +138,22 @@ export function connectCore(target: Window = window): CoreClient {
         onCommand(listener) {
             commandListeners.push(listener);
         },
+        post(message) {
+            if (disposed) return;
+            void port.then(
+                (p) => {
+                    p.postMessage(message);
+                },
+                () => {},
+            );
+        },
+        onWebview(listener) {
+            webviewListeners.push(listener);
+        },
         dispose() {
             disposed = true;
             commandListeners.length = 0;
+            webviewListeners.length = 0;
             for (const [id, entry] of pending) {
                 clearTimeout(entry.timer);
                 entry.resolve({ id, ok: false, code: 'failed', error: 'client disposed' });
