@@ -10,6 +10,8 @@ import { DEFAULT_PALETTE_HOTKEY, PALETTE_HOTKEY_KEY, PALETTE_INIT_TYPE, type Pal
 
 /** The top of the stacking order: the palette sits over the site's own overlays. */
 const TOP_LAYER_Z = '2147483647';
+/** How long a closed palette's iframe lingers, hidden, before it is removed. */
+const REMOVE_AFTER_MS = 250;
 
 /** Starts listening for the palette's binding; `run` gets the command the user chose. */
 export function startPalette(run: (id: PaletteCommandId) => void): void {
@@ -21,7 +23,17 @@ export function startPalette(run: (id: PaletteCommandId) => void): void {
     const close = (): void => {
         port?.close();
         port = undefined;
-        frame?.remove();
+        // Hidden at once, removed once the key that closed it has been handled:
+        // the iframe is an out-of-process frame, and destroying it while it is
+        // still dispatching that key leaves the browser's input acknowledgement
+        // hanging.
+        const closing = frame;
+        if (closing !== undefined) {
+            closing.style.display = 'none';
+            setTimeout(() => {
+                closing.remove();
+            }, REMOVE_AFTER_MS);
+        }
         frame = undefined;
         // Back to where the user was typing.
         if (returnFocus instanceof HTMLElement) returnFocus.focus();
