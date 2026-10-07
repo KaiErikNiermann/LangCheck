@@ -47,6 +47,20 @@ export class EventEmitter<T> {
     }
 }
 
+/** Decodes one percent-encoded path, leaving a malformed escape as it is (VS Code does the same). */
+function decodePath(path: string): string {
+    try {
+        return decodeURIComponent(path);
+    } catch {
+        return path;
+    }
+}
+
+/**
+ * As VS Code's: `path` is decoded (what a file name reads as), and
+ * `toString()` encodes it again, one segment at a time, so a string from
+ * `toString()` parses back to the same Uri.
+ */
 export class Uri {
     private constructor(
         readonly scheme: string,
@@ -54,7 +68,7 @@ export class Uri {
     ) {}
     static parse(value: string): Uri {
         const i = value.indexOf(':');
-        return i === -1 ? new Uri('file', value) : new Uri(value.slice(0, i), value.slice(i + 1));
+        return i === -1 ? new Uri('file', decodePath(value)) : new Uri(value.slice(0, i), decodePath(value.slice(i + 1)));
     }
     static file(path: string): Uri {
         return new Uri('file', path);
@@ -68,7 +82,8 @@ export class Uri {
         return this.path;
     }
     toString(): string {
-        return `${this.scheme}:${this.path}`;
+        // A lone surrogate cannot be encoded: it becomes U+FFFD, as UTF-8 would make it.
+        return `${this.scheme}:${this.path.split('/').map((segment) => encodeURIComponent(segment.toWellFormed())).join('/')}`;
     }
 }
 

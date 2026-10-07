@@ -5,7 +5,7 @@
 // on a timer and re-attaches when one changed. Each check is a handful of
 // comparisons; joining an editor runs only on a change.
 import type { AttachedEditor, EditorHandle } from '../editor/handle';
-import { host, type TextDocument } from '../shim/vscode';
+import { host, Uri, type TextDocument } from '../shim/vscode';
 import type { SitePage } from '../sites/site';
 
 /** How often the bridge looks for a swapped editor, a switched document, or a lost install. */
@@ -78,7 +78,8 @@ export class Bridge {
             this.wait('no editor on the page');
             return;
         }
-        const uri = `${this.site.id}:/${encodeURIComponent(this.project)}/${encodeURIComponent(handle.name)}`;
+        // In Uri's own string form, so it compares equal to the document's.
+        const uri = Uri.joinPath(Uri.parse(`${this.site.id}:/`), this.project, handle.name).toString();
         const current = this.attachment;
         if (
             current?.identity === handle.identity &&
