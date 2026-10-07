@@ -106,12 +106,13 @@ async function twoWindows(page: Page, cycles: number, cycle: (i: number) => Prom
 
 const checks = (page: Page): Promise<number> => page.evaluate(() => (globalThis as any).__languageCheck.stats().checks as number);
 
-/** Panels the background holds (test builds expose its counts). */
-const backgroundPanels = (context: BrowserContext): Promise<number> => {
+/** One of the counts the background holds (test builds expose them). */
+const backgroundCount = (context: BrowserContext, count: 'panels' | 'pages'): Promise<number> => {
     const worker = context.serviceWorkers()[0];
     if (worker === undefined) throw new Error('no background worker');
-    return worker.evaluate(() => (globalThis as any).__lcBackground.panels() as number);
+    return worker.evaluate((name) => (globalThis as any).__lcBackground[name]() as number, count);
 };
+const backgroundPanels = (context: BrowserContext): Promise<number> => backgroundCount(context, 'panels');
 
 /** Swaps the document's last character, keeping its length, and waits for the check that follows. */
 async function recheck(page: Page, i: number): Promise<void> {
@@ -159,6 +160,25 @@ test('opening and closing the panels leaves the page heap where it was, and the 
     record('memory-panels', { cyclesPerWindow: 4, ...heap, top });
     expect(await backgroundPanels(context)).toBe(0);
     expect(growing).toEqual([]);
+});
+
+test('pages that load, reload and close leave the background holding none', async ({ page, context }) => {
+    await page.goto(pageUrl('overleaf', 'current', 'I will recieve it.'));
+    await expect.poll(() => status(page)).toMatchObject({ state: 'attached' });
+    await expect.poll(() => backgroundCount(context, 'pages')).toBe(1);
+    for (let i = 0; i < 5; i++) {
+        const other = await context.newPage();
+        await other.goto(pageUrl('overleaf', 'current', 'Another page.', `p${String(i + 2)}`));
+        // Reloaded before its port can have been placed, and then closed.
+        await other.reload();
+        await other.goto(pageUrl('typst', 'current', 'A third.'));
+        await other.close();
+    }
+    await page.reload();
+    await expect.poll(() => status(page)).toMatchObject({ state: 'attached' });
+    await expect.poll(() => backgroundCount(context, 'pages')).toBe(1);
+    await page.goto('about:blank');
+    await expect.poll(() => backgroundCount(context, 'pages')).toBe(0);
 });
 
 test('switching files leaves the page heap where it was', async ({ page }) => {

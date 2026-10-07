@@ -13,6 +13,7 @@ import { CoreManager, IDLE_CLOSE_MS } from './nativeCore';
 import { ConfigTabs } from './configTabs';
 import { OpenBudget } from './openBudget';
 import { Panels } from './panels';
+import { WorkspacePages } from './workspacePages';
 
 const cores = new CoreManager((host) => browser.runtime.connectNative(host));
 setInterval(() => { cores.sweep(); }, IDLE_CLOSE_MS / 4);
@@ -71,14 +72,13 @@ browser.tabs.onRemoved.addListener((tabId) => {
     configTabs.tabRemoved(tabId);
 });
 
-/** Each workspace's open pages (their content scripts' ports), to tell them its config changed. */
-const pagesOf = new Map<string, Set<Runtime.Port>>();
+/** Each workspace's open pages, to tell them its config changed. */
+const pagesOf = new WorkspacePages<Runtime.Port>();
 
 /** After a config write: the core re-reads the config, then every page on the workspace re-checks. */
 async function configChanged(workspace: string): Promise<void> {
     await cores.reinitialize(workspace);
-    const pages = pagesOf.get(workspace) ?? new Set<Runtime.Port>();
-    for (const page of pages) {
+    for (const page of pagesOf.of(workspace)) {
         try {
             page.postMessage({ reload: true });
         } catch {
@@ -124,7 +124,7 @@ if (__LANGUAGE_CHECK_TEST__) {
     // The e2e memory tests read what the background holds: it must drain
     // when the tabs that made it go away. Test builds only.
     // eslint-disable-next-line unicorn/no-global-object-property-assignment -- test builds only, see above
-    (globalThis as { __lcBackground?: unknown }).__lcBackground = { panels: () => panels.size, configTabs: () => configTabs.size, connections: () => cores.size };
+    (globalThis as { __lcBackground?: unknown }).__lcBackground = { panels: () => panels.size, configTabs: () => configTabs.size, connections: () => cores.size, pages: () => pagesOf.size };
 }
 
 const ours = (port: Runtime.Port): boolean => port.sender?.id === browser.runtime.id && port.sender.tab?.id !== undefined;
@@ -168,21 +168,15 @@ browser.runtime.onConnect.addListener((port: Runtime.Port) => {
             if (key !== undefined) serveContent(port, tabId, tab.windowId, key, message);
         });
     });
+    // Registered now, not once the workspace is known: a port that goes
+    // before then would otherwise stay among its workspace's pages.
+    const leave = pagesOf.add(port, workspace);
     port.onDisconnect.addListener(() => {
+        leave();
         panels.sourceGone(tabId, port);
     });
     void workspace.then((key) => {
-        if (key === undefined) {
-            port.disconnect();
-            return;
-        }
-        const pages = pagesOf.get(key) ?? new Set<Runtime.Port>();
-        pages.add(port);
-        pagesOf.set(key, pages);
-        port.onDisconnect.addListener(() => {
-            pages.delete(port);
-            if (pages.size === 0) pagesOf.delete(key);
-        });
+        if (key === undefined) port.disconnect();
     });
 });
 
