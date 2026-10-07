@@ -211,11 +211,13 @@ fn overlapping_checks_are_all_answered() {
     for id in 0..CHECKS {
         let request = Request {
             id: 100 + id,
-            payload: Some(request::Payload::CheckProse(lang_check::checker::CheckRequest {
-                text: format!("Teh {id} recieve it, seperately."),
-                language_id: "markdown".into(),
-                ..Default::default()
-            })),
+            payload: Some(request::Payload::CheckProse(
+                lang_check::checker::CheckRequest {
+                    text: format!("Teh {id} recieve it, seperately."),
+                    language_id: "markdown".into(),
+                    ..Default::default()
+                },
+            )),
         };
         send_frame(&mut child, &request.encode_to_vec());
     }
@@ -249,13 +251,116 @@ fn overlapping_checks_are_all_answered() {
     }
     child.kill().ok();
     ids.sort_unstable();
-    assert_eq!(ids, (100..100 + CHECKS).collect::<Vec<_>>(), "checks left unanswered");
+    assert_eq!(
+        ids,
+        (100..100 + CHECKS).collect::<Vec<_>>(),
+        "checks left unanswered"
+    );
+}
+
+/// One request's answer, sent and read in turn.
+fn ask(child: &mut Child, id: u64, payload: request::Payload) -> Response {
+    send_frame(
+        child,
+        &Request {
+            id,
+            payload: Some(payload),
+        }
+        .encode_to_vec(),
+    );
+    let response = read_response(child);
+    assert_eq!(response.id, id);
+    response
+}
+
+/// The browser extension's config page reads and writes the workspace
+/// config through the core: by file name, never a path, the first config
+/// name present taken as it is, a new one created as .languagecheck.yaml.
+#[test]
+fn the_config_is_read_and_written_by_name() {
+    use lang_check::checker::{ReadConfigRequest, WriteConfigRequest};
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    let read = |child: &mut Child, id| match ask(
+        child,
+        id,
+        request::Payload::ReadConfig(ReadConfigRequest {}),
+    )
+    .payload
+    {
+        Some(response::Payload::ReadConfig(answer)) => answer,
+        other => panic!("ReadConfig answered {other:?}"),
+    };
+    let none = read(&mut child, 2);
+    assert!(!none.exists);
+    assert_eq!(
+        (none.file_name.as_str(), none.text.as_str()),
+        (".languagecheck.yaml", "")
+    );
+
+    let written = ask(
+        &mut child,
+        3,
+        request::Payload::WriteConfig(WriteConfigRequest {
+            text: "engines:\n  harper: false\n".into(),
+        }),
+    );
+    assert!(matches!(written.payload, Some(response::Payload::Ok(_))));
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join(".languagecheck.yaml")).expect("written"),
+        "engines:\n  harper: false\n"
+    );
+    let back = read(&mut child, 4);
+    assert!(back.exists);
+    assert_eq!(back.text, "engines:\n  harper: false\n");
+    // No staging file is left behind.
+    let names: Vec<_> = std::fs::read_dir(dir.path())
+        .expect("dir")
+        .filter_map(|e| e.ok()?.file_name().into_string().ok())
+        .filter(|n| n.starts_with(".languagecheck"))
+        .collect();
+    assert_eq!(names, vec![".languagecheck.yaml".to_owned()]);
+
+    let too_long = ask(
+        &mut child,
+        5,
+        request::Payload::WriteConfig(WriteConfigRequest {
+            text: "#".repeat(lang_check::config::Config::MAX_TEXT_BYTES + 1),
+        }),
+    );
+    assert!(matches!(
+        too_long.payload,
+        Some(response::Payload::Error(_))
+    ));
+    child.kill().ok();
+
+    // A .yml in force is the one read and written.
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(dir.path().join(".languagecheck.yml"), "engines: {}\n").expect("seed");
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    assert_eq!(read(&mut child, 2).file_name, ".languagecheck.yml");
+    ask(
+        &mut child,
+        3,
+        request::Payload::WriteConfig(WriteConfigRequest {
+            text: "names:\n  enabled: true\n".into(),
+        }),
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join(".languagecheck.yml")).expect("yml"),
+        "names:\n  enabled: true\n"
+    );
+    assert!(!dir.path().join(".languagecheck.yaml").exists());
+    child.kill().ok();
 }
 
 /// The server's resident memory, from /proc (Linux only).
 #[cfg(target_os = "linux")]
 fn rss_kib(child: &Child) -> u64 {
-    let status = std::fs::read_to_string(format!("/proc/{}/status", child.id())).expect("proc status");
+    let status =
+        std::fs::read_to_string(format!("/proc/{}/status", child.id())).expect("proc status");
     status
         .lines()
         .find_map(|line| line.strip_prefix("VmRSS:"))
@@ -269,12 +374,16 @@ fn check_many(child: &mut Child, first_id: u64, count: u64) {
     for id in first_id..first_id + count {
         let request = Request {
             id,
-            payload: Some(request::Payload::CheckProse(lang_check::checker::CheckRequest {
-                // A different text each time, so nothing is answered from a store.
-                text: format!("Paragraph {id}: teh weather was fine and we recieve {id} letters, seperately."),
-                language_id: "markdown".into(),
-                ..Default::default()
-            })),
+            payload: Some(request::Payload::CheckProse(
+                lang_check::checker::CheckRequest {
+                    // A different text each time, so nothing is answered from a store.
+                    text: format!(
+                        "Paragraph {id}: teh weather was fine and we recieve {id} letters, seperately."
+                    ),
+                    language_id: "markdown".into(),
+                    ..Default::default()
+                },
+            )),
         };
         send_frame(child, &request.encode_to_vec());
         assert_eq!(read_response(child).id, id);
@@ -305,5 +414,8 @@ fn checking_for_long_does_not_grow_the_server() {
     let after = rss_kib(&child);
     child.kill().ok();
     eprintln!("server RSS: {settled} KiB after 75k checks, {after} KiB after 25k more");
-    assert!(after <= settled + ALLOWANCE_KIB, "server grew from {settled} KiB to {after} KiB over the last 25k checks");
+    assert!(
+        after <= settled + ALLOWANCE_KIB,
+        "server grew from {settled} KiB to {after} KiB over the last 25k checks"
+    );
 }

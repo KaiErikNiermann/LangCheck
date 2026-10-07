@@ -434,6 +434,8 @@ async fn main() -> Result<()> {
             Some(checker::request::Payload::AddDictionaryWord(_)) => "AddDictionaryWord",
             Some(checker::request::Payload::ProbeConfig(_)) => "ProbeConfig",
             Some(checker::request::Payload::ListConfigFiles(_)) => "ListConfigFiles",
+            Some(checker::request::Payload::ReadConfig(_)) => "ReadConfig",
+            Some(checker::request::Payload::WriteConfig(_)) => "WriteConfig",
             None => "Empty",
         };
         debug!(id = request_id, kind = payload_kind, "Request received");
@@ -1024,6 +1026,47 @@ async fn main() -> Result<()> {
                             warn!(id = request_id, word = %req.word, "Failed to add word: {e}");
                             Some(response::Payload::Error(ErrorResponse {
                                 message: format!("Failed to add word to dictionary: {e}"),
+                            }))
+                        }
+                    }
+                }
+                Some(checker::request::Payload::ReadConfig(_)) => {
+                    let root = workspace_root_arc
+                        .lock()
+                        .await
+                        .clone()
+                        .unwrap_or_else(|| PathBuf::from("."));
+                    match Config::read_text(&root) {
+                        Ok((file_name, text)) => {
+                            Some(response::Payload::ReadConfig(checker::ReadConfigResponse {
+                                exists: text.is_some(),
+                                text: text.unwrap_or_default(),
+                                file_name: file_name.to_owned(),
+                            }))
+                        }
+                        Err(e) => {
+                            warn!(id = request_id, "ReadConfig: {e}");
+                            Some(response::Payload::Error(ErrorResponse {
+                                message: format!("The config could not be read: {e}"),
+                            }))
+                        }
+                    }
+                }
+                Some(checker::request::Payload::WriteConfig(req)) => {
+                    let root = workspace_root_arc
+                        .lock()
+                        .await
+                        .clone()
+                        .unwrap_or_else(|| PathBuf::from("."));
+                    match Config::write_text(&root, &req.text) {
+                        Ok(path) => {
+                            info!(id = request_id, file = %path.display(), "WriteConfig: written");
+                            Some(response::Payload::Ok(checker::OkResponse {}))
+                        }
+                        Err(e) => {
+                            warn!(id = request_id, "WriteConfig: {e}");
+                            Some(response::Payload::Error(ErrorResponse {
+                                message: format!("The config could not be written: {e}"),
                             }))
                         }
                     }

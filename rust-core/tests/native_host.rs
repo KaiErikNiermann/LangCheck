@@ -10,8 +10,8 @@ use std::time::{Duration, Instant};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use lang_check::checker::{
-    AddDictionaryWordRequest, CheckRequest, InitializeRequest, ProbeConfigRequest, Request,
-    Response, request, response,
+    AddDictionaryWordRequest, CheckRequest, InitializeRequest, Request, Response,
+    WriteConfigRequest, request, response,
 };
 use prost::Message;
 
@@ -173,9 +173,12 @@ fn refusals_come_back_under_the_request_id_and_the_host_keeps_serving() {
     assert_eq!(refused.id, 5);
     assert!(matches!(refused.payload, Some(response::Payload::Error(_))));
 
+    // A config larger than the host writes.
     host.send(
         6,
-        request::Payload::ProbeConfig(ProbeConfigRequest::default()),
+        request::Payload::WriteConfig(WriteConfigRequest {
+            text: "#".repeat(lang_check::config::Config::MAX_TEXT_BYTES + 1),
+        }),
     );
     let refused = host.receive();
     assert_eq!(refused.id, 6);

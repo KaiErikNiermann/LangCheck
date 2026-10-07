@@ -143,12 +143,76 @@ pub fn admit(mut req: Request, web_root: &Path) -> Result<Request, String> {
             | request::Payload::Ignore(_)
             | request::Payload::GetMetadata(_),
         ) => {}
-        Some(request::Payload::ProbeConfig(_) | request::Payload::ListConfigFiles(_)) => {
-            return Err("config probing is not available to the web extension".into());
+        // The config page's requests. The extension sends them only for its
+        // own config page, never for a web page (a probe fetches URLs and
+        // looks at files, the text may hold an API key); here they are held
+        // to the workspace and a size, and their answers are scrubbed of
+        // paths on the way out (`scrub`).
+        Some(request::Payload::ReadConfig(_) | request::Payload::ListConfigFiles(_)) => {}
+        Some(request::Payload::WriteConfig(write)) => {
+            if write.text.len() > crate::config::Config::MAX_TEXT_BYTES {
+                return Err(format!(
+                    "the config is {} bytes; the web host writes at most {}",
+                    write.text.len(),
+                    crate::config::Config::MAX_TEXT_BYTES
+                ));
+            }
+        }
+        Some(request::Payload::ProbeConfig(probe)) => {
+            if probe.text.len() > crate::config::Config::MAX_TEXT_BYTES {
+                return Err(format!(
+                    "the config is {} bytes; the web host probes at most {}",
+                    probe.text.len(),
+                    crate::config::Config::MAX_TEXT_BYTES
+                ));
+            }
+            // Resolved against the workspace, as the server does with none.
+            probe.file_path = None;
         }
         None => return Err("request has no payload".into()),
     }
     Ok(req)
+}
+
+/// Rewrites what an answer says about where things are: the workspace
+/// directory becomes `.`, the home directory `~`. The extension shows these
+/// answers in web pages, which have no business knowing the user's paths.
+pub fn scrub(response: &mut Response, workspace: Option<&Path>) {
+    let home = dirs::home_dir();
+    let rewrite = |text: &mut String| {
+        if let Some(dir) = workspace.and_then(Path::to_str).filter(|d| !d.is_empty()) {
+            *text = text.replace(dir, ".");
+        }
+        if let Some(home) = home
+            .as_deref()
+            .and_then(Path::to_str)
+            .filter(|h| h.len() > 1)
+        {
+            *text = text.replace(home, "~");
+        }
+    };
+    match response.payload.as_mut() {
+        Some(response::Payload::ProbeConfig(probe)) => {
+            rewrite(&mut probe.parse_error);
+            for each in &mut probe.probes {
+                rewrite(&mut each.detail);
+            }
+            for issue in &mut probe.issues {
+                rewrite(&mut issue.message);
+            }
+        }
+        Some(response::Payload::ListConfigFiles(listing)) => {
+            // A name, not a path: the file is always the workspace's own.
+            listing.config_path = Path::new(&listing.config_path)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or_default()
+                .to_owned();
+            rewrite(&mut listing.load_error);
+        }
+        Some(response::Payload::Error(error)) => rewrite(&mut error.message),
+        _ => {}
+    }
 }
 
 /// The id of a request the host refused, for the error it sends back.
@@ -314,10 +378,16 @@ where
         anyhow::Ok(())
     });
 
+    // The workspace this connection initialized, for scrubbing answers.
+    let workspace: std::sync::Arc<std::sync::Mutex<Option<PathBuf>>> = std::sync::Arc::default();
+
     let to_browser = {
         let outbox = outbox.clone();
+        let workspace = std::sync::Arc::clone(&workspace);
         tokio::spawn(async move {
-            while let Some(response) = read_server_frame(&mut server_out).await? {
+            while let Some(mut response) = read_server_frame(&mut server_out).await? {
+                let dir = workspace.lock().map(|dir| dir.clone()).unwrap_or_default();
+                scrub(&mut response, dir.as_deref());
                 if outbox.send(response).await.is_err() {
                     break;
                 }
@@ -337,6 +407,11 @@ where
                     let id = req.id;
                     match admit(req, &web_root) {
                         Ok(req) => {
+                            if let Some(request::Payload::Initialize(init)) = &req.payload
+                                && let Ok(mut dir) = workspace.lock()
+                            {
+                                *dir = Some(PathBuf::from(&init.workspace_root));
+                            }
                             write_server_frame(&mut server_in, &req).await?;
                             None
                         }
@@ -547,11 +622,46 @@ mod tests {
     }
 
     #[test]
-    fn config_probing_and_empty_requests_are_refused() {
+    fn config_requests_are_admitted_within_bounds_and_empty_ones_refused() {
         let root = tempfile::tempdir().unwrap();
+        let admitted = admit(
+            request(request::Payload::ProbeConfig(ProbeConfigRequest {
+                text: "engines:\n  harper: true\n".into(),
+                file_path: Some("/etc/elsewhere/.languagecheck.yaml".into()),
+                format: String::new(),
+            })),
+            root.path(),
+        )
+        .unwrap();
+        // Resolved against the workspace, never a path the extension names.
+        assert!(
+            matches!(admitted.payload, Some(request::Payload::ProbeConfig(ref probe)) if probe.file_path.is_none())
+        );
+        for payload in [
+            request::Payload::ReadConfig(crate::checker::ReadConfigRequest {}),
+            request::Payload::WriteConfig(crate::checker::WriteConfigRequest {
+                text: "engines: {}\n".into(),
+            }),
+            request::Payload::ListConfigFiles(crate::checker::ListConfigFilesRequest {}),
+        ] {
+            assert!(admit(request(payload), root.path()).is_ok());
+        }
+        let huge = "#".repeat(crate::config::Config::MAX_TEXT_BYTES + 1);
         assert!(
             admit(
-                request(request::Payload::ProbeConfig(ProbeConfigRequest::default())),
+                request(request::Payload::WriteConfig(
+                    crate::checker::WriteConfigRequest { text: huge.clone() }
+                )),
+                root.path()
+            )
+            .is_err()
+        );
+        assert!(
+            admit(
+                request(request::Payload::ProbeConfig(ProbeConfigRequest {
+                    text: huge,
+                    ..Default::default()
+                })),
                 root.path()
             )
             .is_err()
@@ -565,6 +675,47 @@ mod tests {
                 root.path()
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn answers_are_scrubbed_of_the_workspace_and_home_paths() {
+        let home = dirs::home_dir().unwrap_or_default();
+        let workspace = Path::new("/data/language-check/web/overleaf-p1");
+        let mut probe = Response {
+            id: 3,
+            payload: Some(response::Payload::ProbeConfig(
+                crate::checker::ProbeConfigResponse {
+                    probes: vec![crate::checker::ConfigProbe {
+                        detail: "no .vale.ini in /data/language-check/web/overleaf-p1/styles"
+                            .into(),
+                        ..Default::default()
+                    }],
+                    parse_error: format!("cannot read {}/secret.yaml", home.display()),
+                    ..Default::default()
+                },
+            )),
+        };
+        scrub(&mut probe, Some(workspace));
+        let Some(response::Payload::ProbeConfig(probe)) = probe.payload else {
+            panic!("a probe")
+        };
+        assert_eq!(probe.probes[0].detail, "no .vale.ini in ./styles");
+        if home.as_os_str().len() > 1 {
+            assert_eq!(probe.parse_error, "cannot read ~/secret.yaml");
+        }
+        let mut listing = Response {
+            id: 4,
+            payload: Some(response::Payload::ListConfigFiles(
+                crate::checker::ListConfigFilesResponse {
+                    config_path: "/data/language-check/web/overleaf-p1/.languagecheck.yaml".into(),
+                    ..Default::default()
+                },
+            )),
+        };
+        scrub(&mut listing, Some(workspace));
+        assert!(
+            matches!(listing.payload, Some(response::Payload::ListConfigFiles(ref l)) if l.config_path == ".languagecheck.yaml")
         );
     }
 

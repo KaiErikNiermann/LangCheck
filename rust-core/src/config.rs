@@ -1044,6 +1044,43 @@ impl Config {
             .find(|path| path.exists())
     }
 
+    /// Largest config text an editor may write through the core.
+    pub const MAX_TEXT_BYTES: usize = 256 * 1024;
+
+    /// The config text in force for `workspace_root`: its file name and text,
+    /// or the name a write would create and `None` when there is no config.
+    pub fn read_text(workspace_root: &Path) -> std::io::Result<(&'static str, Option<String>)> {
+        for name in Self::FILE_NAMES {
+            let path = workspace_root.join(name);
+            if path.exists() {
+                return Ok((name, Some(std::fs::read_to_string(path)?)));
+            }
+        }
+        Ok((Self::FILE_NAMES[0], None))
+    }
+
+    /// Replaces the config in force with `text`, or creates
+    /// `.languagecheck.yaml`. Written to a temporary file beside it and
+    /// renamed over it, so the loader never reads half a file.
+    pub fn write_text(workspace_root: &Path, text: &str) -> Result<PathBuf> {
+        if text.len() > Self::MAX_TEXT_BYTES {
+            anyhow::bail!(
+                "the config is {} bytes; at most {} are written",
+                text.len(),
+                Self::MAX_TEXT_BYTES
+            );
+        }
+        let target = Self::file_in(workspace_root)
+            .unwrap_or_else(|| workspace_root.join(Self::FILE_NAMES[0]));
+        let staging = workspace_root.join(format!(".languagecheck.writing-{}", std::process::id()));
+        std::fs::write(&staging, text)?;
+        if let Err(error) = std::fs::rename(&staging, &target) {
+            std::fs::remove_file(&staging).ok();
+            return Err(error.into());
+        }
+        Ok(target)
+    }
+
     pub fn load(workspace_root: &Path) -> Result<Self> {
         let Some(path) = Self::file_in(workspace_root) else {
             return Ok(Self::default());

@@ -12,6 +12,8 @@ message Request {
     AddDictionaryWordRequest add_dictionary_word = 6;
     ProbeConfigRequest probe_config = 7;
     ListConfigFilesRequest list_config_files = 8;
+    ReadConfigRequest read_config = 9;
+    WriteConfigRequest write_config = 10;
   }
 }
 
@@ -59,6 +61,7 @@ message Response {
     ProbeConfigResponse probe_config = 6;
     ListConfigFilesResponse list_config_files = 7;
     InitializeResponse initialize = 8;
+    ReadConfigResponse read_config = 9;
   }
 }
 
@@ -283,6 +286,29 @@ message ConfigIssue {
 //
 // Read from disk rather than from a buffer: the question is what a check
 // would use, and that is the saved file.
+// The workspace config's text, for an editor that cannot read the workspace
+// itself (the browser extension's config page: its workspace is a directory
+// of the native host's). Answers name the file, never a path.
+message ReadConfigRequest {}
+
+message ReadConfigResponse {
+  // The config in force, as text; empty when there is none.
+  string text = 1;
+  // Its file name, e.g. ".languagecheck.yaml"; the name a write creates
+  // when there is none.
+  string file_name = 2;
+  // Whether a config file exists, so an empty one is not taken for none.
+  bool exists = 3;
+}
+
+// Replaces the config in force with `text`, or creates .languagecheck.yaml
+// when there is none. Answered with Ok once the file is written. The engines
+// keep running under the config they were initialized with: re-initialize
+// to apply it, as the editors do when they see the file change.
+message WriteConfigRequest {
+  string text = 1;
+}
+
 message ListConfigFilesRequest {}
 
 message ListConfigFilesResponse {
