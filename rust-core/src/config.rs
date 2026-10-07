@@ -955,6 +955,75 @@ impl Config {
         }
     }
 
+    /// What a config for a browser extension's workspace may not hold, as
+    /// messages naming the key; empty when it may be used. Such a workspace
+    /// is a directory of the native host's, and its config is written from a
+    /// browser, so it may not run or load code (external providers, WASM
+    /// plugins), choose where the core writes (`workspace.db_path`), or name
+    /// files outside the workspace (absolute paths, `~`, `..`). Text that
+    /// does not parse holds nothing to refuse: the loader rejects it whole.
+    #[must_use]
+    pub fn web_confinement_violations(text: &str, format: &str) -> Vec<String> {
+        let parsed: std::result::Result<Self, String> = if format.eq_ignore_ascii_case("json") {
+            serde_json::from_str(text).map_err(|e| e.to_string())
+        } else {
+            serde_yaml::from_str(text).map_err(|e| e.to_string())
+        };
+        let Ok(config) = parsed else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        if !config.engines.external.is_empty() {
+            out.push(
+                "engines.external runs programs, which a browser workspace's config may not."
+                    .to_owned(),
+            );
+        }
+        if !config.engines.wasm_plugins.is_empty() {
+            out.push(
+                "engines.wasm_plugins loads code, which a browser workspace's config may not."
+                    .to_owned(),
+            );
+        }
+        if config.workspace.db_path.is_some() {
+            out.push("workspace.db_path chooses where the core writes, which a browser workspace's config may not.".to_owned());
+        }
+        let outside = |value: &str| {
+            value.starts_with('~')
+                || Path::new(value).components().any(|part| {
+                    matches!(
+                        part,
+                        std::path::Component::ParentDir
+                            | std::path::Component::Prefix(_)
+                            | std::path::Component::RootDir
+                    )
+                })
+        };
+        let mut check = |key: &str, value: &str| {
+            if outside(value) {
+                out.push(format!(
+                    "{key} must name a file inside the workspace, not {value}."
+                ));
+            }
+        };
+        if let Some(path) = &config.engines.vale.config {
+            check("engines.vale.config", path);
+        }
+        if let Some(path) = &config.engines.proselint.config {
+            check("engines.proselint.config", path);
+        }
+        for path in &config.dictionaries.paths {
+            check("dictionaries.paths", path);
+        }
+        for path in config.engines.hunspell.dictionary_paths.values() {
+            check("engines.hunspell.dictionary_paths", path);
+        }
+        for path in &config.engines.hunspell.search_paths {
+            check("engines.hunspell.search_paths", path);
+        }
+        out
+    }
+
     /// Parse a config from text that is not on disk yet.
     ///
     /// The editor asks about the buffer it is showing, which is not the file
@@ -1063,6 +1132,7 @@ impl Config {
     /// `.languagecheck.yaml`. Written to a temporary file beside it and
     /// renamed over it, so the loader never reads half a file.
     pub fn write_text(workspace_root: &Path, text: &str) -> Result<PathBuf> {
+        use std::io::Write as _;
         if text.len() > Self::MAX_TEXT_BYTES {
             anyhow::bail!(
                 "the config is {} bytes; at most {} are written",
@@ -1072,8 +1142,28 @@ impl Config {
         }
         let target = Self::file_in(workspace_root)
             .unwrap_or_else(|| workspace_root.join(Self::FILE_NAMES[0]));
-        let staging = workspace_root.join(format!(".languagecheck.writing-{}", std::process::id()));
-        std::fs::write(&staging, text)?;
+        // A name no one can have prepared, created only if nothing is there:
+        // `create_new` refuses an existing file and does not follow a
+        // symlink, so the write cannot be redirected elsewhere.
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.as_nanos());
+        let staging = workspace_root.join(format!(
+            ".languagecheck.writing-{}-{nonce}",
+            std::process::id()
+        ));
+        let written = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&staging)
+            .and_then(|mut file| {
+                file.write_all(text.as_bytes())
+                    .and_then(|()| file.sync_all())
+            });
+        if let Err(error) = written {
+            std::fs::remove_file(&staging).ok();
+            return Err(error.into());
+        }
         if let Err(error) = std::fs::rename(&staging, &target) {
             std::fs::remove_file(&staging).ok();
             return Err(error.into());
@@ -1293,6 +1383,61 @@ engines:
         );
     }
     use super::*;
+
+    #[test]
+    fn a_browser_workspace_config_may_not_run_code_write_elsewhere_or_name_outside_files() {
+        let refused = |text: &str| Config::web_confinement_violations(text, "yaml");
+        assert!(refused("engines:\n  harper: true\n  vale:\n    enabled: true\n    config: styles/.vale.ini\ndictionaries:\n  paths: [words.txt]\n").is_empty());
+        assert_eq!(
+            refused("engines:\n  external:\n    - name: x\n      command: /bin/sh\n").len(),
+            1
+        );
+        assert_eq!(
+            refused("engines:\n  wasm_plugins:\n    - name: p\n      path: p.wasm\n").len(),
+            1
+        );
+        assert_eq!(refused("workspace:\n  db_path: index.db\n").len(), 1);
+        for path in [
+            "/etc/passwd",
+            "~/.ssh/id_rsa",
+            "../outside.ini",
+            "styles/../../x",
+        ] {
+            let text = format!("engines:\n  vale:\n    config: '{path}'\n");
+            assert_eq!(refused(&text).len(), 1, "{path}");
+        }
+        assert_eq!(
+            refused("dictionaries:\n  paths: ['/home/u/words.txt']\n").len(),
+            1
+        );
+        assert_eq!(
+            refused("engines:\n  hunspell:\n    search_paths: ['..']\n").len(),
+            1
+        );
+        assert_eq!(
+            Config::web_confinement_violations(
+                "{\"engines\": {\"external\": [{\"name\": \"x\", \"command\": \"x\"}]}}",
+                "json"
+            )
+            .len(),
+            1
+        );
+        // Text that does not parse holds nothing the loader would use.
+        assert!(refused("engines: [unclosed").is_empty());
+    }
+
+    #[test]
+    fn a_config_write_leaves_only_the_config_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let written = Config::write_text(dir.path(), "engines: {}\n").unwrap();
+        assert_eq!(written, dir.path().join(".languagecheck.yaml"));
+        let names: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok()?.file_name().into_string().ok())
+            .collect();
+        assert_eq!(names, vec![".languagecheck.yaml".to_owned()]);
+        assert!(Config::write_text(dir.path(), &"#".repeat(Config::MAX_TEXT_BYTES + 1)).is_err());
+    }
 
     #[test]
     fn duplicate_rule_keys_detects_repeats() {

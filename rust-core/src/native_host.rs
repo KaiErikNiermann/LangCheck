@@ -157,6 +157,9 @@ pub fn admit(mut req: Request, web_root: &Path) -> Result<Request, String> {
                     crate::config::Config::MAX_TEXT_BYTES
                 ));
             }
+            // Checked as both formats: the server loads whichever config file
+            // exists, which the host cannot see, and YAML reads JSON too.
+            confined(&write.text, &["yaml", "json"])?;
         }
         Some(request::Payload::ProbeConfig(probe)) => {
             if probe.text.len() > crate::config::Config::MAX_TEXT_BYTES {
@@ -166,12 +169,38 @@ pub fn admit(mut req: Request, web_root: &Path) -> Result<Request, String> {
                     crate::config::Config::MAX_TEXT_BYTES
                 ));
             }
+            // A probe stats every file the config names and fetches its
+            // URLs, so the same confinement holds for what is probed.
+            confined(
+                &probe.text,
+                &[if probe.format.eq_ignore_ascii_case("json") {
+                    "json"
+                } else {
+                    "yaml"
+                }],
+            )?;
             // Resolved against the workspace, as the server does with none.
             probe.file_path = None;
         }
         None => return Err("request has no payload".into()),
     }
     Ok(req)
+}
+
+/// `Err` naming every key of `text` a browser workspace's config may not
+/// hold (Config::web_confinement_violations), in any of `formats`.
+fn confined(text: &str, formats: &[&str]) -> Result<(), String> {
+    let mut violations: Vec<String> = formats
+        .iter()
+        .flat_map(|format| crate::config::Config::web_confinement_violations(text, format))
+        .collect();
+    violations.sort();
+    violations.dedup();
+    if violations.is_empty() {
+        Ok(())
+    } else {
+        Err(violations.join(" "))
+    }
 }
 
 /// Rewrites what an answer says about where things are: the workspace
@@ -676,6 +705,34 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn a_config_that_would_run_code_or_reach_outside_is_neither_written_nor_probed() {
+        let root = tempfile::tempdir().unwrap();
+        let write = |text: &str| {
+            admit(
+                request(request::Payload::WriteConfig(
+                    crate::checker::WriteConfigRequest { text: text.into() },
+                )),
+                root.path(),
+            )
+        };
+        assert!(write("engines:\n  harper: false\n").is_ok());
+        let refused =
+            write("engines:\n  external:\n    - name: x\n      command: /bin/sh\n").unwrap_err();
+        assert!(refused.contains("engines.external"), "{refused}");
+        // JSON is checked too, whatever the file in force turns out to be.
+        assert!(write("{\"workspace\": {\"db_path\": \"/tmp/x.db\"}}").is_err());
+        let probe = admit(
+            request(request::Payload::ProbeConfig(ProbeConfigRequest {
+                text: "engines:\n  vale:\n    config: /etc/shadow\n".into(),
+                ..Default::default()
+            })),
+            root.path(),
+        )
+        .unwrap_err();
+        assert!(probe.contains("engines.vale.config"), "{probe}");
     }
 
     #[test]
