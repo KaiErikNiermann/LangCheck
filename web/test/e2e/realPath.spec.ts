@@ -20,7 +20,7 @@ for (const [site, cm] of CASES) {
 
             const card = await hoverMark(page, 'recieve');
             await expect(card.locator('p').first()).toHaveText('Did you mean to spell `recieve` this way?');
-            await card.getByRole('button', { name: 'Replace with "receive"' }).click();
+            await card.getByRole('button', { name: 'Fix: "receive"' }).click();
             expect(await docText(page)).toBe('I will receive teh parcel tomorrow.\nTeh end.');
             await expect(marks(page)).toHaveText(['teh', 'Teh']);
         });
@@ -30,7 +30,7 @@ for (const [site, cm] of CASES) {
             await expect(marks(page)).toHaveText(['Teh', 'zorblax']);
             const card = await hoverMark(page, 'zorblax');
             await card.getByRole('button', { name: 'Add "zorblax" to dictionary' }).click();
-            await expect(page.locator('.lc-toast')).toHaveText('Added "zorblax" to the dictionary');
+            await expect(page.locator('.lc-toast')).toHaveText('Added "zorblax" to dictionary');
             await expect(marks(page)).toHaveText(['Teh']);
 
             await page.reload();

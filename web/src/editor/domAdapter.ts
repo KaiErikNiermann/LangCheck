@@ -248,6 +248,16 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
             if (rest.length > 0) throw new Error('this editor applies one edit at a time');
             applyEdit(current(), edit);
         },
+        select: (from, to) => {
+            if (disposed) return;
+            const now = current();
+            const range = rangeOf(now, from, to) ?? collapsedAt(now, from);
+            const selection = document.getSelection();
+            if (range === undefined || selection === null) return;
+            selection.removeAllRanges();
+            selection.addRange(range);
+            range.startContainer.parentElement?.scrollIntoView({ block: 'center' });
+        },
         ...cardMembers(card),
     };
 

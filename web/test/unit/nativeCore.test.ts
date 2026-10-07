@@ -78,7 +78,7 @@ class FakeHost implements NativePort {
     }
 }
 
-const check = { id: 7, op: 'check', text: 'teh', languageId: 'latex' } as const;
+const check = { id: 7, request: { checkProse: { text: 'teh', languageId: 'latex' } } } as const;
 
 function setup(...behaviours: Behaviour[]) {
     const clock = new FakeClock();
@@ -96,8 +96,8 @@ describe('CoreConnection', () => {
     test('initializes the workspace once, then checks', async () => {
         const { hosts, connection } = setup('answer');
         const response = await connection.request(check);
-        expect(response).toMatchObject({ id: 7, ok: true, diagnostics: [{ startByte: 0, endByte: 3, suggestions: ['the'] }] });
-        await connection.request({ id: 8, op: 'addWord', word: 'teh' });
+        expect(response).toMatchObject({ id: 7, ok: true, response: { checkProse: { diagnostics: [{ startByte: 0, endByte: 3, suggestions: ['the'] }] } } });
+        await connection.request({ id: 8, request: { addDictionaryWord: { word: 'teh' } } });
         expect(hosts).toHaveLength(1);
         expect(hosts[0]!.received.map((r) => r.payload)).toEqual(['initialize', 'checkProse', 'addDictionaryWord']);
         expect(hosts[0]!.received[0]!.initialize?.workspaceRoot).toBe('overleaf-abc');
@@ -105,7 +105,7 @@ describe('CoreConnection', () => {
 
     test('joins a response split across frames', async () => {
         const { connection } = setup('split');
-        expect(await connection.request(check)).toMatchObject({ ok: true, diagnostics: [{ message: 'Possible spelling mistake' }] });
+        expect(await connection.request(check)).toMatchObject({ ok: true, response: { checkProse: { diagnostics: [{ message: 'Possible spelling mistake' }] } } });
     });
 
     test('a request the host never answers times out', async () => {
@@ -246,7 +246,7 @@ describe('a failed initialize', () => {
             return host;
         };
         const connection = new CoreConnection('k', connect, clock);
-        const learn = { id: 1, op: 'addWord', word: 'teh' } as const;
+        const learn = { id: 1, request: { addDictionaryWord: { word: 'teh' } } } as const;
         expect(await connection.request(learn)).toMatchObject({ ok: false, code: 'failed' });
         expect(hosts[0]!.disconnected).toBe(true);
         expect(await connection.request(learn)).toMatchObject({ ok: false });

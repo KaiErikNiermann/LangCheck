@@ -3,17 +3,28 @@
 // unchanged. Implemented members forward to the dispatcher (`host`); any
 // namespace member we have not implemented resolves to a logged no-op instead
 // of crashing, which is the "fallback for VS Code-only behaviour".
+import { configs } from '../../../extension/src/generated/meta';
 import type { ActionSource, EditorAdapter, HoverSource, RenderedAction, RenderedDiagnostic, RenderedHint, TextEdit } from '../editor/types';
 
 // ---------------------------------------------------------------- primitives
 
+/**
+ * Structural, as VS Code's is: anything with a `dispose` method is one, so
+ * `context.subscriptions` (plain `{ dispose() }` objects) passes where the
+ * client's code asks for `Disposable[]`. The callback lives in a closure,
+ * not a private field, which would make the type nominal.
+ */
 export class Disposable {
     static from(...items: { dispose(): unknown }[]): Disposable {
-        return new Disposable(() => { for (const i of items) i.dispose() });
+        return new Disposable(() => {
+            for (const i of items) i.dispose();
+        });
     }
-    constructor(private readonly onDispose: () => unknown) {}
-    dispose(): void {
-        this.onDispose();
+    readonly dispose: () => void;
+    constructor(onDispose: () => unknown) {
+        this.dispose = () => {
+            onDispose();
+        };
     }
 }
 
@@ -47,6 +58,11 @@ export class Uri {
     }
     static file(path: string): Uri {
         return new Uri('file', path);
+    }
+    static joinPath(base: Uri, ...segments: string[]): Uri {
+        let path = base.path;
+        while (path.endsWith('/')) path = path.slice(0, -1);
+        return new Uri(base.scheme, [path, ...segments].join('/'));
     }
     get fsPath(): string {
         return this.path;
@@ -94,6 +110,30 @@ export class Range {
     }
 }
 
+/** A selection is a range with a direction: from `anchor` to `active`. */
+export class Selection extends Range {
+    constructor(
+        readonly anchor: Position,
+        readonly active: Position,
+    ) {
+        super(anchor.isBefore(active) ? anchor : active, anchor.isBefore(active) ? active : anchor);
+    }
+}
+
+export enum TextEditorRevealType {
+    Default = 0,
+    InCenter = 1,
+    InCenterIfOutsideViewport = 2,
+    AtTop = 3,
+}
+
+export enum ViewColumn {
+    Active = -1,
+    Beside = -2,
+    One = 1,
+    Two = 2,
+}
+
 export enum DiagnosticSeverity {
     Error = 0,
     Warning = 1,
@@ -116,10 +156,46 @@ export class CodeActionKind {
     constructor(readonly value: string) {}
 }
 
-interface Command {
+export type Thenable<T> = PromiseLike<T>;
+
+declare global {
+    // VS Code's typings declare Thenable globally, and the client's code uses it unqualified.
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+    interface Thenable<T> extends PromiseLike<T> {}
+}
+
+export interface Command {
     command: string;
     title: string;
+    tooltip?: string;
     arguments?: unknown[];
+}
+
+export interface WorkspaceFolder {
+    readonly uri: Uri;
+    readonly name: string;
+    readonly index: number;
+}
+
+export enum ConfigurationTarget {
+    Global = 1,
+    Workspace = 2,
+    WorkspaceFolder = 3,
+}
+
+export enum StatusBarAlignment {
+    Left = 1,
+    Right = 2,
+}
+
+export enum ProgressLocation {
+    SourceControl = 1,
+    Window = 10,
+    Notification = 15,
+}
+
+export class ThemeColor {
+    constructor(readonly id: string) {}
 }
 
 interface Replacement {
@@ -188,6 +264,7 @@ export class CodeAction {
     edit: WorkspaceEdit | undefined;
     command: Command | undefined;
     diagnostics: Diagnostic[] | undefined;
+    isPreferred: boolean | undefined;
     constructor(
         readonly title: string,
         readonly kind?: CodeActionKind,
@@ -227,6 +304,17 @@ export class TextDocument {
     /** VS Code's default word pattern, minus the number alternative. */
     private static readonly WORD_PATTERN = /[^`~!@#$%^&*()\-=+[{\]}\\|;:'",.<>/?\s]+/gu;
 
+    /** The line holding `line` (a number or a position), without its line break, as VS Code's TextLine. */
+    lineAt(line: number | Position): TextLine {
+        const index = Math.max(0, Math.min(typeof line === 'number' ? line : line.line, this.lineStarts.length - 1));
+        const start = this.lineStarts[index] ?? 0;
+        const next = this.lineStarts[index + 1];
+        const end = next === undefined ? this.length : next - 1;
+        const text = this.adapter.getText().slice(start, end);
+        const range = new Range(new Position(index, 0), new Position(index, end - start));
+        return { lineNumber: index, text, range, isEmptyOrWhitespace: text.trim() === '', firstNonWhitespaceCharacterIndex: text.length - text.trimStart().length };
+    }
+
     getWordRangeAtPosition(position: Position, pattern?: RegExp): Range | undefined {
         const start = this.offsetAt(new Position(position.line, 0));
         const next = this.lineStarts[position.line + 1];
@@ -265,6 +353,41 @@ export class TextDocument {
         }
         return new Position(lo, clamped - (this.lineStarts[lo] ?? 0));
     }
+}
+
+/**
+ * The editor showing a document: one per page. Setting `selection` selects
+ * the text in the site's editor; `revealRange` scrolls to it.
+ */
+export class TextEditor {
+    private current: Selection;
+    readonly viewColumn = ViewColumn.One;
+
+    constructor(readonly document: TextDocument) {
+        const start = new Position(0, 0);
+        this.current = new Selection(start, start);
+    }
+
+    get selection(): Selection {
+        return this.current;
+    }
+
+    set selection(selection: Selection) {
+        this.current = selection;
+        this.document.adapter.select(this.document.offsetAt(selection.start), this.document.offsetAt(selection.end));
+    }
+
+    revealRange(range: Range, _type?: TextEditorRevealType): void {
+        this.document.adapter.select(this.document.offsetAt(range.start), this.document.offsetAt(range.end));
+    }
+}
+
+export interface TextLine {
+    readonly lineNumber: number;
+    readonly text: string;
+    readonly range: Range;
+    readonly isEmptyOrWhitespace: boolean;
+    readonly firstNonWhitespaceCharacterIndex: number;
 }
 
 // ------------------------------------------------------------ the dispatcher
@@ -313,6 +436,9 @@ const labelText = (label: InlayHint['label']): string => (typeof label === 'stri
 
 class Host {
     readonly documents = new Map<string, TextDocument>();
+    readonly editors = new Map<TextDocument, TextEditor>();
+    /** The document version each document's findings were last published at. */
+    private readonly publishedAt = new WeakMap<TextDocument, number>();
     readonly diagnostics = new Map<string, Map<string, readonly Diagnostic[]>>(); // uri -> owner -> list
     readonly providers: Registration<CodeActionProvider>[] = [];
     readonly hoverProviders: Registration<HoverProvider>[] = [];
@@ -323,6 +449,10 @@ class Host {
     readonly onDidClose = new EventEmitter<TextDocument>();
     readonly onDidChange = new EventEmitter<{ document: TextDocument; contentChanges: readonly never[] }>();
     readonly unsupported = new Set<string>();
+    /** Opens a panel's page; installed by the composition root. */
+    webviews: WebviewOpener | undefined;
+    /** Settings changed through `update`, over the manifest defaults. */
+    readonly settings = new Map<string, unknown>();
     private collections = 0;
 
     /** Tells collections of the same name apart; only uniqueness matters. */
@@ -334,6 +464,7 @@ class Host {
         const doc = new TextDocument(adapter);
         const key = doc.uri.toString();
         this.documents.set(key, doc);
+        this.editors.set(doc, new TextEditor(doc));
         adapter.setActionSource(this.actionSourceFor(doc));
         adapter.setHoverSource(this.hoverSourceFor(doc));
         adapter.onDidChange(() => {
@@ -352,6 +483,7 @@ class Host {
         const key = doc.uri.toString();
         if (this.documents.get(key) !== doc) return;
         this.documents.delete(key);
+        this.editors.delete(doc);
         this.diagnostics.delete(key);
         this.onDidClose.fire(doc);
     }
@@ -392,6 +524,7 @@ class Host {
     publish(uri: string): void {
         const doc = this.documents.get(uri);
         if (doc === undefined) return;
+        this.publishedAt.set(doc, doc.version);
         const rendered: RenderedDiagnostic[] = [...(this.diagnostics.get(uri)?.values() ?? [])].flat().map((d) => ({
             from: doc.offsetAt(d.range.start),
             to: doc.offsetAt(d.range.end),
@@ -409,6 +542,12 @@ class Host {
 
     private actionSourceFor(doc: TextDocument): ActionSource {
         return async (from, to) => {
+            // Findings describe the text they were published for. After an
+            // edit their ranges are stale until the recheck lands, and a fix
+            // would land on the wrong text: offer nothing until then. (VS Code
+            // gets the same effect by shifting its markers, which then no
+            // longer match the extension's store.)
+            if (this.publishedAt.get(doc) !== doc.version) return [];
             const range = new Range(doc.positionAt(from), doc.positionAt(to));
             const diagnostics = [...(this.diagnostics.get(doc.uri.toString())?.values() ?? [])]
                 .flat()
@@ -419,7 +558,11 @@ class Host {
                     Promise.resolve(p.provider.provideCodeActions(doc, range, { diagnostics, only: undefined, triggerKind: 1 })),
                 ),
             );
-            return batches.flatMap((b) => b ?? []).map((a): RenderedAction => ({
+            // The preferred action (the top suggestion) leads, as in VS Code's
+            // quick-fix menu and auto-fix; the rest keep the provider's order.
+            const offered = batches.flatMap((b) => b ?? []);
+            const ordered = [...offered.filter((a) => a.isPreferred === true), ...offered.filter((a) => a.isPreferred !== true)];
+            return ordered.map((a): RenderedAction => ({
                 title: a.title,
                 run: async () => {
                     if (a.edit !== undefined) await workspace.applyEdit(a.edit);
@@ -481,7 +624,7 @@ export const languages = withFallback('languages', {
             dispose: () => { touched.forEach((uri) => { setFor(uri, []); }); },
         };
     },
-    registerCodeActionsProvider(selector: Selector | readonly Selector[], provider: CodeActionProvider) {
+    registerCodeActionsProvider(selector: Selector | readonly Selector[], provider: CodeActionProvider, _metadata?: unknown) {
         return register(host.providers, selector, provider);
     },
     registerHoverProvider(selector: Selector | readonly Selector[], provider: HoverProvider) {
@@ -502,13 +645,60 @@ export const languages = withFallback('languages', {
     },
 });
 
+export interface WorkspaceConfiguration {
+    get<T>(key: string): T | undefined;
+    get<T>(key: string, fallback: T): T;
+    has(key: string): boolean;
+    update(key: string, value: unknown, target?: ConfigurationTarget | boolean): Promise<void>;
+}
+
+/** Settings defaults, from the client's generated manifest table; the web has no settings editor yet. */
+const SETTING_DEFAULTS: ReadonlyMap<string, unknown> = new Map(Object.values(configs).map((c) => [c.key, c.default]));
+
+const NO_FILE_SYSTEM = (): Promise<never> => Promise.reject(new Error('a web page has no file system'));
+
+/** An event nothing on the web raises (file watchers: there are no files). */
+const neverFires = (_listener: (uri: Uri) => unknown): Disposable => new Disposable(() => {});
+
 export const workspace = withFallback('workspace', {
     get textDocuments(): TextDocument[] {
         return [...host.documents.values()];
     },
+    /** A web page is not a workspace folder. */
+    workspaceFolders: undefined as readonly WorkspaceFolder[] | undefined,
+    getConfiguration(section?: string): WorkspaceConfiguration {
+        const full = (key: string): string => (section === undefined ? key : `${section}.${key}`);
+        function get<T>(key: string): T | undefined;
+        function get<T>(key: string, fallback: T): T;
+        function get(key: string, fallback?: unknown): unknown {
+            return host.settings.get(full(key)) ?? fallback ?? SETTING_DEFAULTS.get(full(key));
+        }
+        return {
+            get,
+            has: (key: string) => host.settings.has(full(key)) || SETTING_DEFAULTS.has(full(key)),
+            update(key: string, value: unknown, _target?: ConfigurationTarget | boolean): Promise<void> {
+                host.settings.set(full(key), value);
+                return Promise.resolve();
+            },
+        };
+    },
+    findFiles: (_include?: string, _exclude?: string): Promise<Uri[]> => Promise.resolve([]),
+    fs: {
+        stat: (_uri: Uri): Promise<never> => NO_FILE_SYSTEM(),
+        readFile: (_uri: Uri): Promise<Uint8Array> => NO_FILE_SYSTEM(),
+        writeFile: (_uri: Uri, _content: Uint8Array): Promise<void> => NO_FILE_SYSTEM(),
+    },
+    createFileSystemWatcher(_glob?: string, _ignoreCreate?: boolean, _ignoreChange?: boolean, _ignoreDelete?: boolean) {
+        return { onDidChange: neverFires, onDidCreate: neverFires, onDidDelete: neverFires, dispose: () => {} };
+    },
     onDidOpenTextDocument: host.onDidOpen.event,
     onDidChangeTextDocument: host.onDidChange.event,
     onDidCloseTextDocument: host.onDidClose.event,
+    /** Only documents already open in the page exist: a web page opens no files. */
+    openTextDocument(uri: Uri): Promise<TextDocument> {
+        const doc = host.documents.get(uri.toString());
+        return doc === undefined ? Promise.reject(new Error(`${uri.toString()} is not open in this page`)) : Promise.resolve(doc);
+    },
     /** All or nothing, like VS Code: an edit naming a document that is not open applies nowhere. */
     applyEdit(edit: WorkspaceEdit): Promise<boolean> {
         const byUri = [...Map.groupBy(edit.entries, (r) => r.uri.toString())].map(([uri, replacements]) => ({ doc: host.documents.get(uri), replacements }));
@@ -528,35 +718,206 @@ export const commands = withFallback('commands', {
         host.commands.set(id, callback);
         return new Disposable(() => host.commands.delete(id));
     },
-    executeCommand(id: string, ...args: unknown[]): Promise<unknown> {
+    executeCommand<T = unknown>(id: string, ...args: unknown[]): Promise<T> {
         const cb = host.commands.get(id);
         if (cb === undefined) return Promise.reject(new Error(`command '${id}' not found`));
         try {
-            return Promise.resolve((cb as (...a: unknown[]) => unknown)(...args));
+            return Promise.resolve((cb as (...a: unknown[]) => T)(...args));
         } catch (error) {
             return Promise.reject(error instanceof Error ? error : new Error(String(error)));
         }
     },
 });
 
-/** The page shows one message at a time; whichever document is open shows it. */
-function notify(message: string): Promise<undefined> {
+/**
+ * The page shows one message at a time; whichever document is open shows it.
+ * Buttons (`items`) are not offered on the web: the answer is always
+ * "dismissed", which is what VS Code returns when the user closes the toast.
+ */
+function notify(message: string, ..._items: unknown[]): Promise<undefined> {
     for (const d of host.documents.values()) d.adapter.notify(message);
     return Promise.resolve(undefined);
+}
+
+export interface OutputChannel {
+    readonly name: string;
+    append(value: string): void;
+    appendLine(value: string): void;
+    show(preserveFocus?: boolean): void;
+    clear(): void;
+    dispose(): void;
+}
+
+export interface StatusBarItem {
+    text: string;
+    tooltip: string | MarkdownString | undefined;
+    command: string | Command | undefined;
+    backgroundColor: ThemeColor | undefined;
+    show(): void;
+    hide(): void;
+    dispose(): void;
+}
+
+type Event<T> = (listener: (e: T) => unknown, thisArgs?: unknown, disposables?: Disposable[]) => Disposable;
+
+export interface WebviewOptions {
+    readonly enableScripts?: boolean;
+    readonly localResourceRoots?: readonly Uri[];
+    readonly retainContextWhenHidden?: boolean;
+}
+
+export interface Webview {
+    /** Ignored on the web: the panel's page is the extension's own (see WebviewChannel). */
+    html: string;
+    options: WebviewOptions;
+    readonly cspSource: string;
+    postMessage(message: unknown): Promise<boolean>;
+    // VS Code types webview messages as `any`, and the client's handlers
+    // declare their own message type: `unknown` would not accept them.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    readonly onDidReceiveMessage: Event<any>;
+    asWebviewUri(uri: Uri): Uri;
+}
+
+export interface WebviewPanel {
+    readonly webview: Webview;
+    readonly viewType: string;
+    title: string;
+    readonly visible: boolean;
+    reveal(viewColumn?: ViewColumn, preserveFocus?: boolean): void;
+    readonly onDidDispose: Event<void>;
+    dispose(): void;
+}
+
+/**
+ * Where a webview panel really lives on the web: a page of the extension in
+ * its own tab, showing the same webview app VS Code shows, with messages
+ * carried both ways. Installed by the composition root (webviewHost.ts).
+ */
+export interface WebviewChannel {
+    post(message: unknown): void;
+    onMessage(listener: (message: unknown) => void): void;
+    /** The tab was closed. */
+    onClose(listener: () => void): void;
+    reveal(): void;
+    close(): void;
+}
+
+export type WebviewOpener = (viewType: string, title: string) => WebviewChannel;
+
+function webviewPanel(viewType: string, title: string, channel: WebviewChannel): WebviewPanel {
+    const received = new EventEmitter<unknown>();
+    const disposed = new EventEmitter<void>();
+    let open = true;
+    const end = (): void => {
+        if (!open) return;
+        open = false;
+        disposed.fire();
+        received.dispose();
+        disposed.dispose();
+    };
+    channel.onMessage((message) => {
+        if (open) received.fire(message);
+    });
+    channel.onClose(end);
+    return {
+        viewType,
+        title,
+        get visible() {
+            return open;
+        },
+        webview: {
+            html: '',
+            options: {},
+            cspSource: '',
+            postMessage(message) {
+                if (open) channel.post(message);
+                return Promise.resolve(open);
+            },
+            onDidReceiveMessage: received.event,
+            asWebviewUri: (uri) => uri,
+        },
+        reveal() {
+            if (open) channel.reveal();
+        },
+        onDidDispose: disposed.event,
+        dispose() {
+            if (open) channel.close();
+            end();
+        },
+    };
+}
+
+interface Progress {
+    report(value: { message?: string; increment?: number }): void;
 }
 
 export const window = withFallback('window', {
     showInformationMessage: notify,
     showWarningMessage: notify,
     showErrorMessage: notify,
+    /** The page shows one document at a time: its editor is the active one. */
+    get activeTextEditor(): TextEditor | undefined {
+        return [...host.editors.values()].at(-1);
+    },
+    get visibleTextEditors(): TextEditor[] {
+        return [...host.editors.values()];
+    },
+    showTextDocument(doc: TextDocument, _options?: unknown, _preserveFocus?: boolean): Promise<TextEditor> {
+        const editor = host.editors.get(doc);
+        return editor === undefined ? Promise.reject(new Error('the document is not open in this page')) : Promise.resolve(editor);
+    },
+    createWebviewPanel(viewType: string, title: string, _showOptions?: unknown, _options?: WebviewOptions): WebviewPanel {
+        if (host.webviews === undefined) throw new Error('webview panels are not available in this page');
+        return webviewPanel(viewType, title, host.webviews(viewType, title));
+    },
+    /** A page has no status bar: the item exists, shows nowhere. */
+    createStatusBarItem(_alignment?: StatusBarAlignment, _priority?: number): StatusBarItem {
+        return { text: '', tooltip: undefined, command: undefined, backgroundColor: undefined, show: () => {}, hide: () => {}, dispose: () => {} };
+    },
+    /** An output channel is the browser console. */
+    createOutputChannel(name: string): OutputChannel {
+        return {
+            name,
+            append: (value) => {
+                console.info(`[${name}]`, value);
+            },
+            appendLine: (value) => {
+                console.info(`[${name}]`, value);
+            },
+            show: () => {},
+            clear: () => {},
+            dispose: () => {},
+        };
+    },
+    /** Runs the task; progress is not shown, and nothing cancels it. */
+    withProgress<R>(_options: unknown, task: (progress: Progress, token: CancellationToken) => Thenable<R>): Promise<R> {
+        return Promise.resolve(task({ report: () => {} }, NEVER_CANCELLED));
+    },
 });
 
-/** The part of `vscode.ExtensionContext` a web feature gets: somewhere to put what it must dispose. */
+/**
+ * The part of `vscode.ExtensionContext` the client's code uses: somewhere to
+ * put what it must dispose, and the extension's identity. There is no
+ * extension directory on disk; webview assets come from the extension's own
+ * pages instead (see the webview host).
+ */
 export interface ExtensionContext {
     readonly subscriptions: { dispose(): unknown }[];
+    readonly extensionPath: string;
+    readonly extensionUri: Uri;
+    readonly extension: { readonly id: string; readonly packageJSON: { readonly version: string } };
 }
 
-export const env = withFallback('env', {});
+export const env = withFallback('env', {
+    openExternal(uri: Uri): Promise<boolean> {
+        return Promise.resolve(globalThis.open(uri.toString(), '_blank', 'noopener,noreferrer') !== null);
+    },
+    clipboard: {
+        writeText: (text: string): Promise<void> => navigator.clipboard.writeText(text),
+        readText: (): Promise<string> => navigator.clipboard.readText(),
+    },
+});
 export const extensions = withFallback('extensions', {});
 export const l10n = withFallback('l10n', {
     t: (message: string, ...args: unknown[]) => message.replaceAll(/\{(\d+)\}/g, (_, i: string) => String(args[Number(i)])),

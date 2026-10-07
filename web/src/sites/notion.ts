@@ -34,7 +34,10 @@ export const notionPage: SitePage = {
         const frame = document.querySelector('.notion-frame');
         const page = PAGE_ID.exec(location.pathname)?.[1];
         if (frame === null || page === undefined) return;
-        return domEditor(frame, frame, page, 'plaintext', {
+        // Markdown, not plaintext: the client's providers attach only to the
+        // languages it supports, and Notion's text carries its formatting in
+        // the DOM, so markdown extraction sees plain prose.
+        return domEditor(frame, frame, page, 'markdown', {
             leaves: (root) => root.querySelectorAll(PROSE_LEAF),
             // contenteditable="false" is the standard mark of an atom
             // (equations, mentions); inline code is Notion's own container.

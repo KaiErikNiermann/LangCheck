@@ -48,4 +48,6 @@ export interface EditorAdapter {
     setActionSource(source: ActionSource): void;
     setHoverSource(source: HoverSource): void;
     notify(message: string): void;
+    /** Selects `[from, to)` and scrolls it into view (SpeedFix's go-to-location). */
+    select(from: number, to: number): void;
 }

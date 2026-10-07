@@ -11,7 +11,7 @@
 //   missing or crashing host is not respawned on every keystroke;
 // - idle connections close, and at most MAX_CONNECTIONS stay open.
 import { languagecheck } from '../../../extension/src/proto/checker';
-import type { ErrorCode, PageRequest, PageResponse, WireDiagnostic } from '../messaging/protocol';
+import type { ErrorCode, PageRequest, PageResponse } from '../messaging/protocol';
 import { base64ToBytes, bytesToBase64 } from './base64';
 
 /** The name the host manifest registers (`HOST_NAME` in the core). */
@@ -93,7 +93,7 @@ export class CoreConnection {
         const initFailure = await this.initialized;
         if (initFailure !== undefined) return failed(request.id, initFailure);
         const response = await this.call(toProto(request));
-        return isFailure(response) ? failed(request.id, response) : fromProto(request.id, response);
+        return isFailure(response) ? failed(request.id, response) : fromProto(request.id, response as languagecheck.Response);
     }
 
     close(): void {
@@ -287,45 +287,14 @@ function failed(id: number, f: CoreFailure): PageResponse {
     return { id, ok: false, code: f.failure, error: PAGE_MESSAGE[f.failure] };
 }
 
+/** The page's request is already in the core's Request shape (parsed and limited by the content script). */
 function toProto(request: PageRequest): languagecheck.Request.$Properties {
-    switch (request.op) {
-        case 'check': {
-            return { checkProse: { text: request.text, languageId: request.languageId } };
-        }
-        case 'addWord': {
-            return { addDictionaryWord: { word: request.word } };
-        }
-        case 'ignore': {
-            return {
-                ignore: {
-                    message: request.message,
-                    context: request.context,
-                    text: request.text,
-                    startByte: request.startByte,
-                    endByte: request.endByte,
-                },
-            };
-        }
-    }
+    return request.request;
 }
 
-function fromProto(id: number, response: languagecheck.Response.$Properties): PageResponse {
-    if (response.error) return failed(id, { failure: 'failed', message: response.error.message ?? 'the core reported an error' });
-    if (response.checkProse) {
-        return { id, ok: true, diagnostics: (response.checkProse.diagnostics ?? []).map((d) => toWire(d)) };
-    }
-    return response.ok ? { id, ok: true } : failed(id, { failure: 'failed', message: 'unexpected response from the core' });
-}
-
-function toWire(d: languagecheck.Diagnostic.$Properties): WireDiagnostic {
-    return {
-        startByte: d.startByte ?? 0,
-        endByte: d.endByte ?? 0,
-        message: d.message ?? '',
-        severity: d.severity ?? 0,
-        ruleId: d.ruleId ?? '',
-        unifiedId: d.unifiedId ?? '',
-        suggestions: d.suggestions ?? [],
-        confidence: d.confidence ?? 0,
-    };
+/** The decoded Response as plain data, the shape the client's Checker reads. Errors are sanitised (see PAGE_MESSAGE). */
+function fromProto(id: number, response: languagecheck.Response): PageResponse {
+    if (response.error) return failed(id, { failure: 'failed', message: response.error.message || 'the core reported an error' });
+    const plain = languagecheck.Response.toObject(response, { enums: Number, longs: Number, defaults: true }) as Record<string, unknown>;
+    return { id, ok: true, response: plain };
 }

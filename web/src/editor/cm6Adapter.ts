@@ -170,6 +170,13 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
             }
             view.dispatch({ changes: edits.map((e) => ({ from: e.from, to: e.to, insert: e.insert })), userEvent: 'input.complete' });
         },
+        select: (from, to) => {
+            if (disposed) return;
+            const length = view.state.doc.length;
+            const anchor = Math.max(0, Math.min(from, length));
+            const head = Math.max(anchor, Math.min(to, length));
+            view.dispatch({ selection: { anchor, head }, effects: Ev.scrollIntoView(anchor, { y: 'center' }) });
+        },
         ...cardMembers(card),
     };
 

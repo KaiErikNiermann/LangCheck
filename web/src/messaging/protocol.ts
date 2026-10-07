@@ -9,7 +9,7 @@
 // derives it from the tab's URL (see sites/).
 
 /** Bumped on any incompatible change; the page and content script must agree. */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 /** The `type` tag of the window message that hands the page its port. */
 export const HANDSHAKE_TYPE = 'language-check:port';
@@ -27,33 +27,36 @@ export const MAX_IN_FLIGHT_PER_PAGE = 8;
 export const LANGUAGE_IDS = ['latex', 'typst', 'bibtex', 'markdown', 'plaintext'] as const;
 export type LanguageId = (typeof LANGUAGE_IDS)[number];
 
-export type PageRequest =
-    | { readonly id: number; readonly op: 'check'; readonly text: string; readonly languageId: LanguageId }
-    | { readonly id: number; readonly op: 'addWord'; readonly word: string }
+/**
+ * A request to the core, in the protobuf `Request` payload shape the client's
+ * Checker sends (`{ checkProse: {...} }`), limited to what a web page may ask.
+ */
+export type CoreRequest =
+    | { readonly checkProse: { readonly text: string; readonly languageId: LanguageId } }
+    | { readonly addDictionaryWord: { readonly word: string } }
     | {
-          readonly id: number;
-          readonly op: 'ignore';
-          readonly message: string;
-          readonly context: string;
-          readonly text: string;
-          readonly startByte: number;
-          readonly endByte: number;
-      };
+          readonly ignore: {
+              readonly message: string;
+              readonly context: string;
+              readonly text: string;
+              readonly startByte: number;
+              readonly endByte: number;
+          };
+      }
+    | { readonly getMetadata: Record<string, never> };
 
-/** A finding as the page receives it: the protobuf Diagnostic as plain data. */
-export interface WireDiagnostic {
-    readonly startByte: number;
-    readonly endByte: number;
-    readonly message: string;
-    readonly severity: number;
-    readonly ruleId: string;
-    readonly unifiedId: string;
-    readonly suggestions: readonly string[];
-    readonly confidence: number;
+export interface PageRequest {
+    readonly id: number;
+    readonly request: CoreRequest;
 }
 
+/**
+ * The core's protobuf `Response` as plain data (`Response.toObject`), or a
+ * failure. A failure's text is one fixed sentence per code: the detail can
+ * name local paths and stays in the extension's console.
+ */
 export type PageResponse =
-    | { readonly id: number; readonly ok: true; readonly diagnostics?: readonly WireDiagnostic[] }
+    | { readonly id: number; readonly ok: true; readonly response: Readonly<Record<string, unknown>> }
     | { readonly id: number; readonly ok: false; readonly error: string; readonly code: ErrorCode };
 
 /**
@@ -77,44 +80,40 @@ const CONTROL_OR_SPACE = /[\u{0}-\u{20}\u{7F}-\u{A0}\u{1680}\u{2000}-\u{200F}\u{
 
 /**
  * Parses a message from the page into a request, or `undefined` when it is
- * not one. Strict: unknown ops, missing or extra-typed fields, oversized
- * text, and words with whitespace, control or bidi characters are refused.
+ * not one. Strict: exactly one known payload, rebuilt from the fields it may
+ * carry (so `filePath` and `settings`, which the client's Checker sends, are
+ * dropped: a web page names no file), oversized text refused, and words with
+ * whitespace, control or bidi characters refused.
  */
 export function parsePageRequest(value: unknown): PageRequest | undefined {
-    if (!isBag(value) || !isId(value.id)) return undefined;
-    const id = value.id;
-    switch (value.op) {
-        case 'check': {
-            return isText(value.text, MAX_CHECK_TEXT_CHARS) && isLanguage(value.languageId)
-                ? { id, op: 'check', text: value.text, languageId: value.languageId }
+    if (!isBag(value) || !isId(value.id) || !isBag(value.request)) return undefined;
+    const keys = Object.keys(value.request);
+    if (keys.length !== 1) return undefined;
+    const request = parseCoreRequest(keys[0], value.request[keys[0] ?? '']);
+    return request === undefined ? undefined : { id: value.id, request };
+}
+
+function parseCoreRequest(kind: string | undefined, body: unknown): CoreRequest | undefined {
+    if (!isBag(body)) return undefined;
+    switch (kind) {
+        case 'checkProse':
+            return isText(body.text, MAX_CHECK_TEXT_CHARS) && isLanguage(body.languageId)
+                ? { checkProse: { text: body.text, languageId: body.languageId } }
                 : undefined;
-        }
-        case 'addWord': {
-            return isText(value.word, MAX_WORD_CHARS) && value.word.length > 0 && !CONTROL_OR_SPACE.test(value.word)
-                ? { id, op: 'addWord', word: value.word.normalize('NFC') }
+        case 'addDictionaryWord':
+            return isText(body.word, MAX_WORD_CHARS) && body.word.length > 0 && !CONTROL_OR_SPACE.test(body.word)
+                ? { addDictionaryWord: { word: body.word.normalize('NFC') } }
                 : undefined;
-        }
         case 'ignore': {
-            return isText(value.message, 10_000) &&
-                isText(value.context, 10_000) &&
-                isText(value.text, MAX_CHECK_TEXT_CHARS) &&
-                isByte(value.startByte) &&
-                isByte(value.endByte) &&
-                value.startByte <= value.endByte
-                ? {
-                      id,
-                      op: 'ignore',
-                      message: value.message,
-                      context: value.context,
-                      text: value.text,
-                      startByte: value.startByte,
-                      endByte: value.endByte,
-                  }
+            const { message, context, text, startByte, endByte } = body;
+            return isText(message, 10_000) && isText(context, 10_000) && isText(text, MAX_CHECK_TEXT_CHARS) && isByte(startByte) && isByte(endByte) && startByte <= endByte
+                ? { ignore: { message, context, text, startByte, endByte } }
                 : undefined;
         }
-        default: {
+        case 'getMetadata':
+            return { getMetadata: {} };
+        default:
             return undefined;
-        }
     }
 }
 
@@ -124,37 +123,9 @@ export const COMMAND_TYPE = 'command';
 /** Parses a response arriving in the page; anything malformed is dropped. */
 export function parsePageResponse(value: unknown): PageResponse | undefined {
     if (!isBag(value) || !isId(value.id) || typeof value.ok !== 'boolean') return undefined;
-    if (!value.ok) {
-        return typeof value.error === 'string' && isErrorCode(value.code)
-            ? { id: value.id, ok: false, error: value.error, code: value.code }
-            : undefined;
-    }
-    if (value.diagnostics === undefined) return { id: value.id, ok: true };
-    if (!Array.isArray(value.diagnostics)) return undefined;
-    const diagnostics: WireDiagnostic[] = [];
-    for (const d of value.diagnostics as unknown[]) {
-        const parsed = parseWireDiagnostic(d);
-        if (parsed === undefined) return undefined;
-        diagnostics.push(parsed);
-    }
-    return { id: value.id, ok: true, diagnostics };
+    if (value.ok) return isBag(value.response) ? { id: value.id, ok: true, response: value.response } : undefined;
+    return typeof value.error === 'string' && isErrorCode(value.code) ? { id: value.id, ok: false, error: value.error, code: value.code } : undefined;
 }
 
 const ERROR_CODES: readonly ErrorCode[] = ['unavailable', 'refused', 'busy', 'timeout', 'failed'];
 const isErrorCode = (v: unknown): v is ErrorCode => (ERROR_CODES as readonly unknown[]).includes(v);
-
-function parseWireDiagnostic(d: unknown): WireDiagnostic | undefined {
-    if (!isBag(d) || !isByte(d.startByte) || !isByte(d.endByte) || d.startByte > d.endByte) return undefined;
-    if (typeof d.message !== 'string' || !Number.isSafeInteger(d.severity)) return undefined;
-    if (!Array.isArray(d.suggestions) || (d.suggestions as unknown[]).some((s) => typeof s !== 'string')) return undefined;
-    return {
-        startByte: d.startByte,
-        endByte: d.endByte,
-        message: d.message,
-        severity: d.severity as number,
-        ruleId: typeof d.ruleId === 'string' ? d.ruleId : '',
-        unifiedId: typeof d.unifiedId === 'string' ? d.unifiedId : '',
-        suggestions: d.suggestions as string[],
-        confidence: typeof d.confidence === 'number' && Number.isFinite(d.confidence) ? d.confidence : 0,
-    };
-}

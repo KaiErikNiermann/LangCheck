@@ -4,17 +4,18 @@
 // the site's own scripts, and trusts nothing it reads from the page beyond
 // what it needs to draw.
 import * as vscode from 'vscode';
-import { activate, type FeatureStats } from '../feature/checkFeature';
+import { startClient, type ClientStats } from './client';
 import { connectCore } from '../messaging/pageClient';
-import { LANGUAGE_IDS, type LanguageId } from '../messaging/protocol';
 import type { SitePage, SiteWorkspace } from '../sites/site';
 import { Bridge } from './bridge';
 
 interface Running {
     readonly bridge: Bridge;
-    stats(): FeatureStats;
+    stats(): ClientStats;
     stop(): void;
 }
+
+declare const __LANGUAGE_CHECK_VERSION__: string;
 
 declare global {
     // The running instance, so a newer build injected over it (development)
@@ -29,10 +30,14 @@ export function startPage(site: SitePage, workspace: SiteWorkspace): void {
 
     const core = connectCore();
     const subscriptions: { dispose(): unknown }[] = [];
-    const context: vscode.ExtensionContext = { subscriptions };
-    const languageOf = (doc: vscode.TextDocument): LanguageId =>
-        (LANGUAGE_IDS as readonly string[]).includes(doc.languageId) ? (doc.languageId as LanguageId) : 'plaintext';
-    const stats = activate(context, core, languageOf);
+    const context: vscode.ExtensionContext = {
+        subscriptions,
+        // No directory on disk: webview assets are the extension's own pages.
+        extensionPath: '',
+        extensionUri: vscode.Uri.parse('extension:/'),
+        extension: { id: 'language-check-web', packageJSON: { version: __LANGUAGE_CHECK_VERSION__ } },
+    };
+    const stats = startClient(context, core);
     const bridge = new Bridge(site, project);
     // Palette commands run like VS Code's: through the command registry.
     core.onCommand((id) => {

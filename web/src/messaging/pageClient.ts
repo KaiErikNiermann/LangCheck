@@ -11,11 +11,10 @@ import {
     PAGE_READY_TYPE,
     PROTOCOL_VERSION,
     parsePageResponse,
+    type CoreRequest,
     type ErrorCode,
-    type LanguageId,
     type PageRequest,
     type PageResponse,
-    type WireDiagnostic,
 } from './protocol';
 
 /** How often the page re-announces itself while waiting for its port. */
@@ -35,17 +34,14 @@ export class CoreError extends Error {
     }
 }
 
-type RequestBody = PageRequest extends infer R ? (R extends PageRequest ? Omit<R, 'id'> : never) : never;
-
 interface Pending {
     readonly resolve: (response: PageResponse) => void;
     readonly timer: ReturnType<typeof setTimeout>;
 }
 
 export interface CoreClient {
-    check(text: string, languageId: LanguageId): Promise<readonly WireDiagnostic[]>;
-    addWord(word: string): Promise<void>;
-    ignore(request: Omit<Extract<PageRequest, { op: 'ignore' }>, 'id' | 'op'>): Promise<void>;
+    /** One request to the core; a failure is a response too (`ok: false`), never a throw. */
+    request(core: CoreRequest): Promise<PageResponse>;
     /** Commands chosen in the palette, for the page to run. */
     onCommand(listener: (id: PaletteCommandId) => void): void;
     dispose(): void;
@@ -105,38 +101,29 @@ export function connectCore(target: Window = window): CoreClient {
         () => {},
     );
 
-    const send = async (body: RequestBody): Promise<PageResponse> => {
-        if (disposed) throw new CoreError('failed', 'client disposed');
-        if (pending.size >= MAX_IN_FLIGHT_PER_PAGE) throw new CoreError('busy', 'too many requests in flight');
-        const p = await port;
+    const send = async (core: CoreRequest): Promise<PageResponse> => {
         const id = nextId++;
+        if (disposed) return { id, ok: false, code: 'failed', error: 'client disposed' };
+        if (pending.size >= MAX_IN_FLIGHT_PER_PAGE) return { id, ok: false, code: 'busy', error: 'too many requests in flight' };
+        let p: MessagePort;
+        try {
+            p = await port;
+        } catch (error) {
+            return { id, ok: false, code: 'unavailable', error: error instanceof Error ? error.message : String(error) };
+        }
         return new Promise<PageResponse>((resolve) => {
             const timer = setTimeout(() => {
                 pending.delete(id);
                 resolve({ id, ok: false, code: 'timeout', error: `no answer within ${REQUEST_TIMEOUT_MS / 1000}s` });
             }, REQUEST_TIMEOUT_MS);
             pending.set(id, { resolve, timer });
-            p.postMessage({ ...body, id });
+            const message: PageRequest = { id, request: core };
+            p.postMessage(message);
         });
     };
 
-    const expectOk = async (body: RequestBody): Promise<PageResponse & { ok: true }> => {
-        const response = await send(body);
-        if (!response.ok) throw new CoreError(response.code, response.error);
-        return response;
-    };
-
     return {
-        async check(text, languageId) {
-            const response = await expectOk({ op: 'check', text, languageId });
-            return response.diagnostics ?? [];
-        },
-        async addWord(word) {
-            await expectOk({ op: 'addWord', word });
-        },
-        async ignore(request) {
-            await expectOk({ op: 'ignore', ...request });
-        },
+        request: send,
         onCommand(listener) {
             commandListeners.push(listener);
         },

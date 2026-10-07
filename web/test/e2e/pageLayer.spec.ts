@@ -40,7 +40,7 @@ test('squiggles, hints and the card, on the host page’s own CodeMirror (6.38 a
         await expect(marks(page)).toHaveText(['recieve', 'teh']);
         await expect(page.locator('[data-lc-hint]')).toHaveCount(2);
         const c = await hover(page, 'teh');
-        await expect(c.locator('.lc-action')).toHaveText(['Replace with "the"', 'Add "teh" to dictionary', 'Ignore this finding']);
+        await expect(c.locator('.lc-action')).toHaveText(['Fix: "the"', 'Add "teh" to dictionary', 'Ignore this issue']);
     }
 });
 
@@ -57,7 +57,7 @@ test('between an edit and its recheck: the card follows the moved finding and of
     await expect(c.locator('.lc-action')).toHaveCount(0);
     // The recheck lands while the card is open: it refreshes in place.
     await stub(page, '__stub.release()');
-    await c.getByRole('button', { name: 'Replace with "receive"' }).click();
+    await c.getByRole('button', { name: 'Fix: "receive"' }).click();
     await expect.poll(() => host(page, 'text')).toBe('Well, I will receive it.');
 });
 
@@ -76,7 +76,7 @@ test('Ctrl+. opens the card at the cursor with focus on the first action; Escape
     await page.locator('.lc-diag').click();
     await page.keyboard.press('Control+Period');
     await expect(card(page)).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Replace with "receive"' })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Fix: "receive"' })).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(card(page)).toHaveCount(0);
     await expect(page.locator('.cm-content')).toBeFocused();
@@ -95,20 +95,23 @@ test('the card follows its mark when the host reconfigures the layout', async ({
     await expect.poll(gap).toEqual(before);
 });
 
-test('an unavailable core is reported once, however much is typed', async ({ page }) => {
+test('an unavailable core is reported once and not asked again on every edit, then recovers', async ({ page }) => {
     await page.goto(pageUrl('overleaf', 'current', 'teh'));
     await page.addScriptTag({ url: `${BASE}/stub-content.js` });
     await stub(page, '__stub.unavailable = true');
     await page.addScriptTag({ url: `${BASE}/extension/page-overleaf.js` });
     await expect(page.locator('.lc-toast')).toContainText('cannot reach its checker');
-    for (const word of [' one', ' two', ' three']) {
-        const before = await checks(page);
-        await host(page, 'typeAtEnd', word);
-        // Each edit is checked (and refused) before the next one.
-        await expect.poll(() => checks(page)).toBeGreaterThan(before);
-    }
+    const asked = await checks(page);
+    for (const word of [' one', ' two', ' three']) await host(page, 'typeAtEnd', word);
+    // While it is down the Checker does not ask (as with VS Code's core);
+    // only the transport's probes reach it.
+    // eslint-disable-next-line sonarjs/no-fixed-wait-in-tests -- asserting that nothing more is asked takes time passing
+    await page.waitForTimeout(1500);
+    expect(await checks(page)).toBe(asked);
     await expect(page.locator('.lc-toast')).toHaveCount(1);
-    await expect(page.locator('.lc-toast')).toContainText('cannot reach its checker');
+    // The host comes back: the next probe finds it, and the document is checked.
+    await stub(page, '__stub.unavailable = false');
+    await expect(page.locator('.lc-diag')).toHaveText(['teh'], { timeout: 10_000 });
 });
 
 test('a file switch, a remount and a re-injected build each leave exactly one layer', async ({ page }) => {
@@ -150,7 +153,8 @@ test.describe('Notion (DOM editor, CSS highlights)', () => {
         // after the equation, not the inline code or the code block.
         await expect.poll(() => painted(page)).toEqual(['recieve', 'teh', 'recieve', 'teh']);
         const c = await hoverPainted(page, 'teh', 0);
-        await expect(c.locator('.lc-action')).toHaveText(['Replace with "the"', 'Add "teh" to dictionary', 'Ignore this finding']);
+        // Two "teh" on the page: the client also offers fixing them all, as in VS Code.
+        await expect(c.locator('.lc-action')).toHaveText(['Fix: "the"', 'Add "teh" to dictionary', 'Ignore this issue', 'Fix all "teh" in this file', 'Fix all "teh" in workspace']);
         await page.keyboard.press('Escape');
         await expect(card(page)).toHaveCount(0);
     });
@@ -177,7 +181,7 @@ test.describe('Notion (DOM editor, CSS highlights)', () => {
         await expect(c.locator('.lc-action')).toHaveCount(0);
         await stub(page, '__stub.release()');
         await expect.poll(() => painted(page)).toHaveLength(5);
-        await expect(c.locator('.lc-action').first()).toHaveText('Replace with "the"');
+        await expect(c.locator('.lc-action').first()).toHaveText('Fix: "the"');
     });
 
     test('Ctrl+. at a finding opens the card with focus on its first action', async ({ page }) => {
@@ -187,7 +191,7 @@ test.describe('Notion (DOM editor, CSS highlights)', () => {
         await page.keyboard.press('End');
         await page.keyboard.press('Control+Period');
         await expect(card(page)).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Replace with "receive"' })).toBeFocused();
+        await expect(page.getByRole('button', { name: 'Fix: "receive"' })).toBeFocused();
     });
 
     test('without the Highlight API it says so instead of attaching', async ({ page }) => {

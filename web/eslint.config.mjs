@@ -88,9 +88,15 @@ export default defineConfig(
         },
     },
     {
-        // The shim mirrors the vscode API, whose events are EventEmitters.
+        // The shim mirrors the vscode API: its events are EventEmitters, and
+        // its stubs keep VS Code's parameters (named _x) even when unused.
         files: ['src/shim/vscode.ts'],
-        rules: { 'unicorn/prefer-event-target': 'off' },
+        rules: {
+            'unicorn/prefer-event-target': 'off',
+            '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+            // VS Code's own signatures (get<T>(key): T | undefined).
+            '@typescript-eslint/no-unnecessary-type-parameters': 'off',
+        },
     },
     {
         files: ['test/**/*.ts', 'test/**/*.mjs', '*.mjs', '*.mts', '*.config.ts'],

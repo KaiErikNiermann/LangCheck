@@ -6,6 +6,7 @@ import * as esbuild from 'esbuild';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 
 const test = process.argv.includes('--test');
+const manifestVersion = JSON.parse(await readFile('manifest.json', 'utf8')).version;
 const outdir = test ? 'dist-test' : 'dist';
 const SITES = ['overleaf', 'typst', 'notion'];
 
@@ -25,8 +26,9 @@ const result = await esbuild.build({
     platform: 'browser',
     target: ['firefox128', 'chrome128'],
     // The feature is written against `vscode`; in the browser that is the shim.
-    alias: { vscode: './src/shim/vscode.ts' },
-    define: { __LANGUAGE_CHECK_TEST__: String(test) },
+    // `path` in the client's modules (display names, asset paths) is path-browserify.
+    alias: { vscode: './src/shim/vscode.ts', path: 'path-browserify' },
+    define: { __LANGUAGE_CHECK_TEST__: String(test), __LANGUAGE_CHECK_VERSION__: JSON.stringify(manifestVersion) },
     sourcemap: test ? 'inline' : false,
     minify: !test,
     metafile: true,

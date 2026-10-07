@@ -22,6 +22,7 @@
     "@eslint/js": "^10.0.1",
     "@playwright/test": "1.63.0",
     "@types/node": "^24.19.1",
+    "@types/path-browserify": "^1.0.3",
     "@types/webextension-polyfill": "^0.12.6",
     "cm-view-6-38": "npm:@codemirror/view@6.38.6",
     "esbuild": "^0.28.2",
@@ -39,6 +40,7 @@
   "dependencies": {
     "hotkeys-js": "^3.13.15",
     "ninja-keys": "file:../../../web-tooling/ninja-keys",
+    "path-browserify": "^1.0.1",
     "webextension-polyfill": "^0.12.0"
   }
 }
