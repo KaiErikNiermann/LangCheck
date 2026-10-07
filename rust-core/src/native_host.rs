@@ -52,8 +52,10 @@ pub const MAX_BROWSER_MESSAGE_BYTES: usize = 8 * 1024 * 1024;
 /// Largest text a check may carry, after decoding.
 pub const MAX_CHECK_TEXT_BYTES: usize = 4 * 1024 * 1024;
 
-/// Largest frame accepted from the server. Mirrors the server's own request cap.
-pub const MAX_SERVER_FRAME_BYTES: usize = 256 * 1024 * 1024;
+/// Largest response the host relays. The extension refuses more than 64 MiB
+/// of base64 (48 MiB decoded) anyway, so a larger frame is dropped here
+/// rather than buffered, encoded and sent to be refused.
+pub const MAX_SERVER_FRAME_BYTES: usize = 48 * 1024 * 1024;
 
 /// Base64 characters per message to the browser.
 ///
@@ -61,8 +63,10 @@ pub const MAX_SERVER_FRAME_BYTES: usize = 256 * 1024 * 1024;
 /// JSON around it. A multiple of 4, so segments split on base64 boundaries.
 pub const SEGMENT_CHARS: usize = 768 * 1024;
 
-/// Pending messages to the browser before the server's reader waits.
-const OUTBOX_CAPACITY: usize = 64;
+/// Responses decoded and waiting for the browser before the server's reader
+/// waits. Small, because each may be up to `MAX_SERVER_FRAME_BYTES`: this
+/// bounds what the host holds at about 4 x 48 MiB plus the one being encoded.
+const OUTBOX_CAPACITY: usize = 4;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
