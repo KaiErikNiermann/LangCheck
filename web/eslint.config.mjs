@@ -50,6 +50,8 @@ export default defineConfig(
             'unicorn/switch-case-braces': 'off',
             // Iterator#toArray is Firefox 131+; the extension supports 128.
             'unicorn/prefer-iterator-to-array': 'off',
+            // A ternary of two side-effecting calls reads worse than if/else.
+            'unicorn/prefer-ternary': 'off',
             // Index access on parsed, bounded arrays is checked by noUncheckedIndexedAccess.
             'security/detect-object-injection': 'off',
             '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],

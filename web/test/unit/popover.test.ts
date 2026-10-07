@@ -2,26 +2,24 @@
 // The card is shown again on every hover and every recheck; whatever it
 // installs per show must not pile up.
 import { expect, test, vi } from 'vitest';
-import type { EditorView } from '@codemirror/view';
-import { Popover } from '../../src/editor/popover';
+import { Popover, type PopoverSurface } from '../../src/editor/popover';
 
-function fakeView(): EditorView {
-    const scrollDOM = document.createElement('div');
-    const dom = document.createElement('div');
-    dom.append(scrollDOM);
-    document.body.append(dom);
+function fakeSurface(): PopoverSurface {
+    const mount = document.createElement('div');
+    document.body.append(mount);
     return {
-        dom,
-        scrollDOM,
-        state: { doc: { length: 100 } },
-        coordsAtPos: () => ({ left: 10, right: 20, top: 10, bottom: 20 }),
-        focus: () => {},
-        requestMeasure: () => {},
-    } as unknown as EditorView;
+        mount,
+        toastMount: mount,
+        place: () => ({ top: 10, left: 10 }),
+        measure: (read, write) => {
+            write(read());
+        },
+        focusEditor: () => {},
+    };
 }
 
 test('Escape dismisses only the card that is showing, however often it was shown', () => {
-    const popover = new Popover(fakeView());
+    const popover = new Popover(fakeSurface());
     const dismissals = Array.from({ length: 5 }, () => vi.fn());
     const content = { message: 'm', paragraphs: [], actions: [{ title: 'a', run: () => {} }] };
     for (const onDismiss of dismissals) popover.show(0, content, { focus: false, onDismiss });
