@@ -180,12 +180,11 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
             if (!disposed) view.dispatch({ effects: hintsEffect.of(hints) });
         },
         applyEdits: (edits: readonly TextEdit[]) => {
-            if (disposed) return;
-            const length = view.state.doc.length;
-            if (edits.some((e) => e.from < 0 || e.to < e.from || e.to > length)) {
-                throw new RangeError(`edit outside the document (length ${String(length)})`);
-            }
+            if (disposed) return false;
+            const { doc } = view.state;
+            if (edits.some((e) => e.from < 0 || e.to < e.from || e.to > doc.length || doc.sliceString(e.from, e.to) !== e.expected)) return false;
             view.dispatch({ changes: edits.map((e) => ({ from: e.from, to: e.to, insert: e.insert })), userEvent: 'input.complete' });
+            return true;
         },
         select: (from, to) => {
             if (disposed) return;

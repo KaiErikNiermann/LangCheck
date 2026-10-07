@@ -290,6 +290,15 @@ export class CodeAction {
 
 export class TextDocument {
     version = 1;
+    /**
+     * The text as of the last change the adapter reported, which `version`,
+     * the line table and every position here describe. Not the live text: an
+     * editor can change without saying so in time (a site swapping in
+     * another file), and positions from one text applied to another land on
+     * the wrong characters. Edits name what they expect to replace, checked
+     * against the live text (TextEdit.expected).
+     */
+    private text = '';
     private lineStarts: number[] = [0];
     private length = 0;
     readonly uri: Uri;
@@ -308,13 +317,13 @@ export class TextDocument {
     }
     refresh(): void {
         const text = this.adapter.getText();
+        this.text = text;
         this.length = text.length;
         this.lineStarts = [0];
         for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) this.lineStarts.push(i + 1);
     }
     getText(range?: Range): string {
-        const text = this.adapter.getText();
-        return range === undefined ? text : text.slice(this.offsetAt(range.start), this.offsetAt(range.end));
+        return range === undefined ? this.text : this.text.slice(this.offsetAt(range.start), this.offsetAt(range.end));
     }
     /** VS Code's default word pattern, minus the number alternative. */
     private static readonly WORD_PATTERN = /[^`~!@#$%^&*()\-=+[{\]}\\|;:'",.<>/?\s]+/gu;
@@ -325,7 +334,7 @@ export class TextDocument {
         const start = this.lineStarts[index] ?? 0;
         const next = this.lineStarts[index + 1];
         const end = next === undefined ? this.length : next - 1;
-        const text = this.adapter.getText().slice(start, end);
+        const text = this.text.slice(start, end);
         const range = new Range(new Position(index, 0), new Position(index, end - start));
         return { lineNumber: index, text, range, isEmptyOrWhitespace: text.trim() === '', firstNonWhitespaceCharacterIndex: text.length - text.trimStart().length };
     }
@@ -333,7 +342,7 @@ export class TextDocument {
     getWordRangeAtPosition(position: Position, pattern?: RegExp): Range | undefined {
         const start = this.offsetAt(new Position(position.line, 0));
         const next = this.lineStarts[position.line + 1];
-        const line = this.adapter.getText().slice(start, next === undefined ? this.length : next - 1);
+        const line = this.text.slice(start, next === undefined ? this.length : next - 1);
         const flags = (pattern ?? TextDocument.WORD_PATTERN).flags;
         // The pattern is the caller's (extension code), never page input.
         // eslint-disable-next-line security/detect-non-literal-regexp
@@ -733,17 +742,23 @@ export const workspace = withFallback('workspace', {
         const doc = host.documents.get(uri.toString());
         return doc === undefined ? Promise.reject(new Error(`${uri.toString()} is not open in this page`)) : Promise.resolve(doc);
     },
-    /** All or nothing, like VS Code: an edit naming a document that is not open applies nowhere. */
+    /**
+     * All or nothing, like VS Code: an edit naming a document that is not
+     * open applies nowhere. Each replacement carries the text the document
+     * holds there, and the editor refuses the lot when its text no longer
+     * does: `false`, as VS Code answers an edit it could not apply.
+     */
     applyEdit(edit: WorkspaceEdit): Promise<boolean> {
         const byUri = [...Map.groupBy(edit.entries, (r) => r.uri.toString())].map(([uri, replacements]) => ({ doc: host.documents.get(uri), replacements }));
         if (byUri.some((e) => e.doc === undefined)) return Promise.resolve(false);
+        let applied = true;
         for (const { doc, replacements } of byUri) {
             if (doc === undefined) continue;
-            doc.adapter.applyEdits(
-                replacements.map((r): TextEdit => ({ from: doc.offsetAt(r.range.start), to: doc.offsetAt(r.range.end), insert: r.newText })),
+            applied &&= doc.adapter.applyEdits(
+                replacements.map((r): TextEdit => ({ from: doc.offsetAt(r.range.start), to: doc.offsetAt(r.range.end), insert: r.newText, expected: doc.getText(r.range) })),
             );
         }
-        return Promise.resolve(true);
+        return Promise.resolve(applied);
     },
 });
 

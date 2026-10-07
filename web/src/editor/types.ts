@@ -25,10 +25,18 @@ export interface RenderedHint {
     readonly label: string;
 }
 
+/**
+ * Replaces `[from, to)` with `insert`, if that span still holds `expected`:
+ * the text the client saw there. An editor's text can change without the
+ * client hearing of it in time (a site swapping in another file, a
+ * collaborator's edit in flight), and an edit by stale offsets would land
+ * on other text; checked here, it is refused instead.
+ */
 export interface TextEdit {
     readonly from: number;
     readonly to: number;
     readonly insert: string;
+    readonly expected: string;
 }
 
 /** Asked by the adapter when the user interacts with the span `[from, to)`. */
@@ -44,7 +52,8 @@ export interface EditorAdapter {
     onDidChange(listener: () => void): void;
     renderDiagnostics(diagnostics: readonly RenderedDiagnostic[]): void;
     renderHints(hints: readonly RenderedHint[]): void;
-    applyEdits(edits: readonly TextEdit[]): void;
+    /** Applies all of `edits`, or none when any span no longer holds what it expects (then `false`). */
+    applyEdits(edits: readonly TextEdit[]): boolean;
     setActionSource(source: ActionSource): void;
     setHoverSource(source: HoverSource): void;
     notify(message: string): void;

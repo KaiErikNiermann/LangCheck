@@ -238,13 +238,16 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
         // shows the suggestion instead.
         renderHints: () => {},
         applyEdits: (edits: readonly TextEdit[]) => {
-            if (disposed) return;
+            if (disposed) return false;
             // One span per fix is all the checker offers; several would each
             // have to be re-mapped after the editor re-renders the first.
             const [edit, ...rest] = edits;
-            if (edit === undefined) return;
+            if (edit === undefined) return true;
             if (rest.length > 0) throw new Error('this editor applies one edit at a time');
-            applyEdit(current(), edit);
+            const map = current();
+            if (edit.from < 0 || edit.to < edit.from || edit.to > map.text.length || map.text.slice(edit.from, edit.to) !== edit.expected) return false;
+            applyEdit(map, edit);
+            return true;
         },
         select: (from, to) => {
             if (disposed) return;

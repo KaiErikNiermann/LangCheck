@@ -74,3 +74,18 @@ test("a collaborator's edit before the key is not fixed over: the key waits for 
     }
     expect(await docText(page)).toContain('So The cat sat on the mat.');
 });
+
+// A site swaps the file in its editor without an edit the extension sees
+// (CodeMirror's setState); until the page notices, the findings are the old
+// file's. A key pressed in that window must not apply them to the new one.
+test('a key pressed just after the site swaps in another file leaves the new file alone', async ({ page, context, dataHome }) => {
+    const driver = browserDriver(page, context, dataHome);
+    const panel = await driver.open('apply.md');
+    await expect(panel.locator('.error-text')).toHaveText('Teh');
+    const other = 'Something else entirely, with no mistakes.';
+    await host(page, 'switchFile', 'doc-other', 'other.md', other);
+    await driver.press('1');
+    // Give a wrongly applied fix every chance to show.
+    await expect.poll(() => docText(page), { timeout: 3000 }).not.toBe(other).catch(() => {});
+    expect(await docText(page)).toBe(other);
+});

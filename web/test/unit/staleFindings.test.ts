@@ -22,7 +22,7 @@ function fakeEditor(uri: string) {
             drawn.push(diagnostics);
         },
         renderHints: () => {},
-        applyEdits: () => {},
+        applyEdits: () => true,
         setActionSource: (source: ActionSource) => {
             actions = source;
         },
