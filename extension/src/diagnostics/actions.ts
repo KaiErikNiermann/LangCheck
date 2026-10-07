@@ -23,7 +23,7 @@ export interface DiagnosticActionDeps {
     readonly inspectorLog: InspectorLog;
     readonly store: DiagnosticStore;
     readonly fixTarget: FixTarget;
-    readonly speedFix: SpeedFixPanel;
+    readonly speedFix: Pick<SpeedFixPanel, 'sendLoading' | 'reveal'>;
 }
 
 export class DiagnosticActions {

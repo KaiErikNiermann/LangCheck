@@ -1,12 +1,22 @@
 /** Running checks and opening the panels. */
-import * as path from 'path';
 import * as vscode from 'vscode';
 
-import type { CheckOutcome } from '../checking/checker';
-import type { App } from '../services';
+import type { Checker, CheckOutcome } from '../checking/checker';
+import type { CheckResults } from '../checking/results';
+import { basename } from '../shared/paths';
+import type { InspectorPanel } from '../ui/webviews/inspector';
+import type { SpeedFixPanel } from '../ui/webviews/speedFix';
 import { COMMANDS, type CommandHandlers } from './ids';
 
-export function checkCommands(app: App) {
+/** What the check and panel commands use: VS Code's App provides it, and so does the web extension. */
+export interface CheckCommandDeps {
+    readonly results: Pick<CheckResults, 'servedFromCache'>;
+    readonly checker: Pick<Checker, 'check'>;
+    readonly speedFix: Pick<SpeedFixPanel, 'open'>;
+    readonly inspector: Pick<InspectorPanel, 'open'>;
+}
+
+export function checkCommands(app: CheckCommandDeps) {
     const { results, checker, speedFix, inspector } = app;
 
     return {
@@ -37,7 +47,7 @@ export function checkCommands(app: App) {
 
                     const file = files[i];
                     if (!file) continue;
-                    progress.report({ increment: (1 / files.length) * 100, message: vscode.l10n.t('Checking {0}', path.basename(file.fsPath)) });
+                    progress.report({ increment: (1 / files.length) * 100, message: vscode.l10n.t('Checking {0}', basename(file.fsPath)) });
 
                     const document = await vscode.workspace.openTextDocument(file);
                     await checker.check(document);

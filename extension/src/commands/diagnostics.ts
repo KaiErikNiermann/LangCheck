@@ -6,10 +6,30 @@ import { readTextOrEmpty, resolveConfigForEdit, writeConfigText } from '../confi
 import { ignoreRequest, isSpellingOf, isSpellingRule, ruleIdOf, type DiagId } from '../diagnostics/diagnostic';
 import { findOpenDocument, uriKey, type UriKey } from '../shared/documents';
 import { spanned } from '../shared/ignoreSpan';
-import type { App } from '../services';
+import type { Checker } from '../checking/checker';
+import type { CoreHandle } from '../core/transport';
+import type { DiagnosticActions } from '../diagnostics/actions';
+import type { FixTarget } from '../diagnostics/fixTarget';
+import type { DiagnosticStore, Suppression } from '../diagnostics/store';
+import type { Logger } from '../shared/logger';
+import type { InspectorLog } from '../ui/inspectorLog';
+import type { SpeedFixPanel } from '../ui/webviews/speedFix';
 import { COMMANDS, type CommandHandlers } from './ids';
 
-export function diagnosticsCommands(app: App) {
+/** What the finding commands use: VS Code's App provides it, and so does the web extension. */
+export interface DiagnosticsCommandDeps {
+    readonly log: Pick<Logger, 'debug' | 'error'>;
+    readonly store: DiagnosticStore;
+    readonly suppression: Suppression;
+    readonly inspectorLog: InspectorLog;
+    readonly fixTarget: FixTarget;
+    readonly core: CoreHandle & { initialize(): Promise<void> };
+    readonly checker: Pick<Checker, 'check'>;
+    readonly actions: Pick<DiagnosticActions, 'applyFix' | 'ignore'>;
+    readonly speedFix: Pick<SpeedFixPanel, 'sendLoading' | 'reveal'>;
+}
+
+export function diagnosticsCommands(app: DiagnosticsCommandDeps) {
     const { log, store, suppression, inspectorLog, fixTarget, core, checker, actions, speedFix } = app;
 
     return {
