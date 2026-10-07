@@ -690,7 +690,8 @@ class Host {
             return ordered.map((a): RenderedAction => ({
                 title: a.title,
                 run: async () => {
-                    if (a.edit !== undefined) await workspace.applyEdit(a.edit);
+                    // Refused (the text moved under it): said, not silently dropped.
+                    if (a.edit !== undefined && !(await workspace.applyEdit(a.edit))) throw new Error('The text changed under this fix, so it was not applied.');
                     if (a.command !== undefined) await commands.executeCommand(a.command.command, ...(a.command.arguments ?? []));
                 },
             }));

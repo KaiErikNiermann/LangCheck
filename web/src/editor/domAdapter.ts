@@ -18,7 +18,7 @@
 import { editsHold } from './edits';
 import { MAX_CHECK_TEXT_CHARS } from '../messaging/protocol';
 import { CardController, cardMembers, type Finding } from './card';
-import { buildTextMap, leafAt, offsetOf, pointOf, rangeOf, type TextMap } from './domText';
+import { ATOM, buildTextMap, leafAt, offsetOf, pointOf, rangeOf, type TextMap } from './domText';
 import type { AttachedEditor } from './handle';
 import { Popover, type PopoverSurface } from './popover';
 import { SEVERITY_CLASS, domCss } from './styles';
@@ -247,8 +247,7 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
             if (rest.length > 0) throw new Error('this editor applies one edit at a time');
             const map = current();
             if (!root.isConnected || !editsHold([edit], map.text.length, (from, to) => map.text.slice(from, to))) return false;
-            applyEdit(map, edit);
-            return true;
+            return applyEdit(map, edit, () => current().text);
         },
         select: (from, to) => {
             if (disposed) return;
@@ -281,23 +280,32 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
 }
 
 /** Selects the edit's span in its leaf and replaces it as typed input. */
-function applyEdit(map: TextMap, edit: TextEdit): void {
-    if (edit.from < 0 || edit.to < edit.from || edit.to > map.text.length) throw new RangeError('edit outside the document');
+/**
+ * Applies `edit` as typed input, or returns `false` when it cannot be sure
+ * the input lands on exactly the edit's span. Selection boundaries snap past
+ * what has no text node (an atom, a block break), so a span holding one would
+ * select more or less than it names; an empty deletion would be a Backspace
+ * on the character before; a line break would split the block; and focus or
+ * the selection can be taken by something else on the page in between.
+ * `reread` gives the text afterwards, which must be the edit's result.
+ */
+export function applyEdit(map: TextMap, edit: TextEdit, reread: () => string): boolean {
+    const span = map.text.slice(edit.from, edit.to);
+    if (span.includes(ATOM) || span.includes('\n') || edit.insert.includes('\n') || (edit.insert === '' && edit.from === edit.to)) return false;
     const leaf = leafAt(map, edit.from);
     const range = edit.to > edit.from ? rangeOf(map, edit.from, edit.to) : collapsedAt(map, edit.from);
-    if (leaf === undefined || range === undefined || !(leaf instanceof HTMLElement) || leafAt(map, edit.to) !== leaf) {
-        throw new Error('the fix spans text this editor cannot select');
-    }
+    if (leaf === undefined || range === undefined || !(leaf instanceof HTMLElement) || leafAt(map, edit.to) !== leaf || !leaf.isContentEditable) return false;
     leaf.focus();
     const selection = document.getSelection();
-    if (selection === null) throw new Error('no selection to apply the fix through');
+    if (selection === null) return false;
     selection.removeAllRanges();
     selection.addRange(range);
+    if (selection.rangeCount !== 1 || selection.toString() !== span || !leaf.contains(document.activeElement)) return false;
     // execCommand is deprecated but is the one way to produce trusted input
-    // events, which is what the editor listens to; a refusal is reported.
+    // events, which is what the editor listens to.
     // eslint-disable-next-line sonarjs/deprecation, @typescript-eslint/no-deprecated
     const ok = edit.insert === '' ? document.execCommand('delete') : document.execCommand('insertText', false, edit.insert);
-    if (!ok) throw new Error('the editor refused the fix');
+    return ok && reread() === map.text.slice(0, edit.from) + edit.insert + map.text.slice(edit.to);
 }
 
 function collapsedAt(map: TextMap, pos: number): Range | undefined {
