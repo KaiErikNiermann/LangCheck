@@ -48,6 +48,8 @@ export interface ClientStats {
     readonly checks: number;
     /** Findings held for the page's documents: what is drawn and what is scrolled out of view. */
     readonly findings: number;
+    /** Documents anything is held for (findings, or a check's extraction). */
+    readonly documents: number;
 }
 
 /**
@@ -207,9 +209,14 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
                 check(doc);
             });
         }),
+        // A page's documents do not come back once closed (a file switched
+        // away from, a Notion page left): forget them, as VS Code forgets
+        // its caches on close, or every document visited stays held.
         vscode.workspace.onDidCloseTextDocument((doc) => {
             debouncer.cancel(uriKey(doc.uri));
-            store.publishCheck(doc.uri, [], doc.version);
+            store.forget(uriKey(doc.uri), doc.uri);
+            results.forget(uriKey(doc.uri));
+            store.notify();
         }),
         // The top suggestion as ghost text after each finding, as in VS Code;
         // only while the findings still describe the text.
@@ -226,5 +233,9 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
     );
 
     checkAll();
-    return () => ({ checks: completed, findings: [...store].reduce((sum, [, list]) => sum + list.length, 0) });
+    return () => ({
+        checks: completed,
+        findings: [...store].reduce((sum, [, list]) => sum + list.length, 0),
+        documents: new Set([...[...store].map(([uri]) => uri), ...results.extraction.keys()]).size,
+    });
 }

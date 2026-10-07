@@ -116,6 +116,18 @@ export class DiagnosticStore implements vscode.Disposable, Iterable<[UriKey, Ext
         return this.generations.get(uri) === generation;
     }
 
+    /**
+     * Forget one document altogether, when it is closed for good (the
+     * browser extension's documents are gone once the page moves on):
+     * nothing kept for it, here or drawn, and its ids resolve to nothing.
+     */
+    forget(uri: UriKey, documentUri: vscode.Uri): void {
+        this.byUri.delete(uri);
+        this.generations.delete(uri);
+        this.checkedVersions.delete(uri);
+        this.collection.delete(documentUri);
+    }
+
     /** Drop everything, silently: used before a full re-check that will publish afresh. */
     clear(): void {
         this.collection.clear();

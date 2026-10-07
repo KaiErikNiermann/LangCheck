@@ -661,7 +661,16 @@ export const languages = withFallback('languages', {
         return {
             name,
             set: (uri: Uri, list: readonly Diagnostic[] | undefined) => { setFor(uri.toString(), list ?? []); },
-            delete: (uri: Uri) => { setFor(uri.toString(), []); },
+            // Gone, not emptied: a document closed for good leaves nothing behind.
+            delete: (uri: Uri) => {
+                const key = uri.toString();
+                const byOwner = host.diagnostics.get(key);
+                byOwner?.delete(owner);
+                if (byOwner?.size === 0) host.diagnostics.delete(key);
+                touched.delete(key);
+                host.publish(key);
+                host.onDidChangeDiagnostics.fire({ uris: [uri] });
+            },
             get: (uri: Uri) => host.diagnostics.get(uri.toString())?.get(owner),
             clear: () => { touched.forEach((uri) => { setFor(uri, []); }); },
             dispose: () => { touched.forEach((uri) => { setFor(uri, []); }); },

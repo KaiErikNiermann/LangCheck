@@ -174,3 +174,15 @@ test('switching files leaves the page heap where it was', async ({ page }) => {
     record('memory-file-switches', { cyclesPerWindow: 45, ...heap, top });
     expect(growing).toEqual([]);
 });
+
+test('switching through many files holds only the one open', async ({ page }) => {
+    await ready(page);
+    for (let i = 0; i < 40; i++) {
+        await host(page, 'switchFile', `doc-many-${String(i)}`, 'main.tex', `Teh ${String(i)}.`);
+        await expect(marks(page)).toHaveText(['Teh']);
+    }
+    const documents = await page.evaluate(() => (globalThis as any).__languageCheck.stats().documents as number);
+    record('memory-distinct-files', { files: 40, documents });
+    expect(documents).toBe(1);
+});
+
