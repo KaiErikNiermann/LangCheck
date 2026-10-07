@@ -28,6 +28,7 @@ pub mod languages;
 pub mod lsp;
 pub mod morphology;
 pub mod names;
+pub mod native_host;
 pub mod orchestrator;
 pub mod packs;
 pub mod prose;
