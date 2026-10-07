@@ -251,6 +251,18 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
             if (!root.isConnected || !editsHold([edit], map.text.length, (from, to) => map.text.slice(from, to))) return false;
             return applyEdit(map, edit, () => current().text);
         },
+        focusOffset: () => {
+            if (disposed) return;
+            const now = current();
+            const selection = document.getSelection();
+            const anchor = selection?.anchorNode;
+            const atCursor = anchor === null || anchor === undefined || !root.contains(anchor) ? undefined : offsetOf(now, anchor, selection?.anchorOffset ?? 0);
+            if (atCursor !== undefined) return atCursor;
+            // Else the text at the top of what is in view.
+            const box = root.getBoundingClientRect();
+            const caret = caretFromPoint(box.left + 4, Math.max(box.top, 0) + 4);
+            return caret === undefined ? undefined : offsetOf(now, caret.node, caret.offset);
+        },
         select: (from, to) => {
             if (disposed) return;
             const now = current();

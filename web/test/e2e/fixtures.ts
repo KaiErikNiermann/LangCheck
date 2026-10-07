@@ -229,3 +229,55 @@ export async function backgroundStopper(page: Page): Promise<() => Promise<void>
 export async function stopBackground(page: Page): Promise<void> {
     await (await backgroundStopper(page))();
 }
+
+/** The extension's config pages open in `context`. */
+export const configPages = (context: BrowserContext): Page[] => context.pages().filter((p) => !p.isClosed() && new URL(p.url()).pathname === '/config.html');
+
+/** The config page of the page's workspace, opened from the palette. */
+export async function configPage(page: Page, context: BrowserContext): Promise<Page> {
+    await runPaletteCommand(page, 'Edit Config');
+    let config: Page | undefined;
+    await expect.poll(() => (config = configPages(context)[0])).toBeDefined();
+    if (config === undefined) throw new Error('no config page');
+    await config.waitForLoadState();
+    await expect(config.locator('.monaco-editor')).toBeVisible();
+    return config;
+}
+
+/** Puts `text` in the config page's editor, as typing would (saved after the typing pause). */
+export const setText = (config: Page, text: string) =>
+    config.evaluate((t) => {
+        (globalThis as any).__configEditor.setValue(t);
+    }, text);
+
+/**
+ * `lines` lines of ordinary prose, each different, with a misspelling on
+ * every `every`-th line (the last line included); with how many, and the
+ * offset each starts at (ASCII: characters are bytes). `between` joins the
+ * lines: a blank line makes each a paragraph, a prose range of its own.
+ */
+export function longProse(lines: number, every: number, between = '\n'): { text: string; misspelt: number; misspellings: number[] } {
+    const out: string[] = [];
+    const misspellings: number[] = [];
+    let at = 0;
+    for (let i = 1; i <= lines; i++) {
+        const wrong = i % every === 0 || i === lines;
+        const line = `Line ${String(i)} holds some ordinary words about the weather${wrong ? ' and recieve' : ''} in a sentence.`;
+        if (wrong) misspellings.push(at + line.indexOf('recieve'));
+        out.push(line);
+        at += line.length + between.length;
+    }
+    return { text: out.join(between), misspelt: misspellings.length, misspellings };
+}
+
+/** Sets the checking options on the options page, as the user does. */
+export async function setChecking(context: BrowserContext, extensionId: string, options: { progressive: boolean; windowKib: number; maxKib: number }): Promise<void> {
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/options.html`);
+    await page.locator('#progressive').setChecked(options.progressive);
+    await page.locator('#window-kib').fill(String(options.windowKib));
+    await page.locator('#max-kib').fill(String(options.maxKib));
+    await page.getByRole('button', { name: 'Save checking options' }).click();
+    await expect(page.locator('#checking-status')).toContainText('Saved');
+    await page.close();
+}

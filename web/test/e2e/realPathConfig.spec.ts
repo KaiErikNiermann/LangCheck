@@ -9,9 +9,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BrowserContext, Page } from '@playwright/test';
 import { CONFIG_SCENARIOS, type ConfigDriver } from '../../../extension/src/test/ui/configScenarios';
-import { expect, marks, openFixture, pageUrl, panelErrors, runPaletteCommand, status, stopBackground, test, workspaceDir } from './fixtures';
+import { configPage, expect, marks, openFixture, pageUrl, panelErrors, setText, status, stopBackground, test, workspaceDir } from './fixtures';
 
-const configPages = (context: BrowserContext): Page[] => context.pages().filter((p) => !p.isClosed() && new URL(p.url()).pathname === '/config.html');
 
 async function openConfig(page: Page, context: BrowserContext): Promise<Page> {
     await page.goto(pageUrl('overleaf', 'current', 'I will recieve it.'));
@@ -19,17 +18,6 @@ async function openConfig(page: Page, context: BrowserContext): Promise<Page> {
     await expect(marks(page)).toHaveText(['recieve']);
     await page.locator('.cm-content').click();
     return configPage(page, context);
-}
-
-/** The config page of the page's workspace, opened from the palette. */
-async function configPage(page: Page, context: BrowserContext): Promise<Page> {
-    await runPaletteCommand(page, 'Edit Config');
-    let config: Page | undefined;
-    await expect.poll(() => (config = configPages(context)[0])).toBeDefined();
-    if (config === undefined) throw new Error('no config page');
-    await config.waitForLoadState();
-    await expect(config.locator('.monaco-editor')).toBeVisible();
-    return config;
 }
 
 function browserDriver(page: Page, context: BrowserContext, dataHome: string): ConfigDriver {
@@ -57,11 +45,6 @@ for (const scenario of CONFIG_SCENARIOS) {
         await scenario.run(browserDriver(page, context, dataHome), expect);
     });
 }
-
-const setText = (config: Page, text: string) =>
-    config.evaluate((t) => {
-        (globalThis as any).__configEditor.setValue(t);
-    }, text);
 
 const savedConfig = (dataHome: string): string | undefined => {
     const file = path.join(workspaceDir(dataHome, 'overleaf'), '.languagecheck.yaml');

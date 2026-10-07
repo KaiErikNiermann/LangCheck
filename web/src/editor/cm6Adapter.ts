@@ -199,6 +199,18 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
             const head = Math.max(anchor, Math.min(to, length));
             view.dispatch({ selection: { anchor, head }, effects: Ev.scrollIntoView(anchor, { y: 'center' }) });
         },
+        focusOffset: () => {
+            if (disposed) return;
+            // What is on screen, whichever scrolls: the editor's own
+            // scroller (Overleaf) or the page around an editor of full height.
+            const box = view.scrollDOM.getBoundingClientRect();
+            const shownTop = Math.max(box.top, 0) - view.documentTop;
+            const shownBottom = Math.min(box.bottom, window.innerHeight) - view.documentTop;
+            const top = view.lineBlockAtHeight(Math.max(shownTop, 0)).from;
+            const bottom = view.lineBlockAtHeight(Math.max(shownBottom, 0)).to;
+            const cursor = view.state.selection.main.head;
+            return cursor >= top && cursor <= bottom ? cursor : top;
+        },
         ...cardMembers(card),
     };
 

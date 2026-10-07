@@ -25,6 +25,9 @@ declare global {
     var __languageCheck: Running | undefined;
 }
 
+/** What a client not started yet reports. */
+const notStarted = (): ClientStats => ({ checks: 0, findings: 0, documents: 0 });
+
 /** How often the page's URL is looked at for a move to another workspace (single-page apps). */
 const WATCH_MS = 1000;
 
@@ -63,8 +66,15 @@ function start(site: SitePage, project: string): void {
     const webviews = webviewHost(core);
     host.webviews = webviews.open;
     host.focusPage = webviews.focusPage;
-    const clientStats = startClient(context, core);
     const bridge = new Bridge(site, project);
+    let clientStats = notStarted;
+    let stopped = false;
+    // Started once the content script has answered, with the checking
+    // settings, so the first check is planned under them (or once it never
+    // will, so the client can say the checker cannot be reached).
+    void core.ready.then(() => {
+        if (!stopped) clientStats = startClient(context, core);
+    });
     // Palette commands run like VS Code's: through the command registry.
     core.onCommand((id) => {
         void vscode.commands.executeCommand(id).then(undefined, (error: unknown) => {
@@ -77,6 +87,7 @@ function start(site: SitePage, project: string): void {
         bridge,
         stats: () => ({ ...clientStats(), panels: webviews.openCount() }),
         stop() {
+            stopped = true;
             bridge.stop();
             for (const s of subscriptions) s.dispose();
             webviews.closeAll();

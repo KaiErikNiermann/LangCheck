@@ -43,7 +43,7 @@ export type LanguageId = (typeof LANGUAGE_IDS)[number];
  * Checker sends (`{ checkProse: {...} }`), limited to what a web page may ask.
  */
 export type CoreRequest =
-    | { readonly checkProse: { readonly text: string; readonly languageId: LanguageId } }
+    | { readonly checkProse: { readonly text: string; readonly languageId: LanguageId; readonly window?: { readonly startByte: number; readonly endByte: number } } }
     | { readonly addDictionaryWord: { readonly word: string } }
     | {
           readonly ignore: {
@@ -115,9 +115,14 @@ function parseCoreRequest(kind: string | undefined, body: unknown): CoreRequest 
         case 'checkProse':
             // Bytes too, not only characters: past the host's cap, the frame
             // would end the native connection every tab on the workspace shares.
-            return typeof body.text === 'string' && withinCheckLimits(body.text) && isLanguage(body.languageId)
-                ? { checkProse: { text: body.text, languageId: body.languageId } }
-                : undefined;
+        {
+            if (typeof body.text !== 'string' || !withinCheckLimits(body.text) || !isLanguage(body.languageId)) return undefined;
+            // A window of the text, when the page checks it a window at a time: two byte offsets, in order.
+            const { window } = body;
+            if (window === undefined || window === null) return { checkProse: { text: body.text, languageId: body.languageId } };
+            if (!isBag(window) || !isByte(window.startByte) || !isByte(window.endByte) || window.startByte > window.endByte) return undefined;
+            return { checkProse: { text: body.text, languageId: body.languageId, window: { startByte: window.startByte, endByte: window.endByte } } };
+        }
         case 'addDictionaryWord':
             return isText(body.word, MAX_WORD_CHARS) && body.word.length > 0 && !CONTROL_OR_SPACE.test(body.word)
                 ? { addDictionaryWord: { word: body.word.normalize('NFC') } }
@@ -143,6 +148,36 @@ export const COMMAND_TYPE = 'command';
 export const BYE_TYPE = 'bye';
 /** The workspace's config changed (the config page saved it): check again under it. */
 export const RELOAD_TYPE = 'reload';
+/** The user changed the checking settings on the options page (`settings`: CheckSettings). */
+export const SETTINGS_TYPE = 'settings';
+
+/** Where the options page keeps the checking settings (browser.storage.local). */
+export const CHECK_SETTINGS_KEY = 'checkSettings';
+
+/** The client's `languageCheck.check.*` settings the options page sets: see the extension's package.json. */
+export interface CheckSettings {
+    readonly progressive: boolean;
+    readonly windowBytes: number;
+    readonly maxBytes: number;
+}
+
+export const DEFAULT_CHECK_SETTINGS: CheckSettings = { progressive: false, windowBytes: 16 * 1024, maxBytes: 0 };
+
+/** Bounds the options page offers (the client holds the window to the same). */
+export const WINDOW_BYTES_RANGE = { min: 1024, max: 1024 * 1024 } as const;
+
+/** `v` when it is a whole number in `[min, max]`. */
+const wholeIn = (v: unknown, min: number, max: number): number | undefined => (Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max ? (v as number) : undefined);
+
+/** `value` as CheckSettings: each field that is not a sound value of its kind falls back to its default. */
+export function parseCheckSettings(value: unknown): CheckSettings {
+    const bag = isBag(value) ? value : {};
+    return {
+        progressive: typeof bag.progressive === 'boolean' ? bag.progressive : DEFAULT_CHECK_SETTINGS.progressive,
+        windowBytes: wholeIn(bag.windowBytes, WINDOW_BYTES_RANGE.min, WINDOW_BYTES_RANGE.max) ?? DEFAULT_CHECK_SETTINGS.windowBytes,
+        maxBytes: wholeIn(bag.maxBytes, 0, 0xFF_FF_FF_FF) ?? DEFAULT_CHECK_SETTINGS.maxBytes,
+    };
+}
 
 /** Parses a response arriving in the page; anything malformed is dropped. */
 export function parsePageResponse(value: unknown): PageResponse | undefined {

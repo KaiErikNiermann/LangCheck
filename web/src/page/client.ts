@@ -159,6 +159,8 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         statusBars: NO_STATUS_BARS,
         inspectorLog,
         languageToolRestartable: () => false,
+        // Where the user is in the page's editor, for a progressive check to start there.
+        focusOf: (document) => host.documents.get(document.uri.toString())?.adapter.focusOffset?.(),
         observer: {
             checkRecorded: (document, timings) => {
                 completed++;
@@ -189,6 +191,13 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
             connection.post({ type: WEBVIEW_TYPE, op: 'openConfig' });
         },
     };
+    // The options page's checking settings, as the client's own
+    // `languageCheck.check.*` (the content script sends them).
+    connection.onSettings((settings) => {
+        host.settings.set('languageCheck.check.progressive', settings.progressive);
+        host.settings.set('languageCheck.check.windowBytes', settings.windowBytes);
+        host.settings.set('languageCheck.check.maxBytes', settings.maxBytes);
+    });
     // Saved there: the core re-read it, and checks run again under it, as
     // VS Code's reload does after a config change.
     connection.onReload(() => {

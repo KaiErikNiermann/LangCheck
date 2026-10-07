@@ -50,15 +50,15 @@ test('the binding can be changed on the options page', async ({ page, context, e
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/options.html`);
     await options.getByLabel('Shortcut for the command palette').fill('ctrl+shift+l');
-    await options.getByRole('button', { name: 'Save' }).click();
-    await expect(options.getByRole('status')).toContainText('ctrl+shift+l');
+    await options.getByRole('button', { name: 'Save shortcut' }).click();
+    await expect(options.locator('#status')).toContainText('ctrl+shift+l');
     await options.getByLabel('Shortcut for the command palette').fill('ctrl+banana');
-    await options.getByRole('button', { name: 'Save' }).click();
-    await expect(options.getByRole('status')).toContainText('cannot be the shortcut');
+    await options.getByRole('button', { name: 'Save shortcut' }).click();
+    await expect(options.locator('#status')).toContainText('cannot be the shortcut');
     // Copy stays copy.
     await options.getByLabel('Shortcut for the command palette').fill('ctrl+c');
-    await options.getByRole('button', { name: 'Save' }).click();
-    await expect(options.getByRole('status')).toContainText('"ctrl+c" cannot be the shortcut');
+    await options.getByRole('button', { name: 'Save shortcut' }).click();
+    await expect(options.locator('#status')).toContainText('"ctrl+c" cannot be the shortcut');
 
     await ready(page);
     await page.keyboard.press('Control+KeyP');

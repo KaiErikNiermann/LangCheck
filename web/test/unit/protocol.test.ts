@@ -4,7 +4,7 @@ import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
 import { parseBackgroundRequest } from '../../src/messaging/background';
 import { readFileSync } from 'node:fs';
-import { MAX_CHECK_TEXT_BYTES, MAX_CHECK_TEXT_CHARS, MAX_WORD_CHARS, parsePageRequest, parsePageResponse, withinCheckLimits } from '../../src/messaging/protocol';
+import { DEFAULT_CHECK_SETTINGS, MAX_CHECK_TEXT_BYTES, MAX_CHECK_TEXT_CHARS, MAX_WORD_CHARS, parseCheckSettings, parsePageRequest, parsePageResponse, withinCheckLimits } from '../../src/messaging/protocol';
 
 describe('parsePageRequest', () => {
     const req = (request: unknown) => ({ id: 1, request });
@@ -54,6 +54,37 @@ describe('parsePageRequest', () => {
         fc.assert(fc.property(fc.anything(), (value) => void parsePageRequest(value)));
         fc.assert(fc.property(fc.anything(), (value) => void parsePageResponse(value)));
         fc.assert(fc.property(fc.anything(), (value) => void parseBackgroundRequest(value)));
+    });
+});
+
+describe('a check window', () => {
+    const check = (window: unknown) => parsePageRequest({ id: 1, request: { checkProse: { text: 'teh', languageId: 'latex', window } } })?.request;
+    test('two byte offsets in order are kept, and nothing else of the window', () => {
+        expect(check({ startByte: 0, endByte: 1024, extra: 1 })).toEqual({ checkProse: { text: 'teh', languageId: 'latex', window: { startByte: 0, endByte: 1024 } } });
+        expect(check({ startByte: 5, endByte: 5 })).toBeDefined();
+        expect(check(undefined)).toEqual({ checkProse: { text: 'teh', languageId: 'latex' } });
+    });
+    test.each([
+        ['backwards', { startByte: 9, endByte: 3 }],
+        ['negative', { startByte: -1, endByte: 3 }],
+        ['fractional', { startByte: 0.5, endByte: 3 }],
+        ['past 32 bits', { startByte: 0, endByte: 2 ** 32 }],
+        ['a string', '0-3'],
+        ['missing an end', { startByte: 0 }],
+    ])('a window %s refuses the check', (_name, window) => {
+        expect(check(window)).toBeUndefined();
+    });
+});
+
+describe('parseCheckSettings', () => {
+    test('sound values are kept', () => {
+        expect(parseCheckSettings({ progressive: true, windowBytes: 4096, maxBytes: 65_536 })).toEqual({ progressive: true, windowBytes: 4096, maxBytes: 65_536 });
+    });
+    test('each unsound field falls back to its default alone', () => {
+        expect(parseCheckSettings({ progressive: 'yes', windowBytes: 10, maxBytes: -1 })).toEqual(DEFAULT_CHECK_SETTINGS);
+        expect(parseCheckSettings({ progressive: true, windowBytes: 2 ** 21, maxBytes: 1.5 })).toEqual({ ...DEFAULT_CHECK_SETTINGS, progressive: true });
+        expect(parseCheckSettings(null)).toEqual(DEFAULT_CHECK_SETTINGS);
+        expect(parseCheckSettings('progressive')).toEqual(DEFAULT_CHECK_SETTINGS);
     });
 });
 

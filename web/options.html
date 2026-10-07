@@ -5,8 +5,10 @@
 <title>Language Check options</title>
 <style>
   body { font: 14px system-ui, sans-serif; margin: 16px; color-scheme: light dark; }
-  label { display: block; margin-block-end: 4px; }
   input { font: inherit; inline-size: 16em; }
+  input[type="checkbox"] { inline-size: auto; }
+  form { display: flex; flex-direction: column; align-items: start; gap: 4px; margin-block-end: 24px; }
+  h2 { font-size: inherit; margin: 0; }
   p { margin-block: 8px; }
 </style>
 </head>
@@ -14,9 +16,19 @@
 <form id="form">
   <label for="hotkey">Shortcut for the command palette</label>
   <input id="hotkey" name="hotkey" autocomplete="off" placeholder="ctrl+p">
-  <button type="submit">Save</button>
+  <button type="submit">Save shortcut</button>
   <p id="hint">In hotkeys-js notation, for example <code>ctrl+p</code>, <code>ctrl+shift+l</code> or <code>alt+k</code>. Leave it empty for the default, <code>ctrl+p</code>.</p>
   <p id="status" role="status"></p>
+</form>
+<form id="checking">
+  <h2>Long documents</h2>
+  <label><input type="checkbox" id="progressive"> Check a long document the first time a window at a time, the part in view first</label>
+  <label for="window-kib">Window size (KiB)</label>
+  <input id="window-kib" type="number" min="1" max="1024" step="1">
+  <label for="max-kib">Check at most the first (KiB; 0 for all of it)</label>
+  <input id="max-kib" type="number" min="0" step="1">
+  <button type="submit">Save checking options</button>
+  <p id="checking-status" role="status"></p>
 </form>
 <script src="options.js"></script>
 </body>

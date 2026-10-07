@@ -5,7 +5,7 @@
 // in kind (a leak, a quadratic step), not noise.
 import { appendFileSync, mkdirSync } from 'node:fs';
 import type { Page } from '@playwright/test';
-import { docText, expect, host, marks, pageUrl, status, test } from './fixtures';
+import { docText, expect, host, longProse, marks, pageUrl, status, test } from './fixtures';
 
 type Stats = { checks: number; findings: number };
 const findings = (page: Page): Promise<number> => page.evaluate(() => ((globalThis as any).__languageCheck.stats() as Stats).findings);
@@ -26,20 +26,8 @@ function record(name: string, figures: Record<string, number>): void {
     appendFileSync('test-results/scale.jsonl', `${JSON.stringify({ at: new Date().toISOString(), name, ...figures })}\n`);
 }
 
-/** `lines` lines of ordinary prose, with a misspelling on every `every`-th line (the last line included). */
-function longText(lines: number, every: number): { text: string; misspelt: number } {
-    const out: string[] = [];
-    let misspelt = 0;
-    for (let i = 1; i <= lines; i++) {
-        const wrong = i % every === 0 || i === lines;
-        if (wrong) misspelt++;
-        out.push(`Line ${String(i)} holds some ordinary words about the weather${wrong ? ' and recieve' : ''} in a sentence.`);
-    }
-    return { text: out.join('\n'), misspelt };
-}
-
 test('a long document is checked whole: findings off screen are held, and drawn when scrolled to', async ({ page }) => {
-    const { text, misspelt } = longText(4000, 200);
+    const { text, misspelt } = longProse(4000, 200);
     const started = Date.now();
     await openWith(page, text);
     await expect.poll(() => findings(page), { timeout: 40_000 }).toBe(misspelt);

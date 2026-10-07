@@ -5,7 +5,7 @@
 // Figures go to test-results/scale.jsonl with the scale tests'.
 import { appendFileSync, mkdirSync } from 'node:fs';
 import type { BrowserContext, Page } from '@playwright/test';
-import { expect, host, marks, openPanel, pageUrl, status, test } from './fixtures';
+import { expect, host, longProse, marks, openPanel, pageUrl, setChecking, status, test } from './fixtures';
 
 const MB = 1024 * 1024;
 
@@ -192,6 +192,23 @@ test('switching files leaves the page heap where it was', async ({ page }) => {
     for (let i = 0; i < 6; i++) await switchTo(i);
     const { heap, growing, top } = await twoWindows(page, 45, switchTo);
     record('memory-file-switches', { cyclesPerWindow: 45, ...heap, top });
+    expect(growing).toEqual([]);
+});
+
+test('progressive first checks of file after file leave the page heap where it was', async ({ page, context, extensionId }) => {
+    await setChecking(context, extensionId, { progressive: true, windowKib: 1, maxKib: 0 });
+    await ready(page);
+    // About 6 KiB each: six windows a file.
+    const { text, misspelt } = longProse(120, 30, '\n\n');
+    const findings = (): Promise<number> => page.evaluate(() => (globalThis as any).__languageCheck.stats().findings as number);
+    const switchTo = async (i: number): Promise<void> => {
+        // A file not seen before each time: each has a first check.
+        await host(page, 'switchFile', `doc-p${String(i)}`, 'main.tex', `${text}\n\nFile ${String(i)}.`);
+        await expect.poll(findings).toBe(misspelt);
+    };
+    for (let i = 0; i < 4; i++) await switchTo(i);
+    const { heap, growing, top } = await twoWindows(page, 20, (i) => switchTo(100 + i));
+    record('memory-progressive', { cyclesPerWindow: 20, ...heap, top });
     expect(growing).toEqual([]);
 });
 

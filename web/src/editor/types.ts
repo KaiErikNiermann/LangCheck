@@ -82,4 +82,6 @@ export interface EditorAdapter {
     notify(message: string): void;
     /** Selects `[from, to)` and scrolls it into view (SpeedFix's go-to-location). */
     select(from: number, to: number): void;
+    /** Where the user is: the cursor while it is in view, else the top of the view (a character offset). For a progressive check to start there. */
+    focusOffset?(): number | undefined;
 }

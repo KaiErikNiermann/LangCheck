@@ -9,6 +9,9 @@ import {
     BYE_TYPE,
     COMMAND_TYPE,
     RELOAD_TYPE,
+    SETTINGS_TYPE,
+    parseCheckSettings,
+    type CheckSettings,
     HANDSHAKE_TYPE,
     MAX_IN_FLIGHT_PER_PAGE,
     PAGE_READY_TYPE,
@@ -53,6 +56,10 @@ export interface CoreClient {
     onWebview(listener: (message: PanelToPage) => void): void;
     /** The workspace's config changed: check again. */
     onReload(listener: () => void): void;
+    /** Settles once the content script answered (with the settings) or never will. */
+    readonly ready: Promise<void>;
+    /** The checking settings: at once, when known, and on every change. */
+    onSettings(listener: (settings: CheckSettings) => void): void;
     dispose(): void;
 }
 
@@ -62,6 +69,12 @@ export function connectCore(target: Window = window): CoreClient {
     const commandListeners: ((id: PaletteCommandId) => void)[] = [];
     const webviewListeners: ((message: PanelToPage) => void)[] = [];
     const reloadListeners: (() => void)[] = [];
+    const settingsListeners: ((settings: CheckSettings) => void)[] = [];
+    let settings: CheckSettings | undefined;
+    const settingsChanged = (value: unknown): void => {
+        settings = parseCheckSettings(value);
+        for (const listener of settingsListeners) listener(settings);
+    };
     let disposed = false;
 
     const port = new Promise<MessagePort>((resolve, reject) => {
@@ -75,6 +88,7 @@ export function connectCore(target: Window = window): CoreClient {
             const received = event.ports[0];
             if (type !== HANDSHAKE_TYPE || version !== PROTOCOL_VERSION || received === undefined) return;
             cleanup();
+            settingsChanged((data as { settings?: unknown }).settings);
             resolve(received);
         };
         const timer = setInterval(announce, ANNOUNCE_EVERY_MS);
@@ -100,6 +114,9 @@ export function connectCore(target: Window = window): CoreClient {
                 return true;
             case RELOAD_TYPE:
                 for (const listener of reloadListeners) listener();
+                return true;
+            case SETTINGS_TYPE:
+                settingsChanged((data as { settings?: unknown }).settings);
                 return true;
             case WEBVIEW_TYPE: {
                 const panelMessage = parsePanelToPage(data);
@@ -169,11 +186,20 @@ export function connectCore(target: Window = window): CoreClient {
         onReload(listener) {
             reloadListeners.push(listener);
         },
+        ready: port.then(
+            () => {},
+            () => {},
+        ),
+        onSettings(listener) {
+            settingsListeners.push(listener);
+            if (settings !== undefined) listener(settings);
+        },
         dispose() {
             disposed = true;
             commandListeners.length = 0;
             webviewListeners.length = 0;
             reloadListeners.length = 0;
+            settingsListeners.length = 0;
             for (const [id, entry] of pending) {
                 clearTimeout(entry.timer);
                 entry.resolve({ id, ok: false, code: 'failed', error: 'client disposed' });

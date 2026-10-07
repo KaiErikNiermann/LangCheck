@@ -7,8 +7,13 @@
 import browser, { type Runtime } from 'webextension-polyfill';
 import {
     BYE_TYPE,
+    CHECK_SETTINGS_KEY,
     COMMAND_TYPE,
+    DEFAULT_CHECK_SETTINGS,
     RELOAD_TYPE,
+    SETTINGS_TYPE,
+    parseCheckSettings,
+    type CheckSettings,
     HANDSHAKE_TYPE,
     MAX_IN_FLIGHT_PER_PAGE,
     PAGE_READY_TYPE,
@@ -72,6 +77,24 @@ export function startContent(site: SiteWorkspace): void {
      */
     const inFlight = { count: 0 };
 
+    // The checking settings go with the handshake, so the page's first
+    // check is planned under them; a change later goes to every port.
+    let settings: CheckSettings = DEFAULT_CHECK_SETTINGS;
+    const settingsLoaded = browser.storage.local.get(CHECK_SETTINGS_KEY).then(
+        (stored) => {
+            settings = parseCheckSettings(stored[CHECK_SETTINGS_KEY]);
+        },
+        () => {},
+    );
+    browser.storage.onChanged.addListener((changes, area) => {
+        const change = changes[CHECK_SETTINGS_KEY];
+        if (area !== 'local' || change === undefined) return;
+        settings = parseCheckSettings(change.newValue);
+        for (const port of pagePorts.values()) port.postMessage({ type: SETTINGS_TYPE, settings });
+    });
+    /** An answer is on its way (the settings are loading): the page re-announces until one comes, and gets one port, not one per announcement. */
+    let answering = false;
+
     window.addEventListener('message', (event: MessageEvent) => {
         if (event.source !== window || event.origin !== location.origin) return;
         const data: unknown = event.data;
@@ -79,16 +102,21 @@ export function startContent(site: SiteWorkspace): void {
         const { type, version } = data as { type?: unknown; version?: unknown };
         // Live ports, not all ever made: a page script restarts (a move to
         // another workspace, a page left and come back to), saying bye.
-        if (type !== PAGE_READY_TYPE || version !== PROTOCOL_VERSION || pagePorts.size >= MAX_PORTS_PER_TAB) return;
-        ports++;
-        const index = ports;
-        const channel = new MessageChannel();
-        servePort(channel.port1, index, background, panels, inFlight, () => {
-            pagePorts.delete(index);
-            channel.port1.close();
+        if (answering || type !== PAGE_READY_TYPE || version !== PROTOCOL_VERSION || pagePorts.size >= MAX_PORTS_PER_TAB) return;
+        answering = true;
+        void settingsLoaded.then(() => {
+            answering = false;
+            if (pagePorts.size >= MAX_PORTS_PER_TAB) return;
+            ports++;
+            const index = ports;
+            const channel = new MessageChannel();
+            servePort(channel.port1, index, background, panels, inFlight, () => {
+                pagePorts.delete(index);
+                channel.port1.close();
+            });
+            pagePorts.set(index, channel.port1);
+            window.postMessage({ type: HANDSHAKE_TYPE, version: PROTOCOL_VERSION, settings }, location.origin, [channel.port2]);
         });
-        pagePorts.set(index, channel.port1);
-        window.postMessage({ type: HANDSHAKE_TYPE, version: PROTOCOL_VERSION }, location.origin, [channel.port2]);
     });
 }
 
