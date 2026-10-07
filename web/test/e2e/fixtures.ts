@@ -26,12 +26,16 @@ export function pageUrl(site: Site, cm: Cm, text?: string, project = 'p1'): stri
 
 interface Fixtures {
     context: BrowserContext;
+    /** The loaded extension's id (chrome-extension://<id>/...). */
+    extensionId: string;
     page: Page;
     /** Where the native host keeps workspaces; shared by every page of the test. */
     dataHome: string;
     /** Registers the native host with this profile (on by default). */
     hostInstalled: boolean;
 }
+
+const extensionIds = new WeakMap<BrowserContext, string>();
 
 export const test = base.extend<Fixtures>({
     hostInstalled: [true, { option: true }],
@@ -55,9 +59,13 @@ export const test = base.extend<Fixtures>({
             // <profile>/NativeMessagingHosts.
             execFileSync(HOST_BINARY, ['install', '--browser', 'chromium', '--chrome-extension-id', extensionId, '--dir', path.join(profile, 'NativeMessagingHosts')]);
         }
+        extensionIds.set(context, extensionId);
         await use(context);
         await context.close();
         rmSync(profile, { recursive: true, force: true });
+    },
+    extensionId: async ({ context }, use) => {
+        await use(extensionIds.get(context) ?? '');
     },
     page: async ({ context }, use) => {
         const page = await context.newPage();
