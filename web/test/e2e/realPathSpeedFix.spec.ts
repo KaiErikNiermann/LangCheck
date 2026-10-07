@@ -7,7 +7,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BrowserContext, Page } from '@playwright/test';
 import { SPEEDFIX_SCENARIOS, type SpeedFixDriver, type SpeedFixFixture } from '../../../extension/src/test/ui/speedFixScenarios';
-import { docText, expect, openFixture, openPanel, panelErrors, panelPages, test } from './fixtures';
+import { docText, expect, host, openFixture, openPanel, panelErrors, panelPages, test } from './fixtures';
 
 /** Every dictionary file the native host keeps under `dataHome`, concatenated. */
 function dictionaries(dir: string): string {
@@ -50,3 +50,27 @@ for (const scenario of SPEEDFIX_SCENARIOS) {
         expect(panel === undefined ? [] : panelErrors.get(panel), 'uncaught errors in the panel').toEqual([]);
     });
 }
+
+// Collaborative editors: text can change under the panel without the user
+// typing. A key pressed after a collaborator's edit, before the re-check,
+// must not fix by the range the finding had before it.
+test("a collaborator's edit before the key is not fixed over: the key waits for the re-check", async ({ page, context, dataHome }) => {
+    const driver = browserDriver(page, context, dataHome);
+    const panel = await driver.open('apply.md');
+    await expect(panel.locator('.error-text')).toHaveText('Teh');
+    // Three characters in front of "Teh", on its line, from elsewhere.
+    const before = await docText(page);
+    await host(page, 'remoteInsert', before.indexOf('Teh'), 'So ');
+    await driver.press('1');
+    // Refused (the text moved) or applied after the re-check; never "SoThe" or "So Teh" mangled.
+    await expect.poll(() => docText(page)).toMatch(/So (?:Teh|The) cat sat on the mat\./u);
+    for (let attempt = 0; attempt < 5; attempt++) {
+        const now = await docText(page);
+        if (!now.includes('So Teh')) break;
+        await expect(panel.locator('.error-text')).toHaveText('Teh');
+        await driver.press('1');
+        // A refused key changes nothing: give it a moment to land, then try again.
+        await expect.poll(() => docText(page), { timeout: 1000 }).toContain('So The').catch(() => {});
+    }
+    expect(await docText(page)).toContain('So The cat sat on the mat.');
+});
