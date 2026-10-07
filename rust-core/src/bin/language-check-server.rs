@@ -37,6 +37,18 @@ use tokio::task::JoinSet;
 use tracing::{debug, error, info, warn};
 use workspace::{IndexOwner, IndexUnavailable, WorkspaceIndex};
 
+// LOCK ORDER. Requests are handled in concurrent tasks, so any two that hold
+// more than one of the shared mutexes at once must take them in one order,
+// or a pair that meets in the middle deadlocks and every later request
+// waits behind it (two checks did: the fingerprint took the dictionary then
+// the ignores, the suppression pass the ignores then the dictionary). Take
+// them in this order, skipping the ones not needed:
+//
+//   workspace_index, config, workspace_root, dictionary, ignore_store,
+//   morphology, name_filter, schema_registry
+//
+// The orchestrator is only ever held alone (it is held across the engines).
+
 /// Shared handles a background indexing task needs.
 ///
 /// Bundled rather than passed positionally so adding a source doesn't keep widening the
@@ -94,8 +106,9 @@ async fn process_file_for_indexing(
     }
 
     let ranges = {
-        let schema_registry = schema_registry_arc.lock().await;
+        // Lock order: see LOCK ORDER at the top of this file.
         let cfg = config_arc.lock().await;
+        let schema_registry = schema_registry_arc.lock().await;
         let latex_extras = prose::latex::LatexExtras {
             skip_envs: &cfg.languages.latex.skip_environments,
             skip_commands: &cfg.languages.latex.skip_commands,
@@ -130,8 +143,9 @@ async fn process_file_for_indexing(
     let identifiers = config_arc.lock().await.identifiers.enabled;
     for (range, mut diagnostics) in ranges.iter().zip(batch) {
         range.adopt_diagnostics(&text, &mut diagnostics);
-        let ignore_store_lock = ignore_store_arc.lock().await;
+        // Lock order: see LOCK ORDER at the top of this file.
         let dictionary_lock = dictionary_arc.lock().await;
+        let ignore_store_lock = ignore_store_arc.lock().await;
         let morphology_lock = morphology_arc.lock().await;
         let name_filter_lock = name_filter_arc.lock().await;
         let mut ctx = SuppressionContext::new()
@@ -628,8 +642,9 @@ async fn main() -> Result<()> {
                         "CheckProse: starting extraction"
                     );
                     let (extraction, spell_language, max_range_bytes) = {
-                        let schema_registry = schema_registry_arc.lock().await;
+                        // Lock order: see LOCK ORDER at the top of this file.
                         let cfg = config_arc.lock().await;
+                        let schema_registry = schema_registry_arc.lock().await;
                         let latex_extras = prose::latex::LatexExtras {
                             skip_envs: &cfg.languages.latex.skip_environments,
                             skip_commands: &cfg.languages.latex.skip_commands,
@@ -826,8 +841,9 @@ async fn main() -> Result<()> {
                             {
                                 let directives = InlineDirectives::parse(&req.text);
                                 let identifiers = config_arc.lock().await.identifiers.enabled;
-                                let ignore_store = ignore_store_arc.lock().await;
+                                // Lock order: see LOCK ORDER at the top of this file.
                                 let dict = dictionary_arc.lock().await;
+                                let ignore_store = ignore_store_arc.lock().await;
                                 let morphology = morphology_arc.lock().await;
                                 let name_filter = name_filter_arc.lock().await;
                                 let mut ctx = SuppressionContext::new()

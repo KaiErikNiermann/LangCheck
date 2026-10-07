@@ -195,3 +195,59 @@ fn an_unreadable_index_is_replaced_and_said_so() {
     );
     child.kill().ok();
 }
+
+/// Checks that overlap are each answered. Requests are handled concurrently,
+/// and two checks once took the same two locks in opposite orders (the
+/// fingerprint: dictionary, then ignores; the suppression pass: ignores,
+/// then dictionary), so a pair that met in the middle deadlocked, and every
+/// request after them waited behind it. Two browser tabs on one project,
+/// or fast typing in VS Code, send exactly such checks.
+#[test]
+fn overlapping_checks_are_all_answered() {
+    const CHECKS: u64 = 32;
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    for id in 0..CHECKS {
+        let request = Request {
+            id: 100 + id,
+            payload: Some(request::Payload::CheckProse(lang_check::checker::CheckRequest {
+                text: format!("Teh {id} recieve it, seperately."),
+                language_id: "markdown".into(),
+                ..Default::default()
+            })),
+        };
+        send_frame(&mut child, &request.encode_to_vec());
+    }
+    // Read on a thread, so a hung server fails the test instead of hanging it.
+    let mut stdout = child.stdout.take().expect("stdout");
+    let (answers, received) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        for _ in 0..CHECKS {
+            let mut length = [0u8; 4];
+            if stdout.read_exact(&mut length).is_err() {
+                return;
+            }
+            let mut body = vec![0u8; u32::from_be_bytes(length) as usize];
+            if stdout.read_exact(&mut body).is_err() {
+                return;
+            }
+            let response = Response::decode(body.as_slice()).expect("a decodable response");
+            if answers.send(response.id).is_err() {
+                return;
+            }
+        }
+    });
+    let deadline = Instant::now() + Duration::from_secs(60);
+    let mut ids = Vec::new();
+    while ids.len() < CHECKS as usize {
+        let left = deadline.saturating_duration_since(Instant::now());
+        match received.recv_timeout(left) {
+            Ok(id) => ids.push(id),
+            Err(_) => break,
+        }
+    }
+    child.kill().ok();
+    ids.sort_unstable();
+    assert_eq!(ids, (100..100 + CHECKS).collect::<Vec<_>>(), "checks left unanswered");
+}
