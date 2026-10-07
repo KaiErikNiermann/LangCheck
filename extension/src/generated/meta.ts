@@ -22,6 +22,7 @@ export type CommandKey =
   | "language-check.toggleTrace"
   | "language-check.showTrace"
   | "language-check.manageEngines"
+  | "language-check.editConfig"
   | "language-check.skipLatexEnv"
   | "language-check.skipLatexCommand"
   | "language-check.excludeCurrentFile"
@@ -83,6 +84,11 @@ export const commands = {
    * @value `language-check.manageEngines`
    */
   manageEngines: "language-check.manageEngines",
+  /**
+   * %command.editConfig%
+   * @value `language-check.editConfig`
+   */
+  editConfig: "language-check.editConfig",
   /**
    * %command.skipLatexEnv%
    * @value `language-check.skipLatexEnv`

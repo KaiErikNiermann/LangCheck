@@ -18,6 +18,16 @@ import * as vscode from 'vscode';
  */
 const UTF8 = new TextDecoder('utf-8', { ignoreBOM: true });
 
+/**
+ * What a config created by "Edit Config" starts as: what having no file
+ * meant (Harper on, every other engine off), and where every key is listed.
+ */
+export const NEW_CONFIG_TEXT = `# LangCheck config. Every key is described in
+# https://github.com/KaiErikNiermann/LangCheck/blob/main/docs/guide/configuration.md
+engines:
+  harper: true
+`;
+
 /** Every name the core accepts for the config, in the order it looks. */
 export const CONFIG_FILE_NAMES = ['.languagecheck.yaml', '.languagecheck.yml', '.languagecheck.json'] as const;
 

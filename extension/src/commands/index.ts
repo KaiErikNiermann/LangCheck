@@ -47,6 +47,7 @@ const REGISTRATION_ORDER = [
     COMMANDS.checkWorkspace,
     COMMANDS.openSpeedFix,
     COMMANDS.openInspector,
+    COMMANDS.editConfig,
 ] as const satisfies readonly CommandId[];
 
 type Registered = Exclude<CommandId, typeof COMMANDS.configStatus>;

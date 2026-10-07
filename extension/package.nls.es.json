@@ -8,6 +8,7 @@
   "command.toggleTrace": "Language Check: Alternar traza Protobuf",
   "command.showTrace": "Language Check: Mostrar traza Protobuf",
   "command.manageEngines": "Language Check: Gestionar motores",
+  "command.editConfig": "Language Check: Editar configuración",
   "command.skipLatexEnv": "Language Check: Omitir entorno LaTeX",
   "command.skipLatexCommand": "Language Check: Omitir comando LaTeX",
   "command.excludeCurrentFile": "Language Check: Excluir el archivo actual de la comprobación",

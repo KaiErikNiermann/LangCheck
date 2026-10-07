@@ -12,6 +12,8 @@ import {
     type LatexList,
 } from '../config/edits';
 import {
+    configInEffect,
+    NEW_CONFIG_TEXT,
     readTextOrEmpty,
     resolveConfigForEdit,
     showConfigUpdateError,
@@ -153,6 +155,23 @@ export function settingsCommands(app: App) {
                 statusBars.setLanguage(selected.label);
                 await reloader.reinitializeWithProgress(
                     vscode.l10n.t('Spell-check language set to "{0}". Reloading...', selected.label));
+            } catch (err) {
+                showConfigUpdateError(err);
+            }
+        },
+        /**
+         * Open the config the core reads for this workspace, creating
+         * `.languagecheck.yaml` when there is none. The config view then
+         * marks what each key reaches, and a save reloads the checks.
+         */
+        [COMMANDS.editConfig]: async () => {
+            const workspaceFolder = workspaceFolderOrWarn();
+            if (!workspaceFolder) return;
+            try {
+                const existing = await configInEffect();
+                const target = existing ?? await resolveConfigForEdit(workspaceFolder);
+                if (!existing) await writeConfigText(target, NEW_CONFIG_TEXT);
+                await vscode.window.showTextDocument(target);
             } catch (err) {
                 showConfigUpdateError(err);
             }

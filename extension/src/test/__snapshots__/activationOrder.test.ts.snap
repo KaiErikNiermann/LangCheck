@@ -58,6 +58,7 @@ exports[`activation order > in production, when the core has to be downloaded fi
   "commands.registerCommand("language-check.checkWorkspace", function)",
   "commands.registerCommand("language-check.openSpeedFix", function)",
   "commands.registerCommand("language-check.openInspector", function)",
+  "commands.registerCommand("language-check.editConfig", function)",
   "window.onDidChangeActiveTextEditor(function)",
   "workspace.onDidOpenTextDocument(function)",
   "window.onDidChangeActiveTextEditor(function)",
@@ -79,7 +80,7 @@ exports[`activation order > in production, when the core has to be downloaded fi
   "workspace.createFileSystemWatcher.onDidDelete()",
   "languages.onDidChangeDiagnostics(function)",
   "--- activated ---",
-  "--- 57 subscriptions ---",
+  "--- 58 subscriptions ---",
 ]
 `;
 
@@ -151,6 +152,7 @@ exports[`activation order > under the test host, with a local core build 1`] = `
   "commands.registerCommand("language-check.checkWorkspace", function)",
   "commands.registerCommand("language-check.openSpeedFix", function)",
   "commands.registerCommand("language-check.openInspector", function)",
+  "commands.registerCommand("language-check.editConfig", function)",
   "window.onDidChangeActiveTextEditor(function)",
   "workspace.onDidOpenTextDocument(function)",
   "window.onDidChangeActiveTextEditor(function)",
@@ -173,7 +175,7 @@ exports[`activation order > under the test host, with a local core build 1`] = `
   "workspace.createFileSystemWatcher.onDidDelete()",
   "languages.onDidChangeDiagnostics(function)",
   "--- activated ---",
-  "--- 57 subscriptions ---",
+  "--- 58 subscriptions ---",
 ]
 `;
 
@@ -246,6 +248,7 @@ exports[`activation order > under the test host, with no local core build 1`] = 
   "commands.registerCommand("language-check.checkWorkspace", function)",
   "commands.registerCommand("language-check.openSpeedFix", function)",
   "commands.registerCommand("language-check.openInspector", function)",
+  "commands.registerCommand("language-check.editConfig", function)",
   "window.onDidChangeActiveTextEditor(function)",
   "workspace.onDidOpenTextDocument(function)",
   "window.onDidChangeActiveTextEditor(function)",
@@ -268,7 +271,7 @@ exports[`activation order > under the test host, with no local core build 1`] = 
   "workspace.createFileSystemWatcher.onDidDelete()",
   "languages.onDidChangeDiagnostics(function)",
   "--- activated ---",
-  "--- 57 subscriptions ---",
+  "--- 58 subscriptions ---",
 ]
 `;
 
