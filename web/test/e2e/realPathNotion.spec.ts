@@ -70,3 +70,27 @@ test('a fix in a peek is saved to the peeked page, and the page behind is untouc
     await expect.poll(() => notionSaved(page, OTHER)).toContain('Nothing wrong here, only receive once.');
     expect(await notionSaved(page)).toEqual(behind);
 });
+
+// Notion is a single-page app: a session can start on a page that names no
+// workspace (its home), and move into a page, or to another workspace,
+// without a load.
+test('starting on Notion\'s home, the page opened from it is checked', async ({ page }) => {
+    await page.goto(notionUrl().replace(/\/p\/.*$/u, '/home'));
+    await expect.poll(() => status(page)).toMatchObject({ state: 'absent' });
+    await page.evaluate(() => (globalThis as any).__notion.navigate('3f2b8b37e541802f96a1c557a6b01a44'));
+    await expect.poll(() => status(page), { timeout: 15_000 }).toMatchObject({ state: 'attached' });
+    await expect.poll(() => painted(page)).toHaveLength(4);
+});
+
+test('a move to another workspace starts over in that workspace, with its own dictionary', async ({ page }) => {
+    await page.goto(notionUrl());
+    await expect.poll(() => painted(page)).toHaveLength(4);
+    // Learned in this workspace...
+    const card = await hoverPainted(page, 'recieve');
+    await card.getByRole('button', { name: 'Add "recieve" to dictionary' }).click();
+    await expect.poll(() => painted(page)).toEqual(['teh', 'teh']);
+    // ...and not in the other, which the background must now serve.
+    await page.evaluate(() => (globalThis as any).__notion.navigate('aa24b3e9dafd4deb8617a6a09693570f', 'other-workspace'));
+    await expect.poll(() => status(page), { timeout: 15_000 }).toMatchObject({ state: 'attached', uri: expect.stringContaining('/other-workspace/') });
+    await expect.poll(() => painted(page)).toEqual(['recieve']);
+});

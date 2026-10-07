@@ -105,9 +105,9 @@ Object.assign(globalThis, {
             peek.replaceChildren();
         },
         /** Single-page navigation to another page of the same workspace. */
-        navigate(pageId: string) {
+        navigate(pageId: string, workspace = 'test-workspace') {
             current = pageId;
-            history.pushState({}, '', `/p/test-workspace/page-${pageId}`);
+            history.pushState({}, '', `/p/${workspace}/page-${pageId}`);
             render(current);
         },
     },

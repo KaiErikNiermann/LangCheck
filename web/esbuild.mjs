@@ -56,6 +56,11 @@ if (test) {
     const origins = Object.values(local).map((pattern) => `${new URL(pattern.replace('*', '')).origin}/*`);
     for (const resources of manifest.web_accessible_resources) resources.matches.push(...origins);
 }
+// The tab's current URL names its workspace (single-page apps move without a
+// load, and a port's sender.url stays the URL the page loaded with); reading
+// it needs host permission, for exactly the pages the scripts already run in.
+manifest.host_permissions = [...new Set(manifest.content_scripts.flatMap((script) => script.matches))];
+
 // Browsers refuse to load a manifest whose web_accessible_resources match a
 // path other than /* (Chrome then never starts the extension at all).
 for (const resources of manifest.web_accessible_resources) {

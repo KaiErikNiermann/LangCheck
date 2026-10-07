@@ -25,9 +25,30 @@ declare global {
     var __languageCheck: Running | undefined;
 }
 
+/** How often the page's URL is looked at for a move to another workspace (single-page apps). */
+const WATCH_MS = 1000;
+
+/**
+ * Runs the extension for the workspace the URL names, and follows the URL:
+ * single-page apps (Notion) move between pages, and between workspaces,
+ * without a load. A page that names no workspace yet is waited on; a move
+ * to another workspace restarts the client for it (its dictionary, its
+ * native connection).
+ */
 export function startPage(site: SitePage, workspace: SiteWorkspace): void {
-    const project = workspace.projectFromPath(location.pathname);
-    if (project === undefined) return;
+    let running: string | undefined;
+    const follow = (): void => {
+        const project = workspace.projectFromPath(location.pathname);
+        if (project === running) return;
+        running = project;
+        globalThis.__languageCheck?.stop();
+        if (project !== undefined) start(site, project);
+    };
+    follow();
+    setInterval(follow, WATCH_MS);
+}
+
+function start(site: SitePage, project: string): void {
     globalThis.__languageCheck?.stop();
 
     const core = connectCore();

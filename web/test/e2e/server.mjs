@@ -29,7 +29,8 @@ http.createServer((req, res) => void serve(req, res)).listen(port, '127.0.0.2');
 /** @param {http.IncomingMessage} req @param {http.ServerResponse} res */
 async function serve(req, res) {
     const url = new URL(req.url ?? '/', 'http://x');
-    if (url.pathname.startsWith('/p/')) {
+    // /home is Notion's start page: a page of the app that names no workspace.
+    if (url.pathname.startsWith('/p/') || url.pathname === '/home') {
         res.writeHead(200, { 'content-type': 'text/html' }).end(notionPage);
         return;
     }

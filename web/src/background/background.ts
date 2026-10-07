@@ -55,31 +55,51 @@ browser.runtime.onConnect.addListener((port: Runtime.Port) => {
         return;
     }
     // Only our own content scripts, in a tab on a project page of a known
-    // site. The workspace is fixed here, from what the browser reports.
-    const key = workspaceForUrl(port.sender?.url);
+    // site. The workspace is fixed here, from what the browser reports: the
+    // tab's current URL, since a single-page app (Notion) moves between
+    // workspaces without a load and a port's sender.url stays the URL the
+    // page loaded with. The content script opens a new port after a move.
     const tab = port.sender?.tab;
-    if (key === undefined || port.name !== BACKGROUND_PORT_NAME || !ours(port) || tab?.id === undefined) {
+    if (port.name !== BACKGROUND_PORT_NAME || !ours(port) || tab?.id === undefined) {
         port.disconnect();
         return;
     }
     const tabId = tab.id;
-    port.onDisconnect.addListener(() => { panels.sourceGone(tabId, port); });
+    const workspace = browser.tabs
+        .get(tabId)
+        .then((current) => workspaceForUrl(current.url ?? port.sender?.url))
+        // No tab to ask: no URL, so no workspace.
+        .catch(() => workspaceForUrl(undefined));
+    // Messages wait for the workspace, in the order they came.
     port.onMessage.addListener((message: unknown) => {
-        const webview = (message as { webview?: unknown } | null)?.webview;
-        if (webview !== undefined) {
-            const parsed = parsePageToPanel(webview);
-            if (parsed !== undefined) panels.fromPage(tabId, port, parsed, tab.windowId);
-            return;
-        }
-        const parsed = parseBackgroundRequest(message);
-        if (parsed === undefined) return;
-        void cores.request(key, parsed.request).then((response) => {
-            const reply: BackgroundResponse = { id: parsed.id, response };
-            try {
-                port.postMessage(reply);
-            } catch {
-                // The tab went away while the core was answering.
-            }
+        void workspace.then((key) => {
+            if (key !== undefined) serveContent(port, tabId, tab.windowId, key, message);
         });
     });
+    port.onDisconnect.addListener(() => {
+        panels.sourceGone(tabId, port);
+    });
+    void workspace.then((key) => {
+        if (key === undefined) port.disconnect();
+    });
 });
+
+/** One message from a content script, on `key`'s workspace. */
+function serveContent(port: Runtime.Port, tabId: number, windowId: number | undefined, key: string, message: unknown): void {
+    const webview = (message as { webview?: unknown } | null)?.webview;
+    if (webview !== undefined) {
+        const parsed = parsePageToPanel(webview);
+        if (parsed !== undefined) panels.fromPage(tabId, port, parsed, windowId);
+        return;
+    }
+    const parsed = parseBackgroundRequest(message);
+    if (parsed === undefined) return;
+    void cores.request(key, parsed.request).then((response) => {
+        const reply: BackgroundResponse = { id: parsed.id, response };
+        try {
+            port.postMessage(reply);
+        } catch {
+            // The tab went away while the core was answering.
+        }
+    });
+}

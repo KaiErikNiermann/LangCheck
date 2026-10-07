@@ -25,8 +25,11 @@ import type { SiteWorkspace } from '../sites/site';
 const MAX_PORTS_PER_TAB = 4;
 
 export function startContent(site: SiteWorkspace): void {
-    // Not a project page: nothing to serve (the background would refuse too).
-    if (site.projectFromPath(location.pathname) === undefined) return;
+    // Served whatever the URL: single-page apps (Notion) move into a
+    // workspace's page, and between workspaces, without a load. The link to
+    // the background follows (BackgroundLink), and the page script waits for
+    // a workspace before it asks anything.
+    const workspaceNow = (): string | undefined => site.projectFromPath(location.pathname);
     /**
      * The page's ports, by number. Anything in the page world can announce
      * itself and get one (the site's scripts, other extensions'), so none is
@@ -50,6 +53,8 @@ export function startContent(site: SiteWorkspace): void {
             for (const panel of panels) toOwner({ type: WEBVIEW_TYPE, op: 'closed', panel });
             panels.clear();
         },
+        () => browser.runtime.connect({ name: BACKGROUND_PORT_NAME }),
+        workspaceNow,
     );
     startPalette((id) => {
         for (const port of pagePorts.values()) port.postMessage({ type: COMMAND_TYPE, command: id });
@@ -124,6 +129,8 @@ function servePort(port: MessagePort, index: number, background: BackgroundLink,
 /** One runtime port to the background, reopened on demand after the background restarts. */
 export class BackgroundLink {
     private port: Runtime.Port | undefined;
+    /** The workspace the URL named when `port` was opened: the one the background serves it for. */
+    private portWorkspace: string | undefined;
     private nextId = 1;
     private readonly pending = new Map<number, { resolve: (r: PageResponse) => void; pageId: number }>();
 
@@ -151,7 +158,9 @@ export class BackgroundLink {
     constructor(
         private readonly onWebview: (message: PanelToPage) => void,
         private readonly onDisconnected: () => void,
-        private readonly connectRuntime: () => Runtime.Port = () => browser.runtime.connect({ name: BACKGROUND_PORT_NAME }),
+        private readonly connectRuntime: () => Runtime.Port,
+        /** The workspace the page's URL names now. */
+        private readonly workspaceNow: () => string | undefined,
     ) {}
 
     /** Dropped when the background cannot be reached (see send). */
@@ -164,8 +173,14 @@ export class BackgroundLink {
     }
 
     private connect(): Runtime.Port {
+        // The background takes the workspace from the URL at connect time:
+        // after a move to another, a new port, or the old workspace's
+        // dictionary and connection would serve the new one.
+        const workspace = this.workspaceNow();
+        if (this.port !== undefined && workspace !== this.portWorkspace) this.reset('the page moved to another workspace');
         if (this.port !== undefined) return this.port;
         const port = this.connectRuntime();
+        this.portWorkspace = workspace;
         port.onMessage.addListener((message: unknown) => {
             const panelMessage = parsePanelToPage((message as { webview?: unknown } | null)?.webview);
             if (panelMessage !== undefined) {
@@ -181,14 +196,23 @@ export class BackgroundLink {
             entry.resolve({ ...response, id: entry.pageId });
         });
         port.onDisconnect.addListener(() => {
-            this.port = undefined;
-            for (const [, entry] of this.pending) {
-                entry.resolve({ id: entry.pageId, ok: false, code: 'unavailable', error: 'the extension background restarted' });
-            }
-            this.pending.clear();
-            this.onDisconnected();
+            if (this.port === port) this.dropPort('the extension background restarted');
         });
         this.port = port;
         return port;
+    }
+
+    /** Lets go of the port (a disconnect of one's own fires no event), failing what waited on it. */
+    private reset(reason: string): void {
+        const port = this.port;
+        this.dropPort(reason);
+        port?.disconnect();
+    }
+
+    private dropPort(reason: string): void {
+        this.port = undefined;
+        for (const [, entry] of this.pending) entry.resolve({ id: entry.pageId, ok: false, code: 'unavailable', error: reason });
+        this.pending.clear();
+        this.onDisconnected();
     }
 }
