@@ -71,7 +71,7 @@ export default defineConfig(
         rules: { 'unicorn/prefer-event-target': 'off' },
     },
     {
-        files: ['test/**/*.ts', '*.mjs', '*.mts', '*.config.ts'],
+        files: ['test/**/*.ts', 'test/**/*.mjs', '*.mjs', '*.mts', '*.config.ts'],
         languageOptions: { globals: globals.node },
         rules: {
             '@typescript-eslint/no-non-null-assertion': 'off',
@@ -91,6 +91,20 @@ export default defineConfig(
             'unicorn/no-top-level-side-effects': 'off',
             // The build script writes to its own output directory.
             'security/detect-non-literal-fs-filename': 'off',
+            // The tests serve stand-in pages on loopback over plain http.
+            'sonarjs/no-clear-text-protocols': 'off',
+            'unicorn/prefer-https': 'off',
+            // `(x) => expect(x)...` shorthands in test tables.
+            '@typescript-eslint/no-confusing-void-expression': 'off',
+            // The fake host page swaps its view the way a site remounts one.
+            'unicorn/no-top-level-assignment-in-function': 'off',
+            // Playwright fixtures take `{}` when they use no other fixture.
+            'no-empty-pattern': 'off',
+            // page.evaluate() returns what the page hands back, typed any.
+            '@typescript-eslint/no-unsafe-return': 'off',
+            '@typescript-eslint/no-unsafe-argument': 'off',
+            // Test locators build anchored patterns from literal test words.
+            'security/detect-non-literal-regexp': 'off',
         },
     },
 );

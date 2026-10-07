@@ -58,6 +58,14 @@ if (test) {
         { name: 'current', alias: {} },
         { name: '6-38', alias: { '@codemirror/view': 'cm-view-6-38' } },
     ];
+    await esbuild.build({
+        entryPoints: ['test/e2e/stubContent.ts'],
+        outfile: '.e2e/pages/stub-content.js',
+        bundle: true,
+        format: 'iife',
+        platform: 'browser',
+        logLevel: 'warning',
+    });
     await Promise.all(
         variants.map(({ name, alias }) =>
             esbuild.build({
