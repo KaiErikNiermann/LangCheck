@@ -38,4 +38,5 @@ pub mod sls;
 pub mod style_rules;
 pub mod suppression;
 pub mod text_util;
+pub mod wire;
 pub mod workspace;

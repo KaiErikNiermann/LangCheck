@@ -401,7 +401,7 @@ async fn main() -> Result<()> {
                 // read, so the editor fails that request now instead of
                 // waiting out its timeout for an answer filed under 0.
                 let response = Response {
-                    id: leading_request_id(&msg_data).unwrap_or(0),
+                    id: lang_check::wire::leading_request_id(&msg_data).unwrap_or(0),
                     payload: Some(response::Payload::Error(ErrorResponse {
                         message: format!("Failed to decode request: {e}"),
                     })),
@@ -1119,39 +1119,9 @@ fn capitalized(text: &str) -> String {
 /// thing a request carries, and the editor sends nothing near this.
 const MAX_REQUEST_BYTES: usize = 256 * 1024 * 1024;
 
-/// The `id` of a request that did not decode, when its first field is still
-/// readable: field 1 as a varint, which is how every request starts.
-fn leading_request_id(bytes: &[u8]) -> Option<u64> {
-    // Tag byte for field 1, wire type 0 (varint).
-    let rest = bytes.strip_prefix(&[0x08])?;
-    let mut id: u64 = 0;
-    for (i, &byte) in rest.iter().take(10).enumerate() {
-        id |= u64::from(byte & 0x7f) << (7 * i);
-        if byte & 0x80 == 0 {
-            return Some(id);
-        }
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_id_of_an_undecodable_request_is_still_read() {
-        let mut bytes = Request {
-            id: 300,
-            payload: None,
-        }
-        .encode_to_vec();
-        // A field 2 that claims more bytes than follow: not decodable.
-        bytes.extend_from_slice(&[0x12, 0x7f, 0x01]);
-        assert!(Request::decode(bytes.as_slice()).is_err());
-        assert_eq!(leading_request_id(&bytes), Some(300));
-        assert_eq!(leading_request_id(&[0x12, 0x00]), None);
-        assert_eq!(leading_request_id(&[0x08, 0xff]), None);
-    }
 
     #[test]
     fn lists_the_config_in_force_and_what_it_selects() {
