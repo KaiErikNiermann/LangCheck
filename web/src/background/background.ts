@@ -5,7 +5,7 @@
 // the panel tabs (panels.ts), which connect on a port of their own.
 import browser, { type Runtime } from 'webextension-polyfill';
 import { BACKGROUND_PORT_NAME, parseBackgroundRequest, type BackgroundResponse } from '../messaging/background';
-import type { PageResponse } from '../messaging/protocol';
+import { forPage } from './forPage';
 import { CONFIG_PORT_NAME, parseConfigPageRequest } from '../messaging/config';
 import { PANEL_PORT_NAME, parsePageToPanel } from '../messaging/webview';
 import { workspaceForUrl } from '../sites/registry';
@@ -154,17 +154,6 @@ browser.runtime.onConnect.addListener((port: Runtime.Port) => {
         });
     });
 });
-
-/**
- * A config listing as a web page may see it: which config is in force (a
- * file name) and what it includes, without the files it selects and skips,
- * which in the browser are the native host's own workspace files.
- */
-function forPage(response: PageResponse): PageResponse {
-    const listing = response.ok ? (response.response.listConfigFiles as Record<string, unknown> | undefined) : undefined;
-    if (listing === undefined || !response.ok) return response;
-    return { ...response, response: { ...response.response, listConfigFiles: { ...listing, selected: [], skipped: [] } } };
-}
 
 /** One message from a content script, on `key`'s workspace. */
 function serveContent(port: Runtime.Port, tabId: number, windowId: number | undefined, key: string, message: unknown): void {
