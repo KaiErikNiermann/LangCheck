@@ -240,11 +240,13 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
         renderHints: () => {},
         applyEdits: (edits: readonly TextEdit[]) => {
             if (disposed) return false;
-            // One span per fix is all the checker offers; several would each
-            // have to be re-mapped after the editor re-renders the first.
+            // One span at a time: several would each have to be re-mapped
+            // after the editor re-renders the first, and a failure halfway
+            // would leave some applied. Refused, as an edit that does not
+            // hold is: the caller re-checks (a fix-all in Notion).
             const [edit, ...rest] = edits;
             if (edit === undefined) return true;
-            if (rest.length > 0) throw new Error('this editor applies one edit at a time');
+            if (rest.length > 0) return false;
             const map = current();
             if (!root.isConnected || !editsHold([edit], map.text.length, (from, to) => map.text.slice(from, to))) return false;
             return applyEdit(map, edit, () => current().text);

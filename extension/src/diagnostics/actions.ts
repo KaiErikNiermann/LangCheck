@@ -1,5 +1,6 @@
 /**
- * Acting on one finding by its id: applying a suggestion, or ignoring it.
+ * Acting on findings: applying a suggestion or ignoring one by its id, and
+ * replacing a misspelled word everywhere it was found.
  *
  * Both edit what is on screen at once and re-check in the background, so the
  * user is not left waiting on the core for a change they already made.
@@ -12,11 +13,11 @@ import type { Logger } from '../shared/logger';
 import type { InspectorLog } from '../ui/inspectorLog';
 import type { SpeedFixPanel } from '../ui/webviews/speedFix';
 import { coreByte } from '../checking/offsets';
-import { addSuggestionEdit, ignoreRequest, insertedText, type DiagId, type ExtendedDiagnostic } from './diagnostic';
+import { addSuggestionEdit, ignoreRequest, insertedText, isSpellingOf, type DiagId, type ExtendedDiagnostic } from './diagnostic';
 import { byteDelta, rebaseSpan, type Span, type TextChange } from './rebase';
 import type { FixTarget } from './fixTarget';
 import type { DiagnosticStore } from './store';
-import { uriKey } from '../shared/documents';
+import { findOpenDocument, uriKey, type UriKey } from '../shared/documents';
 
 export interface DiagnosticActionDeps {
     readonly core: CoreHandle;
@@ -91,6 +92,61 @@ export class DiagnosticActions {
 
     ignore(diagnosticId: DiagId): Promise<void> {
         return this.oneAtATime(() => this.ignoreNow(diagnosticId));
+    }
+
+    /**
+     * Replaces `word` with `replacement` wherever it was found misspelled:
+     * in the document `only`, or in every open document.
+     */
+    fixAllSpelling(word: string, replacement: string, only?: UriKey): Promise<void> {
+        return this.oneAtATime(() => this.fixAllSpellingNow(word, replacement, only));
+    }
+
+    /**
+     * One edit over every document, all or nothing. A document whose
+     * findings were checked against older text is left out and re-checked:
+     * its ranges would replace whatever moved under them. Findings are
+     * removed only once the edit applied, and only from the lists it was
+     * made from (a check that landed meanwhile knows better).
+     */
+    private async fixAllSpellingNow(word: string, replacement: string, only: UriKey | undefined): Promise<void> {
+        const { checker, inspectorLog, store } = this.deps;
+        const edit = new vscode.WorkspaceEdit();
+        const planned: { uri: UriKey; document: vscode.TextDocument; generation: number; remaining: ExtendedDiagnostic[] }[] = [];
+        const stale: vscode.TextDocument[] = [];
+        for (const [uri, diagnostics] of store) {
+            const document = only === undefined || uri === only ? findOpenDocument(uri) : undefined;
+            if (!document) continue;
+            if (!store.isCurrent(document)) {
+                stale.push(document);
+                continue;
+            }
+            const matching = diagnostics.filter((d) => isSpellingOf(document, d, word));
+            if (matching.length === 0) continue;
+            // Two engines can flag the same word: one replacement per span,
+            // since two over one span overlap and refuse the whole edit.
+            const spans = new Set<string>();
+            for (const d of matching) {
+                const span = `${String(document.offsetAt(d.range.start))}:${String(document.offsetAt(d.range.end))}`;
+                if (spans.has(span)) continue;
+                spans.add(span);
+                edit.replace(document.uri, d.range, replacement);
+            }
+            planned.push({ uri, document, generation: store.generationOf(uri), remaining: diagnostics.filter((d) => !matching.includes(d)) });
+        }
+        if (stale.length > 0) inspectorLog.push('info', 'fixAllSpelling', `${String(stale.length)} document(s) changed since their check: re-checking them instead`);
+        for (const document of stale) void checker.check(document);
+        if (planned.length === 0) return;
+
+        if (await vscode.workspace.applyEdit(edit)) {
+            for (const { uri, document, generation, remaining } of planned) {
+                if (store.holds(uri, generation)) store.write(uri, document.uri, remaining);
+            }
+            store.notify();
+        } else {
+            inspectorLog.push('info', 'fixAllSpelling', 'The text changed under the edit: nothing replaced, re-checking');
+        }
+        for (const { document } of planned) await checker.check(document);
     }
 
     private async applyFixNow(diagnosticId: DiagId, suggestion: string): Promise<void> {

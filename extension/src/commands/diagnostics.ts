@@ -3,8 +3,8 @@ import * as vscode from 'vscode';
 
 import { deactivateRule } from '../config/edits';
 import { readTextOrEmpty, resolveConfigForEdit, writeConfigText } from '../config/file';
-import { ignoreRequest, isSpellingOf, isSpellingRule, ruleIdOf, type DiagId } from '../diagnostics/diagnostic';
-import { findOpenDocument, uriKey, type UriKey } from '../shared/documents';
+import { ignoreRequest, isSpellingRule, ruleIdOf, type DiagId } from '../diagnostics/diagnostic';
+import { uriKey, type UriKey } from '../shared/documents';
 import { spanned } from '../shared/ignoreSpan';
 import type { Checker } from '../checking/checker';
 import type { CoreHandle } from '../core/transport';
@@ -25,7 +25,7 @@ export interface DiagnosticsCommandDeps {
     readonly fixTarget: FixTarget;
     readonly core: CoreHandle & { initialize(): Promise<void> };
     readonly checker: Pick<Checker, 'check'>;
-    readonly actions: Pick<DiagnosticActions, 'applyFix' | 'ignore'>;
+    readonly actions: Pick<DiagnosticActions, 'applyFix' | 'ignore' | 'fixAllSpelling'>;
     readonly speedFix: Pick<SpeedFixPanel, 'sendLoading' | 'reveal'>;
 }
 
@@ -100,62 +100,10 @@ export function diagnosticsCommands(app: DiagnosticsCommandDeps) {
             );
         },
         [COMMANDS.fixAllSpellingInFile]: async (uri: UriKey, word: string, replacement: string) => {
-            const diagnostics = store.get(uri);
-            if (!diagnostics) return;
-
-            const document = findOpenDocument(uri);
-            if (!document) return;
-
-            const matching = diagnostics.filter(d => isSpellingOf(document, d, word));
-            if (matching.length === 0) return;
-
-            const edit = new vscode.WorkspaceEdit();
-            for (const d of matching) {
-                edit.replace(document.uri, d.range, replacement);
-            }
-            await vscode.workspace.applyEdit(edit);
-
-            // Optimistic removal
-            const remaining = diagnostics.filter(d => !matching.includes(d));
-            store.write(uri, document.uri, remaining);
-            store.notify();
-
-            // Re-check for consistency
-            await checker.check(document);
+            await actions.fixAllSpelling(word, replacement, uri);
         },
         [COMMANDS.fixAllSpellingInWorkspace]: async (word: string, replacement: string) => {
-            const edit = new vscode.WorkspaceEdit();
-            const affectedUris: UriKey[] = [];
-
-            for (const [uri, diagnostics] of store) {
-                const document = findOpenDocument(uri);
-                if (!document) continue;
-
-                const matching = diagnostics.filter(d => isSpellingOf(document, d, word));
-                if (matching.length === 0) continue;
-
-                for (const d of matching) {
-                    edit.replace(document.uri, d.range, replacement);
-                }
-
-                // Optimistic removal
-                const remaining = diagnostics.filter(d => !matching.includes(d));
-                store.write(uri, document.uri, remaining);
-                affectedUris.push(uri);
-            }
-
-            if (affectedUris.length === 0) return;
-
-            await vscode.workspace.applyEdit(edit);
-            store.notify();
-
-            // Re-check all affected files
-            for (const uri of affectedUris) {
-                const document = findOpenDocument(uri);
-                if (document) {
-                    await checker.check(document);
-                }
-            }
+            await actions.fixAllSpelling(word, replacement);
         },
         [COMMANDS.addToDictionary]: async (word: string) => {
             if (!core.client) return;

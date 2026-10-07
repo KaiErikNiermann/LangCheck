@@ -23,6 +23,29 @@ test('a fix from the card reaches the editor as input and is saved, formatting i
     await expect.poll(() => painted(page)).toEqual(['recieve', 'teh', 'teh']);
 });
 
+test('"Fix all in file" is refused whole where the editor takes one edit at a time, and the page is untouched', async ({ page }) => {
+    const errors: string[] = [];
+    // The extension's own errors (the stand-in has no favicon, which the console reports too).
+    page.on('console', (message) => {
+        if (message.type() === 'error' && !message.text().startsWith('Failed to load resource')) errors.push(message.text());
+    });
+    page.on('pageerror', (error) => {
+        errors.push(error.message);
+    });
+    await page.goto(notionUrl());
+    await expect.poll(() => painted(page)).toHaveLength(4);
+    const before = await notionSaved(page);
+    const checks = (): Promise<number> => page.evaluate(() => (globalThis as any).__languageCheck.stats().checks as number);
+    const checked = await checks();
+    const card = await hoverPainted(page, 'recieve', 0);
+    await card.getByRole('button', { name: 'Fix all "recieve" in this file' }).click();
+    // Refused, it re-checks the page as it is.
+    await expect.poll(checks).toBeGreaterThan(checked);
+    expect(await notionSaved(page)).toEqual(before);
+    await expect.poll(() => painted(page)).toEqual(['recieve', 'teh', 'recieve', 'teh']);
+    expect(errors).toEqual([]);
+});
+
 test('the finding after the equation is placed exactly, past the atom', async ({ page }) => {
     await page.goto(notionUrl());
     await expect.poll(() => painted(page)).toHaveLength(4);

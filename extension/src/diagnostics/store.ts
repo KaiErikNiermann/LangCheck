@@ -106,6 +106,11 @@ export class DiagnosticStore implements vscode.Disposable, Iterable<[UriKey, Ext
         return diagnostic === undefined ? undefined : { diagnostic, index: parsed.index, diagnostics, generation: parsed.generation };
     }
 
+    /** Which list `uri` has now, for {@link holds} after an await. */
+    generationOf(uri: UriKey): number {
+        return this.generations.get(uri) ?? 0;
+    }
+
     /**
      * Whether `uri`'s list is still the one of `generation`. An action that
      * awaited (a fix, an ignore) asks before writing the list it computed
