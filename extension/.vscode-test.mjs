@@ -48,6 +48,13 @@ export default defineConfig([
         mocha: { ui: 'tdd', timeout: 120_000 },
     },
     {
+        label: 'progressive',
+        files: 'out/test/e2e/progressive.test.js',
+        workspaceFolder: './src/test/fixtures/basic',
+        launchArgs,
+        mocha: { ui: 'tdd', timeout: 120_000 },
+    },
+    {
         label: 'reload',
         files: 'out/test/e2e/reload.test.js',
         workspaceFolder: './src/test/fixtures/basic',
