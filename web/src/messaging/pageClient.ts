@@ -6,6 +6,7 @@
 import { isPaletteCommand, type PaletteCommandId } from '../palette/commands';
 import { WEBVIEW_TYPE, parsePanelToPage, type PageToPanel, type PanelToPage } from './webview';
 import {
+    BYE_TYPE,
     COMMAND_TYPE,
     RELOAD_TYPE,
     HANDSHAKE_TYPE,
@@ -178,7 +179,14 @@ export function connectCore(target: Window = window): CoreClient {
                 entry.resolve({ id, ok: false, code: 'failed', error: 'client disposed' });
             }
             pending.clear();
-            void port.then((p) => { p.close(); }, () => {});
+            void port.then(
+                (p) => {
+                    // So the content script lets the port go: it keeps few.
+                    p.postMessage({ type: BYE_TYPE });
+                    p.close();
+                },
+                () => {},
+            );
         },
     };
 }

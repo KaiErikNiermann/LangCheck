@@ -136,6 +136,8 @@ function parseCoreRequest(kind: string | undefined, body: unknown): CoreRequest 
 
 /** A command the user chose in the palette, sent by the content script for the page to run. */
 export const COMMAND_TYPE = 'command';
+/** A page script stopping: its port can be let go (it counts toward the tab's live ports). */
+export const BYE_TYPE = 'bye';
 /** The workspace's config changed (the config page saved it): check again under it. */
 export const RELOAD_TYPE = 'reload';
 

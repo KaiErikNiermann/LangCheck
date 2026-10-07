@@ -6,6 +6,7 @@
 // checks of text it already has, in its own project's workspace.
 import browser, { type Runtime } from 'webextension-polyfill';
 import {
+    BYE_TYPE,
     COMMAND_TYPE,
     RELOAD_TYPE,
     HANDSHAKE_TYPE,
@@ -70,11 +71,17 @@ export function startContent(site: SiteWorkspace): void {
         const data: unknown = event.data;
         if (typeof data !== 'object' || data === null) return;
         const { type, version } = data as { type?: unknown; version?: unknown };
-        if (type !== PAGE_READY_TYPE || version !== PROTOCOL_VERSION || ports >= MAX_PORTS_PER_TAB) return;
+        // Live ports, not all ever made: a page script restarts (a move to
+        // another workspace, a page left and come back to), saying bye.
+        if (type !== PAGE_READY_TYPE || version !== PROTOCOL_VERSION || pagePorts.size >= MAX_PORTS_PER_TAB) return;
         ports++;
+        const index = ports;
         const channel = new MessageChannel();
-        servePort(channel.port1, ports, background, panels);
-        pagePorts.set(ports, channel.port1);
+        servePort(channel.port1, index, background, panels, () => {
+            pagePorts.delete(index);
+            channel.port1.close();
+        });
+        pagePorts.set(index, channel.port1);
         window.postMessage({ type: HANDSHAKE_TYPE, version: PROTOCOL_VERSION }, location.origin, [channel.port2]);
     });
 }
@@ -86,27 +93,37 @@ function scopePanel(port: number, panel: string): string | undefined {
 }
 
 function unscopePanel(scoped: string): { readonly port: number; readonly panel: string } | undefined {
-    const match = /^(\d)-(.+)$/u.exec(scoped);
+    const match = /^(\d{1,9})-(.+)$/u.exec(scoped);
     return match === null ? undefined : { port: Number(match[1]), panel: match[2] ?? '' };
 }
 
-function servePort(port: MessagePort, index: number, background: BackgroundLink, panels: Set<string>): void {
+/** A page port's panel message, its panel id scoped to the port, to the background. */
+function relayPanelMessage(data: unknown, index: number, background: BackgroundLink, panels: Set<string>): void {
+    const parsed = parsePageToPanel(data);
+    if (parsed === undefined) return;
+    let panelMessage: PageToPanel = parsed;
+    if ('panel' in parsed) {
+        const scoped = scopePanel(index, parsed.panel);
+        if (scoped === undefined) return;
+        panelMessage = { ...parsed, panel: scoped };
+    }
+    if (panelMessage.op === 'open') panels.add(panelMessage.panel);
+    background.postWebview(panelMessage);
+}
+
+function servePort(port: MessagePort, index: number, background: BackgroundLink, panels: Set<string>, bye: () => void): void {
     let inFlight = 0;
     const reply = (response: PageResponse): void => { port.postMessage(response); };
     const fail = (id: number, code: ErrorCode, error: string): void => { reply({ id, ok: false, code, error }); };
 
     port.addEventListener('message', (event: MessageEvent) => {
-        if ((event.data as { type?: unknown } | null)?.type === WEBVIEW_TYPE) {
-            const parsed = parsePageToPanel(event.data);
-            if (parsed === undefined) return;
-            let panelMessage: PageToPanel = parsed;
-            if ('panel' in parsed) {
-                const scoped = scopePanel(index, parsed.panel);
-                if (scoped === undefined) return;
-                panelMessage = { ...parsed, panel: scoped };
-            }
-            if (panelMessage.op === 'open') panels.add(panelMessage.panel);
-            background.postWebview(panelMessage);
+        const type = (event.data as { type?: unknown } | null)?.type;
+        if (type === BYE_TYPE) {
+            bye();
+            return;
+        }
+        if (type === WEBVIEW_TYPE) {
+            relayPanelMessage(event.data, index, background, panels);
             return;
         }
         const request = parsePageRequest(event.data);

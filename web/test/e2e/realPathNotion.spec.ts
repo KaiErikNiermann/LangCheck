@@ -94,3 +94,18 @@ test('a move to another workspace starts over in that workspace, with its own di
     await expect.poll(() => status(page), { timeout: 15_000 }).toMatchObject({ state: 'attached', uri: expect.stringContaining('/other-workspace/') });
     await expect.poll(() => painted(page)).toEqual(['recieve']);
 });
+
+// Each start of the page script takes one of the tab's few ports; leaving
+// a workspace and coming back must give it back, or a few moves would cut
+// the tab off for good.
+test('leaving and coming back many times keeps the page checked', async ({ page }) => {
+    await page.goto(notionUrl());
+    await expect.poll(() => painted(page)).toHaveLength(4);
+    for (let round = 0; round < 6; round++) {
+        await page.evaluate(() => { history.pushState({}, '', '/home'); });
+        await expect.poll(() => status(page), { timeout: 15_000 }).toMatchObject({ state: 'absent' });
+        await page.evaluate(() => (globalThis as any).__notion.navigate('3f2b8b37e541802f96a1c557a6b01a44'));
+        await expect.poll(() => status(page), { timeout: 15_000 }).toMatchObject({ state: 'attached' });
+        await expect.poll(() => painted(page)).toHaveLength(4);
+    }
+});
