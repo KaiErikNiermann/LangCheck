@@ -135,7 +135,7 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
             clearTimeout(hoverTimer);
             return;
         }
-        const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+        const pos = findingPosUnder(event.target) ?? view.posAtCoords({ x: event.clientX, y: event.clientY });
         const span = pos === null ? undefined : spanAt(pos);
         if (span !== undefined && target !== undefined && span.from === target.from && span.to === target.to) {
             clearTimeout(hoverTimer);
@@ -146,6 +146,23 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
             if (span === undefined || pos === null) close();
             else void open(span, pos, false);
         }, HOVER_DELAY_MS);
+    };
+
+    /**
+     * The start of the finding whose mark is under the pointer, read from the
+     * DOM. Coordinates are not enough: the mark's box includes the inlay hint
+     * drawn after the word, and over that pseudo-element Firefox maps the
+     * pointer to the word's end, which a half-open lookup does not count as
+     * inside it.
+     */
+    const findingPosUnder = (node: EventTarget | null): number | undefined => {
+        const element = node instanceof Element ? node.closest('.lc-diag') : null;
+        if (element === null || !view.contentDOM.contains(element)) return undefined;
+        try {
+            return view.posAtDOM(element, 0);
+        } catch {
+            return undefined;
+        }
     };
 
     const onKey = (event: KeyboardEvent): boolean => {
@@ -163,8 +180,11 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
     };
 
     const parts: Extension = [
-        diagnosticField,
+        // Order matters: a mark from an earlier field is drawn inside one from
+        // a later field, so the one-character hint mark sits inside the
+        // finding's mark instead of splitting it into two spans.
         hintField,
+        diagnosticField,
         Ev.domEventHandlers({
             mousemove: (event) => { onPointer(event); },
             mouseleave: (event) => {
@@ -182,11 +202,15 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
                 return;
             }
             if (update.geometryChanged) popover.reposition();
-            // A recheck that drops or reshapes the finding under the popover
-            // (add-to-dictionary, say) closes it rather than leaving it stale.
             if (target?.kind !== 'diagnostic') return;
+            const republished = update.transactions.some((tr) => tr.effects.some((e) => e.is(diagnosticsEffect)));
+            if (!republished) return;
+            // A recheck that drops or reshapes the finding under the card
+            // (add-to-dictionary, say) closes it; one that keeps it refreshes
+            // it, so actions withheld while the check was stale appear.
             const still = diagnosticAt(target.from);
             if (still === undefined || still.from !== target.from || still.to !== target.to) close();
+            else if (popover.visible) void open(target, target.from, false);
         }),
         Ev.baseTheme(THEME),
     ];
