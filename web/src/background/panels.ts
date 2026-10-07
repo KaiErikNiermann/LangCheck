@@ -30,6 +30,8 @@ export interface PanelPort {
 export interface TabsApi {
     create(options: { url: string; openerTabId: number; windowId?: number }): Promise<{ id?: number; windowId?: number }>;
     activate(tabId: number): Promise<void>;
+    /** Whether `tabId` is the active tab of the focused window: where the user is. */
+    isFrontmost(tabId: number): Promise<boolean>;
     remove(tabId: number): Promise<void>;
     pageUrl(viewType: ViewType): string;
 }
@@ -45,6 +47,9 @@ interface Panel {
 }
 
 const key = (source: number, panel: string): string => `${String(source)}:${panel}`;
+
+/** Least time between two tab activations a page asks for, whatever else holds. */
+export const MIN_ACTIVATE_INTERVAL_MS = 250;
 /** For tab calls whose failure changes nothing: the tab is already gone. */
 const ignore = (): void => {};
 
@@ -52,6 +57,8 @@ export class Panels {
     private readonly panels = new Map<string, Panel>();
     private readonly byTab = new Map<number, Panel>();
     private readonly sources = new Map<number, PanelPort>();
+    /** When each source tab last had a tab brought forward. */
+    private readonly lastActivated = new Map<number, number>();
     /** When each page's tab last opened panel tabs, oldest first (at most MAX_OPENS each), until the tab closes. */
     private readonly opens = new Map<number, number[]>();
 
@@ -64,7 +71,7 @@ export class Panels {
     fromPage(source: number, port: PanelPort, message: PageToPanel, windowId?: number): void {
         this.sources.set(source, port);
         if (message.op === 'focusEditor') {
-            void this.tabs.activate(source).catch(ignore);
+            this.focusPage(source);
             return;
         }
         const existing = this.panels.get(key(source, message.panel));
@@ -79,7 +86,8 @@ export class Panels {
                 if (existing !== undefined) this.deliver(existing, message.message);
                 return;
             case 'reveal':
-                if (existing?.tab !== undefined) void this.tabs.activate(existing.tab).catch(ignore);
+                // While the user is on the page or the panel already.
+                if (existing?.tab !== undefined) void this.activateIf(source, existing.tab, [source, existing.tab]);
                 return;
             case 'close':
                 if (existing !== undefined) this.close(existing, false);
@@ -124,6 +132,7 @@ export class Panels {
     /** A tab was closed (any tab: only panel tabs matter here). */
     tabRemoved(tab: number): void {
         this.opens.delete(tab);
+        this.lastActivated.delete(tab);
         const panel = this.byTab.get(tab);
         if (panel !== undefined) this.close(panel, true);
     }
@@ -157,6 +166,32 @@ export class Panels {
             .catch(() => {
                 if (!panel.closed) this.close(panel, true);
             });
+    }
+
+    /**
+     * Brings the page's tab forward, as a click in one of its panels asks:
+     * only while one of them is where the user is, so a page cannot pull its
+     * own tab forward.
+     */
+    private focusPage(source: number): void {
+        const panelTabs: number[] = [];
+        for (const panel of this.panels.values()) if (panel.source === source && panel.tab !== undefined) panelTabs.push(panel.tab);
+        void this.activateIf(source, source, panelTabs);
+    }
+
+    /**
+     * Brings `target` forward for `source`'s page, only when one of `ifFront`
+     * is where the user is, and not more often than MIN_ACTIVATE_INTERVAL_MS:
+     * the page world asks, and it is untrusted, so it may move the user's
+     * focus only between its own tabs while the user is in them.
+     */
+    private async activateIf(source: number, target: number, ifFront: readonly number[]): Promise<void> {
+        const now = this.now();
+        if (now - (this.lastActivated.get(source) ?? -Infinity) < MIN_ACTIVATE_INTERVAL_MS) return;
+        // Claimed before the await, so a burst of asks gets one slot, not one each.
+        this.lastActivated.set(source, now);
+        const front = await Promise.all(ifFront.map((tab) => this.tabs.isFrontmost(tab).catch(() => false)));
+        if (front.includes(true)) await this.tabs.activate(target).catch(ignore);
     }
 
     /** Sends `message` to the panel's tab, or keeps it until the tab connects. */

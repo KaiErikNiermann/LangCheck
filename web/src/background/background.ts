@@ -19,6 +19,13 @@ const panels = new Panels({
         const tab = await browser.tabs.update(tabId, { active: true });
         if (tab.windowId !== undefined) await browser.windows.update(tab.windowId, { focused: true });
     },
+    // tabs.get and windows.get need no permission for these fields.
+    isFrontmost: async (tabId) => {
+        const tab = await browser.tabs.get(tabId);
+        if (!tab.active || tab.windowId === undefined) return false;
+        const window = await browser.windows.get(tab.windowId);
+        return window.focused;
+    },
     remove: (tabId) => browser.tabs.remove(tabId),
     pageUrl: (viewType) => browser.runtime.getURL(`webview/${viewType}.html`),
 });

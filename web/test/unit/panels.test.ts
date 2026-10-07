@@ -2,7 +2,7 @@
 // lives in, who may talk to it, and that every way a panel ends is reported
 // once and leaves nothing behind.
 import { describe, expect, test } from 'vitest';
-import { MAX_OPENS, MAX_QUEUED, OPEN_WINDOW_MS, Panels, type PanelPort, type TabsApi } from '../../src/background/panels';
+import { MIN_ACTIVATE_INTERVAL_MS, MAX_OPENS, MAX_QUEUED, OPEN_WINDOW_MS, Panels, type PanelPort, type TabsApi } from '../../src/background/panels';
 import { WEBVIEW_TYPE, type PageToPanel, type ViewType } from '../../src/messaging/webview';
 
 class FakePort implements PanelPort {
@@ -21,6 +21,8 @@ function fakeTabs(options: { failCreate?: boolean } = {}) {
     const created: { url: string; openerTabId: number }[] = [];
     const removed: number[] = [];
     const activated: number[] = [];
+    /** Where the user is: by default the source page. */
+    const frontmost = new Set<number>([7]);
     const pending: (() => void)[] = [];
     const tabs: TabsApi = {
         create: (opts) =>
@@ -35,6 +37,7 @@ function fakeTabs(options: { failCreate?: boolean } = {}) {
             activated.push(tabId);
             return Promise.resolve();
         },
+        isFrontmost: (tabId) => Promise.resolve(frontmost.has(tabId)),
         remove: (tabId) => {
             removed.push(tabId);
             return Promise.resolve();
@@ -46,7 +49,7 @@ function fakeTabs(options: { failCreate?: boolean } = {}) {
         for (const finish of pending.splice(0)) finish();
         await new Promise((resolve) => setTimeout(resolve, 0));
     };
-    return { tabs, created, removed, activated, settle };
+    return { tabs, created, removed, activated, frontmost, settle };
 }
 
 const SOURCE = 7;
@@ -205,16 +208,54 @@ describe('Panels', () => {
         expect(page.sent).toEqual([]);
     });
 
-    test('reveal brings the panel tab forward, focusEditor the page tab', async () => {
+    test('reveal brings the panel tab forward while the user is on the page; focusEditor the page while the user is in its panel', async () => {
+        let now = 0;
         const fake = fakeTabs();
-        const panels = new Panels(fake.tabs);
+        const panels = new Panels(fake.tabs, () => now);
         const page = new FakePort();
         panels.fromPage(SOURCE, page, open());
         await fake.settle();
         panels.fromPage(SOURCE, page, { type: WEBVIEW_TYPE, op: 'reveal', panel: 'p1' });
+        await fake.settle();
+        expect(fake.activated).toEqual([100]);
+        // The user is now in the panel.
+        fake.frontmost.clear();
+        fake.frontmost.add(100);
+        now += 1000;
         panels.fromPage(SOURCE, page, { type: WEBVIEW_TYPE, op: 'focusEditor' });
+        await fake.settle();
         expect(fake.activated).toEqual([100, SOURCE]);
     });
+
+    test('a page cannot pull focus while the user is elsewhere, nor faster than the minimum interval', async () => {
+        let now = 0;
+        const fake = fakeTabs();
+        const panels = new Panels(fake.tabs, () => now);
+        const page = new FakePort();
+        panels.fromPage(SOURCE, page, open());
+        await fake.settle();
+        // The user is in another tab altogether.
+        fake.frontmost.clear();
+        fake.frontmost.add(555);
+        for (let i = 0; i < 100; i++) {
+            panels.fromPage(SOURCE, page, { type: WEBVIEW_TYPE, op: 'focusEditor' });
+            panels.fromPage(SOURCE, page, { type: WEBVIEW_TYPE, op: 'reveal', panel: 'p1' });
+        }
+        await fake.settle();
+        expect(fake.activated).toEqual([]);
+        // Back on the page, a burst brings the panel forward once.
+        fake.frontmost.clear();
+        fake.frontmost.add(SOURCE);
+        now += 1000;
+        for (let i = 0; i < 100; i++) panels.fromPage(SOURCE, page, { type: WEBVIEW_TYPE, op: 'reveal', panel: 'p1' });
+        await fake.settle();
+        expect(fake.activated).toEqual([100]);
+        now += MIN_ACTIVATE_INTERVAL_MS;
+        panels.fromPage(SOURCE, page, { type: WEBVIEW_TYPE, op: 'reveal', panel: 'p1' });
+        await fake.settle();
+        expect(fake.activated).toEqual([100, 100]);
+    });
+
 
     test('one panel of a kind per page: a second is refused, reported closed, and opens no tab', async () => {
         const fake = fakeTabs();
