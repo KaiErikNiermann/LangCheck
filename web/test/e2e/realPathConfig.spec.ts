@@ -9,7 +9,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BrowserContext, Page } from '@playwright/test';
 import { CONFIG_SCENARIOS, type ConfigDriver } from '../../../extension/src/test/ui/configScenarios';
-import { expect, marks, openFixture, pageUrl, panelErrors, runPaletteCommand, status, test, workspaceDir } from './fixtures';
+import { expect, marks, openFixture, pageUrl, panelErrors, runPaletteCommand, status, stopBackground, test, workspaceDir } from './fixtures';
 
 const configPages = (context: BrowserContext): Page[] => context.pages().filter((p) => !p.isClosed() && new URL(p.url()).pathname === '/config.html');
 
@@ -85,14 +85,6 @@ test('a config that would run a program is not saved, and says why', async ({ pa
     await expect(config.locator('#status')).toContainText('engines.external runs programs');
     expect(savedConfig(dataHome)).toBe('engines:\n  harper: true\n');
 });
-
-/** Stops the extension's service worker, as Chrome does when it is idle. */
-async function stopBackground(page: Page): Promise<void> {
-    const cdp = await page.context().newCDPSession(page);
-    await cdp.send('ServiceWorker.enable');
-    await cdp.send('ServiceWorker.stopAllWorkers');
-    await cdp.detach();
-}
 
 // MV3 stops the background when idle, and the config page outlives it: a
 // save after that must still land, and the pages still reload.

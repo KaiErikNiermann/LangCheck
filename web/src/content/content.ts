@@ -273,7 +273,7 @@ export class BackgroundLink {
 
     private dropPort(reason: string): void {
         this.port = undefined;
-        for (const [, entry] of this.pending) entry.resolve({ id: entry.pageId, ok: false, code: 'unavailable', error: reason });
+        for (const [, entry] of this.pending) entry.resolve({ id: entry.pageId, ok: false, code: 'interrupted', error: reason });
         this.pending.clear();
         this.onDisconnected();
     }

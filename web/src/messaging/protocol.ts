@@ -75,9 +75,12 @@ export type PageResponse =
 /**
  * Why a request failed, as far as the page needs to tell apart:
  * `unavailable` means the native host is not installed or keeps dying,
- * which the page reports once instead of on every keystroke.
+ * which the page reports once instead of on every keystroke; `interrupted`
+ * that the request was cut off on the way (the background restarted, the
+ * page moved to another workspace), which is no fault to report: the page
+ * checks again once it is reconnected.
  */
-export type ErrorCode = 'unavailable' | 'refused' | 'busy' | 'timeout' | 'failed';
+export type ErrorCode = 'unavailable' | 'interrupted' | 'refused' | 'busy' | 'timeout' | 'failed';
 
 type Bag = Record<string, unknown>;
 const isBag = (v: unknown): v is Bag => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -148,5 +151,5 @@ export function parsePageResponse(value: unknown): PageResponse | undefined {
     return typeof value.error === 'string' && isErrorCode(value.code) ? { id: value.id, ok: false, error: value.error, code: value.code } : undefined;
 }
 
-const ERROR_CODES: readonly ErrorCode[] = ['unavailable', 'refused', 'busy', 'timeout', 'failed'];
+const ERROR_CODES: readonly ErrorCode[] = ['unavailable', 'interrupted', 'refused', 'busy', 'timeout', 'failed'];
 const isErrorCode = (v: unknown): v is ErrorCode => (ERROR_CODES as readonly unknown[]).includes(v);

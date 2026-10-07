@@ -53,6 +53,12 @@ class WebTransport implements CoreTransport {
         // and rebuilds it from the allowed fields (dropping filePath, settings).
         const response = await this.core.request(request as unknown as CoreRequest);
         if (response.ok) return response.response as unknown as languagecheck.Response;
+        if (response.code === 'interrupted') {
+            // Cut off on the way, not failed: dropped quietly, as a check a
+            // newer one replaced is. The content script has the page check
+            // again once it has reconnected.
+            return { id: 0 } as unknown as languagecheck.Response;
+        }
         if (response.code === 'unavailable') {
             // Reported once, by down(); an empty response makes the Checker
             // drop this check quietly instead of showing a second message.

@@ -319,6 +319,7 @@ export class CoreManager {
  */
 const PAGE_MESSAGE: Readonly<Record<ErrorCode, string>> = {
     unavailable: 'the LangCheck native host is not installed or did not start',
+    interrupted: 'the request was cut off on the way',
     refused: 'the request was refused',
     busy: 'too many checks are waiting; try again shortly',
     timeout: 'the checker did not answer in time',

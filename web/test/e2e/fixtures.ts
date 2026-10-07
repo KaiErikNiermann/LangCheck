@@ -214,3 +214,18 @@ export async function openFixture(page: Page, dataHome: string, fixture: string,
 }
 
 const languageOf = (file: string): string => ({ md: 'markdown', tex: 'latex', typ: 'typst' })[file.split('.').pop() ?? ''] ?? 'plaintext';
+
+/** A way to stop the extension's service worker at once, as Chrome does when it is idle: set up ahead, so the stop lands where the test wants it. */
+export async function backgroundStopper(page: Page): Promise<() => Promise<void>> {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('ServiceWorker.enable');
+    return async () => {
+        await cdp.send('ServiceWorker.stopAllWorkers');
+        await cdp.detach();
+    };
+}
+
+/** Stops the extension's service worker, as Chrome does when it is idle. */
+export async function stopBackground(page: Page): Promise<void> {
+    await (await backgroundStopper(page))();
+}
