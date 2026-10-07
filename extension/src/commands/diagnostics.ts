@@ -83,16 +83,20 @@ export function diagnosticsCommands(app: DiagnosticsCommandDeps) {
             }
 
             const text = document.getText();
+            const generation = store.generationOf(uri);
             for (const { index } of chosen) {
                 const diagnostic = diagnostics[index];
                 if (!diagnostic) continue;
                 await core.client.sendRequest(ignoreRequest(diagnostic, document, text));
             }
 
-            const silenced = new Set(chosen.map(c => c.index));
-            const remaining = diagnostics.filter((_, index) => !silenced.has(index));
-            store.write(uri, document.uri, remaining);
-            store.notify();
+            // Only over the list this started from: a check that landed
+            // while the core was answering has the newer one.
+            if (store.holds(uri, generation)) {
+                const silenced = new Set(chosen.map(c => c.index));
+                store.write(uri, document.uri, diagnostics.filter((_, index) => !silenced.has(index)));
+                store.notify();
+            }
             inspectorLog.push(
                 'info',
                 'ignoreSelection',
