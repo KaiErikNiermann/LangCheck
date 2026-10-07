@@ -67,6 +67,21 @@ test('the binding can be changed on the options page', async ({ page, context, e
     await expect(palette(page).locator('ninja-action')).toHaveCount(4);
 });
 
+test('a key event the page makes up does not open the palette', async ({ page }) => {
+    await ready(page);
+    await page.evaluate(() => {
+        for (const target of [document.activeElement ?? document.body, document.body]) {
+            target.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', code: 'KeyP', keyCode: 80, ctrlKey: true, bubbles: true, cancelable: true }));
+        }
+    });
+    // eslint-disable-next-line sonarjs/no-fixed-wait-in-tests -- a palette that does not open has no event to wait on
+    await page.waitForTimeout(500);
+    await expect(page.locator('iframe[title="Language Check commands"]')).toHaveCount(0);
+    // The user's own key still does.
+    await page.keyboard.press('Control+KeyP');
+    await expect(palette(page).locator('ninja-action')).toHaveCount(4);
+});
+
 test('a command typed and entered straight after the binding runs, and no key reaches the document', async ({ page, context }) => {
     await ready(page);
     const before = await docText(page);

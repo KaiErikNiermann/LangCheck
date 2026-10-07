@@ -124,14 +124,23 @@ const SWALLOWED = ['keypress', 'keyup', 'beforeinput', 'input'] as const;
  * Holds the keyboard of `target` (in the capture phase, ahead of anything
  * the page registered): no key reaches the page, typed text is collected,
  * Escape or `binding` calls `onClose`. Enter submits what was typed: keys
- * after it are dropped. Returns what was typed so far, whether it was
+ * after it are dropped. Only `trusted` keys count (by default, those the
+ * browser reports the user pressed). Returns what was typed so far, whether it was
  * submitted, and the release.
  */
-export function holdKeys(target: Window, binding: string, onClose: () => void): { typed(): string; submitted(): boolean; release(): void } {
+export function holdKeys(
+    target: Window,
+    binding: string,
+    onClose: () => void,
+    trusted: (event: KeyboardEvent) => boolean = (event) => event.isTrusted,
+): { typed(): string; submitted(): boolean; release(): void } {
     let text = '';
     let submitted = false;
     const onKeyDown = (event: KeyboardEvent): void => {
         swallow(event);
+        // A key the page made up (dispatchEvent) is no key the user pressed:
+        // it neither types into the search nor closes the palette.
+        if (!trusted(event)) return;
         const key = typedKey(event, binding);
         if (key.kind === 'close') onClose();
         else if (key.kind === 'submit') submitted = true;

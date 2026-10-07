@@ -117,6 +117,8 @@ export function startPalette(run: (id: PaletteCommandId) => void): void {
         hotkeys.unbind(binding);
         binding = parseBinding(value) ?? DEFAULT_PALETTE_HOTKEY;
         hotkeys(binding, (event) => {
+            // The page can dispatch keys of its own: only the user opens the palette.
+            if (!event.isTrusted) return;
             event.preventDefault();
             if (frame === undefined) open();
             else close();

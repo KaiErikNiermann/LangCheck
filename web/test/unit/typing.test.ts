@@ -5,6 +5,9 @@ import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
 import { applyTyped, holdKeys, isBinding, MAX_TYPED_CHARS, parseBinding, typedKey } from '../../src/palette/typing';
 
+/** happy-dom's dispatched events are all untrusted: these tests stand in for the user's keys. */
+const ALL_TRUSTED = (): boolean => true;
+
 const key = (k: string, mods: { code?: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean; isComposing?: boolean } = {}) => ({ key: k, code: '', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, isComposing: false, ...mods });
 
 describe('typedKey', () => {
@@ -73,9 +76,14 @@ describe('holdKeys', () => {
             heard.push(e.key);
         });
         let escaped = 0;
-        const hold = holdKeys(window, 'ctrl+p', () => {
-            escaped++;
-        });
+        const hold = holdKeys(
+            window,
+            'ctrl+p',
+            () => {
+                escaped++;
+            },
+            ALL_TRUSTED,
+        );
         const press = (k: string): boolean => editor.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
         expect(press('o')).toBe(false); // default prevented
         for (const k of ['p', 'Backspace', 'x', 'Escape']) press(k);
@@ -89,10 +97,25 @@ describe('holdKeys', () => {
     });
 
     test('Enter submits what was typed, and keys after it are dropped', () => {
-        const hold = holdKeys(window, 'ctrl+p', () => {});
+        const hold = holdKeys(window, 'ctrl+p', () => {}, ALL_TRUSTED);
         for (const k of ['s', 'p', 'Enter', 'x']) document.body.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
         expect(hold.typed()).toBe('sp');
         expect(hold.submitted()).toBe(true);
+        hold.release();
+    });
+
+    test("keys the page made up are held back, but neither type nor close", () => {
+        let closed = 0;
+        const hold = holdKeys(window, 'ctrl+p', () => {
+            closed++;
+        });
+        const press = (k: string): boolean => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+        expect(press('x')).toBe(false);
+        press('Escape');
+        press('Enter');
+        expect(hold.typed()).toBe('');
+        expect(hold.submitted()).toBe(false);
+        expect(closed).toBe(0);
         hold.release();
     });
 });
