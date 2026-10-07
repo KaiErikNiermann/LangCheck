@@ -7,7 +7,8 @@
     "128": "icon.png"
   },
   "permissions": [
-    "nativeMessaging"
+    "nativeMessaging",
+    "storage"
   ],
   "background": {
     "service_worker": "background.js",
@@ -82,5 +83,23 @@
       "strict_min_version": "128.0"
     }
   },
-  "minimum_chrome_version": "128"
+  "minimum_chrome_version": "128",
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "palette.html",
+        "palette.js"
+      ],
+      "matches": [
+        "https://app.notion.com/*",
+        "https://typst.app/*",
+        "https://www.notion.so/*",
+        "https://www.overleaf.com/*"
+      ]
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  }
 }

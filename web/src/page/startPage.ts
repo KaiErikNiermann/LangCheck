@@ -3,8 +3,8 @@
 // site's editor joined. Everything here runs in the page's realm, next to
 // the site's own scripts, and trusts nothing it reads from the page beyond
 // what it needs to draw.
-import type * as vscode from 'vscode';
-import { activate } from '../feature/checkFeature';
+import * as vscode from 'vscode';
+import { activate, type FeatureStats } from '../feature/checkFeature';
 import { connectCore } from '../messaging/pageClient';
 import { LANGUAGE_IDS, type LanguageId } from '../messaging/protocol';
 import type { SitePage, SiteWorkspace } from '../sites/site';
@@ -12,6 +12,7 @@ import { Bridge } from './bridge';
 
 interface Running {
     readonly bridge: Bridge;
+    stats(): FeatureStats;
     stop(): void;
 }
 
@@ -31,12 +32,19 @@ export function startPage(site: SitePage, workspace: SiteWorkspace): void {
     const context: vscode.ExtensionContext = { subscriptions };
     const languageOf = (doc: vscode.TextDocument): LanguageId =>
         (LANGUAGE_IDS as readonly string[]).includes(doc.languageId) ? (doc.languageId as LanguageId) : 'plaintext';
-    activate(context, core, languageOf);
+    const stats = activate(context, core, languageOf);
     const bridge = new Bridge(site, project);
+    // Palette commands run like VS Code's: through the command registry.
+    core.onCommand((id) => {
+        void vscode.commands.executeCommand(id).then(undefined, (error: unknown) => {
+            console.error('[language-check]', error);
+        });
+    });
 
     // eslint-disable-next-line unicorn/no-global-object-property-assignment -- the one deliberate global, see `declare global` above
     globalThis.__languageCheck = {
         bridge,
+        stats,
         stop() {
             bridge.stop();
             for (const s of subscriptions) s.dispose();

@@ -18,6 +18,7 @@ import {
 import { languagecheck } from '../../../extension/src/proto/checker';
 
 const SEVERITY = languagecheck.Severity;
+import { commands } from '../../../extension/src/generated/meta';
 import { formatSuggestionLabel } from '../../../extension/src/shared/inlayLabels';
 import { CoreError, type CoreClient } from '../messaging/pageClient';
 import type { LanguageId } from '../messaging/protocol';
@@ -68,7 +69,14 @@ function protoSeverity(value: number): languagecheck.Severity {
     }
 }
 
-export function activate(context: vscode.ExtensionContext, core: CoreClient, languageOf: (doc: vscode.TextDocument) => LanguageId): void {
+/** What the feature reports about itself, for the page's debugging handle and the tests. */
+export interface FeatureStats {
+    /** Checks whose findings were published. */
+    readonly checks: number;
+}
+
+export function activate(context: vscode.ExtensionContext, core: CoreClient, languageOf: (doc: vscode.TextDocument) => LanguageId): () => FeatureStats {
+    let published = 0;
     const collection = vscode.languages.createDiagnosticCollection(SOURCE);
     const hintsChanged = new vscode.EventEmitter<void>();
     const states = new Map<string, DocState>();
@@ -148,6 +156,7 @@ export function activate(context: vscode.ExtensionContext, core: CoreClient, lan
                 ),
             );
             state.checkedVersion = version;
+            published++;
             state.checkedText = text;
             collection.set(doc.uri, [...state.diagnostics]);
             hintsChanged.fire();
@@ -183,6 +192,9 @@ export function activate(context: vscode.ExtensionContext, core: CoreClient, lan
             collection.delete(doc.uri);
         }),
 
+        vscode.commands.registerCommand(commands.checkDocument, () => {
+            recheckAll();
+        }),
         vscode.commands.registerCommand(COMMAND.applyFix, async (args: FixArgs) => {
             const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === args.uri);
             // Checked where it is used, not where it was offered: a collaborator
@@ -261,4 +273,5 @@ export function activate(context: vscode.ExtensionContext, core: CoreClient, lan
     );
 
     for (const doc of vscode.workspace.textDocuments) schedule(doc, 0);
+    return () => ({ checks: published });
 }

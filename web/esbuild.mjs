@@ -12,6 +12,8 @@ const SITES = ['overleaf', 'typst', 'notion'];
 const result = await esbuild.build({
     entryPoints: Object.fromEntries([
         ['background', 'src/entries/background.ts'],
+        ['palette', 'src/palette/page.ts'],
+        ['options', 'src/options/options.ts'],
         ...SITES.flatMap((s) => [
             [`content-${s}`, `src/entries/content-${s}.ts`],
             [`page-${s}`, `src/entries/page-${s}.ts`],
@@ -47,10 +49,20 @@ if (test) {
         const site = SITES.find((s) => script.js[0].endsWith(`-${s}.js`));
         script.matches.push(local[site]);
     }
+    // Resources are matched by origin only (the path must be /*).
+    const origins = Object.values(local).map((pattern) => `${new URL(pattern.replace('*', '')).origin}/*`);
+    for (const resources of manifest.web_accessible_resources) resources.matches.push(...origins);
+}
+// Browsers refuse to load a manifest whose web_accessible_resources match a
+// path other than /* (Chrome then never starts the extension at all).
+for (const resources of manifest.web_accessible_resources) {
+    const bad = resources.matches.filter((pattern) => !pattern.endsWith('/*') || new URL(pattern.replace('*', '')).pathname !== '/');
+    if (bad.length > 0) throw new Error(`web_accessible_resources must match whole origins (path /*): ${bad.join(', ')}`);
 }
 await mkdir(outdir, { recursive: true });
 await writeFile(`${outdir}/manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
 await copyFile('icon-128.png', `${outdir}/icon.png`);
+for (const page of ['palette.html', 'options.html']) await copyFile(page, `${outdir}/${page}`);
 
 // The fake site pages, each with its own CodeMirror (current and 6.38).
 if (test) {

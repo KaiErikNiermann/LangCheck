@@ -6,6 +6,7 @@
 // checks of text it already has, in its own project's workspace.
 import browser, { type Runtime } from 'webextension-polyfill';
 import {
+    COMMAND_TYPE,
     HANDSHAKE_TYPE,
     MAX_IN_FLIGHT_PER_PAGE,
     PAGE_READY_TYPE,
@@ -16,6 +17,7 @@ import {
     type PageResponse,
 } from '../messaging/protocol';
 import { BACKGROUND_PORT_NAME, type BackgroundRequest, type BackgroundResponse } from '../messaging/background';
+import { startPalette } from '../palette/overlay';
 import type { SiteWorkspace } from '../sites/site';
 
 /** Ports one tab may hold; a page re-announcing in a loop gets no more. */
@@ -25,6 +27,11 @@ export function startContent(site: SiteWorkspace): void {
     // Not a project page: nothing to serve (the background would refuse too).
     if (site.projectFromPath(location.pathname) === undefined) return;
     const background = new BackgroundLink();
+    /** The page script's most recent port: where a palette command goes. */
+    let pagePort: MessagePort | undefined;
+    startPalette((id) => {
+        pagePort?.postMessage({ type: COMMAND_TYPE, command: id });
+    });
     let ports = 0;
 
     window.addEventListener('message', (event: MessageEvent) => {
@@ -36,6 +43,7 @@ export function startContent(site: SiteWorkspace): void {
         ports++;
         const channel = new MessageChannel();
         servePort(channel.port1, background);
+        pagePort = channel.port1;
         window.postMessage({ type: HANDSHAKE_TYPE, version: PROTOCOL_VERSION }, location.origin, [channel.port2]);
     });
 }

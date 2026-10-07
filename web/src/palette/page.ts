@@ -1,0 +1,48 @@
+// The palette's own page, shown in an iframe the content script puts over
+// the site. It runs in the extension's origin, with its own custom-element
+// registry: a site that already defines <ninja-keys> cannot collide with it,
+// and the site's scripts and styles cannot reach in.
+//
+// The content script hands over a MessagePort and the commands to list; the
+// page answers with { type: 'run', id } or { type: 'close' }. Which command
+// to run is checked again on the other side; this page holds no authority.
+import 'ninja-keys';
+import { PALETTE_INIT_TYPE, type PaletteToContent } from './protocol';
+import { PALETTE, isPaletteCommand } from './commands';
+
+// The parent is whichever site the content script runs on, so its origin is
+// not known here; the source is checked instead. A page that embeds this one
+// and sends its own init gets a palette that can only message that page.
+// eslint-disable-next-line sonarjs/post-message
+window.addEventListener('message', (event: MessageEvent) => {
+    if (event.source !== window.parent) return;
+    const data = event.data as { type?: unknown; ids?: unknown; hotkey?: unknown } | null;
+    const port = event.ports[0];
+    if (port === undefined || data?.type !== PALETTE_INIT_TYPE) return;
+    const ids = Array.isArray(data.ids) ? data.ids.filter((id) => isPaletteCommand(id)) : [];
+    show(port, PALETTE.filter((entry) => ids.includes(entry.id)), typeof data.hotkey === 'string' ? data.hotkey : '');
+});
+
+function show(port: MessagePort, entries: typeof PALETTE, hotkey: string): void {
+    const send = (message: PaletteToContent): void => {
+        port.postMessage(message);
+    };
+    const ninja = document.createElement('ninja-keys');
+    // The same binding that opened it closes it, and inside the iframe it
+    // cannot fall through to the browser's own use of it (print, for Ctrl+P).
+    ninja.openHotkey = hotkey;
+    ninja.placeholder = 'Run a Language Check command';
+    ninja.data = entries.map((entry) => ({
+        id: entry.id,
+        title: entry.title,
+        section: 'Language Check',
+        handler: () => {
+            send({ type: 'run', id: entry.id });
+        },
+    }));
+    ninja.addEventListener('close', () => {
+        send({ type: 'close' });
+    });
+    document.body.replaceChildren(ninja);
+    ninja.open();
+}

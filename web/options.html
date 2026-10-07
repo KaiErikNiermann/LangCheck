@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Language Check options</title>
+<style>
+  body { font: 14px system-ui, sans-serif; margin: 16px; color-scheme: light dark; }
+  label { display: block; margin-block-end: 4px; }
+  input { font: inherit; inline-size: 16em; }
+  p { margin-block: 8px; }
+</style>
+</head>
+<body>
+<form id="form">
+  <label for="hotkey">Shortcut for the command palette</label>
+  <input id="hotkey" name="hotkey" autocomplete="off" placeholder="ctrl+p">
+  <button type="submit">Save</button>
+  <p id="hint">In hotkeys-js notation, for example <code>ctrl+p</code>, <code>ctrl+shift+l</code> or <code>alt+k</code>. Leave it empty for the default, <code>ctrl+p</code>.</p>
+  <p id="status" role="status"></p>
+</form>
+<script src="options.js"></script>
+</body>
+</html>

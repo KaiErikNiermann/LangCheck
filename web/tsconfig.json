@@ -13,6 +13,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "noEmit": true,
+    "resolveJsonModule": true,
     // The reused VS Code client modules import `vscode`; here that is the
     // shim, so this typecheck also proves the shim covers what they use.
     "paths": { "vscode": ["./src/shim/vscode.ts"] }

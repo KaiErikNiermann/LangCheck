@@ -3,7 +3,9 @@
 // over that port, each with a timeout, and at most MAX_IN_FLIGHT_PER_PAGE at
 // once. Load order between the two scripts is not guaranteed, so the
 // announcement repeats until a port arrives.
+import { isPaletteCommand, type PaletteCommandId } from '../palette/commands';
 import {
+    COMMAND_TYPE,
     HANDSHAKE_TYPE,
     MAX_IN_FLIGHT_PER_PAGE,
     PAGE_READY_TYPE,
@@ -44,12 +46,15 @@ export interface CoreClient {
     check(text: string, languageId: LanguageId): Promise<readonly WireDiagnostic[]>;
     addWord(word: string): Promise<void>;
     ignore(request: Omit<Extract<PageRequest, { op: 'ignore' }>, 'id' | 'op'>): Promise<void>;
+    /** Commands chosen in the palette, for the page to run. */
+    onCommand(listener: (id: PaletteCommandId) => void): void;
     dispose(): void;
 }
 
 export function connectCore(target: Window = window): CoreClient {
     let nextId = 1;
     const pending = new Map<number, Pending>();
+    const commandListeners: ((id: PaletteCommandId) => void)[] = [];
     let disposed = false;
 
     const port = new Promise<MessagePort>((resolve, reject) => {
@@ -82,6 +87,11 @@ export function connectCore(target: Window = window): CoreClient {
     void port.then(
         (p) => {
             p.addEventListener('message', (event: MessageEvent) => {
+                const command = (event.data as { type?: unknown; command?: unknown } | null) ?? {};
+                if (command.type === COMMAND_TYPE) {
+                    if (isPaletteCommand(command.command)) for (const listener of commandListeners) listener(command.command);
+                    return;
+                }
                 const response = parsePageResponse(event.data);
                 if (response === undefined) return;
                 const entry = pending.get(response.id);
@@ -127,8 +137,12 @@ export function connectCore(target: Window = window): CoreClient {
         async ignore(request) {
             await expectOk({ op: 'ignore', ...request });
         },
+        onCommand(listener) {
+            commandListeners.push(listener);
+        },
         dispose() {
             disposed = true;
+            commandListeners.length = 0;
             for (const [id, entry] of pending) {
                 clearTimeout(entry.timer);
                 entry.resolve({ id, ok: false, code: 'failed', error: 'client disposed' });

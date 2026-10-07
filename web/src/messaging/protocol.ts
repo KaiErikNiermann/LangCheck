@@ -118,6 +118,9 @@ export function parsePageRequest(value: unknown): PageRequest | undefined {
     }
 }
 
+/** A command the user chose in the palette, sent by the content script for the page to run. */
+export const COMMAND_TYPE = 'command';
+
 /** Parses a response arriving in the page; anything malformed is dropped. */
 export function parsePageResponse(value: unknown): PageResponse | undefined {
     if (!isBag(value) || !isId(value.id) || typeof value.ok !== 'boolean') return undefined;
