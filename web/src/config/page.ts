@@ -12,6 +12,7 @@ import { ConfigStatusView } from '../../../extension/src/config/gutter';
 import type { languagecheck } from '../../../extension/src/proto/checker';
 import { createMonacoAdapter } from '../editor/monacoAdapter';
 import { CONFIG_PORT_NAME, MAX_CONFIG_TEXT_BYTES, type ConfigRequest } from '../messaging/config';
+import { keepBackgroundAlive } from '../messaging/keepalive';
 import type { PageResponse } from '../messaging/protocol';
 import { host, Uri, workspace } from '../shim/vscode';
 
@@ -47,6 +48,7 @@ function connect(): (request: ConfigRequest) => Promise<PageResponse> {
         });
         return port;
     };
+    keepBackgroundAlive(() => link.port);
     return (request) =>
         new Promise((resolve) => {
             const id = ids.next++;

@@ -4,6 +4,7 @@
 // `message` events the app listens for. Messages that arrive before the app
 // has said anything (its `ready`) are held, since it may not be listening yet.
 import browser from 'webextension-polyfill';
+import { keepBackgroundAlive } from '../messaging/keepalive';
 import { PANEL_PORT_NAME } from '../messaging/webview';
 
 /** Held messages, at most: the page queues no more than this per panel either. */
@@ -11,6 +12,7 @@ const MAX_HELD = 256;
 const STATE_KEY = 'language-check-webview-state';
 
 const port = browser.runtime.connect({ name: PANEL_PORT_NAME });
+keepBackgroundAlive(() => port);
 const state = { appListening: false, acquired: false };
 const held: unknown[] = [];
 

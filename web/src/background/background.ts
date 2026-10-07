@@ -7,6 +7,7 @@ import browser, { type Runtime } from 'webextension-polyfill';
 import { BACKGROUND_PORT_NAME, parseBackgroundRequest, type BackgroundResponse } from '../messaging/background';
 import { forPage } from './forPage';
 import { CONFIG_PORT_NAME, parseConfigPageRequest } from '../messaging/config';
+import { isKeepalive } from '../messaging/keepalive';
 import { PANEL_PORT_NAME, parsePageToPanel } from '../messaging/webview';
 import { workspaceForUrl } from '../sites/registry';
 import { CoreManager, IDLE_CLOSE_MS } from './nativeCore';
@@ -100,6 +101,8 @@ function serveConfigPage(port: Runtime.Port): void {
     });
     // Messages wait for the restore, in the order they came.
     port.onMessage.addListener((message: unknown) => {
+        // Its arrival kept this background running; there is nothing to answer.
+        if (isKeepalive(message)) return;
         void known.then((workspace) => {
             if (workspace !== undefined) serveConfigRequest(port, workspace, message);
         });
@@ -142,7 +145,10 @@ browser.runtime.onConnect.addListener((port: Runtime.Port) => {
             port.disconnect();
             return;
         }
-        port.onMessage.addListener((message: unknown) => { panel.message(message); });
+        port.onMessage.addListener((message: unknown) => {
+            // Its arrival kept this background running; it is not for the page.
+            if (!isKeepalive(message)) panel.message(message);
+        });
         port.onDisconnect.addListener(() => { panel.gone(); });
         return;
     }
