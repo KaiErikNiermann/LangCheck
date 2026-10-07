@@ -221,3 +221,39 @@ describe('what reaches the page', () => {
         expect(JSON.stringify(response)).not.toContain('someone');
     });
 });
+
+describe('a failed initialize', () => {
+    // The host answered, but with an error: the workspace is unusable on
+    // that host. It must not stay connected and fail every request forever,
+    // nor be respawned on every keystroke.
+    test('drops the host, backs off, and recovers once initialize succeeds', async () => {
+        const clock = new FakeClock();
+        const hosts: FakeHost[] = [];
+        let initFails = true;
+        const connect = (): NativePort => {
+            const host = new FakeHost('silent');
+            const original = host.postMessage.bind(host);
+            host.postMessage = (message: unknown) => {
+                original(message);
+                const request = host.received.at(-1)!;
+                let response: languagecheck.Response.$Properties = { id: request.id, ok: {} };
+                if (request.initialize) {
+                    response = initFails ? { id: request.id, error: { message: 'cannot create the workspace directory' } } : { id: request.id, initialize: {} };
+                }
+                queueMicrotask(() => host.emit({ frame: bytesToBase64(languagecheck.Response.encode(response).finish()), more: false }));
+            };
+            hosts.push(host);
+            return host;
+        };
+        const connection = new CoreConnection('k', connect, clock);
+        const learn = { id: 1, op: 'addWord', word: 'teh' } as const;
+        expect(await connection.request(learn)).toMatchObject({ ok: false, code: 'failed' });
+        expect(hosts[0]!.disconnected).toBe(true);
+        expect(await connection.request(learn)).toMatchObject({ ok: false });
+        expect(hosts).toHaveLength(1);
+        initFails = false;
+        clock.advance(1000);
+        expect(await connection.request(learn)).toMatchObject({ ok: true });
+        expect(hosts).toHaveLength(2);
+    });
+});

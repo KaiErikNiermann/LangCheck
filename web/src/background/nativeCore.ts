@@ -44,7 +44,9 @@ export interface Clock {
 }
 
 const realClock: Clock = {
-    now: () => Date.now(),
+    // Monotonic: a wall-clock jump must not evict every connection or hold
+    // a failed one in backoff for hours.
+    now: () => performance.now(),
     setTimeout: (callback, ms) => setTimeout(callback, ms),
     clearTimeout: (handle) => { clearTimeout(handle as ReturnType<typeof setTimeout>); },
 };
@@ -122,7 +124,17 @@ export class CoreConnection {
         });
         this.initialized = this.call({ initialize: { workspaceRoot: this.key } }).then((response) => {
             if (isFailure(response)) return response;
-            return response.error ? { failure: 'failed', message: response.error.message ?? 'initialize failed' } : undefined;
+            if (!response.error) return;
+            // The host answered, but this workspace is unusable on it. Drop
+            // it and back off like any failed start, rather than keep a
+            // connection that fails every request, or respawn per keystroke.
+            const failure: CoreFailure = { failure: 'failed', message: response.error.message ?? 'initialize failed' };
+            if (this.port === port) {
+                this.onDisconnected(failure.message);
+                this.recordFailure(failure.message);
+                port.disconnect();
+            }
+            return failure;
         });
         return undefined;
     }
