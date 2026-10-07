@@ -7,7 +7,7 @@
 import * as vscode from 'vscode';
 
 import type { Checker } from '../checking/checker';
-import type { CoreService } from '../core/coreService';
+import type { CoreHandle } from '../core/transport';
 import type { Logger } from '../shared/logger';
 import type { InspectorLog } from '../ui/inspectorLog';
 import type { SpeedFixPanel } from '../ui/webviews/speedFix';
@@ -17,7 +17,7 @@ import type { DiagnosticStore } from './store';
 import { uriKey } from '../shared/documents';
 
 export interface DiagnosticActionDeps {
-    readonly core: CoreService;
+    readonly core: CoreHandle;
     readonly checker: Checker;
     readonly log: Logger;
     readonly inspectorLog: InspectorLog;

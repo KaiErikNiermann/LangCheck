@@ -23,6 +23,7 @@ import { getSetting } from './config/settings';
 import { bootstrapCore } from './core/binary';
 import { CoreService } from './core/coreService';
 import { Packs } from './core/packs';
+import { hasDockerCompose } from './core/languagetool';
 import { DiagnosticActions } from './diagnostics/actions';
 import { registerCodeActions } from './providers/codeActions';
 import { registerInlayHints } from './providers/inlayHints';
@@ -83,6 +84,7 @@ export async function activate(context: vscode.ExtensionContext) {
     });
     const checker = new Checker({
         core, log, store, suppression, results, statusBars, inspectorLog,
+        languageToolRestartable: hasDockerCompose,
         observer: {
             checkRecorded: (document, timings) => inspector.checkRecorded(document, timings),
             healthUpdated: () => {

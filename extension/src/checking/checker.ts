@@ -1,13 +1,10 @@
 /**
  * Checking one document: asking the core, and putting the answer on screen.
  */
-import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { COMMANDS, executeCommand } from '../commands/ids';
-import type { LanguageClient } from '../core/client';
-import type { CoreService } from '../core/coreService';
-import { hasDockerCompose } from '../core/languagetool';
+import type { CoreHandle, CoreTransport } from '../core/transport';
 import { isSpellingRule, ruleIdOf, type ExtendedDiagnostic } from '../diagnostics/diagnostic';
 import type { DiagnosticStore, Suppression } from '../diagnostics/store';
 import type { Logger } from '../shared/logger';
@@ -18,6 +15,7 @@ import { positionsIn, toDiagnostic, toInspectorRanges, toNameSpans } from './res
 import type { CheckResults } from './results';
 import { CheckSlots } from './scheduler';
 import { uriKey } from '../shared/documents';
+import { basename } from '../shared/paths';
 
 /** What a check did, for the caller that asked for it. */
 export interface CheckOutcome {
@@ -43,14 +41,16 @@ export interface CheckObserver {
 }
 
 export interface CheckerDeps {
-    readonly core: CoreService;
-    readonly log: Logger;
+    readonly core: CoreHandle;
+    readonly log: Pick<Logger, 'debug' | 'warn' | 'error'>;
     readonly store: DiagnosticStore;
     readonly suppression: Suppression;
     readonly results: CheckResults;
-    readonly statusBars: StatusBars;
+    readonly statusBars: Pick<StatusBars, 'setChecking' | 'updateHealth' | 'updateInsights'>;
     readonly inspectorLog: InspectorLog;
     readonly observer: CheckObserver;
+    /** Whether a down LanguageTool can be restarted from here (a Docker Compose setup in VS Code; never on the web). */
+    readonly languageToolRestartable: () => boolean;
 }
 
 /**
@@ -94,7 +94,7 @@ export class Checker {
             const reason = core.client?.lastFailure;
             if (reason) {
                 inspectorLog.push('error', 'checkDocument', `Core unavailable: ${reason}`, {
-                    details: path.basename(document.fileName),
+                    details: basename(document.fileName),
                 });
             }
             return -1;
@@ -108,7 +108,7 @@ export class Checker {
         const uri = uriKey(document.uri);
         const inFlight = this.inFlight.get(uri);
         if (inFlight && inFlight.text === textContent) {
-            inspectorLog.push('debug', 'checkDocument', `Joining in-flight check for ${path.basename(document.fileName)}`);
+            inspectorLog.push('debug', 'checkDocument', `Joining in-flight check for ${basename(document.fileName)}`);
             return inFlight.result;
         }
 
@@ -133,7 +133,7 @@ export class Checker {
     /** The check itself, once {@link check} has decided one is needed. */
     private async run(
         document: vscode.TextDocument,
-        client: LanguageClient,
+        client: CoreTransport,
         textContent: string,
         /** The document version `textContent` was read at. */
         version: number,
@@ -142,7 +142,7 @@ export class Checker {
         generation: number,
     ): Promise<number> {
         const { log, store, suppression, results, statusBars, inspectorLog, observer } = this.deps;
-        const shortName = path.basename(document.fileName);
+        const shortName = basename(document.fileName);
         log.debug('checkDocument', { file: document.fileName, lang: document.languageId });
         inspectorLog.push('info', 'checkDocument', `Checking ${shortName} (${document.languageId})`);
 
@@ -238,7 +238,7 @@ export class Checker {
                 results.timings = timings;
                 const totalProseBytes = inspectorRanges.reduce((sum, r) => sum + (r.endByte - r.startByte), 0);
                 results.info = {
-                    fileName: path.basename(document.uri.fsPath),
+                    fileName: basename(document.uri.fsPath),
                     fileSize: new TextEncoder().encode(textContent).length,
                     languageId: document.languageId,
                     proseRangeCount: inspectorRanges.length,
@@ -299,7 +299,7 @@ export class Checker {
         const ltHealth = this.deps.results.engineHealth.find(e => e.name === 'languagetool');
         if (ltHealth && ltHealth.status === 'down' && !this.ltDownNotificationShown) {
             this.ltDownNotificationShown = true;
-            const hasDocker = hasDockerCompose();
+            const hasDocker = this.deps.languageToolRestartable();
             const actions = hasDocker
                 ? ['Restart Docker', 'Open Inspector', 'Dismiss']
                 : ['Open Inspector', 'Dismiss'];

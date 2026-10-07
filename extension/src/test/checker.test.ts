@@ -44,6 +44,7 @@ function harness() {
         statusBars: { setChecking: nothing, updateInsights: nothing, updateHealth: nothing },
         inspectorLog: { push: nothing },
         observer: { checkRecorded: nothing, healthUpdated: nothing, diagnosticsPublished: nothing },
+        languageToolRestartable: () => false,
     } as unknown as CheckerDeps;
     return { checker: new Checker(deps), pending, published };
 }
