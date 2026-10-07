@@ -154,6 +154,8 @@ export async function runPaletteCommand(page: Page, title: string): Promise<void
     const palette = page.frameLocator(PALETTE_FRAME);
     await expect(palette.locator('ninja-action').first()).toBeVisible();
     await page.keyboard.type(title);
+    // Enter runs the first entry: wait until the filter has made it this one.
+    await expect(palette.locator('ninja-action').first()).toContainText(title);
     await page.keyboard.press('Enter');
     await expect(page.locator(PALETTE_FRAME)).toHaveCount(0);
 }

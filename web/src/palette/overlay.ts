@@ -6,12 +6,20 @@
 import hotkeys from 'hotkeys-js';
 import browser from 'webextension-polyfill';
 import { PALETTE, isPaletteCommand, type PaletteCommandId } from './commands';
-import { DEFAULT_PALETTE_HOTKEY, PALETTE_HOTKEY_KEY, PALETTE_INIT_TYPE, type PaletteToContent } from './protocol';
+import { DEFAULT_PALETTE_HOTKEY, PALETTE_HOTKEY_KEY, PALETTE_INIT_TYPE, type ContentToPalette, type PaletteToContent } from './protocol';
+import { holdKeys } from './typing';
 
 /** The top of the stacking order: the palette sits over the site's own overlays. */
 const TOP_LAYER_Z = '2147483647';
 /** How long a closed palette's iframe lingers, hidden, before it is removed. */
 const REMOVE_AFTER_MS = 250;
+/**
+ * How long the page's keyboard is held for a palette that has not taken
+ * focus. Past it the palette is taken to have failed (blocked, or broken by
+ * something else on the page) and is closed: the keyboard is never held
+ * for longer.
+ */
+const READY_DEADLINE_MS = 2000;
 
 /** Starts listening for the palette's binding; `run` gets the command the user chose. */
 export function startPalette(run: (id: PaletteCommandId) => void): void {
@@ -19,8 +27,18 @@ export function startPalette(run: (id: PaletteCommandId) => void): void {
     let port: MessagePort | undefined;
     let returnFocus: Element | null = null;
     let binding = DEFAULT_PALETTE_HOTKEY;
+    /** The page's keyboard, held from the binding until the palette has focus. */
+    let hold: ReturnType<typeof holdKeys> | undefined;
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+
+    const releaseKeys = (): void => {
+        hold?.release();
+        hold = undefined;
+        clearTimeout(deadline);
+    };
 
     const close = (): void => {
+        releaseKeys();
         port?.close();
         port = undefined;
         // Hidden at once, removed once the key that closed it has been handled:
@@ -45,7 +63,11 @@ export function startPalette(run: (id: PaletteCommandId) => void): void {
         channel.port1.addEventListener('message', (event: MessageEvent) => {
             const message = event.data as Partial<PaletteToContent> | null;
             if (message?.type === 'close') close();
-            else if (message?.type === 'run' && isPaletteCommand(message.id)) {
+            else if (hold !== undefined && message?.type === 'ready') {
+                const reply: ContentToPalette = { type: 'typed', text: hold.typed(), submit: hold.submitted() };
+                port?.postMessage(reply);
+                releaseKeys();
+            } else if (message?.type === 'run' && isPaletteCommand(message.id)) {
                 const id = message.id;
                 close();
                 run(id);
@@ -62,6 +84,11 @@ export function startPalette(run: (id: PaletteCommandId) => void): void {
     const open = (): void => {
         if (frame !== undefined) return;
         returnFocus = document.activeElement;
+        hold = holdKeys(window, binding, close);
+        deadline = setTimeout(() => {
+            console.warn('[language-check] the command palette did not open');
+            close();
+        }, READY_DEADLINE_MS);
         const created = document.createElement('iframe');
         created.src = browser.runtime.getURL('palette.html');
         created.title = 'Language Check commands';

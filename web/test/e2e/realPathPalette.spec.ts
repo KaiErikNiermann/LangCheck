@@ -1,7 +1,7 @@
 // The command palette: ninja-keys in the extension's own iframe, opened by a
 // binding the content script listens for, running the client's commands.
 import type { Page } from '@playwright/test';
-import { expect, marks, pageUrl, status, test } from './fixtures';
+import { docText, expect, marks, pageUrl, panelPages, status, test } from './fixtures';
 
 const palette = (page: Page) => page.frameLocator('iframe[title="Language Check commands"]');
 const checks = (page: Page) => page.evaluate(() => (globalThis as any).__languageCheck.stats().checks as number);
@@ -61,4 +61,16 @@ test('the binding can be changed on the options page', async ({ page, context, e
     await expect(page.locator('iframe[title="Language Check commands"]')).toHaveCount(0);
     await page.keyboard.press('Control+Shift+KeyL');
     await expect(palette(page).locator('ninja-action')).toHaveCount(3);
+});
+
+test('a command typed and entered straight after the binding runs, and no key reaches the document', async ({ page, context }) => {
+    await ready(page);
+    const before = await docText(page);
+    // No waiting for the palette: a user types the command and Enter at once.
+    await page.keyboard.press('Control+KeyP');
+    await page.keyboard.type('open sp', { delay: 0 });
+    await page.keyboard.press('Enter');
+    await expect.poll(() => panelPages(context, 'speedFix').length).toBe(1);
+    await expect(page.locator('iframe[title="Language Check commands"]')).toHaveCount(0);
+    expect(await docText(page)).toBe(before);
 });

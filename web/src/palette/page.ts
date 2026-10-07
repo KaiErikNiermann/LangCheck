@@ -7,7 +7,8 @@
 // page answers with { type: 'run', id } or { type: 'close' }. Which command
 // to run is checked again on the other side; this page holds no authority.
 import 'ninja-keys';
-import { PALETTE_INIT_TYPE, type PaletteToContent } from './protocol';
+import { PALETTE_INIT_TYPE, type ContentToPalette, type PaletteToContent } from './protocol';
+import { holdKeys, MAX_TYPED_CHARS } from './typing';
 import { PALETTE, isPaletteCommand } from './commands';
 
 // The parent is whichever site the content script runs on, so its origin is
@@ -43,6 +44,29 @@ function show(port: MessagePort, entries: typeof PALETTE, hotkey: string): void 
     ninja.addEventListener('close', () => {
         send({ type: 'close' });
     });
+    // Until the search box has focus, keys typed here are kept too, after
+    // what the page kept: together they are the search the user typed.
+    const hold = holdKeys(window, hotkey, () => {
+        send({ type: 'close' });
+    });
+    port.addEventListener('message', (event: MessageEvent) => {
+        const message = event.data as Partial<ContentToPalette> | null;
+        if (message?.type !== 'typed' || typeof message.text !== 'string') return;
+        // Keys typed here came after the page's, unless the page's ended in Enter.
+        const submit = message.submit === true || hold.submitted();
+        const search = (message.submit === true ? message.text : message.text + hold.typed()).slice(0, MAX_TYPED_CHARS);
+        hold.release();
+        if (search !== '') ninja.open({ search });
+        if (submit) void ninja.updateComplete.then(() => { ninja.submit(); });
+    });
+    port.start();
+    document.addEventListener(
+        'focusin',
+        () => {
+            send({ type: 'ready' });
+        },
+        { once: true },
+    );
     document.body.replaceChildren(ninja);
     ninja.open();
 }
