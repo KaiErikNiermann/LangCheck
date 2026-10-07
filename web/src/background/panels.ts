@@ -5,6 +5,7 @@
 //
 // Lifetimes: closing the panel tab reports `closed` to the page; the page's
 // content script going away (navigation, tab closed) closes its panels.
+import { OpenBudget } from './openBudget';
 import { isBoundedMessage, MAX_PANEL_MESSAGE_CHARS, WEBVIEW_TYPE, type PageToPanel, type PanelToPage, type ViewType } from '../messaging/webview';
 
 /** Messages kept for a panel tab that has not connected yet (its app is loading). */
@@ -12,15 +13,8 @@ export const MAX_QUEUED = 256;
 /** And their total size, as JSON: two of the largest messages a page may post. */
 export const MAX_QUEUED_CHARS = 2 * MAX_PANEL_MESSAGE_CHARS;
 
-/**
- * Tabs a page may open in a window of OPEN_WINDOW_MS. The page world is
- * untrusted (the site's scripts, and other extensions' scripts in it, share
- * it), so opening tabs is bounded twice: one panel per view type at a time,
- * as in VS Code, and this many opens a minute, so an open/close loop cannot
- * churn tabs either.
- */
-export const MAX_OPENS = 10;
-export const OPEN_WINDOW_MS = 60_000;
+// Re-exported: the panel tests read them here.
+export { MAX_OPENS, OPEN_WINDOW_MS } from './openBudget';
 
 /** A runtime port, as far as the panels use it. */
 export interface PanelPort {
@@ -63,12 +57,16 @@ export class Panels {
     private readonly sources = new Map<number, PanelPort>();
     /** When each source tab last had a tab brought forward. */
     private readonly lastActivated = new Map<number, number>();
-    /** When each page's tab last opened panel tabs, oldest first (at most MAX_OPENS each), until the tab closes. */
-    private readonly opens = new Map<number, number[]>();
 
+    /**
+     * Opening tabs is bounded twice: one panel per view type at a time, as
+     * in VS Code, and the source tab's open budget, shared with the config
+     * page, so an open/close loop cannot churn tabs either.
+     */
     constructor(
         private readonly tabs: TabsApi,
         private readonly now: () => number = () => performance.now(),
+        private readonly budget: OpenBudget = new OpenBudget(now),
     ) {}
 
     /** A message from the content script of `source` (a tab id), over `port`. */
@@ -78,6 +76,8 @@ export class Panels {
             this.focusPage(source);
             return;
         }
+        // The background routes this one to the config tabs before it gets here.
+        if (message.op === 'openConfig') return;
         const existing = this.panels.get(key(source, message.panel));
         switch (message.op) {
             case 'open':
@@ -136,7 +136,7 @@ export class Panels {
 
     /** A tab was closed (any tab: only panel tabs matter here). */
     tabRemoved(tab: number): void {
-        this.opens.delete(tab);
+        this.budget.forget(tab);
         this.lastActivated.delete(tab);
         const panel = this.byTab.get(tab);
         if (panel !== undefined) this.close(panel, true);
@@ -149,12 +149,7 @@ export class Panels {
     /** Whether `source` may open a `viewType` panel now, counting the open if so. */
     private mayOpen(source: number, viewType: ViewType): boolean {
         for (const panel of this.panels.values()) if (panel.source === source && panel.viewType === viewType) return false;
-        const now = this.now();
-        const recent = (this.opens.get(source) ?? []).filter((at) => now - at < OPEN_WINDOW_MS);
-        if (recent.length >= MAX_OPENS) return false;
-        recent.push(now);
-        this.opens.set(source, recent);
-        return true;
+        return this.budget.take(source);
     }
 
     private open(source: number, id: string, viewType: ViewType, windowId: number | undefined): void {

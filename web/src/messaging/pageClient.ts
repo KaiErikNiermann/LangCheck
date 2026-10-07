@@ -7,6 +7,7 @@ import { isPaletteCommand, type PaletteCommandId } from '../palette/commands';
 import { WEBVIEW_TYPE, parsePanelToPage, type PageToPanel, type PanelToPage } from './webview';
 import {
     COMMAND_TYPE,
+    RELOAD_TYPE,
     HANDSHAKE_TYPE,
     MAX_IN_FLIGHT_PER_PAGE,
     PAGE_READY_TYPE,
@@ -49,6 +50,8 @@ export interface CoreClient {
     post(message: PageToPanel): void;
     /** Messages from panels, and their closing. */
     onWebview(listener: (message: PanelToPage) => void): void;
+    /** The workspace's config changed: check again. */
+    onReload(listener: () => void): void;
     dispose(): void;
 }
 
@@ -57,6 +60,7 @@ export function connectCore(target: Window = window): CoreClient {
     const pending = new Map<number, Pending>();
     const commandListeners: ((id: PaletteCommandId) => void)[] = [];
     const webviewListeners: ((message: PanelToPage) => void)[] = [];
+    const reloadListeners: (() => void)[] = [];
     let disposed = false;
 
     const port = new Promise<MessagePort>((resolve, reject) => {
@@ -86,19 +90,30 @@ export function connectCore(target: Window = window): CoreClient {
         announce();
     });
 
+    /** Handles what the content script sends unasked (commands, reloads, panel messages); `false` for a response. */
+    const handleUnasked = (data: unknown): boolean => {
+        const message = (data as { type?: unknown; command?: unknown } | null) ?? {};
+        switch (message.type) {
+            case COMMAND_TYPE:
+                if (isPaletteCommand(message.command)) for (const listener of commandListeners) listener(message.command);
+                return true;
+            case RELOAD_TYPE:
+                for (const listener of reloadListeners) listener();
+                return true;
+            case WEBVIEW_TYPE: {
+                const panelMessage = parsePanelToPage(data);
+                if (panelMessage !== undefined) for (const listener of webviewListeners) listener(panelMessage);
+                return true;
+            }
+            default:
+                return false;
+        }
+    };
+
     void port.then(
         (p) => {
             p.addEventListener('message', (event: MessageEvent) => {
-                const command = (event.data as { type?: unknown; command?: unknown } | null) ?? {};
-                if (command.type === COMMAND_TYPE) {
-                    if (isPaletteCommand(command.command)) for (const listener of commandListeners) listener(command.command);
-                    return;
-                }
-                if (command.type === WEBVIEW_TYPE) {
-                    const panelMessage = parsePanelToPage(event.data);
-                    if (panelMessage !== undefined) for (const listener of webviewListeners) listener(panelMessage);
-                    return;
-                }
+                if (handleUnasked(event.data)) return;
                 const response = parsePageResponse(event.data);
                 if (response === undefined) return;
                 const entry = pending.get(response.id);
@@ -150,10 +165,14 @@ export function connectCore(target: Window = window): CoreClient {
         onWebview(listener) {
             webviewListeners.push(listener);
         },
+        onReload(listener) {
+            reloadListeners.push(listener);
+        },
         dispose() {
             disposed = true;
             commandListeners.length = 0;
             webviewListeners.length = 0;
+            reloadListeners.length = 0;
             for (const [id, entry] of pending) {
                 clearTimeout(entry.timer);
                 entry.resolve({ id, ok: false, code: 'failed', error: 'client disposed' });

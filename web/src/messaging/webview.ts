@@ -27,7 +27,9 @@ export type PageToPanel =
     | { readonly type: typeof WEBVIEW_TYPE; readonly op: 'post'; readonly panel: string; readonly message: unknown }
     | { readonly type: typeof WEBVIEW_TYPE; readonly op: 'reveal' | 'close'; readonly panel: string }
     /** Bring the page's own tab to the front (go-to-location from a panel). */
-    | { readonly type: typeof WEBVIEW_TYPE; readonly op: 'focusEditor' };
+    | { readonly type: typeof WEBVIEW_TYPE; readonly op: 'focusEditor' }
+    /** Show the config page of the page's workspace (which the background takes from the tab, not from here). */
+    | { readonly type: typeof WEBVIEW_TYPE; readonly op: 'openConfig' };
 
 export type PanelToPage =
     | { readonly type: typeof WEBVIEW_TYPE; readonly op: 'message'; readonly panel: string; readonly message: unknown }
@@ -61,7 +63,8 @@ export function parsePageToPanel(value: unknown): PageToPanel | undefined {
         case 'close':
             return isPanelId(value.panel) ? { type: WEBVIEW_TYPE, op: value.op, panel: value.panel } : undefined;
         case 'focusEditor':
-            return { type: WEBVIEW_TYPE, op: 'focusEditor' };
+        case 'openConfig':
+            return { type: WEBVIEW_TYPE, op: value.op };
         default:
             return undefined;
     }

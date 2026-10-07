@@ -7,6 +7,7 @@
 import browser, { type Runtime } from 'webextension-polyfill';
 import {
     COMMAND_TYPE,
+    RELOAD_TYPE,
     HANDSHAKE_TYPE,
     MAX_IN_FLIGHT_PER_PAGE,
     PAGE_READY_TYPE,
@@ -55,6 +56,9 @@ export function startContent(site: SiteWorkspace): void {
         },
         () => browser.runtime.connect({ name: BACKGROUND_PORT_NAME }),
         workspaceNow,
+        () => {
+            for (const port of pagePorts.values()) port.postMessage({ type: RELOAD_TYPE });
+        },
     );
     startPalette((id) => {
         for (const port of pagePorts.values()) port.postMessage({ type: COMMAND_TYPE, command: id });
@@ -161,6 +165,8 @@ export class BackgroundLink {
         private readonly connectRuntime: () => Runtime.Port,
         /** The workspace the page's URL names now. */
         private readonly workspaceNow: () => string | undefined,
+        /** The background says the workspace's config changed. */
+        private readonly onReload: () => void = () => {},
     ) {}
 
     /** Dropped when the background cannot be reached (see send). */
@@ -182,6 +188,10 @@ export class BackgroundLink {
         const port = this.connectRuntime();
         this.portWorkspace = workspace;
         port.onMessage.addListener((message: unknown) => {
+            if ((message as { reload?: unknown } | null)?.reload === true) {
+                this.onReload();
+                return;
+            }
             const panelMessage = parsePanelToPage((message as { webview?: unknown } | null)?.webview);
             if (panelMessage !== undefined) {
                 this.onWebview(panelMessage);

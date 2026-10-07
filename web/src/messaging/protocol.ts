@@ -132,6 +132,8 @@ function parseCoreRequest(kind: string | undefined, body: unknown): CoreRequest 
 
 /** A command the user chose in the palette, sent by the content script for the page to run. */
 export const COMMAND_TYPE = 'command';
+/** The workspace's config changed (the config page saved it): check again under it. */
+export const RELOAD_TYPE = 'reload';
 
 /** Parses a response arriving in the page; anything malformed is dropped. */
 export function parsePageResponse(value: unknown): PageResponse | undefined {

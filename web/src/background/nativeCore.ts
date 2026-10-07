@@ -11,6 +11,7 @@
 //   missing or crashing host is not respawned on every keystroke;
 // - idle connections close, and at most MAX_CONNECTIONS stay open.
 import { languagecheck } from '../../../extension/src/proto/checker';
+import type { ConfigPageRequest } from '../messaging/config';
 import type { ErrorCode, PageRequest, PageResponse } from '../messaging/protocol';
 import { base64ToBytes, bytesToBase64 } from './base64';
 
@@ -96,14 +97,32 @@ export class CoreConnection {
         this.lastUsed = clock.now();
     }
 
-    async request(request: PageRequest): Promise<PageResponse> {
+    /**
+     * `detailed` keeps the host's own error text (scrubbed of paths by the
+     * host): for the extension's config page, which has to say why a config
+     * was refused. A web page gets the fixed sentences (PAGE_MESSAGE).
+     */
+    async request(request: CoreRequestOf, detailed = false): Promise<PageResponse> {
         this.lastUsed = this.clock.now();
         const unavailable = this.ensureConnected();
-        if (unavailable !== undefined) return failed(request.id, unavailable);
+        if (unavailable !== undefined) return failed(request.id, unavailable, detailed);
         const initFailure = await this.initialized;
-        if (initFailure !== undefined) return failed(request.id, initFailure);
+        if (initFailure !== undefined) return failed(request.id, initFailure, detailed);
         const response = await this.call(toProto(request));
-        return isFailure(response) ? failed(request.id, response) : fromProto(request.id, response as languagecheck.Response);
+        return isFailure(response) ? failed(request.id, response, detailed) : fromProto(request.id, response as languagecheck.Response, detailed);
+    }
+
+    /**
+     * Initializes again on the open connection, so the core re-reads the
+     * workspace's config (after the config page wrote it), as a first start
+     * does. With no connection there is nothing to do: the next request
+     * starts one, and that initializes from the file as it now is.
+     */
+    async reinitialize(): Promise<void> {
+        const port = this.port;
+        if (port === undefined) return;
+        this.initialized = this.initialize(port);
+        await this.initialized;
     }
 
     close(): void {
@@ -132,7 +151,13 @@ export class CoreConnection {
         port.onDisconnect.addListener((p) => {
             if (this.port === port) this.onDisconnected(p.error?.message ?? port.error?.message ?? 'the native host exited');
         });
-        this.initialized = this.call({ initialize: { workspaceRoot: this.key } }).then((response) => {
+        this.initialized = this.initialize(port);
+        return undefined;
+    }
+
+    /** Initialize on `port`; a failure drops the connection and backs off. */
+    private initialize(port: NativePort): Promise<CoreFailure | undefined> {
+        return this.call({ initialize: { workspaceRoot: this.key } }).then((response) => {
             if (isFailure(response)) return response;
             if (!response.error) return;
             // The host answered, but this workspace is unusable on it. Drop
@@ -146,7 +171,6 @@ export class CoreConnection {
             }
             return failure;
         });
-        return undefined;
     }
 
     private call(payload: languagecheck.Request.$Properties): Promise<languagecheck.Response.$Properties | CoreFailure> {
@@ -244,14 +268,19 @@ export class CoreManager {
         private readonly clock: Clock = realClock,
     ) {}
 
-    request(key: string, request: PageRequest): Promise<PageResponse> {
+    request(key: string, request: CoreRequestOf, detailed = false): Promise<PageResponse> {
         let connection = this.connections.get(key);
         if (connection === undefined) {
             connection = new CoreConnection(key, this.connectNative, this.clock);
             this.connections.set(key, connection);
             this.evict();
         }
-        return connection.request(request);
+        return connection.request(request, detailed);
+    }
+
+    /** Re-initializes `key`'s connection, if one is open (see CoreConnection.reinitialize). */
+    reinitialize(key: string): Promise<void> {
+        return this.connections.get(key)?.reinitialize() ?? Promise.resolve();
     }
 
     /** Closes connections idle for IDLE_CLOSE_MS; called on a timer by the background. */
@@ -296,19 +325,21 @@ const PAGE_MESSAGE: Readonly<Record<ErrorCode, string>> = {
     failed: 'the checker reported an error (details in the extension console)',
 };
 
-function failed(id: number, f: CoreFailure): PageResponse {
+function failed(id: number, f: CoreFailure, detailed = false): PageResponse {
     console.warn(`[language-check] request ${String(id)} failed (${f.failure}): ${f.message}`);
-    return { id, ok: false, code: f.failure, error: PAGE_MESSAGE[f.failure] };
+    return { id, ok: false, code: f.failure, error: detailed ? f.message : PAGE_MESSAGE[f.failure] };
 }
 
-/** The page's request is already in the core's Request shape (parsed and limited by the content script). */
-function toProto(request: PageRequest): languagecheck.Request.$Properties {
+/** A page's request or the config page's, both already in the core's Request shape (parsed and limited on the way in). */
+type CoreRequestOf = PageRequest | ConfigPageRequest;
+
+function toProto(request: CoreRequestOf): languagecheck.Request.$Properties {
     return request.request;
 }
 
 /** The decoded Response as plain data, the shape the client's Checker reads. Errors are sanitised (see PAGE_MESSAGE). */
-function fromProto(id: number, response: languagecheck.Response): PageResponse {
-    if (response.error) return failed(id, { failure: 'failed', message: response.error.message || 'the core reported an error' });
+function fromProto(id: number, response: languagecheck.Response, detailed = false): PageResponse {
+    if (response.error) return failed(id, { failure: 'failed', message: response.error.message || 'the core reported an error' }, detailed);
     const plain = languagecheck.Response.toObject(response, { enums: Number, longs: Number, defaults: true }) as Record<string, unknown>;
     return { id, ok: true, response: plain };
 }
