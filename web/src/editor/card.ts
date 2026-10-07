@@ -12,7 +12,7 @@
 //   keeps it refreshes the card, so actions withheld while the check was
 //   stale appear.
 import type { Popover, PopoverContent } from './popover';
-import type { ActionSource, HoverSource, RenderedDiagnostic } from './types';
+import type { ActionSource, EditorAdapter, HoverSource, RenderedDiagnostic } from './types';
 
 /** Pointer must rest this long before we ask for actions (VS Code uses 300ms). */
 export const HOVER_DELAY_MS = 300;
@@ -38,6 +38,21 @@ export interface CardHost {
 }
 
 const NO_ACTIONS: ActionSource = () => Promise.resolve([]);
+
+/** The EditorAdapter members every adapter hands to its card unchanged. */
+export function cardMembers(card: CardController): Pick<EditorAdapter, 'setActionSource' | 'setHoverSource' | 'notify'> {
+    return {
+        setActionSource: (source) => {
+            card.setActionSource(source);
+        },
+        setHoverSource: (source) => {
+            card.setHoverSource(source);
+        },
+        notify: (message) => {
+            card.popover.toast(message);
+        },
+    };
+}
 
 export class CardController {
     private actionSource: ActionSource = NO_ACTIONS;

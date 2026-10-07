@@ -4,6 +4,7 @@ import type { EditorView } from '@codemirror/view';
 import type { LanguageId } from '../messaging/protocol';
 import { createCm6Adapter } from './cm6Adapter';
 import { discoverCm6Kit } from './cm6kit';
+import { createDomAdapter, highlightsSupported, type DomEditorRules } from './domAdapter';
 import type { EditorAdapter } from './types';
 
 export interface AttachedEditor {
@@ -43,6 +44,19 @@ export function cm6Editor(view: EditorView, name: string, languageId: LanguageId
                 return { ok: false, reason: 'the editor did not accept the extension' };
             }
             return { ok: true, editor: cm6 };
+        },
+    };
+}
+
+/** A block editor of contenteditable leaves (Notion), painted with CSS highlights. */
+export function domEditor(root: Element, identity: object, name: string, languageId: LanguageId, rules: DomEditorRules): EditorHandle {
+    return {
+        identity,
+        name,
+        languageId,
+        attach(uri) {
+            if (!highlightsSupported()) return { ok: false, reason: 'this browser has no CSS Custom Highlight API (Firefox 140+, Chrome 105+)' };
+            return { ok: true, editor: createDomAdapter(root, rules, uri, languageId) };
         },
     };
 }

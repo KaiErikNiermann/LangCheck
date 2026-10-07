@@ -8,7 +8,7 @@
 // code runs against our own modules or a host page's (see cm6kit.ts).
 import type { Extension, Range as CmRange, StateEffectType, StateField, Text } from '@codemirror/state';
 import type { Decoration as CmDecoration, DecorationSet, EditorView } from '@codemirror/view';
-import { CardController, type Finding } from './card';
+import { CardController, cardMembers, type Finding } from './card';
 import type { Cm6Kit } from './cm6kit';
 import { Popover, type PopoverSurface } from './popover';
 import { CARD_DARK_RULES, CARD_RULES, SEVERITY_CLASS, SEVERITY_COLOR } from './styles';
@@ -170,15 +170,7 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
             }
             view.dispatch({ changes: edits.map((e) => ({ from: e.from, to: e.to, insert: e.insert })), userEvent: 'input.complete' });
         },
-        setActionSource: (source) => {
-            card.setActionSource(source);
-        },
-        setHoverSource: (source) => {
-            card.setHoverSource(source);
-        },
-        notify: (message) => {
-            card.popover.toast(message);
-        },
+        ...cardMembers(card),
     };
 
     return {
