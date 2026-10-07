@@ -6,6 +6,19 @@ import { defineConfig } from 'eslint/config';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+// Invisible and formatting characters (C0/C1 controls, soft hyphen,
+// zero-width and bidi controls, word joiners, BOM, U+FFF0-FFFF specials) as
+// a regex character class, built from code points so that no such character
+// sits in this file either: tooling here has turned escapes into literal
+// characters three times.
+const INVISIBLE_RANGES = [[0x0, 0x8], [0xB, 0xC], [0xE, 0x1F], [0x7F, 0x9F], [0xAD, 0xAD], [0x20_0B, 0x20_0F], [0x20_28, 0x20_2E], [0x20_60, 0x20_6F], [0xFE_FF, 0xFE_FF], [0xFF_F0, 0xFF_FF]];
+/** @param {number} n */
+const codePoint = (n) => String.raw`\u{${n.toString(16)}}`;
+/** @param {[number, number]} range */
+const classRange = ([from, to]) => (from === to ? codePoint(from) : [codePoint(from), codePoint(to)].join('-'));
+const INVISIBLE = `[${INVISIBLE_RANGES.map((r) => classRange(/** @type {[number, number]} */ (r))).join('')}]`;
+const ESCAPE_MESSAGE = String.raw`Write invisible or formatting characters as \u escapes.`;
+
 export default defineConfig(
     { ignores: ['dist/', 'dist-test/', 'test-results/', 'playwright-report/', '.e2e/'] },
     eslint.configs.recommended,
@@ -56,6 +69,13 @@ export default defineConfig(
             'security/detect-object-injection': 'off',
             '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
             'no-console': ['error', { allow: ['info', 'warn', 'error'] }],
+            // Invisible and formatting characters must be written as escapes:
+            // as literals they are unreadable in review (INVISIBLE above).
+            'no-restricted-syntax': [
+                'error',
+                { selector: `Literal[raw=/${INVISIBLE}/u]`, message: ESCAPE_MESSAGE },
+                { selector: `TemplateElement[value.raw=/${INVISIBLE}/u]`, message: ESCAPE_MESSAGE },
+            ],
         },
     },
     {
@@ -100,6 +120,9 @@ export default defineConfig(
             '@typescript-eslint/no-confusing-void-expression': 'off',
             // The fake host page swaps its view the way a site remounts one.
             'unicorn/no-top-level-assignment-in-function': 'off',
+            // page.evaluate() callbacks run in the browser, where its globals
+            // (CSS, Highlight) exist.
+            'unicorn/isolated-functions': 'off',
             // Playwright fixtures take `{}` when they use no other fixture.
             'no-empty-pattern': 'off',
             // page.evaluate() returns what the page hands back, typed any.
