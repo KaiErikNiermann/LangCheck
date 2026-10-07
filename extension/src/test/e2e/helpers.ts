@@ -74,3 +74,12 @@ export async function openInEditor(uri: vscode.Uri): Promise<vscode.TextDocument
     await vscode.window.showTextDocument(document, { preview: false });
     return document;
 }
+
+/**
+ * `text` with each finding id's list generation left out: `diag-7-0` reads
+ * `diag-0`. The generation counts every list written since activation, so
+ * it depends on what ran before; the index is what a test pins.
+ */
+export function withoutGeneration(text: string): string {
+    return text.replace(/diag-\d+-(\d+)/gu, 'diag-$1');
+}

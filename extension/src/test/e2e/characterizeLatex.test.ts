@@ -11,7 +11,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 
-import { eventually, fixture, inlayHints, openInEditor, ourDiagnostics } from './helpers';
+import { eventually, fixture, inlayHints, openInEditor, ourDiagnostics, withoutGeneration } from './helpers';
 
 const BUDGET_MS = 45_000;
 
@@ -28,7 +28,7 @@ async function hints(document: vscode.TextDocument): Promise<Hint[]> {
             label: typeof h.label === 'string' ? h.label : h.label.map(p => p.value).join(''),
             commands: typeof h.label === 'string'
                 ? []
-                : h.label.flatMap(p => (p.command ? [`${p.command.command}(${p.command.arguments?.join(',')})`] : [])),
+                : h.label.flatMap(p => (p.command ? [withoutGeneration(`${p.command.command}(${p.command.arguments?.join(',')})`)] : [])),
         }))
         .sort((a, b) => a.line - b.line || a.label.localeCompare(b.label));
 }

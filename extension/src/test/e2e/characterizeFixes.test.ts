@@ -14,7 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-import { eventually, fixture, fixtureRoot, inlayHints, openInEditor, ourDiagnostics } from './helpers';
+import { eventually, fixture, fixtureRoot, inlayHints, openInEditor, ourDiagnostics, withoutGeneration } from './helpers';
 
 const BUDGET_MS = 45_000;
 const EXTENSION_ID = 'KaiErikNiermann.language-check';
@@ -52,6 +52,17 @@ async function codeActions(uri: vscode.Uri, range: vscode.Range): Promise<vscode
             if (err instanceof Error && err.message === 'Canceled') return undefined;
             throw err;
         }
+    }, BUDGET_MS);
+}
+
+/** The id the extension gives the first finding now: the one its "Ignore this issue" action carries. */
+async function offeredId(document: vscode.TextDocument): Promise<string> {
+    return eventually('an id offered for the finding', async () => {
+        const [diagnostic] = ourDiagnostics(document.uri);
+        if (!diagnostic) return undefined;
+        const ignore = (await codeActions(document.uri, diagnostic.range)).find(a => a.command?.command === 'language-check.ignoreDiagnostic');
+        const id: unknown = ignore?.command?.arguments?.[0];
+        return typeof id === 'string' ? id : undefined;
     }, BUDGET_MS);
 }
 
@@ -117,7 +128,7 @@ suite('characterization: diagnostic actions', () => {
                 .map(a => ({
                     title: a.title,
                     command: a.command?.command ?? null,
-                    args: a.command?.arguments ?? null,
+                    args: a.command?.arguments?.map(arg => typeof arg === 'string' ? withoutGeneration(arg) : arg as unknown) ?? null,
                     preferred: a.isPreferred ?? false,
                 }));
         };
@@ -178,7 +189,7 @@ suite('characterization: diagnostic actions', () => {
     test('applyFix by id replaces the text and drops the finding', async function () {
         this.timeout(BUDGET_MS + 15_000);
         const document = await checked('apply.md', ['Teh']);
-        await vscode.commands.executeCommand('language-check.applyFix', 'diag-0', 'The');
+        await vscode.commands.executeCommand('language-check.applyFix', await offeredId(document), 'The');
         assert.strictEqual(document.getText(), '# Apply\n\nThe cat sat on the mat.\n');
         await eventually('the fixed finding to go', () =>
             spans(document).length === 0 ? true : undefined, BUDGET_MS);
@@ -187,7 +198,7 @@ suite('characterization: diagnostic actions', () => {
     test('ignoreDiagnostic by id silences that finding across a re-check', async function () {
         this.timeout(BUDGET_MS + 15_000);
         const document = await checked('ignore.md', ['recieve']);
-        await vscode.commands.executeCommand('language-check.ignoreDiagnostic', 'diag-0');
+        await vscode.commands.executeCommand('language-check.ignoreDiagnostic', await offeredId(document));
         await eventually('the ignored finding to go', () =>
             spans(document).length === 0 ? true : undefined, BUDGET_MS);
         const outcome = await vscode.commands.executeCommand<{ diagnostics: number }>(
