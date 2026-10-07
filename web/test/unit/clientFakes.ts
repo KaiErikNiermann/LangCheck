@@ -6,7 +6,7 @@ import { DiagnosticStore } from '../../../extension/src/diagnostics/store';
 import { InspectorLog } from '../../../extension/src/ui/inspectorLog';
 import { editsHold } from '../../src/editor/edits';
 import type { EditorAdapter, TextEdit } from '../../src/editor/types';
-import { Diagnostic, DiagnosticSeverity, host, Range, type TextDocument } from '../../src/shim/vscode';
+import { Diagnostic, DiagnosticSeverity, host, Range, window, type TextDocument } from '../../src/shim/vscode';
 
 /** An editor over `initial` that applies edits as the real adapters do: only when they hold. */
 export function fakeEditor(uri: string, initial: string, during?: () => void) {
@@ -14,6 +14,8 @@ export function fakeEditor(uri: string, initial: string, during?: () => void) {
     const changed: (() => void)[] = [];
     const editor = {
         refuse: false,
+        /** Made to the text in the same step as an edit: an editor applying it its own way, or the page reacting. */
+        alsoChange: undefined as ((text: string) => string) | undefined,
         adapter: {
             uri,
             languageId: 'markdown',
@@ -29,6 +31,7 @@ export function fakeEditor(uri: string, initial: string, during?: () => void) {
                 // From the end, so each edit's offsets are still those of the text it was made for.
                 const fromTheEnd = edits.toSorted((a, b) => b.from - a.from);
                 for (const e of fromTheEnd) text = text.slice(0, e.from) + e.insert + text.slice(e.to);
+                if (editor.alsoChange !== undefined) text = editor.alsoChange(text);
                 for (const listener of changed) listener();
                 return true;
             },
@@ -62,7 +65,7 @@ export function setup() {
         log: { debug: () => {} },
         inspectorLog,
         store,
-        fixTarget: {} as DiagnosticActionDeps['fixTarget'],
+        fixTarget: { findEditor: () => window.activeTextEditor } as DiagnosticActionDeps['fixTarget'],
         speedFix: { sendLoading: () => {}, reveal: () => {} },
     });
     return { store, check, actions, inspectorLog };

@@ -14,7 +14,7 @@ import type { InspectorLog } from '../ui/inspectorLog';
 import type { SpeedFixPanel } from '../ui/webviews/speedFix';
 import { coreByte } from '../checking/offsets';
 import { addSuggestionEdit, ignoreRequest, insertedText, isSpellingOf, type DiagId, type ExtendedDiagnostic } from './diagnostic';
-import { byteDelta, rebaseSpan, type Span, type TextChange } from './rebase';
+import { applyChange, byteDelta, rebaseSpan, type Span, type TextChange } from './rebase';
 import type { FixTarget } from './fixTarget';
 import type { DiagnosticStore } from './store';
 import { findOpenDocument, uriKey, type UriKey } from '../shared/documents';
@@ -185,13 +185,16 @@ export class DiagnosticActions {
             }
 
             // Optimistic removal: remove the fixed diagnostic immediately.
-            // When this edit is the only change since, the rest move over it
-            // and stay actionable (a second fix on the line works at once);
-            // otherwise they wait for the re-check (DiagnosticStore.resolve).
+            // When this edit is the only change since -- one version on, and
+            // the text exactly the edit's result (an editor may apply it its
+            // own way, or something on the page change it in the same step)
+            // -- the rest move over it and stay actionable (a second fix on
+            // the line works at once); otherwise they wait for the re-check
+            // (DiagnosticStore.resolve).
             // Only over the list this started from: a check that landed during
             // the edit has the newer one, and the re-check below follows it.
             if (store.holds(uriStr, generation)) {
-                if (document.version === before.version + 1) {
+                if (document.version === before.version + 1 && document.getText() === applyChange(before.text, change)) {
                     store.write(uriStr, uri, rebaseOver(others, spans, before.text, change, document), document.version);
                 } else {
                     store.write(uriStr, uri, others);

@@ -31,6 +31,11 @@ export function rebaseSpan(span: Span, change: TextChange): Span | undefined {
     return undefined;
 }
 
+/** `before` with `change` made: the text a rebase over it assumes. */
+export function applyChange(before: string, change: TextChange): string {
+    return before.slice(0, change.start) + change.text + before.slice(change.end);
+}
+
 const utf8 = new TextEncoder();
 
 /** How many UTF-8 bytes `change` adds to `before` (negative when it removes): what the core's byte offsets after it shift by. */
