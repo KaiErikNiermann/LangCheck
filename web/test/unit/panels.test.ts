@@ -2,8 +2,8 @@
 // lives in, who may talk to it, and that every way a panel ends is reported
 // once and leaves nothing behind.
 import { describe, expect, test } from 'vitest';
-import { MAX_QUEUED, Panels, type PanelPort, type TabsApi } from '../../src/background/panels';
-import { WEBVIEW_TYPE, type PageToPanel } from '../../src/messaging/webview';
+import { MAX_OPENS, MAX_QUEUED, OPEN_WINDOW_MS, Panels, type PanelPort, type TabsApi } from '../../src/background/panels';
+import { WEBVIEW_TYPE, type PageToPanel, type ViewType } from '../../src/messaging/webview';
 
 class FakePort implements PanelPort {
     readonly sent: unknown[] = [];
@@ -50,7 +50,8 @@ function fakeTabs(options: { failCreate?: boolean } = {}) {
 }
 
 const SOURCE = 7;
-const open = (panel = 'p1'): PageToPanel => ({ type: WEBVIEW_TYPE, op: 'open', panel, viewType: 'speedFix' });
+const open = (panel = 'p1', viewType: ViewType = 'speedFix'): PageToPanel => ({ type: WEBVIEW_TYPE, op: 'open', panel, viewType });
+const close = (panel: string): PageToPanel => ({ type: WEBVIEW_TYPE, op: 'close', panel });
 const post = (message: unknown): PageToPanel => ({ type: WEBVIEW_TYPE, op: 'post', panel: 'p1', message });
 const closedMessage = { webview: { type: WEBVIEW_TYPE, op: 'closed', panel: 'p1' } };
 
@@ -158,7 +159,7 @@ describe('Panels', () => {
         const old = new FakePort();
         const current = new FakePort();
         panels.fromPage(SOURCE, old, open('p1'));
-        panels.fromPage(SOURCE, current, open('p2'));
+        panels.fromPage(SOURCE, current, open('p2', 'inspector'));
         await fake.settle();
         panels.sourceGone(SOURCE, old);
         expect(panels.size).toBe(2);
@@ -213,5 +214,36 @@ describe('Panels', () => {
         panels.fromPage(SOURCE, page, { type: WEBVIEW_TYPE, op: 'reveal', panel: 'p1' });
         panels.fromPage(SOURCE, page, { type: WEBVIEW_TYPE, op: 'focusEditor' });
         expect(fake.activated).toEqual([100, SOURCE]);
+    });
+
+    test('one panel of a kind per page: a second is refused, reported closed, and opens no tab', async () => {
+        const fake = fakeTabs();
+        const panels = new Panels(fake.tabs);
+        const page = new FakePort();
+        panels.fromPage(SOURCE, page, open('p1'));
+        panels.fromPage(SOURCE, page, open('p2'));
+        panels.fromPage(SOURCE, page, open('p3', 'inspector'));
+        await fake.settle();
+        expect(fake.created.map((c) => c.url)).toEqual(['ext://webview/speedFix.html', 'ext://webview/inspector.html']);
+        expect(page.sent).toEqual([{ webview: { type: WEBVIEW_TYPE, op: 'closed', panel: 'p2' } }]);
+        // Another page has its own.
+        panels.fromPage(SOURCE + 1, new FakePort(), open('p1'));
+        expect(fake.created).toHaveLength(3);
+    });
+
+    test('a page opening and closing in a loop is held to MAX_OPENS tabs a minute', async () => {
+        const fake = fakeTabs();
+        let now = 0;
+        const panels = new Panels(fake.tabs, () => now);
+        const page = new FakePort();
+        for (let i = 0; i < MAX_OPENS * 3; i++) {
+            panels.fromPage(SOURCE, page, open(`p${String(i)}`));
+            panels.fromPage(SOURCE, page, close(`p${String(i)}`));
+        }
+        await fake.settle();
+        expect(fake.created).toHaveLength(MAX_OPENS);
+        now = OPEN_WINDOW_MS;
+        panels.fromPage(SOURCE, page, open('later'));
+        expect(fake.created).toHaveLength(MAX_OPENS + 1);
     });
 });

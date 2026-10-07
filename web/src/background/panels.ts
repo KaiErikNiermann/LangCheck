@@ -10,6 +10,16 @@ import { isBoundedMessage, WEBVIEW_TYPE, type PageToPanel, type PanelToPage, typ
 /** Messages kept for a panel tab that has not connected yet (its app is loading). */
 export const MAX_QUEUED = 256;
 
+/**
+ * Tabs a page may open in a window of OPEN_WINDOW_MS. The page world is
+ * untrusted (the site's scripts, and other extensions' scripts in it, share
+ * it), so opening tabs is bounded twice: one panel per view type at a time,
+ * as in VS Code, and this many opens a minute, so an open/close loop cannot
+ * churn tabs either.
+ */
+export const MAX_OPENS = 10;
+export const OPEN_WINDOW_MS = 60_000;
+
 /** A runtime port, as far as the panels use it. */
 export interface PanelPort {
     postMessage(message: unknown): void;
@@ -27,6 +37,7 @@ export interface TabsApi {
 interface Panel {
     readonly id: string;
     readonly source: number;
+    readonly viewType: ViewType;
     tab: number | undefined;
     port: PanelPort | undefined;
     readonly queue: unknown[];
@@ -41,8 +52,13 @@ export class Panels {
     private readonly panels = new Map<string, Panel>();
     private readonly byTab = new Map<number, Panel>();
     private readonly sources = new Map<number, PanelPort>();
+    /** When each page last opened tabs, oldest first (at most MAX_OPENS each). */
+    private readonly opens = new Map<number, number[]>();
 
-    constructor(private readonly tabs: TabsApi) {}
+    constructor(
+        private readonly tabs: TabsApi,
+        private readonly now: () => number = () => performance.now(),
+    ) {}
 
     /** A message from the content script of `source` (a tab id), over `port`. */
     fromPage(source: number, port: PanelPort, message: PageToPanel, windowId?: number): void {
@@ -54,7 +70,10 @@ export class Panels {
         const existing = this.panels.get(key(source, message.panel));
         switch (message.op) {
             case 'open':
-                if (existing === undefined) this.open(source, message.panel, message.viewType, windowId);
+                if (existing !== undefined) return;
+                if (this.mayOpen(source, message.viewType)) this.open(source, message.panel, message.viewType, windowId);
+                // Refused: the page's panel learns it will get no tab.
+                else this.toSource(source, { type: WEBVIEW_TYPE, op: 'closed', panel: message.panel });
                 return;
             case 'post':
                 if (existing !== undefined) this.deliver(existing, message.message);
@@ -72,6 +91,7 @@ export class Panels {
     sourceGone(source: number, port: PanelPort): void {
         if (this.sources.get(source) !== port) return;
         this.sources.delete(source);
+        this.opens.delete(source);
         // Deleting from a Map while iterating it is defined: the loop sees the rest.
         for (const panel of this.panels.values()) if (panel.source === source) this.close(panel, false);
     }
@@ -110,8 +130,19 @@ export class Panels {
         return this.panels.size;
     }
 
+    /** Whether `source` may open a `viewType` panel now, counting the open if so. */
+    private mayOpen(source: number, viewType: ViewType): boolean {
+        for (const panel of this.panels.values()) if (panel.source === source && panel.viewType === viewType) return false;
+        const now = this.now();
+        const recent = (this.opens.get(source) ?? []).filter((at) => now - at < OPEN_WINDOW_MS);
+        if (recent.length >= MAX_OPENS) return false;
+        recent.push(now);
+        this.opens.set(source, recent);
+        return true;
+    }
+
     private open(source: number, id: string, viewType: ViewType, windowId: number | undefined): void {
-        const panel: Panel = { id, source, tab: undefined, port: undefined, queue: [], closed: false };
+        const panel: Panel = { id, source, viewType, tab: undefined, port: undefined, queue: [], closed: false };
         this.panels.set(key(source, id), panel);
         void this.tabs
             .create({ url: this.tabs.pageUrl(viewType), openerTabId: source, ...(windowId !== undefined && { windowId }) })
@@ -149,8 +180,12 @@ export class Panels {
     }
 
     private toPage(panel: Panel, message: PanelToPage): void {
+        this.toSource(panel.source, message);
+    }
+
+    private toSource(source: number, message: PanelToPage): void {
         try {
-            this.sources.get(panel.source)?.postMessage({ webview: message });
+            this.sources.get(source)?.postMessage({ webview: message });
         } catch {
             // The page's content script went away; sourceGone follows.
         }
