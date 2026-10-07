@@ -44,6 +44,23 @@ function cm6Surface(view: EditorView): PopoverSurface {
     };
 }
 
+/**
+ * The base theme, one per CodeMirror build on the page. CodeMirror mounts
+ * each theme's style module into the document and never removes it, so a
+ * theme built per attach added the whole stylesheet again on every file
+ * switch (the e2e memory test caught it: 60 rules a switch, without end).
+ */
+const themes = new WeakMap<object, Extension>();
+
+function themeFor(Ev: Cm6Kit['EditorView']): Extension {
+    let theme = themes.get(Ev);
+    if (theme === undefined) {
+        theme = Ev.baseTheme(CM6_THEME);
+        themes.set(Ev, theme);
+    }
+    return theme;
+}
+
 export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, languageId: string): Cm6Adapter {
     const { Compartment, Decoration, EditorView: Ev, StateEffect } = kit;
     const compartment = Compartment === undefined ? undefined : new Compartment();
@@ -145,7 +162,7 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
             if (update.geometryChanged) card.popover.reposition();
             if (update.transactions.some((tr) => tr.effects.some((e) => e.is(diagnosticsEffect)))) card.republished();
         }),
-        Ev.baseTheme(CM6_THEME),
+        themeFor(Ev),
     ];
     const extension: Extension = compartment === undefined ? parts : compartment.of(parts);
 

@@ -23,7 +23,10 @@ const endMarker = StateField.define<DecorationSet>({
     update: (_, tr) => Decoration.set([Decoration.widget({ widget: new EndMarker(), side: 1 }).range(tr.state.doc.length)]),
     provide: (field) => EditorView.decorations.from(field),
 });
-const hostExtensions = (): Extension => [theme.of(EditorView.theme({})), endMarker, EditorView.lineWrapping];
+// One theme for every state: a theme built per state mounts a style module
+// that is never removed (what the memory tests look for in ours).
+const baseTheme = EditorView.theme({});
+const hostExtensions = (): Extension => [theme.of(baseTheme), endMarker, EditorView.lineWrapping];
 
 const overleaf = location.hostname === '127.0.0.1';
 const params = new URLSearchParams(location.search);
