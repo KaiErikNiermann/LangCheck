@@ -18,6 +18,8 @@ export interface ResolvedDiagnostic {
     readonly index: number;
     /** The whole list it is in, for an optimistic removal. */
     readonly diagnostics: ExtendedDiagnostic[];
+    /** That list's generation: an optimistic write replaces it only while it is still the store's ({@link DiagnosticStore.holds}). */
+    readonly generation: number;
 }
 
 export class DiagnosticStore implements vscode.Disposable, Iterable<[UriKey, ExtendedDiagnostic[]]> {
@@ -101,7 +103,17 @@ export class DiagnosticStore implements vscode.Disposable, Iterable<[UriKey, Ext
         if (parsed === undefined || diagnostics === undefined) return undefined;
         if (parsed.generation !== this.generations.get(uri) || !this.isCurrent(document)) return undefined;
         const diagnostic = diagnostics[parsed.index];
-        return diagnostic === undefined ? undefined : { diagnostic, index: parsed.index, diagnostics };
+        return diagnostic === undefined ? undefined : { diagnostic, index: parsed.index, diagnostics, generation: parsed.generation };
+    }
+
+    /**
+     * Whether `uri`'s list is still the one of `generation`. An action that
+     * awaited (a fix, an ignore) asks before writing the list it computed
+     * from: a check that landed meanwhile replaced it, and the action's list
+     * would put back what that check took out.
+     */
+    holds(uri: UriKey, generation: number): boolean {
+        return this.generations.get(uri) === generation;
     }
 
     /** Drop everything, silently: used before a full re-check that will publish afresh. */

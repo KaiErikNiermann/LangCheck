@@ -102,7 +102,7 @@ export class DiagnosticActions {
         const uriStr = uriKey(uri);
         const found = this.resolve(diagnosticId, editor.document, 'applyFix');
         if (!found) return;
-        const { diagnostic, index, diagnostics } = found;
+        const { diagnostic, index, diagnostics, generation } = found;
 
         const t0 = performance.now();
         const origText = editor.document.getText(diagnostic.range);
@@ -132,12 +132,16 @@ export class DiagnosticActions {
             // When this edit is the only change since, the rest move over it
             // and stay actionable (a second fix on the line works at once);
             // otherwise they wait for the re-check (DiagnosticStore.resolve).
-            if (document.version === before.version + 1) {
-                store.write(uriStr, uri, rebaseOver(others, spans, before.text, change, document), document.version);
-            } else {
-                store.write(uriStr, uri, others);
+            // Only over the list this started from: a check that landed during
+            // the edit has the newer one, and the re-check below follows it.
+            if (store.holds(uriStr, generation)) {
+                if (document.version === before.version + 1) {
+                    store.write(uriStr, uri, rebaseOver(others, spans, before.text, change, document), document.version);
+                } else {
+                    store.write(uriStr, uri, others);
+                }
+                store.notify();
             }
-            store.notify();
 
             // Background re-check for full consistency
             inspectorLog.push('debug', 'applyFix', 'Re-checking after fix', { durationMs: performance.now() - t0 });
@@ -157,7 +161,7 @@ export class DiagnosticActions {
         const uri = uriKey(editor.document.uri);
         const found = this.resolve(diagnosticId, editor.document, 'ignoreDiagnostic');
         if (found) {
-            const { diagnostic, index, diagnostics } = found;
+            const { diagnostic, index, diagnostics, generation } = found;
             speedFix.sendLoading(true);
             const t0 = performance.now();
             const ignoredText = editor.document.getText(diagnostic.range);
@@ -166,10 +170,12 @@ export class DiagnosticActions {
             // offsets so the fingerprint matches the one created during checkProse.
             await core.client.sendRequest(ignoreRequest(diagnostic, editor.document, editor.document.getText()));
 
-            // Optimistic removal: remove the ignored diagnostic immediately
-            const remaining = diagnostics.filter((_, i) => i !== index);
-            store.write(uri, editor.document.uri, remaining);
-            store.notify();
+            // Optimistic removal: remove the ignored diagnostic immediately,
+            // over the list this started from only (see applyFixNow).
+            if (store.holds(uri, generation)) {
+                store.write(uri, editor.document.uri, diagnostics.filter((_, i) => i !== index));
+                store.notify();
+            }
             speedFix.sendLoading(false);
             inspectorLog.push('info', 'ignoreDiagnostic', 'Ignore confirmed, re-checking', { durationMs: performance.now() - t0 });
 

@@ -51,4 +51,14 @@ describe('DiagnosticStore.resolve', () => {
         expect(store.resolve('diag-0', documentAt(3))).toBeUndefined();
         expect(store.resolve('', documentAt(3))).toBeUndefined();
     });
+
+    it('says whether the list a finding came from is still the store\'s, for a write after an await', () => {
+        const store = published();
+        const found = store.resolve(store.idOf(key, 0), documentAt(3));
+        expect(found && store.holds(key, found.generation)).toBe(true);
+        // A check lands while the action awaits.
+        store.publishCheck(URI, [finding('b')], 3);
+        expect(found && store.holds(key, found.generation)).toBe(false);
+    });
 });
+
