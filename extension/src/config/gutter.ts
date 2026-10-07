@@ -108,7 +108,7 @@ type ProbeFn = (
 export class ConfigStatusView implements vscode.Disposable {
     private readonly decorations: Record<Exclude<ConfigStatus, 'skipped'>, vscode.TextEditorDecorationType>;
     private readonly diagnostics: vscode.DiagnosticCollection;
-    private readonly timers = new Map<string, NodeJS.Timeout>();
+    private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
     private readonly snapshots = new Map<string, ConfigStatusSnapshot>();
     private readonly subscriptions: vscode.Disposable[] = [];
     /** Guards against a slow probe overwriting a newer one's result. */
@@ -122,7 +122,7 @@ export class ConfigStatusView implements vscode.Disposable {
     constructor(
         private readonly extensionUri: vscode.Uri,
         private readonly probe: ProbeFn,
-        private readonly log: Logger,
+        private readonly log: Pick<Logger, 'warn'>,
     ) {
         this.decorations = {
             ok: this.gutter('check-circle-a.svg'),
