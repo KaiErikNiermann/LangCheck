@@ -99,9 +99,18 @@ export async function clipboardText(window: VSCodeWindow): Promise<string> {
     return window.app.evaluate(({ clipboard }) => clipboard.readText());
 }
 
-/** The text of the first editor, as rendered (blank lines collapse). */
+/**
+ * The text of the first editor, as rendered (blank lines collapse), without
+ * the inlay hints: VS Code draws those as injected text, spans of a
+ * `dyn-rule-*` class among the document's own.
+ */
 export async function editorText(page: Page): Promise<string> {
-    const text = await page.locator('.editor-group-container .view-lines').first().innerText();
+    const text = await page.locator('.editor-group-container .view-lines').first().evaluate(lines => {
+        const copy = lines.cloneNode(true) as typeof lines;
+        for (const injected of copy.querySelectorAll('[class*="dyn-rule-"]')) injected.remove();
+        // innerText needs layout, which a detached copy does not have.
+        return [...copy.querySelectorAll('.view-line')].map(line => line.textContent ?? '').join('\n');
+    });
     return text.replace(/\u00a0/g, ' ');
 }
 
