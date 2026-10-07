@@ -36,6 +36,9 @@ rules:
       devtools console that nobody has open. `client.ts` has 4 such calls, and they are on the
       core-crashed and core-restarting paths — precisely the ones you need evidence for.
     paths:
+      include:
+        # The browser extension (web/) has no output channel; its console is the sink.
+        - "**/extension/src/"
       exclude:
         - "**/extension/src/shared/logger.ts"
         - "**/extension/src/test/"
@@ -505,3 +508,67 @@ rules:
         - "**/extension/src/shared/documents.ts"
         - "**/extension/src/test/"
     pattern-regex: '\buri\.toString\(\)'
+
+  - id: use-leading-request-id
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      `wire::leading_request_id` reads the id of a request that does not decode, so the error goes
+      back under that id and the client fails the call at once instead of waiting out a timeout.
+      The server and the native host both use it. Forward-only guard: it was moved out of the
+      server binary when the host needed it (2026-10-07), so there is no backlog. A second
+      hand-rolled varint read of field 1 belongs in `wire.rs`.
+    paths:
+      exclude:
+        - "**/rust-core/src/wire.rs"
+    pattern: $BYTES.strip_prefix(&[0x08])
+
+  - id: use-view-from-content-dom
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      `viewFromContentDom` (web/src/editor/cm6kit.ts) is the one place that reads CodeMirror's
+      DOM-to-view link. That link moved from `cmView.view` to `cmTile.root.view` in
+      @codemirror/view 6.39.0, and a second reader would know only one of the two forms. Forward-only
+      guard, added with the helper (2026-10-07).
+    paths:
+      exclude:
+        - "**/web/src/editor/cm6kit.ts"
+        - "**/web/test/"
+    pattern-either:
+      - pattern: $X.cmView
+      - pattern: $X.cmTile
+
+  - id: use-replaced-decorations
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      `replacedDecorations` (web/src/editor/cm6Adapter.ts) is the decoration layer both of the
+      adapter's fields are: map the set through every edit, replace it when an effect carries a
+      new list. jscpd found the two hand-written copies it replaced (2026-10-07). Use it for a
+      third layer rather than a fresh `StateField.define`.
+    paths:
+      include:
+        - "**/web/src/"
+    patterns:
+      - pattern-either:
+          - pattern: $KIT.StateField.define(...)
+          - pattern: StateField.define(...)
+      - pattern-not-inside: |
+          function replacedDecorations(...) { ... }
+
+  - id: use-web-base64
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      `bytesToBase64`/`base64ToBytes` (web/src/background/base64.ts) chunk the conversion so a
+      large frame does not overflow `String.fromCharCode`'s argument limit. Forward-only guard,
+      added with the helpers (2026-10-07).
+    paths:
+      include:
+        - "**/web/src/"
+      exclude:
+        - "**/web/src/background/base64.ts"
+    pattern-either:
+      - pattern: btoa(...)
+      - pattern: atob(...)

@@ -42,7 +42,7 @@ JOBS="${PATTERNS_JOBS:-1}"
 PYTHON="${PATTERNS_PYTHON:-3.13}"
 
 RUST_TARGETS=(rust-core/src rust-core/benches rust-core/examples rust-core/tests)
-TS_TARGETS=(extension/src)
+TS_TARGETS=(extension/src web/src)
 SH_TARGETS=(scripts)
 PY_TARGETS=(scripts)
 # Non-workflow YAML only. `r/yaml` carries the github-actions rules too, so pointing it at
