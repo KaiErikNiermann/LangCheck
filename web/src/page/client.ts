@@ -21,6 +21,7 @@ import { InspectorLog } from '../../../extension/src/ui/inspectorLog';
 import { InspectorPanel, type InspectorEnvironment } from '../../../extension/src/ui/webviews/inspector';
 import { SpeedFixPanel, speedFixActions } from '../../../extension/src/ui/webviews/speedFix';
 import type { CoreClient } from '../messaging/pageClient';
+import { WEBVIEW_TYPE } from '../messaging/webview';
 import { host } from '../shim/vscode';
 import { WebCore } from './transport';
 
@@ -38,6 +39,7 @@ export const WEB_COMMANDS: ReadonlySet<string> = new Set([
     COMMANDS.fixAllSpellingInWorkspace,
     COMMANDS.openSpeedFix,
     COMMANDS.openInspector,
+    COMMANDS.editConfig,
 ]);
 
 const SELECTOR = ['latex', 'typst', 'bibtex', 'markdown', 'plaintext'].map((language) => ({ language }));
@@ -177,7 +179,20 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
     const handlers: Record<string, (...args: never[]) => unknown> = {
         ...checkCommands({ results, checker, speedFix, inspector }),
         ...diagnosticsCommands({ log: console_, store, suppression, inspectorLog, fixTarget, core, checker, actions, speedFix }),
+        // The web's own: the config is the native host's, edited in the
+        // extension's config page, which the background opens for this workspace.
+        [COMMANDS.editConfig]: () => {
+            connection.post({ type: WEBVIEW_TYPE, op: 'openConfig' });
+        },
     };
+    // Saved there: the core re-read it, and checks run again under it, as
+    // VS Code's reload does after a config change.
+    connection.onReload(() => {
+        store.clear();
+        results.clearDocuments();
+        void inspector.update();
+        checkAll();
+    });
     for (const [id, handler] of Object.entries(handlers)) {
         if (WEB_COMMANDS.has(id)) context.subscriptions.push(vscode.commands.registerCommand(id, handler));
     }

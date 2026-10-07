@@ -16,6 +16,9 @@ const result = await esbuild.build({
         ['palette', 'src/palette/page.ts'],
         ['options', 'src/options/options.ts'],
         ['webview/bridge', 'src/webview/bridge.ts'],
+        // The config page, and Monaco's editor worker for it.
+        ['config/config', 'src/config/page.ts'],
+        ['config/editor.worker', 'monaco-editor/editor/editor.worker.js'],
         ...SITES.flatMap((s) => [
             [`content-${s}`, `src/entries/content-${s}.ts`],
             [`page-${s}`, `src/entries/page-${s}.ts`],
@@ -33,6 +36,8 @@ const result = await esbuild.build({
     sourcemap: test ? 'inline' : false,
     minify: !test,
     metafile: true,
+    // Monaco's styles and its icon font, for the config page.
+    loader: { '.ttf': 'file' },
     logLevel: 'warning',
 });
 
@@ -70,7 +75,9 @@ for (const resources of manifest.web_accessible_resources) {
 await mkdir(outdir, { recursive: true });
 await writeFile(`${outdir}/manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
 await copyFile('icon-128.png', `${outdir}/icon.png`);
-for (const page of ['palette.html', 'options.html']) await copyFile(page, `${outdir}/${page}`);
+for (const page of ['palette.html', 'options.html', 'config.html']) await copyFile(page, `${outdir}/${page}`);
+// The gutter icons ConfigStatusView draws, from the extension's media.
+await cp('../extension/media/gutter', `${outdir}/config/media/gutter`, { recursive: true });
 
 // The panels: the client's own webview apps (extension/webview, built by
 // `pnpm run build:webview`), each in a page shaped like the one VS Code gives

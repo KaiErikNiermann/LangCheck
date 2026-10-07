@@ -115,10 +115,20 @@ export class Position {
 }
 
 export class Range {
-    constructor(
-        readonly start: Position,
-        readonly end: Position,
-    ) {}
+    readonly start: Position;
+    readonly end: Position;
+    /** As VS Code's: two positions, or a start line and character and an end line and character. */
+    constructor(start: Position, end: Position);
+    constructor(startLine: number, startCharacter: number, endLine: number, endCharacter: number);
+    constructor(...args: [Position, Position] | [number, number, number, number]) {
+        if (args.length === 2) {
+            this.start = args[0];
+            this.end = args[1];
+        } else {
+            this.start = new Position(args[0], args[1]);
+            this.end = new Position(args[2], args[3]);
+        }
+    }
     get isEmpty(): boolean {
         return this.start.isEqual(this.end);
     }
@@ -154,6 +164,34 @@ export enum TextEditorRevealType {
     InCenter = 1,
     InCenterIfOutsideViewport = 2,
     AtTop = 3,
+}
+
+/** VS Code's DiagnosticCollection, as far as the client uses one. */
+export interface DiagnosticCollection {
+    readonly name: string;
+    set(uri: Uri, list: readonly Diagnostic[] | undefined): void;
+    delete(uri: Uri): void;
+    get(uri: Uri): readonly Diagnostic[] | undefined;
+    clear(): void;
+    dispose(): void;
+}
+
+export enum DecorationRangeBehavior {
+    OpenOpen = 0,
+    ClosedClosed = 1,
+    OpenClosed = 2,
+    ClosedOpen = 3,
+}
+
+/** VS Code's decoration type, as far as the shim draws one: a gutter icon. */
+export interface TextEditorDecorationType {
+    readonly key: string;
+    dispose(): void;
+}
+
+interface DecorationOptions {
+    readonly range: Range;
+    readonly hoverMessage?: MarkdownString | string;
 }
 
 export enum ViewColumn {
@@ -250,6 +288,8 @@ export class WorkspaceEdit {
 }
 
 export class MarkdownString {
+    /** Whether command links run; the shim renders no links, so it is never read. */
+    isTrusted = false;
     constructor(public value = '') {}
     appendText(text: string): this {
         this.value += text;
@@ -415,6 +455,24 @@ export class TextEditor {
         this.document.adapter.select(this.document.offsetAt(selection.start), this.document.offsetAt(selection.end));
     }
 
+    /** Draws `type`'s marks, where the editor can (a gutter): see EditorAdapter.renderDecorations. */
+    setDecorations(type: TextEditorDecorationType, marks: readonly Range[] | readonly DecorationOptions[]): void {
+        const drawn = host.decorationTypes.get(type.key);
+        if (drawn === undefined) return;
+        this.document.adapter.renderDecorations?.(
+            drawn,
+            marks.map((mark) => {
+                const range = mark instanceof Range ? mark : mark.range;
+                const hover = mark instanceof Range ? undefined : mark.hoverMessage;
+                return {
+                    from: this.document.offsetAt(range.start),
+                    to: this.document.offsetAt(range.end),
+                    hover: typeof hover === 'string' ? hover : hover?.value,
+                };
+            }),
+        );
+    }
+
     revealRange(range: Range, _type?: TextEditorRevealType): void {
         this.document.adapter.select(this.document.offsetAt(range.start), this.document.offsetAt(range.end));
     }
@@ -485,6 +543,15 @@ class Host {
     readonly commands = new Map<string, (...args: never[]) => unknown>();
     readonly onDidOpen = new EventEmitter<TextDocument>();
     readonly onDidClose = new EventEmitter<TextDocument>();
+    /** Fired by whoever saves (the config page): a page's documents are the site's to save. */
+    readonly onDidSave = new EventEmitter<TextDocument>();
+    readonly onDidChangeVisibleEditors = new EventEmitter<readonly TextEditor[]>();
+    /** Decoration types by key, with what an editor draws for them. */
+    readonly decorationTypes = new Map<string, { readonly key: string; readonly gutterIcon: string | undefined }>();
+    private decorationTypeCount = 0;
+    nextDecorationKey(): string {
+        return `decoration-${String(++this.decorationTypeCount)}`;
+    }
     readonly onDidChange = new EventEmitter<{ document: TextDocument; contentChanges: readonly never[] }>();
     readonly unsupported = new Set<string>();
     /** Opens a panel's page; installed by the composition root. */
@@ -661,7 +728,7 @@ function register<P>(list: Registration<P>[], selector: Selector | readonly Sele
 }
 
 export const languages = withFallback('languages', {
-    createDiagnosticCollection(name = 'default') {
+    createDiagnosticCollection(name = 'default'): DiagnosticCollection {
         const owner = `${name}#${String(host.nextCollectionId())}`;
         const touched = new Set<string>();
         const setFor = (uri: string, list: readonly Diagnostic[]): void => {
@@ -760,6 +827,7 @@ export const workspace = withFallback('workspace', {
     onDidOpenTextDocument: host.onDidOpen.event,
     onDidChangeTextDocument: host.onDidChange.event,
     onDidCloseTextDocument: host.onDidClose.event,
+    onDidSaveTextDocument: host.onDidSave.event,
     /** Only documents already open in the page exist: a web page opens no files. */
     openTextDocument(uri: Uri): Promise<TextDocument> {
         const doc = host.documents.get(uri.toString());
@@ -957,6 +1025,20 @@ export const window = withFallback('window', {
         return webviewPanel(viewType, title, host.webviews(viewType, title));
     },
     /** A page has no status bar: the item exists, shows nowhere. */
+    onDidChangeVisibleTextEditors: host.onDidChangeVisibleEditors.event,
+    /** Only the gutter icon is drawn (by an editor with a gutter): a page has no other use for decorations yet. */
+    createTextEditorDecorationType(options: { readonly gutterIconPath?: Uri | string; readonly gutterIconSize?: string; readonly rangeBehavior?: DecorationRangeBehavior }): TextEditorDecorationType {
+        const key = host.nextDecorationKey();
+        const icon = options.gutterIconPath;
+        const gutterIcon = typeof icon === 'string' ? icon : icon?.toString();
+        host.decorationTypes.set(key, { key, gutterIcon });
+        return {
+            key,
+            dispose: () => {
+                host.decorationTypes.delete(key);
+            },
+        };
+    },
     createStatusBarItem(_alignment?: StatusBarAlignment, _priority?: number): StatusBarItem {
         return { text: '', tooltip: undefined, command: undefined, backgroundColor: undefined, show: () => {}, hide: () => {}, dispose: () => {} };
     },

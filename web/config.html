@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Config - LangCheck</title>
+<link rel="stylesheet" href="config/config.css">
+<style>
+  /* Token table: every literal on this page, bound once. */
+  :root {
+    color-scheme: light dark;
+    --space: 6px;
+    --font: 13px system-ui, sans-serif;
+    --saved: light-dark(#2e7d32, #81c784);
+    --unsaved: light-dark(#6d6d6d, #a0a0a0);
+    --error: light-dark(#c62828, #ef9a9a);
+    --bar-border: light-dark(#d4d4d4, #454545);
+  }
+  html, body { block-size: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; font: var(--font); }
+  #status { padding: var(--space); border-block-end: 1px solid var(--bar-border); color: var(--unsaved); }
+  #status[data-state="saved"] { color: var(--saved); }
+  #status[data-state="error"] { color: var(--error); }
+  #editor { flex: 1; min-block-size: 0; }
+</style>
+</head>
+<body>
+<p id="status" role="status">Loading the config…</p>
+<div id="editor"></div>
+<script src="config/config.js"></script>
+</body>
+</html>

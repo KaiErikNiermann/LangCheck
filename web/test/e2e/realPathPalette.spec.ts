@@ -16,14 +16,14 @@ async function ready(page: Page): Promise<void> {
 test('Ctrl+P opens the palette over the editor, listing the client commands with their VS Code titles', async ({ page }) => {
     await ready(page);
     await page.keyboard.press('Control+KeyP');
-    await expect(palette(page).locator('ninja-action')).toHaveText([/Check Current Document/u, /Open SpeedFix/u, /Open Inspector/u]);
+    await expect(palette(page).locator('ninja-action')).toHaveText([/Check Current Document/u, /Open SpeedFix/u, /Open Inspector/u, /Edit Config/u]);
 });
 
 test('choosing a command runs it, closes the palette and returns focus to the text', async ({ page }) => {
     await ready(page);
     const before = await checks(page);
     await page.keyboard.press('Control+KeyP');
-    await expect(palette(page).locator('ninja-action')).toHaveCount(3);
+    await expect(palette(page).locator('ninja-action')).toHaveCount(4);
     await page.keyboard.type('check');
     await page.keyboard.press('Enter');
     await expect(page.locator('iframe[title="Language Check commands"]')).toHaveCount(0);
@@ -35,12 +35,12 @@ test('Escape, or the binding again, closes it without running anything', async (
     await ready(page);
     const before = await checks(page);
     await page.keyboard.press('Control+KeyP');
-    await expect(palette(page).locator('ninja-action')).toHaveCount(3);
+    await expect(palette(page).locator('ninja-action')).toHaveCount(4);
     await page.keyboard.press('Escape');
     await expect(page.locator('iframe[title="Language Check commands"]')).toHaveCount(0);
     await expect(page.locator('.cm-content')).toBeFocused();
     await page.keyboard.press('Control+KeyP');
-    await expect(palette(page).locator('ninja-action')).toHaveCount(3);
+    await expect(palette(page).locator('ninja-action')).toHaveCount(4);
     await page.keyboard.press('Control+KeyP');
     await expect(page.locator('iframe[title="Language Check commands"]')).toHaveCount(0);
     expect(await checks(page)).toBe(before);
@@ -60,7 +60,7 @@ test('the binding can be changed on the options page', async ({ page, context, e
     await page.keyboard.press('Control+KeyP');
     await expect(page.locator('iframe[title="Language Check commands"]')).toHaveCount(0);
     await page.keyboard.press('Control+Shift+KeyL');
-    await expect(palette(page).locator('ninja-action')).toHaveCount(3);
+    await expect(palette(page).locator('ninja-action')).toHaveCount(4);
 });
 
 test('a command typed and entered straight after the binding runs, and no key reaches the document', async ({ page, context }) => {

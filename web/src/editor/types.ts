@@ -19,6 +19,19 @@ export interface RenderedAction {
     run(): Promise<void>;
 }
 
+/** A decoration type, as far as an editor draws it: a key, and the gutter icon (a URL) if it has one. */
+export interface RenderedDecorationType {
+    readonly key: string;
+    readonly gutterIcon: string | undefined;
+}
+
+/** One mark of a decoration type: `[from, to)`, and the text its hover shows. */
+export interface RenderedDecoration {
+    readonly from: number;
+    readonly to: number;
+    readonly hover: string | undefined;
+}
+
 /** Ghost text drawn at `at`, the way VS Code draws an inlay hint. */
 export interface RenderedHint {
     readonly at: number;
@@ -52,6 +65,11 @@ export interface EditorAdapter {
     onDidChange(listener: () => void): void;
     renderDiagnostics(diagnostics: readonly RenderedDiagnostic[]): void;
     renderHints(hints: readonly RenderedHint[]): void;
+    /**
+     * Draws one decoration type's marks (VS Code's setDecorations), for an
+     * editor that has a gutter to draw them in; the others leave it out.
+     */
+    renderDecorations?(type: RenderedDecorationType, marks: readonly RenderedDecoration[]): void;
     /** Applies all of `edits`, or none when any span no longer holds what it expects (then `false`). */
     applyEdits(edits: readonly TextEdit[]): boolean;
     setActionSource(source: ActionSource): void;
