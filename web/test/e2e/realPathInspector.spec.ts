@@ -43,3 +43,15 @@ for (const scenario of INSPECTOR_SCENARIOS) {
         expect(panel === undefined ? [] : panelErrors.get(panel), 'uncaught errors in the panel').toEqual([]);
     });
 }
+
+// The browser's own: the Config tab names the config in force (by file
+// name: the host scrubs paths), and leaves out the files it selects, which
+// in the browser are the native host's own.
+test('the Config tab names the config in force', async ({ page, dataHome }) => {
+    const driver = browserDriver(page, dataHome);
+    const panel = await driver.open('uiInspector');
+    await panel.locator('.tab', { hasText: 'Config' }).click();
+    await expect(panel.locator('.config-path')).toHaveText('.languagecheck.yaml');
+    await expect(panel.locator('.empty-state', { hasText: 'The core is not running' })).toHaveCount(0);
+});
+

@@ -141,8 +141,12 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         fixTarget,
         inspectorLog,
         check: (document) => checker.check(document),
-        // The host refuses config listings to the web (they name local paths).
-        listConfigFiles: () => Promise.resolve(null),
+        // By file name (the host scrubs paths), without the files it selects:
+        // in the browser those are the native host's own (background.ts forPage).
+        listConfigFiles: async () => {
+            const answer = await core.client.sendRequest({ listConfigFiles: {} });
+            return answer.listConfigFiles ?? null;
+        },
         environment: webEnvironment(results),
     });
 
@@ -191,6 +195,8 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         store.clear();
         results.clearDocuments();
         void inspector.update();
+        // include, exclude and file_types may be what changed.
+        void inspector.refreshConfigScope();
         checkAll();
     });
     for (const [id, handler] of Object.entries(handlers)) {

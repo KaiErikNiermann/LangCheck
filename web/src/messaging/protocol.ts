@@ -54,7 +54,9 @@ export type CoreRequest =
               readonly endByte: number;
           };
       }
-    | { readonly getMetadata: Record<string, never> };
+    | { readonly getMetadata: Record<string, never> }
+    /** Which config is in force (by file name: the host scrubs paths) and what it includes, for the Inspector's Config tab. */
+    | { readonly listConfigFiles: Record<string, never> };
 
 export interface PageRequest {
     readonly id: number;
@@ -125,6 +127,8 @@ function parseCoreRequest(kind: string | undefined, body: unknown): CoreRequest 
         }
         case 'getMetadata':
             return { getMetadata: {} };
+        case 'listConfigFiles':
+            return { listConfigFiles: {} };
         default:
             return undefined;
     }

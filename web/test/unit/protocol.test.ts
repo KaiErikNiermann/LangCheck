@@ -8,11 +8,15 @@ import { MAX_CHECK_TEXT_BYTES, MAX_CHECK_TEXT_CHARS, MAX_WORD_CHARS, parsePageRe
 
 describe('parsePageRequest', () => {
     const req = (request: unknown) => ({ id: 1, request });
-    test('accepts the four requests a page may make, rebuilt from their allowed fields', () => {
+    test('accepts the five requests a page may make, rebuilt from their allowed fields', () => {
         expect(parsePageRequest(req({ checkProse: { text: 'teh', languageId: 'latex', filePath: '/etc/hosts', settings: { x: 1 } } }))).toEqual(req({ checkProse: { text: 'teh', languageId: 'latex' } }));
         expect(parsePageRequest(req({ addDictionaryWord: { word: "O'Neill-style" } }))?.request).toEqual({ addDictionaryWord: { word: "O'Neill-style" } });
         expect(parsePageRequest(req({ ignore: { message: 'm', context: 'c', text: 't', startByte: 0, endByte: 3 } }))).toBeDefined();
         expect(parsePageRequest(req({ getMetadata: {} }))?.request).toEqual({ getMetadata: {} });
+        // Which config is in force, by name: never its text, which can hold an API key.
+        expect(parsePageRequest(req({ listConfigFiles: { path: '/etc' } }))?.request).toEqual({ listConfigFiles: {} });
+        expect(parsePageRequest(req({ readConfig: {} }))).toBeUndefined();
+        expect(parsePageRequest(req({ writeConfig: { text: 'x' } }))).toBeUndefined();
     });
 
     test.each([
@@ -22,7 +26,6 @@ describe('parsePageRequest', () => {
         ['no payload', req({})],
         ['two payloads', req({ getMetadata: {}, addDictionaryWord: { word: 'x' } })],
         ['config probing', req({ probeConfig: { text: '', filePath: '/x', format: 'yaml' } })],
-        ['listing config files', req({ listConfigFiles: {} })],
         ['initialize (the background does that)', req({ initialize: { workspaceRoot: '/home' } })],
         ['an unknown language', req({ checkProse: { text: '', languageId: 'rust' } })],
         ['text too long', req({ checkProse: { text: 'a'.repeat(MAX_CHECK_TEXT_CHARS + 1), languageId: 'latex' } })],
