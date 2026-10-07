@@ -147,11 +147,16 @@ function servePort(port: MessagePort, index: number, background: BackgroundLink,
     port.start();
 }
 
+const RECONNECT_FIRST_MS = 200;
+const RECONNECT_MAX_MS = 30_000;
+
 /** One runtime port to the background, reopened on demand after the background restarts. */
 export class BackgroundLink {
     private port: Runtime.Port | undefined;
     /** The workspace the URL named when `port` was opened: the one the background serves it for. */
     private portWorkspace: string | undefined;
+    /** Reconnects since the background last said anything (see reconnectSoon). */
+    private reconnects = 0;
     private nextId = 1;
     private readonly pending = new Map<number, { resolve: (r: PageResponse) => void; pageId: number }>();
 
@@ -205,6 +210,7 @@ export class BackgroundLink {
         const port = this.connectRuntime();
         this.portWorkspace = workspace;
         port.onMessage.addListener((message: unknown) => {
+            this.reconnects = 0;
             if ((message as { reload?: unknown } | null)?.reload === true) {
                 this.onReload();
                 return;
@@ -223,7 +229,9 @@ export class BackgroundLink {
             entry.resolve({ ...response, id: entry.pageId });
         });
         port.onDisconnect.addListener(() => {
-            if (this.port === port) this.dropPort('the extension background restarted');
+            if (this.port !== port) return;
+            this.dropPort('the extension background restarted');
+            this.reconnectSoon();
         });
         this.port = port;
         return port;
@@ -234,6 +242,26 @@ export class BackgroundLink {
         const port = this.port;
         this.dropPort(reason);
         port?.disconnect();
+    }
+
+    /**
+     * After the background dropped the port (an MV3 worker stopped while
+     * idle, an update): connect again, so it knows this page for a config
+     * reload, and have the page check again, since a config may have
+     * changed meanwhile. Backing off while connecting keeps failing.
+     */
+    private reconnectSoon(): void {
+        const delay = Math.min(RECONNECT_FIRST_MS * 2 ** this.reconnects, RECONNECT_MAX_MS);
+        this.reconnects++;
+        setTimeout(() => {
+            if (this.port !== undefined || this.workspaceNow() === undefined) return;
+            try {
+                this.connect();
+                this.onReload();
+            } catch {
+                this.reconnectSoon();
+            }
+        }, delay);
     }
 
     private dropPort(reason: string): void {

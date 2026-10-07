@@ -5,7 +5,7 @@
 // and writes the config only through the config port (messaging/config.ts).
 // Saving reloads the checks in every page on the workspace (the background
 // re-initializes the core, then tells the pages).
-import browser from 'webextension-polyfill';
+import browser, { type Runtime } from 'webextension-polyfill';
 import * as monaco from 'monaco-editor/editor/editor.api.js';
 import 'monaco-editor/languages/definitions/yaml/register.js';
 import { ConfigStatusView } from '../../../extension/src/config/gutter';
@@ -20,27 +20,45 @@ const SAVE_DELAY_MS = 1000;
 
 type Say = (text: string, state: 'saved' | 'unsaved' | 'saving' | 'error') => void;
 
-/** The config port, as requests that each get their answer. */
-function connect(say: Say): (request: ConfigRequest) => Promise<PageResponse> {
-    const port = browser.runtime.connect({ name: CONFIG_PORT_NAME });
+/**
+ * The config port, as requests that each get their answer. The background
+ * can restart under the page (an MV3 service worker is stopped when idle):
+ * the port then closes, and the next request opens a new one, which the
+ * restarted background serves (it keeps its config tabs across a restart).
+ * A request that cannot be sent at all is answered "unavailable", never
+ * left pending.
+ */
+function connect(): (request: ConfigRequest) => Promise<PageResponse> {
     const ids = { next: 1 };
     const pending = new Map<number, (response: PageResponse) => void>();
-    port.onMessage.addListener((message: unknown) => {
-        const { id, response } = (message ?? {}) as { id?: unknown; response?: PageResponse };
-        if (typeof id !== 'number' || response === undefined) return;
-        pending.get(id)?.(response);
-        pending.delete(id);
-    });
-    port.onDisconnect.addListener(() => {
-        say('The extension closed this page\'s connection. Close the tab and open the config again.', 'error');
-        for (const [id, resolve] of pending) resolve({ id, ok: false, code: 'unavailable', error: 'disconnected' });
-        pending.clear();
-    });
+    const link: { port: Runtime.Port | undefined } = { port: undefined };
+    const open = (): Runtime.Port => {
+        const port = browser.runtime.connect({ name: CONFIG_PORT_NAME });
+        port.onMessage.addListener((message: unknown) => {
+            const { id, response } = (message ?? {}) as { id?: unknown; response?: PageResponse };
+            if (typeof id !== 'number' || response === undefined) return;
+            pending.get(id)?.(response);
+            pending.delete(id);
+        });
+        port.onDisconnect.addListener(() => {
+            if (link.port === port) link.port = undefined;
+            for (const [id, resolve] of pending) resolve({ id, ok: false, code: 'unavailable', error: 'the extension restarted; try again' });
+            pending.clear();
+        });
+        return port;
+    };
     return (request) =>
         new Promise((resolve) => {
             const id = ids.next++;
-            pending.set(id, resolve);
-            port.postMessage({ id, request });
+            try {
+                link.port ??= open();
+                pending.set(id, resolve);
+                link.port.postMessage({ id, request });
+            } catch (error) {
+                pending.delete(id);
+                link.port = undefined;
+                resolve({ id, ok: false, code: 'unavailable', error: error instanceof Error ? error.message : String(error) });
+            }
         });
 }
 
@@ -55,7 +73,7 @@ async function start(): Promise<void> {
         status.textContent = text;
         status.dataset.state = state;
     };
-    const ask = connect(say);
+    const ask = connect();
     const read = await ask({ readConfig: {} });
     if (!read.ok) {
         say(`The config could not be read: ${read.error}`, 'error');

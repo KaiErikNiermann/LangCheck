@@ -17,6 +17,9 @@ import { Panels } from './panels';
 const cores = new CoreManager((host) => browser.runtime.connectNative(host));
 setInterval(() => { cores.sweep(); }, IDLE_CLOSE_MS / 4);
 
+/** Where the config tabs are kept across a restart of this worker (storage.session). */
+const CONFIG_TABS_KEY = 'configTabs';
+
 /** Every tab the extension opens for a page comes out of one budget per source tab. */
 const budget = new OpenBudget();
 
@@ -43,7 +46,25 @@ const configTabs = new ConfigTabs({
         if (tab.windowId !== undefined) await browser.windows.update(tab.windowId, { focused: true });
     },
     url: browser.runtime.getURL('config.html'),
-}, budget);
+}, budget, (tabs) => {
+    void browser.storage.session.set({ [CONFIG_TABS_KEY]: tabs }).catch(() => {});
+});
+
+/**
+ * The config tabs kept across a restart of this worker, put back before any
+ * config page is served: those whose tab is still open. Without it a config
+ * page that outlived the worker could never save again.
+ */
+const configTabsRestored: Promise<void> = browser.storage.session
+    .get(CONFIG_TABS_KEY)
+    .then(async (stored) => {
+        const kept = stored[CONFIG_TABS_KEY];
+        if (!Array.isArray(kept)) return;
+        const entries = kept.filter((e): e is [number, string] => Array.isArray(e) && Number.isSafeInteger(e[0]) && typeof e[1] === 'string');
+        const open = await Promise.all(entries.map(([tab]) => browser.tabs.get(tab).then(() => true, () => false)));
+        configTabs.restore(entries.filter((_, i) => open[i] === true));
+    })
+    .catch(() => {});
 
 browser.tabs.onRemoved.addListener((tabId) => {
     panels.tabRemoved(tabId);
@@ -68,23 +89,33 @@ async function configChanged(workspace: string): Promise<void> {
 
 /** The config page's port: ours, in a tab this side opened for one workspace, and nothing else may send its requests. */
 function serveConfigPage(port: Runtime.Port): void {
-    const fromConfigPage = ours(port) && port.sender?.url?.startsWith(browser.runtime.getURL('config.html')) === true;
-    const workspace = fromConfigPage ? configTabs.workspaceOf(port.sender?.tab?.id) : undefined;
-    if (workspace === undefined) {
+    if (!ours(port) || port.sender?.url?.startsWith(browser.runtime.getURL('config.html')) !== true) {
         port.disconnect();
         return;
     }
+    const tabId = port.sender.tab?.id;
+    const known = configTabsRestored.then(() => configTabs.workspaceOf(tabId));
+    void known.then((workspace) => {
+        if (workspace === undefined) port.disconnect();
+    });
+    // Messages wait for the restore, in the order they came.
     port.onMessage.addListener((message: unknown) => {
-        const parsed = parseConfigPageRequest(message);
-        if (parsed === undefined) return;
-        void cores.request(workspace, parsed, true).then(async (response) => {
-            try {
-                port.postMessage({ id: parsed.id, response });
-            } catch {
-                // The config page closed while the core was answering.
-            }
-            if ('writeConfig' in parsed.request && response.ok) await configChanged(workspace);
+        void known.then((workspace) => {
+            if (workspace !== undefined) serveConfigRequest(port, workspace, message);
         });
+    });
+}
+
+function serveConfigRequest(port: Runtime.Port, workspace: string, message: unknown): void {
+    const parsed = parseConfigPageRequest(message);
+    if (parsed === undefined) return;
+    void cores.request(workspace, parsed, true).then(async (response) => {
+        try {
+            port.postMessage({ id: parsed.id, response });
+        } catch {
+            // The config page closed while the core was answering.
+        }
+        if ('writeConfig' in parsed.request && response.ok) await configChanged(workspace);
     });
 }
 

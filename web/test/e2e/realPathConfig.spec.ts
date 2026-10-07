@@ -85,3 +85,24 @@ test('a config that would run a program is not saved, and says why', async ({ pa
     await expect(config.locator('#status')).toContainText('engines.external runs programs');
     expect(savedConfig(dataHome)).toBe('engines:\n  harper: true\n');
 });
+
+/** Stops the extension's service worker, as Chrome does when it is idle. */
+async function stopBackground(page: Page): Promise<void> {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('ServiceWorker.enable');
+    await cdp.send('ServiceWorker.stopAllWorkers');
+    await cdp.detach();
+}
+
+// MV3 stops the background when idle, and the config page outlives it: a
+// save after that must still land, and the pages still reload.
+test('a save after the background was stopped still lands, and the page checks under it', async ({ page, context, dataHome }) => {
+    const config = await openConfig(page, context);
+    await setText(config, 'engines:\n  harper: true\n');
+    await expect(config.locator('#status')).toHaveText('Saved');
+    await stopBackground(page);
+    await setText(config, 'engines:\n  harper: false\n');
+    await expect(config.locator('#status')).toHaveText('Saved', { timeout: 15_000 });
+    expect(savedConfig(dataHome)).toBe('engines:\n  harper: false\n');
+    await expect(marks(page)).toHaveCount(0, { timeout: 15_000 });
+});

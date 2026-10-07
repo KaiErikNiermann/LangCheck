@@ -21,10 +21,28 @@ export class ConfigTabs {
     /** Workspaces whose tab is being created. */
     private readonly opening = new Set<string>();
 
+    /**
+     * `changed` gets the tabs whenever they change, to keep them across a
+     * restart of the background (an MV3 service worker is stopped when idle,
+     * and the config page outlives it); `restore` puts them back.
+     */
     constructor(
         private readonly tabs: ConfigTabsApi,
         private readonly budget: OpenBudget,
+        private readonly changed: (tabs: readonly (readonly [number, string])[]) => void = () => {},
     ) {}
+
+    /** Puts back tabs kept across a restart (the ones still open: the caller checks). */
+    restore(tabs: readonly (readonly [number, string])[]): void {
+        for (const [tab, workspace] of tabs) {
+            this.byTab.set(tab, workspace);
+            this.byWorkspace.set(workspace, tab);
+        }
+    }
+
+    private save(): void {
+        this.changed([...this.byTab]);
+    }
 
     /** Shows `workspace`'s config page, opening it beside `source` if there is none. */
     open(source: number, workspace: string, windowId?: number): void {
@@ -41,6 +59,7 @@ export class ConfigTabs {
                 if (tab.id === undefined) return;
                 this.byWorkspace.set(workspace, tab.id);
                 this.byTab.set(tab.id, workspace);
+                this.save();
             }, ignore)
             .finally(() => {
                 this.opening.delete(workspace);
@@ -58,6 +77,7 @@ export class ConfigTabs {
         if (workspace === undefined) return;
         this.byTab.delete(tab);
         this.byWorkspace.delete(workspace);
+        this.save();
     }
 
     get size(): number {
