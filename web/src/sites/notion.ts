@@ -27,17 +27,32 @@ export function notionWorkspaceFromPath(pathname: string): string | undefined {
 export const notionWorkspace: SiteWorkspace = { id: 'notion', projectFromPath: notionWorkspaceFromPath };
 
 const PROSE_LEAF = '[data-content-editable-leaf="true"][spellcheck="true"]';
+const PAGE_ID_ONLY = /^[0-9a-f]{32}$/u;
+
+/**
+ * The page in front, and where it is drawn. A side or centre peek
+ * (`?p=<page>&pm=s|c`) draws the peeked page in `.notion-peek-renderer`, over
+ * the page in the path, which stays in `.notion-frame` behind it (seen live,
+ * research/notion-editor.md): the peek is what the user is editing.
+ */
+function pageInFront(): { readonly root: Element; readonly page: string } | undefined {
+    const peeked = new URLSearchParams(location.search).get('p');
+    const peek = document.querySelector('.notion-peek-renderer');
+    if (peek !== null && peeked !== null && PAGE_ID_ONLY.test(peeked)) return { root: peek, page: peeked };
+    const frame = document.querySelector('.notion-frame');
+    const page = PAGE_ID.exec(location.pathname)?.[1];
+    return frame === null || page === undefined ? undefined : { root: frame, page };
+}
 
 export const notionPage: SitePage = {
     id: 'notion',
     findEditor() {
-        const frame = document.querySelector('.notion-frame');
-        const page = PAGE_ID.exec(location.pathname)?.[1];
-        if (frame === null || page === undefined) return;
+        const front = pageInFront();
+        if (front === undefined) return;
         // Markdown, not plaintext: the client's providers attach only to the
         // languages it supports, and Notion's text carries its formatting in
         // the DOM, so markdown extraction sees plain prose.
-        return domEditor(frame, frame, page, 'markdown', {
+        return domEditor(front.root, front.root, front.page, 'markdown', {
             leaves: (root) => root.querySelectorAll(PROSE_LEAF),
             // contenteditable="false" is the standard mark of an atom
             // (equations, mentions); inline code is Notion's own container.

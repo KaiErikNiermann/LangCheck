@@ -142,8 +142,9 @@ export async function hoverPainted(page: Page, word: string, nth = 0): Promise<L
     return popover(page);
 }
 
-export function notionSaved(page: Page): Promise<string[]> {
-    return page.evaluate(() => (globalThis as any).__notion.saved());
+/** What the stand-in saved for `pageId` (the page in the path by default). */
+export function notionSaved(page: Page, pageId?: string): Promise<string[]> {
+    return page.evaluate((id) => (globalThis as any).__notion.saved(id), pageId);
 }
 
 export const PALETTE_FRAME = 'iframe[title="Language Check commands"]';

@@ -35,16 +35,20 @@ const BLOCK_CLASS: Readonly<Record<Block['kind'], string>> = { title: 'text', te
 
 const frame = document.createElement('div');
 frame.className = 'notion-frame';
+// Always in the page, empty until a page is peeked (as live).
+const peek = document.createElement('div');
+peek.className = 'notion-peek-renderer';
 document.body.className = 'notion-body dark notion-dark-theme';
-document.body.append(frame);
+document.body.append(frame, peek);
 
-/** The saved text of each leaf, by block id. */
+/** The saved text of each leaf, by block id (`<page>-<n>`), for every page drawn. */
 const model = new Map<string, string>();
 
-function render(pageId: string): void {
-    model.clear();
+function render(pageId: string, into: HTMLElement = frame): void {
+    // Deleting from a Map while iterating it is defined: the loop sees the rest.
+    for (const id of model.keys()) if (id.startsWith(`${pageId}-`)) model.delete(id);
     const blocks = PAGES[pageId] ?? [];
-    frame.replaceChildren(
+    into.replaceChildren(
         ...blocks.map((block, i) => {
             const element = document.createElement('div');
             const id = `${pageId}-${String(i)}`;
@@ -73,15 +77,15 @@ render(current);
 
 Object.assign(globalThis, {
     __notion: {
-        /** What Notion would have saved, per leaf, in block order. */
-        saved: () => [...model.values()],
+        /** What Notion would have saved for a page (the one in the path by default), per leaf, in block order. */
+        saved: (pageId = current) => [...model].filter(([id]) => id.startsWith(`${pageId}-`)).map(([, text]) => text),
         /**
          * Notion re-rendering blocks from its model: unsaved DOM changes are
          * lost. `all` re-renders every block, replacing its text nodes even
          * when nothing changed (as a React re-mount does).
          */
         rerender(all = false) {
-            for (const element of frame.querySelectorAll<HTMLElement>('[data-block-id]')) {
+            for (const element of document.querySelectorAll<HTMLElement>('[data-block-id]')) {
                 const leaf = element.querySelector('[data-content-editable-leaf]');
                 const text = model.get(element.dataset.blockId ?? '');
                 if (leaf === null || text === undefined) continue;
@@ -89,6 +93,16 @@ Object.assign(globalThis, {
                 if (leaf.textContent !== text) leaf.textContent = text;
                 else if (all) leaf.replaceChildren(...[...leaf.childNodes].map((node) => node.cloneNode(true)));
             }
+        },
+        /** Opens `pageId` in a side (`s`) or centre (`c`) peek over the page in the path. */
+        peek(pageId: string, mode: 's' | 'c' = 's') {
+            history.pushState({}, '', `${location.pathname}?p=${pageId}&pm=${mode}`);
+            render(pageId, peek);
+        },
+        /** Closes the peek: the page in the path is in front again. */
+        closePeek() {
+            history.pushState({}, '', location.pathname);
+            peek.replaceChildren();
         },
         /** Single-page navigation to another page of the same workspace. */
         navigate(pageId: string) {
