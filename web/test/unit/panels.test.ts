@@ -246,4 +246,23 @@ describe('Panels', () => {
         panels.fromPage(SOURCE, page, open('later'));
         expect(fake.created).toHaveLength(MAX_OPENS + 1);
     });
+
+    test('a reload does not refill the open budget; closing the tab does', async () => {
+        const fake = fakeTabs();
+        const panels = new Panels(fake.tabs, () => 0);
+        let page = new FakePort();
+        for (let i = 0; i < MAX_OPENS; i++) {
+            panels.fromPage(SOURCE, page, open(`p${String(i)}`));
+            panels.fromPage(SOURCE, page, close(`p${String(i)}`));
+        }
+        panels.sourceGone(SOURCE, page);
+        page = new FakePort();
+        panels.fromPage(SOURCE, page, open('again'));
+        await fake.settle();
+        expect(fake.created).toHaveLength(MAX_OPENS);
+        expect(page.sent).toEqual([{ webview: { type: WEBVIEW_TYPE, op: 'closed', panel: 'again' } }]);
+        panels.tabRemoved(SOURCE);
+        panels.fromPage(SOURCE, new FakePort(), open('fresh'));
+        expect(fake.created).toHaveLength(MAX_OPENS + 1);
+    });
 });

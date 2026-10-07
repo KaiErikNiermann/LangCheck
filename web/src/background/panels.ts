@@ -52,7 +52,7 @@ export class Panels {
     private readonly panels = new Map<string, Panel>();
     private readonly byTab = new Map<number, Panel>();
     private readonly sources = new Map<number, PanelPort>();
-    /** When each page last opened tabs, oldest first (at most MAX_OPENS each). */
+    /** When each page's tab last opened panel tabs, oldest first (at most MAX_OPENS each), until the tab closes. */
     private readonly opens = new Map<number, number[]>();
 
     constructor(
@@ -91,7 +91,8 @@ export class Panels {
     sourceGone(source: number, port: PanelPort): void {
         if (this.sources.get(source) !== port) return;
         this.sources.delete(source);
-        this.opens.delete(source);
+        // The open budget stays: it belongs to the tab, and a reload (a new
+        // content script, a new port) must not refill it.
         // Deleting from a Map while iterating it is defined: the loop sees the rest.
         for (const panel of this.panels.values()) if (panel.source === source) this.close(panel, false);
     }
@@ -122,6 +123,7 @@ export class Panels {
 
     /** A tab was closed (any tab: only panel tabs matter here). */
     tabRemoved(tab: number): void {
+        this.opens.delete(tab);
         const panel = this.byTab.get(tab);
         if (panel !== undefined) this.close(panel, true);
     }
