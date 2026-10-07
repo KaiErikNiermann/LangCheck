@@ -240,6 +240,16 @@ pub fn scrub(response: &mut Response, workspace: Option<&Path>) {
             rewrite(&mut listing.load_error);
         }
         Some(response::Payload::Error(error)) => rewrite(&mut error.message),
+        // An engine's failure ("could not start /home/u/bin/vale") reaches
+        // the page as its health and as a finding about the unchecked text.
+        Some(response::Payload::CheckProse(check)) => {
+            for health in &mut check.engine_health {
+                rewrite(&mut health.last_error);
+            }
+            for diagnostic in &mut check.diagnostics {
+                rewrite(&mut diagnostic.message);
+            }
+        }
         _ => {}
     }
 }
@@ -733,6 +743,39 @@ mod tests {
         )
         .unwrap_err();
         assert!(probe.contains("engines.vale.config"), "{probe}");
+    }
+
+    #[test]
+    fn check_answers_are_scrubbed_too() {
+        let mut check = Response {
+            id: 5,
+            payload: Some(response::Payload::CheckProse(crate::checker::CheckResponse {
+                engine_health: vec![crate::checker::EngineHealth {
+                    last_error: "could not start /data/language-check/web/overleaf-p1/bin/vale".into(),
+                    ..Default::default()
+                }],
+                diagnostics: vec![crate::checker::Diagnostic {
+                    message: "This passage went unchecked: /data/language-check/web/overleaf-p1/x failed".into(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            })),
+        };
+        scrub(
+            &mut check,
+            Some(Path::new("/data/language-check/web/overleaf-p1")),
+        );
+        let Some(response::Payload::CheckProse(check)) = check.payload else {
+            panic!("a check")
+        };
+        assert_eq!(
+            check.engine_health[0].last_error,
+            "could not start ./bin/vale"
+        );
+        assert_eq!(
+            check.diagnostics[0].message,
+            "This passage went unchecked: ./x failed"
+        );
     }
 
     #[test]
