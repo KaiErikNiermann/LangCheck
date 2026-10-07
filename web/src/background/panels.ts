@@ -5,10 +5,12 @@
 //
 // Lifetimes: closing the panel tab reports `closed` to the page; the page's
 // content script going away (navigation, tab closed) closes its panels.
-import { isBoundedMessage, WEBVIEW_TYPE, type PageToPanel, type PanelToPage, type ViewType } from '../messaging/webview';
+import { isBoundedMessage, MAX_PANEL_MESSAGE_CHARS, WEBVIEW_TYPE, type PageToPanel, type PanelToPage, type ViewType } from '../messaging/webview';
 
 /** Messages kept for a panel tab that has not connected yet (its app is loading). */
 export const MAX_QUEUED = 256;
+/** And their total size, as JSON: two of the largest messages a page may post. */
+export const MAX_QUEUED_CHARS = 2 * MAX_PANEL_MESSAGE_CHARS;
 
 /**
  * Tabs a page may open in a window of OPEN_WINDOW_MS. The page world is
@@ -42,7 +44,9 @@ interface Panel {
     readonly viewType: ViewType;
     tab: number | undefined;
     port: PanelPort | undefined;
-    readonly queue: unknown[];
+    /** Messages for a tab still loading, with their size as JSON. */
+    readonly queue: { readonly message: unknown; readonly chars: number }[];
+    queuedChars: number;
     closed: boolean;
 }
 
@@ -117,7 +121,8 @@ export class Panels {
             return undefined;
         }
         panel.port = port;
-        for (const queued of panel.queue.splice(0)) port.postMessage(queued);
+        for (const queued of panel.queue.splice(0)) port.postMessage(queued.message);
+        panel.queuedChars = 0;
         return {
             message: (value) => {
                 if (panel.closed || !isBoundedMessage(value)) return;
@@ -153,7 +158,7 @@ export class Panels {
     }
 
     private open(source: number, id: string, viewType: ViewType, windowId: number | undefined): void {
-        const panel: Panel = { id, source, viewType, tab: undefined, port: undefined, queue: [], closed: false };
+        const panel: Panel = { id, source, viewType, tab: undefined, port: undefined, queue: [], queuedChars: 0, closed: false };
         this.panels.set(key(source, id), panel);
         void this.tabs
             .create({ url: this.tabs.pageUrl(viewType), openerTabId: source, ...(windowId !== undefined && { windowId }) })
@@ -200,8 +205,16 @@ export class Panels {
             panel.port.postMessage(message);
             return;
         }
-        panel.queue.push(message);
-        if (panel.queue.length > MAX_QUEUED) panel.queue.shift();
+        const chars = JSON.stringify(message).length;
+        panel.queue.push({ message, chars });
+        panel.queuedChars += chars;
+        // Newest kept, within both bounds: a page can post up to the
+        // per-message cap each time, and the tab may never connect.
+        while (panel.queue.length > MAX_QUEUED || panel.queuedChars > MAX_QUEUED_CHARS) {
+            const dropped = panel.queue.shift();
+            if (dropped === undefined) break;
+            panel.queuedChars -= dropped.chars;
+        }
     }
 
     /** Forget `panel`, close its tab, and tell the page when the page did not ask for it. */
@@ -213,6 +226,7 @@ export class Panels {
             void this.tabs.remove(panel.tab).catch(ignore);
         }
         panel.queue.length = 0;
+        panel.queuedChars = 0;
         if (tellPage) this.toPage(panel, { type: WEBVIEW_TYPE, op: 'closed', panel: panel.id });
     }
 

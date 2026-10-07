@@ -2,7 +2,7 @@
 // lives in, who may talk to it, and that every way a panel ends is reported
 // once and leaves nothing behind.
 import { describe, expect, test } from 'vitest';
-import { MIN_ACTIVATE_INTERVAL_MS, MAX_OPENS, MAX_QUEUED, OPEN_WINDOW_MS, Panels, type PanelPort, type TabsApi } from '../../src/background/panels';
+import { MAX_OPENS, MAX_QUEUED, MAX_QUEUED_CHARS, MIN_ACTIVATE_INTERVAL_MS, OPEN_WINDOW_MS, Panels, type PanelPort, type TabsApi } from '../../src/background/panels';
 import { WEBVIEW_TYPE, type PageToPanel, type ViewType } from '../../src/messaging/webview';
 
 class FakePort implements PanelPort {
@@ -306,4 +306,20 @@ describe('Panels', () => {
         panels.fromPage(SOURCE, new FakePort(), open('fresh'));
         expect(fake.created).toHaveLength(MAX_OPENS + 1);
     });
+
+    test('keeps the queued messages within a total size, newest first', async () => {
+        const fake = fakeTabs();
+        const panels = new Panels(fake.tabs);
+        const page = new FakePort();
+        panels.fromPage(SOURCE, page, open());
+        // Each about a third of the total: only the last few fit.
+        const big = (i: number) => ({ i, pad: 'x'.repeat(Math.floor(MAX_QUEUED_CHARS / 3)) });
+        for (let i = 0; i < 10; i++) panels.fromPage(SOURCE, page, post(big(i)));
+        await fake.settle();
+        const tab = new FakePort();
+        panels.panelConnected(100, tab);
+        const kept = tab.sent.map((m) => (m as { i: number }).i);
+        expect(kept).toEqual([8, 9]);
+    });
 });
+
