@@ -35,7 +35,7 @@ export type PanelToPage =
 
 type Bag = Record<string, unknown>;
 const isBag = (v: unknown): v is Bag => typeof v === 'object' && v !== null && !Array.isArray(v);
-const isPanelId = (v: unknown): v is string => typeof v === 'string' && PANEL_ID.test(v);
+export const isPanelId = (v: unknown): v is string => typeof v === 'string' && PANEL_ID.test(v);
 const isViewType = (v: unknown): v is ViewType => (VIEW_TYPES as readonly unknown[]).includes(v);
 
 /** Whether `message` is plain data within the size cap (what JSON can carry, as the runtime ports do). */
