@@ -466,6 +466,13 @@ class Host {
     readonly unsupported = new Set<string>();
     /** Opens a panel's page; installed by the composition root. */
     webviews: WebviewOpener | undefined;
+    /**
+     * Whether a document's findings describe its current text, which only
+     * the client knows: it records the version each check was of. Installed
+     * by the composition root; without it, findings are taken to describe
+     * the text they were published at.
+     */
+    findingsCurrent: ((doc: TextDocument) => boolean) | undefined;
     /** Brings the page's own tab to the front (a panel tab may be in front of it). */
     focusPage: (() => void) | undefined;
     /** Settings changed through `update`, over the manifest defaults. */
@@ -541,6 +548,11 @@ class Host {
     publish(uri: string): void {
         const doc = this.documents.get(uri);
         if (doc === undefined) return;
+        // A list checked against older text has ranges in that text: drawn
+        // now they would mark the wrong characters, and a fix from them
+        // would edit there. The marks already drawn stay (the editor carries
+        // them through the edit) until the check of the current text lands.
+        if (!this.describesText(doc, doc.version)) return;
         this.publishedAt.set(doc, doc.version);
         const rendered: RenderedDiagnostic[] = [...(this.diagnostics.get(uri)?.values() ?? [])].flat().map((d) => ({
             from: doc.offsetAt(d.range.start),
@@ -551,6 +563,11 @@ class Host {
             code: d.code === undefined ? undefined : String(d.code),
         }));
         doc.adapter.renderDiagnostics(rendered);
+    }
+
+    /** Whether `doc`'s findings describe its current text (`publishedAt`: the version they were drawn at). */
+    private describesText(doc: TextDocument, publishedAt: number | undefined): boolean {
+        return this.findingsCurrent?.(doc) ?? publishedAt === doc.version;
     }
 
     allDiagnostics(uri: string): Diagnostic[] {
@@ -564,7 +581,7 @@ class Host {
             // would land on the wrong text: offer nothing until then. (VS Code
             // gets the same effect by shifting its markers, which then no
             // longer match the extension's store.)
-            if (this.publishedAt.get(doc) !== doc.version) return [];
+            if (!this.describesText(doc, this.publishedAt.get(doc))) return [];
             const range = new Range(doc.positionAt(from), doc.positionAt(to));
             const diagnostics = [...(this.diagnostics.get(doc.uri.toString())?.values() ?? [])]
                 .flat()

@@ -21,6 +21,7 @@ import { InspectorLog } from '../../../extension/src/ui/inspectorLog';
 import { InspectorPanel, type InspectorEnvironment } from '../../../extension/src/ui/webviews/inspector';
 import { SpeedFixPanel, speedFixActions } from '../../../extension/src/ui/webviews/speedFix';
 import type { CoreClient } from '../messaging/pageClient';
+import { host } from '../shim/vscode';
 import { WebCore } from './transport';
 
 /** Typing pause before a check, as in the VS Code client's default. */
@@ -181,6 +182,14 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
 
     registerCodeActions(context.subscriptions, { store, offers: (command) => WEB_COMMANDS.has(command) });
 
+    // Findings are drawn and offered only while they describe the text, by
+    // the version the store recorded for the check (shim: describesText).
+    host.findingsCurrent = (doc) => store.isCurrent(doc);
+    context.subscriptions.push({
+        dispose: () => {
+            host.findingsCurrent = undefined;
+        },
+    });
     // The page has one editor, so unlike VS Code there is no active-editor
     // change for the Inspector to follow.
     store.onChange(() => {
