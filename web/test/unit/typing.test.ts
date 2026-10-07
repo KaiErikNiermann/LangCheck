@@ -3,7 +3,7 @@
 // the keyboard really keeps them from everything else listening.
 import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
-import { applyTyped, holdKeys, isBinding, MAX_TYPED_CHARS, typedKey } from '../../src/palette/typing';
+import { applyTyped, holdKeys, isBinding, MAX_TYPED_CHARS, parseBinding, typedKey } from '../../src/palette/typing';
 
 const key = (k: string, mods: { code?: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean; isComposing?: boolean } = {}) => ({ key: k, code: '', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, isComposing: false, ...mods });
 
@@ -94,5 +94,39 @@ describe('holdKeys', () => {
         expect(hold.typed()).toBe('sp');
         expect(hold.submitted()).toBe(true);
         hold.release();
+    });
+});
+
+describe('parseBinding', () => {
+    test.each([
+        ['ctrl+p', 'ctrl+p'],
+        [' Ctrl+Shift+L ', 'ctrl+shift+l'],
+        ['alt+k', 'alt+k'],
+        ['meta+k', 'meta+k'],
+        ['cmd+k, ctrl+k', 'cmd+k,ctrl+k'],
+        ['f2', 'f2'],
+        ['ctrl+shift+c (Shift makes it another shortcut)', 'ctrl+shift+c'],
+    ])('%s is taken', (value, expected) => {
+        expect(parseBinding(value.replace(/ \(.*\)$/u, ''))).toBe(expected);
+    });
+
+    test.each([
+        ['a bare letter', 'p'],
+        ['Shift and a letter', 'shift+p'],
+        ['copy', 'ctrl+c'],
+        ['paste on a Mac', 'cmd+v'],
+        ['undo', 'ctrl+z'],
+        ['save', 'meta+s'],
+        ['one bad alternative of two', 'ctrl+k,ctrl+v'],
+        ['an unknown modifier', 'hyper+k'],
+        ['two keys', 'ctrl+a+b'],
+        ['nothing', ''],
+        ['not a string', 42],
+    ])('%s is refused', (_name, value) => {
+        expect(parseBinding(value)).toBeUndefined();
+    });
+
+    test('meta is the Cmd key to isBinding as it is to hotkeys-js', () => {
+        expect(isBinding('meta+k', key('k', { code: 'KeyK', metaKey: true }))).toBe(true);
     });
 });

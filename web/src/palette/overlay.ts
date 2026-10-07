@@ -7,7 +7,7 @@ import hotkeys from 'hotkeys-js';
 import browser from 'webextension-polyfill';
 import { PALETTE, isPaletteCommand, type PaletteCommandId } from './commands';
 import { DEFAULT_PALETTE_HOTKEY, PALETTE_HOTKEY_KEY, PALETTE_INIT_TYPE, type ContentToPalette, type PaletteToContent } from './protocol';
-import { holdKeys } from './typing';
+import { holdKeys, parseBinding } from './typing';
 
 /** The top of the stacking order: the palette sits over the site's own overlays. */
 const TOP_LAYER_Z = '2147483647';
@@ -115,7 +115,7 @@ export function startPalette(run: (id: PaletteCommandId) => void): void {
 
     const rebind = (value: unknown): void => {
         hotkeys.unbind(binding);
-        binding = typeof value === 'string' && value.trim() !== '' ? value.trim() : DEFAULT_PALETTE_HOTKEY;
+        binding = parseBinding(value) ?? DEFAULT_PALETTE_HOTKEY;
         hotkeys(binding, (event) => {
             event.preventDefault();
             if (frame === undefined) open();

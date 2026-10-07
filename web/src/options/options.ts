@@ -1,9 +1,7 @@
 // The options page: the one setting so far, the palette's shortcut.
 import browser from 'webextension-polyfill';
 import { DEFAULT_PALETTE_HOTKEY, PALETTE_HOTKEY_KEY } from '../palette/protocol';
-
-/** hotkeys-js notation: modifiers and one key joined by "+", several bindings by ",". */
-const HOTKEY = /^(?:(?:ctrl|shift|alt|cmd|meta|option)\+)*(?:[a-z0-9]|f(?:[1-9]|1[0-2])|[.,/;'=`[\]\\-])$/iu;
+import { parseBinding } from '../palette/typing';
 
 const form = document.querySelector<HTMLFormElement>('#form');
 const input = document.querySelector<HTMLInputElement>('#hotkey');
@@ -16,10 +14,11 @@ if (form !== null && input !== null && status !== null) {
     });
     form.addEventListener('submit', (event) => {
         event.preventDefault();
-        const value = input.value.trim().toLowerCase();
-        const bindings = value === '' ? [] : value.split(',').map((b) => b.trim());
-        if (bindings.some((b) => !HOTKEY.test(b))) {
-            status.textContent = `"${value}" is not a shortcut hotkeys-js understands.`;
+        const typed = input.value.trim();
+        // Empty: back to the default.
+        const value = typed === '' ? '' : parseBinding(typed);
+        if (value === undefined) {
+            status.textContent = `"${typed}" cannot be the shortcut: it needs Ctrl, Alt or Cmd (or a function key), and must not be one an editor uses, such as Ctrl+C or Ctrl+S.`;
             return;
         }
         void browser.storage.local.set({ [PALETTE_HOTKEY_KEY]: value }).then(() => {

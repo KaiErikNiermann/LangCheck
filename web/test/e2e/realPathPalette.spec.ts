@@ -54,7 +54,11 @@ test('the binding can be changed on the options page', async ({ page, context, e
     await expect(options.getByRole('status')).toContainText('ctrl+shift+l');
     await options.getByLabel('Shortcut for the command palette').fill('ctrl+banana');
     await options.getByRole('button', { name: 'Save' }).click();
-    await expect(options.getByRole('status')).toContainText('not a shortcut');
+    await expect(options.getByRole('status')).toContainText('cannot be the shortcut');
+    // Copy stays copy.
+    await options.getByLabel('Shortcut for the command palette').fill('ctrl+c');
+    await options.getByRole('button', { name: 'Save' }).click();
+    await expect(options.getByRole('status')).toContainText('"ctrl+c" cannot be the shortcut');
 
     await ready(page);
     await page.keyboard.press('Control+KeyP');
