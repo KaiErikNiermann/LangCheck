@@ -47,6 +47,14 @@ export class Popover {
         // Keep CM from treating clicks in the card as editor clicks (which
         // would move the cursor and, on Overleaf, steal focus mid-action).
         this.dom.addEventListener('mousedown', (e) => { e.stopPropagation(); });
+        // One listener for the card's whole life, reading the current anchor:
+        // installed per show(), they piled up with every hover and recheck.
+        this.dom.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape' || this.anchor === undefined) return;
+            e.preventDefault();
+            this.anchor.onDismiss();
+            this.view.focus();
+        });
     }
 
     get visible(): boolean {
@@ -99,12 +107,6 @@ export class Popover {
             children.push(button);
         }
         this.dom.replaceChildren(...children);
-        this.dom.addEventListener('keydown', (e) => {
-            if (e.key !== 'Escape') return;
-            e.preventDefault();
-            options.onDismiss();
-            this.view.focus();
-        });
 
         if (this.dom.parentNode !== this.view.scrollDOM) this.view.scrollDOM.append(this.dom);
         this.apply(placement);
