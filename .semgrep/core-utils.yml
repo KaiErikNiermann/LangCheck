@@ -572,3 +572,51 @@ rules:
     pattern-either:
       - pattern: btoa(...)
       - pattern: atob(...)
+
+  - id: use-text-map-for-dom-prose
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      Read a DOM editor's prose through `buildTextMap` (web/src/editor/domText.ts), not
+      `textContent`. On Notion a leaf's textContent includes an inline equation's hidden KaTeX
+      MathML (`e=mc2e=mc^2e=mc2`), and its offsets would not match the ranges the adapter
+      paints. Forward-only guard, added with the helper (2026-10-07).
+    paths:
+      include:
+        - "**/web/src/"
+    patterns:
+      - pattern: $X.textContent
+      - pattern-not-inside: $X.textContent = $Y
+
+  - id: one-highlight-painter
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      Only the DOM adapter (web/src/editor/domAdapter.ts) paints CSS highlights: it owns the
+      registry names, deletes them on dispose, and repaints when the editor re-mounts its nodes.
+      A second painter would leak highlights past stop() or fight it over the names.
+      Forward-only guard (2026-10-07).
+    paths:
+      include:
+        - "**/web/src/"
+      exclude:
+        - "**/web/src/editor/domAdapter.ts"
+    pattern-either:
+      - pattern: CSS.highlights.set(...)
+      - pattern: new Highlight(...)
+
+  - id: exec-command-only-in-apply-edit
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      `document.execCommand` belongs in the DOM adapter's `applyEdit` only. It is the one way to
+      reach Notion as trusted input, and only from the page's own world: the same call from an
+      extension's isolated world changed the DOM but Notion did not save it (verified live on
+      2026-10-07, research/notion-editor.md). Forward-only guard.
+    paths:
+      include:
+        - "**/web/src/"
+    patterns:
+      - pattern: document.execCommand(...)
+      - pattern-not-inside: |
+          function applyEdit(...) { ... }
