@@ -532,6 +532,40 @@ fn the_windows_of_a_tiling_add_up_to_the_whole_check() {
     child.kill().ok();
 }
 
+/// Window edges that fall inside a character (UTF-8 runs of two to four
+/// bytes) change nothing: ranges start on characters, and are owned by
+/// their start.
+#[test]
+fn windows_cutting_through_characters_still_add_up() {
+    const TEXT: &str = "Teh café ☕ opens at nine.\n\nI recieve 😀 the naïve résumé.\n\n日本語の文。 Then seperately, teh end.\n";
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    let expected = findings(&check(&mut child, 10, TEXT, None, None));
+    assert!(expected.len() >= 3, "{expected:?}");
+    let length = u32::try_from(TEXT.len()).expect("short");
+    let mut id = 11;
+    for width in [1, 2, 3, 5, 13] {
+        let mut together = Vec::new();
+        let mut start = 0;
+        while start < length {
+            let end = (start + width).min(length);
+            together.extend(findings(&check(
+                &mut child,
+                id,
+                TEXT,
+                Some((start, end)),
+                None,
+            )));
+            id += 1;
+            start = end;
+        }
+        together.sort();
+        assert_eq!(together, expected, "windows of {width} bytes");
+    }
+    child.kill().ok();
+}
+
 /// A window's answer is not the file's: it is not stored as the file's
 /// result, so the whole check after it runs and finds everything.
 #[test]
