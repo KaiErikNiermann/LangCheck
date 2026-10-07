@@ -17,6 +17,8 @@ export interface WebviewHost {
     /** Brings the page's tab in front of its panels. */
     readonly focusPage: () => void;
     readonly closeAll: () => void;
+    /** Panels open now (for the page's stats). */
+    readonly openCount: () => number;
 }
 
 export function webviewHost(core: CoreClient): WebviewHost {
@@ -68,5 +70,6 @@ export function webviewHost(core: CoreClient): WebviewHost {
             for (const panel of panels.keys()) core.post({ type: WEBVIEW_TYPE, op: 'close', panel });
             panels.clear();
         },
+        openCount: () => panels.size,
     };
 }

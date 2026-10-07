@@ -13,7 +13,7 @@ import { host } from '../shim/vscode';
 
 interface Running {
     readonly bridge: Bridge;
-    stats(): ClientStats;
+    stats(): ClientStats & { readonly panels: number };
     stop(): void;
 }
 
@@ -42,7 +42,7 @@ export function startPage(site: SitePage, workspace: SiteWorkspace): void {
     const webviews = webviewHost(core);
     host.webviews = webviews.open;
     host.focusPage = webviews.focusPage;
-    const stats = startClient(context, core);
+    const clientStats = startClient(context, core);
     const bridge = new Bridge(site, project);
     // Palette commands run like VS Code's: through the command registry.
     core.onCommand((id) => {
@@ -54,7 +54,7 @@ export function startPage(site: SitePage, workspace: SiteWorkspace): void {
     // eslint-disable-next-line unicorn/no-global-object-property-assignment -- the one deliberate global, see `declare global` above
     globalThis.__languageCheck = {
         bridge,
-        stats,
+        stats: () => ({ ...clientStats(), panels: webviews.openCount() }),
         stop() {
             bridge.stop();
             for (const s of subscriptions) s.dispose();

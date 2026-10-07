@@ -24,6 +24,14 @@ const panels = new Panels({
 });
 browser.tabs.onRemoved.addListener((tabId) => { panels.tabRemoved(tabId); });
 
+declare const __LANGUAGE_CHECK_TEST__: boolean;
+if (__LANGUAGE_CHECK_TEST__) {
+    // The e2e memory tests read what the background holds: it must drain
+    // when the tabs that made it go away. Test builds only.
+    // eslint-disable-next-line unicorn/no-global-object-property-assignment -- test builds only, see above
+    (globalThis as { __lcBackground?: unknown }).__lcBackground = { panels: () => panels.size, connections: () => cores.size };
+}
+
 const ours = (port: Runtime.Port): boolean => port.sender?.id === browser.runtime.id && port.sender.tab?.id !== undefined;
 
 browser.runtime.onConnect.addListener((port: Runtime.Port) => {
