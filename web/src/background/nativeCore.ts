@@ -255,7 +255,25 @@ export class CoreManager {
     }
 }
 
-const failed = (id: number, f: CoreFailure): PageResponse => ({ id, ok: false, code: f.failure, error: f.message });
+/**
+ * What the page is told. The page world shares a realm with the site's own
+ * scripts, and host and core errors can name local paths (the workspace
+ * directory is under the user's home), so the page gets a fixed sentence per
+ * code and the detail goes to the background's console, where the user can
+ * read it and the site cannot.
+ */
+const PAGE_MESSAGE: Readonly<Record<ErrorCode, string>> = {
+    unavailable: 'the LangCheck native host is not installed or did not start',
+    refused: 'the request was refused',
+    busy: 'too many checks are waiting; try again shortly',
+    timeout: 'the checker did not answer in time',
+    failed: 'the checker reported an error (details in the extension console)',
+};
+
+function failed(id: number, f: CoreFailure): PageResponse {
+    console.warn(`[language-check] request ${String(id)} failed (${f.failure}): ${f.message}`);
+    return { id, ok: false, code: f.failure, error: PAGE_MESSAGE[f.failure] };
+}
 
 function toProto(request: PageRequest): languagecheck.Request.$Properties {
     switch (request.op) {
@@ -280,11 +298,11 @@ function toProto(request: PageRequest): languagecheck.Request.$Properties {
 }
 
 function fromProto(id: number, response: languagecheck.Response.$Properties): PageResponse {
-    if (response.error) return { id, ok: false, code: 'failed', error: response.error.message ?? 'the core reported an error' };
+    if (response.error) return failed(id, { failure: 'failed', message: response.error.message ?? 'the core reported an error' });
     if (response.checkProse) {
         return { id, ok: true, diagnostics: (response.checkProse.diagnostics ?? []).map((d) => toWire(d)) };
     }
-    return response.ok ? { id, ok: true } : { id, ok: false, code: 'failed', error: 'unexpected response from the core' };
+    return response.ok ? { id, ok: true } : failed(id, { failure: 'failed', message: 'unexpected response from the core' });
 }
 
 function toWire(d: languagecheck.Diagnostic.$Properties): WireDiagnostic {

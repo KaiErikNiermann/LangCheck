@@ -118,7 +118,7 @@ describe('CoreConnection', () => {
 
     test('a missing host fails fast, then is not respawned until the backoff passes', async () => {
         const { clock, hosts, connection } = setup('crash-on-start', 'crash-on-start', 'answer');
-        expect(await connection.request(check)).toMatchObject({ ok: false, code: 'unavailable', error: 'Specified native messaging host not found.' });
+        expect(await connection.request(check)).toMatchObject({ ok: false, code: 'unavailable' });
         // Typing on: no new process during the backoff.
         expect(await connection.request(check)).toMatchObject({ ok: false, code: 'unavailable' });
         expect(hosts).toHaveLength(1);
@@ -139,7 +139,7 @@ describe('CoreConnection', () => {
         const pending = connection.request(check);
         await Promise.resolve();
         hosts[0]!.crash('Native application has exited.');
-        expect(await pending).toMatchObject({ ok: false, code: 'unavailable', error: 'Native application has exited.' });
+        expect(await pending).toMatchObject({ ok: false, code: 'unavailable' });
     });
 
     test('a malformed or oversized frame drops the connection instead of being trusted', async () => {
@@ -182,5 +182,42 @@ describe('CoreManager', () => {
         manager.sweep();
         expect(manager.size).toBe(0);
         expect(hosts.every((h) => h.disconnected)).toBe(true);
+    });
+});
+
+describe('what reaches the page', () => {
+    // The page world shares a realm with the site's own scripts. Host and
+    // core errors can name local paths (a workspace directory under the
+    // user's home), so the page gets a fixed message per code and the detail
+    // stays in the background's console.
+    test('error text from the host or core never reaches the page verbatim', async () => {
+        const secret = '/home/someone/.local/share/language-check/web/overleaf-abc';
+        const { hosts, connection } = setup('silent');
+        const pending = connection.request(check);
+        await Promise.resolve();
+        hosts[0]!.crash(`cannot create ${secret}: permission denied`);
+        const response = await pending;
+        expect(response).toMatchObject({ ok: false, code: 'unavailable' });
+        expect(JSON.stringify(response)).not.toContain(secret);
+        expect(JSON.stringify(response)).not.toContain('someone');
+    });
+
+    test('a core ErrorResponse is reported without its message', async () => {
+        const clock = new FakeClock();
+        const secret = 'Extraction error: /home/someone/project/main.tex';
+        const connect = (): NativePort => {
+            const host = new FakeHost('silent');
+            const original = host.postMessage.bind(host);
+            host.postMessage = (message: unknown) => {
+                original(message);
+                const request = host.received.at(-1)!;
+                const response = request.initialize ? { id: request.id, initialize: {} } : { id: request.id, error: { message: secret } };
+                queueMicrotask(() => host.emit({ frame: bytesToBase64(languagecheck.Response.encode(response).finish()), more: false }));
+            };
+            return host;
+        };
+        const response = await new CoreConnection('k', connect, clock).request(check);
+        expect(response).toMatchObject({ ok: false, code: 'failed' });
+        expect(JSON.stringify(response)).not.toContain('someone');
     });
 });
