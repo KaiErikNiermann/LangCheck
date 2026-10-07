@@ -270,7 +270,7 @@ The checking pipeline has four stages:
 | `languageCheck.core.channel`                  | `string`   | `"stable"`   | Core binary channel: `stable`, `canary`, or `dev`        |
 | `languageCheck.core.binaryPath`               | `string`   | `""`         | Custom path to `language-check-server` binary            |
 | `languageCheck.trace.enable`                  | `bool`     | `false`      | Enable Protobuf message tracing to the output channel    |
-| `languageCheck.check.trigger`                 | `string`   | `"onChange"` | When to check: `onChange` (with debounce) or `onSave`    |
+| `languageCheck.check.trigger`                 | `string`   | `"onSave"`   | When to check: `onChange` (with debounce) or `onSave`    |
 | `languageCheck.check.progressive`             | `bool`     | `false`      | Run a long document's first check a window at a time, the part in view first |
 | `languageCheck.check.windowBytes`             | `number`   | `16384`      | Size of one progressive-check window, in bytes           |
 | `languageCheck.check.maxBytes`                | `number`   | `0`          | Check only the first this many bytes (`0`: all)          |
