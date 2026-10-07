@@ -733,7 +733,15 @@ async fn main() -> Result<()> {
                             // result saves is the engines, which is where a
                             // check's time actually goes -- for LanguageTool, a
                             // network round trip per range.
-                            let cached = match req.file_path.as_deref() {
+                            //
+                            // A window's answer covers only its ranges: it is
+                            // neither served from nor stored as the file's.
+                            let window = req.window.map(|w| prose::window::Window {
+                                start: w.start_byte as usize,
+                                end: w.end_byte as usize,
+                            });
+                            let cached = match req.file_path.as_deref().filter(|_| window.is_none())
+                            {
                                 Some(path) => workspace_index_arc
                                     .lock()
                                     .await
@@ -751,13 +759,21 @@ async fn main() -> Result<()> {
                                 );
                                 all_diagnostics = stored;
                             } else {
+                                // The ranges this check covers: those the
+                                // window owns, or all of them.
+                                let owned: Vec<usize> = match window {
+                                    Some(w) => prose::window::owned_by(&ranges, w),
+                                    None => (0..ranges.len()).collect(),
+                                };
+                                let owned_units: Vec<prose::ProseUnit> =
+                                    owned.iter().map(|&i| units[i].clone()).collect();
                                 // One batch, one lock: the engines decide internally
                                 // how much of it to run concurrently.
                                 let batch = {
                                     let mut orchestrator = orchestrator_arc.lock().await;
                                     orchestrator
                                         .check_units_in(
-                                            &units,
+                                            &owned_units,
                                             &lang_check::orchestrator::CheckContext::for_path(
                                                 file_path,
                                             ),
@@ -775,7 +791,9 @@ async fn main() -> Result<()> {
                                     warn!(id = request_id, "CheckProse: batch failed: {e}");
                                     Vec::new()
                                 });
-                                for (range, mut diagnostics) in ranges.iter().zip(batch) {
+                                for (range, mut diagnostics) in
+                                    owned.iter().map(|&i| &ranges[i]).zip(batch)
+                                {
                                     // Offsets become document-level here, which
                                     // is what both the cache and the
                                     // suppression pass below expect.
@@ -822,6 +840,7 @@ async fn main() -> Result<()> {
                             // and discard one more of it.
                             if engines_healthy
                                 && !served_from_cache
+                                && window.is_none()
                                 && let Some(idx) = &*workspace_index_arc.lock().await
                                 && let Some(file_path) = req.file_path.clone()
                             {

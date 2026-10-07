@@ -419,3 +419,134 @@ fn checking_for_long_does_not_grow_the_server() {
         "server grew from {settled} KiB to {after} KiB over the last 25k checks"
     );
 }
+
+/// One check, answered in turn; `window` and `file_path` as the editor sends them.
+fn check(
+    child: &mut Child,
+    id: u64,
+    text: &str,
+    window: Option<(u32, u32)>,
+    file_path: Option<&str>,
+) -> lang_check::checker::CheckResponse {
+    let request = Request {
+        id,
+        payload: Some(request::Payload::CheckProse(
+            lang_check::checker::CheckRequest {
+                text: text.into(),
+                language_id: "markdown".into(),
+                file_path: file_path.map(Into::into),
+                window: window.map(|(start_byte, end_byte)| lang_check::checker::ByteWindow {
+                    start_byte,
+                    end_byte,
+                }),
+                ..Default::default()
+            },
+        )),
+    };
+    send_frame(child, &request.encode_to_vec());
+    let response = read_response(child);
+    assert_eq!(response.id, id);
+    match response.payload {
+        Some(response::Payload::CheckProse(answer)) => answer,
+        other => panic!("CheckProse answered {other:?}"),
+    }
+}
+
+/// What a finding is, for comparing answers: where, and which rule.
+fn findings(answer: &lang_check::checker::CheckResponse) -> Vec<(u32, u32, String)> {
+    let mut found: Vec<_> = answer
+        .diagnostics
+        .iter()
+        .map(|d| (d.start_byte, d.end_byte, d.rule_id.clone()))
+        .collect();
+    found.sort();
+    found
+}
+
+const PARAGRAPHS: &str = "Teh first paragraph is here.\n\nAnother one, and I recieve it.\n\nA third, written seperately.\n\nThe last is fine.\n";
+
+/// A long document's first check, a window at a time: the windows of any
+/// tiling add up to the whole check, each describes every range, and a
+/// window that owns no range finds nothing.
+#[test]
+fn the_windows_of_a_tiling_add_up_to_the_whole_check() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    let whole = check(&mut child, 10, PARAGRAPHS, None, None);
+    let expected = findings(&whole);
+    assert!(
+        expected.len() >= 3,
+        "the fixture has three misspellings: {expected:?}"
+    );
+    let length = u32::try_from(PARAGRAPHS.len()).expect("short");
+    let mut id = 11;
+    for width in [1, 7, 30, 31, 64, length] {
+        let mut together = Vec::new();
+        let mut start = 0;
+        while start < length {
+            let end = (start + width).min(length);
+            let answer = check(&mut child, id, PARAGRAPHS, Some((start, end)), None);
+            id += 1;
+            let ranges = answer
+                .extraction
+                .as_ref()
+                .map_or(0, |e| e.prose_ranges.len());
+            assert_eq!(
+                ranges,
+                whole
+                    .extraction
+                    .as_ref()
+                    .map_or(0, |e| e.prose_ranges.len()),
+                "a window describes every range"
+            );
+            together.extend(findings(&answer));
+            start = end;
+        }
+        together.sort();
+        assert_eq!(together, expected, "windows of {width} bytes");
+    }
+    // Past the text: owns nothing.
+    assert_eq!(
+        findings(&check(
+            &mut child,
+            id,
+            PARAGRAPHS,
+            Some((length, length + 100)),
+            None
+        )),
+        Vec::new()
+    );
+    // Backwards: owns nothing either.
+    assert_eq!(
+        findings(&check(&mut child, id + 1, PARAGRAPHS, Some((20, 5)), None)),
+        Vec::new()
+    );
+    child.kill().ok();
+}
+
+/// A window's answer is not the file's: it is not stored as the file's
+/// result, so the whole check after it runs and finds everything.
+#[test]
+fn a_windowed_check_is_not_stored_as_the_files_result() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    let file = dir.path().join("doc.md");
+    let file = file.to_str().expect("utf-8 path");
+    let first = check(&mut child, 10, PARAGRAPHS, Some((0, 10)), Some(file));
+    assert_eq!(
+        findings(&first).len(),
+        1,
+        "only the first paragraph's: {:?}",
+        findings(&first)
+    );
+    let whole = check(&mut child, 11, PARAGRAPHS, None, Some(file));
+    assert!(!whole.served_from_cache);
+    assert!(findings(&whole).len() >= 3);
+    // And the whole answer, stored now, is not served for a window either.
+    let again = check(&mut child, 12, PARAGRAPHS, Some((0, 10)), Some(file));
+    assert!(!again.served_from_cache);
+    assert_eq!(findings(&again), findings(&first));
+    child.kill().ok();
+}

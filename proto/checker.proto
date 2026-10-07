@@ -87,6 +87,16 @@ message CheckRequest {
   string language_id = 2;
   map<string, string> settings = 3;
   optional string file_path = 4;
+  // Check only the prose ranges whose first byte is in this window (a long
+  // document's first check, a window at a time: rust-core/src/prose/window.rs).
+  // The extraction still describes every range. Without it, all are checked.
+  optional ByteWindow window = 5;
+}
+
+// A half-open byte window [start_byte, end_byte) of a request's text.
+message ByteWindow {
+  uint32 start_byte = 1;
+  uint32 end_byte = 2;
 }
 
 message CheckResponse {
