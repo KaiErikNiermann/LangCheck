@@ -25,12 +25,15 @@ const CONFIG_TABS_KEY = 'configTabs';
 /** Every tab the extension opens for a page comes out of one budget per source tab. */
 const budget = new OpenBudget();
 
+/** Brings a tab, and its window, forward. */
+async function activate(tabId: number): Promise<void> {
+    const tab = await browser.tabs.update(tabId, { active: true });
+    if (tab.windowId !== undefined) await browser.windows.update(tab.windowId, { focused: true });
+}
+
 const panels = new Panels({
     create: (options) => browser.tabs.create(options),
-    activate: async (tabId) => {
-        const tab = await browser.tabs.update(tabId, { active: true });
-        if (tab.windowId !== undefined) await browser.windows.update(tab.windowId, { focused: true });
-    },
+    activate,
     // tabs.get and windows.get need no permission for these fields.
     isFrontmost: async (tabId) => {
         const tab = await browser.tabs.get(tabId);
@@ -43,10 +46,7 @@ const panels = new Panels({
 }, undefined, budget);
 const configTabs = new ConfigTabs({
     create: (options) => browser.tabs.create(options),
-    activate: async (tabId) => {
-        const tab = await browser.tabs.update(tabId, { active: true });
-        if (tab.windowId !== undefined) await browser.windows.update(tab.windowId, { focused: true });
-    },
+    activate,
     url: browser.runtime.getURL('config.html'),
 }, budget, (tabs) => {
     void browser.storage.session.set({ [CONFIG_TABS_KEY]: tabs }).catch(() => {});
