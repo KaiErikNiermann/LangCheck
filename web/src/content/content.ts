@@ -65,6 +65,12 @@ export function startContent(site: SiteWorkspace): void {
         for (const port of pagePorts.values()) port.postMessage({ type: COMMAND_TYPE, command: id });
     });
     let ports = 0;
+    /**
+     * Requests in flight from this tab, whatever port they came on: per port,
+     * a page could open a port, fill it, say bye and open another, and keep
+     * any number of checks running on the core.
+     */
+    const inFlight = { count: 0 };
 
     window.addEventListener('message', (event: MessageEvent) => {
         if (event.source !== window || event.origin !== location.origin) return;
@@ -77,7 +83,7 @@ export function startContent(site: SiteWorkspace): void {
         ports++;
         const index = ports;
         const channel = new MessageChannel();
-        servePort(channel.port1, index, background, panels, () => {
+        servePort(channel.port1, index, background, panels, inFlight, () => {
             pagePorts.delete(index);
             channel.port1.close();
         });
@@ -111,8 +117,7 @@ function relayPanelMessage(data: unknown, index: number, background: BackgroundL
     background.postWebview(panelMessage);
 }
 
-function servePort(port: MessagePort, index: number, background: BackgroundLink, panels: Set<string>, bye: () => void): void {
-    let inFlight = 0;
+function servePort(port: MessagePort, index: number, background: BackgroundLink, panels: Set<string>, inFlight: { count: number }, bye: () => void): void {
     const reply = (response: PageResponse): void => { port.postMessage(response); };
     const fail = (id: number, code: ErrorCode, error: string): void => { reply({ id, ok: false, code, error }); };
 
@@ -132,17 +137,19 @@ function servePort(port: MessagePort, index: number, background: BackgroundLink,
             if (Number.isSafeInteger(id) && (id as number) > 0) fail(id as number, 'refused', 'malformed request');
             return;
         }
-        if (inFlight >= MAX_IN_FLIGHT_PER_PAGE) {
+        if (inFlight.count >= MAX_IN_FLIGHT_PER_PAGE) {
             fail(request.id, 'busy', 'too many requests in flight');
             return;
         }
-        inFlight++;
+        inFlight.count++;
         void background
             .send(request)
             .then(reply, () => {
                 fail(request.id, 'unavailable', 'the extension background is not reachable');
             })
-            .finally(() => inFlight--);
+            .finally(() => {
+                inFlight.count--;
+            });
     });
     port.start();
 }

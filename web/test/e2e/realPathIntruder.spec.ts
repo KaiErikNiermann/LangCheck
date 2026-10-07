@@ -48,3 +48,44 @@ test("a second page script gets no palette commands of its own, nor the real pag
     await page.waitForTimeout(1000);
     expect(panelPages(context, 'speedFix')).toHaveLength(1);
 });
+
+test('a page cannot run more checks at once by cycling ports', async ({ page }) => {
+    await page.goto(pageUrl('overleaf', 'current', 'I will recieve it.'));
+    await expect.poll(() => status(page)).toMatchObject({ state: 'attached' });
+    const answers = await page.evaluate(
+        async ([ready, version]) => {
+            const port = (): Promise<MessagePort> =>
+                new Promise((resolve) => {
+                    // eslint-disable-next-line sonarjs/post-message -- playing the intruder
+                    window.addEventListener('message', function take(event: MessageEvent) {
+                        const p = event.ports[0];
+                        if (p === undefined) return;
+                        window.removeEventListener('message', take);
+                        p.start();
+                        resolve(p);
+                    });
+                    window.postMessage({ type: ready, version }, location.origin);
+                });
+            // A port that said bye gets no more answers: count what came back
+            // at once, which is where a refusal shows.
+            const codes: (string | undefined)[] = [];
+            let id = 1;
+            for (let round = 0; round < 3; round++) {
+                const p = await port();
+                p.addEventListener('message', (event: MessageEvent) => {
+                    codes.push((event.data as { code?: string }).code);
+                });
+                for (let i = 0; i < 8; i++) {
+                    // A long text the core has not seen: it takes a while.
+                    p.postMessage({ id: id++, request: { checkProse: { text: `Round ${String(round)} ${String(i)}: ` + 'some words about the weather. '.repeat(3000), languageId: 'latex' } } });
+                }
+                p.postMessage({ type: 'bye' });
+            }
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            return codes;
+        },
+        [PAGE_READY_TYPE, PROTOCOL_VERSION] as const,
+    );
+    const busy = answers.filter((code) => code === 'busy').length;
+    expect(busy).toBeGreaterThanOrEqual(16);
+});
