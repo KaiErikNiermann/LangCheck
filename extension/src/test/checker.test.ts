@@ -259,4 +259,48 @@ describe('Checker, progressive', () => {
         expect(published).toEqual([['A']]);
         expect(results.checkedWhole.size).toBe(1);
     });
+
+    describe('foreign findings', () => {
+        const finding = (from: number, to: number) => ({
+            checker: 'typst', rule: 'misspelling', category: 'spelling' as const, from, to, message: '', language: 'en',
+        });
+
+        it('go with the check of the text they were read against, in bytes', async () => {
+            let foreign = [finding(6, 9)];
+            const { checker, pending, requests } = harness({ foreignOf: () => foreign });
+            const doc = editableDocument('Größe teh');
+            const check = checker.check(doc as unknown as vscode.TextDocument);
+            await settle();
+            expect((requests[0]!.checkProse as { foreign?: unknown }).foreign).toEqual([
+                { checker: 'typst', rule: 'misspelling', category: 1, startByte: 8, endByte: 11, message: '', language: 'en' },
+            ]);
+            pending[0]!(answer('x'));
+            await check;
+
+            foreign = [];
+            const plain = checker.check(doc as unknown as vscode.TextDocument);
+            await settle();
+            expect(requests[1]!.checkProse).not.toHaveProperty('foreign');
+            pending[1]!(answer('y'));
+            await plain;
+        });
+
+        it('join a running check only when they are the same, as the text is', async () => {
+            let foreign = [finding(0, 3)];
+            const { checker, pending, requests } = harness({ foreignOf: () => foreign });
+            const doc = editableDocument('teh');
+            const first = checker.check(doc as unknown as vscode.TextDocument);
+            const joined = checker.check(doc as unknown as vscode.TextDocument);
+            await settle();
+            expect(requests).toHaveLength(1);
+            // The host's checker answered meanwhile: same text, a new question.
+            foreign = [];
+            const fresh = checker.check(doc as unknown as vscode.TextDocument);
+            await settle();
+            expect(requests).toHaveLength(2);
+            pending[0]!(answer('a'));
+            pending[1]!(answer('b'));
+            await Promise.all([first, joined, fresh]);
+        });
+    });
 });

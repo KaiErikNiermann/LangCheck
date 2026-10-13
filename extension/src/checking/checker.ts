@@ -11,6 +11,8 @@ import type { Logger } from '../shared/logger';
 import type { InspectorLog } from '../ui/inspectorLog';
 import type { StatusBars } from '../ui/statusBars';
 import { getSetting } from '../config/settings';
+import type { languagecheck } from '../proto/checker';
+import { foreignKey, foreignToWire, type ForeignFinding } from './foreign';
 import { byteToCharConverter } from './offsets';
 import { positionsIn, toDiagnostic, toInspectorRanges, toNameSpans } from './response';
 import type { CheckResults } from './results';
@@ -55,6 +57,12 @@ export interface CheckerDeps {
     readonly languageToolRestartable: () => boolean;
     /** Where the user is in `document` (a character offset: the cursor, or the top of the view), for a progressive check to start there. */
     readonly focusOf?: (document: vscode.TextDocument) => number | undefined;
+    /**
+     * What checkers other than ours found in `document` now (a host page's
+     * own spellchecker, on the web), in string offsets of its current text.
+     * Read with the text, so they describe the same text the check sends.
+     */
+    readonly foreignOf?: (document: vscode.TextDocument) => readonly ForeignFinding[];
 }
 
 const utf8 = new TextEncoder();
@@ -70,8 +78,8 @@ const MAX_CONCURRENT_CHECKS = 3;
 
 export class Checker {
     private readonly slots = new CheckSlots(MAX_CONCURRENT_CHECKS);
-    /** Checks currently running, keyed by document URI, with the text they cover. */
-    private readonly inFlight = new Map<string, { text: string; result: Promise<number> }>();
+    /** Checks currently running, keyed by document URI, with the text and foreign findings they cover. */
+    private readonly inFlight = new Map<string, { text: string; foreign: string; result: Promise<number> }>();
     /**
      * The newest check started per document URI. Checks run concurrently, so
      * an older one can finish after a newer one, and its answer must not
@@ -111,20 +119,22 @@ export class Checker {
 
         const t0 = performance.now();
         const textContent = document.getText();
+        const foreign = this.deps.foreignOf?.(document) ?? [];
+        const foreignAt = foreignKey(foreign);
         const version = document.version;
         const readMs = performance.now() - t0;
 
         const uri = uriKey(document.uri);
         const inFlight = this.inFlight.get(uri);
-        if (inFlight && inFlight.text === textContent) {
+        if (inFlight?.text === textContent && inFlight.foreign === foreignAt) {
             inspectorLog.push('debug', 'checkDocument', `Joining in-flight check for ${basename(document.fileName)}`);
             return inFlight.result;
         }
 
         const generation = ++this.generation;
         this.latest.set(uri, generation);
-        const result = this.run(document, core.client, textContent, version, readMs, generation);
-        this.inFlight.set(uri, { text: textContent, result });
+        const result = this.run(document, core.client, textContent, foreign, version, readMs, generation);
+        this.inFlight.set(uri, { text: textContent, foreign: foreignAt, result });
         try {
             return await result;
         } finally {
@@ -161,6 +171,8 @@ export class Checker {
         document: vscode.TextDocument,
         client: CoreTransport,
         textContent: string,
+        /** What other checkers found in `textContent`. */
+        foreign: readonly ForeignFinding[],
         /** The document version `textContent` was read at. */
         version: number,
         readMs: number,
@@ -177,9 +189,11 @@ export class Checker {
         // Each window's answer is every finding of its ranges: the
         // document's are the answers so far, put together.
         const collected = new WindowedFindings<ExtendedDiagnostic>();
+        // Sent whole with every window: the core keeps those in the ranges it owns.
+        const foreignWire = foreignToWire(foreign, textContent);
         let found = -1;
         for (const window of plan) {
-            const step = await this.checkOnce(document, client, textContent, version, readMs, generation, window, collected);
+            const step = await this.checkOnce(document, client, textContent, foreignWire, version, readMs, generation, window, collected);
             found = step.found;
             // Superseded by an edit, failed, or cut off: what landed stays
             // shown, and the document is not taken as checked whole.
@@ -200,6 +214,7 @@ export class Checker {
         document: vscode.TextDocument,
         client: CoreTransport,
         textContent: string,
+        foreign: languagecheck.ForeignFinding.$Properties[],
         version: number,
         readMs: number,
         generation: number,
@@ -233,6 +248,7 @@ export class Checker {
                     settings: {},
                     filePath: document.uri.fsPath,
                     ...(window !== undefined && { window: { startByte: window.start, endByte: window.end } }),
+                    ...(foreign.length > 0 && { foreign }),
                 }
             });
             const rpcMs = performance.now() - t1;

@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { byteToCharConverter, coreByte } from '../checking/offsets';
+import { byteToCharConverter, charToByteConverter, coreByte, type CharOffset } from '../checking/offsets';
 
 /**
  * How offsets were converted before the table: decode the prefix. Kept as
@@ -53,5 +53,29 @@ describe('byteToCharConverter', () => {
         const started = performance.now();
         for (let i = 0; i < 10_000; i++) convert(coreByte(Math.floor((i / 10_000) * total)));
         expect(performance.now() - started).toBeLessThan(500);
+    });
+});
+
+/** Whether string offset `offset` falls between the two halves of a surrogate pair. */
+function splitsPair(sample: string, offset: number): boolean {
+    const high = sample.charCodeAt(offset - 1);
+    const low = sample.charCodeAt(offset);
+    return high >= 0xd800 && high <= 0xdbff && low >= 0xdc00 && low <= 0xdfff;
+}
+
+describe('charToByteConverter', () => {
+    it('answers the byte length of the prefix, a split pair counting from its start, and inverts byteToCharConverter', () => {
+        fc.assert(fc.property(text, sample => {
+            const toByte = charToByteConverter(sample);
+            const toChar = byteToCharConverter(sample);
+            for (let offset = -2; offset <= sample.length + 2; offset++) {
+                const clamped = Math.min(Math.max(offset, 0), sample.length);
+                const at = splitsPair(sample, clamped) ? clamped - 1 : clamped;
+                const bytes = toByte(offset as CharOffset);
+                expect(bytes, `offset ${offset} of ${JSON.stringify(sample)}`)
+                    .toBe(Buffer.byteLength(sample.slice(0, at), 'utf8'));
+                expect(toChar(bytes)).toBe(at);
+            }
+        }), { numRuns: 2_000 });
     });
 });

@@ -77,3 +77,23 @@ function prefixEnd(offset: number | undefined, total: number): number {
     if (Number.isNaN(whole)) return 0;
     return whole < 0 ? Math.max(total + whole, 0) : Math.min(whole, total);
 }
+
+/**
+ * A converter from string offsets in `text` to byte offsets, the inverse of
+ * {@link byteToCharConverter}, built in one pass: for what the client sends
+ * the core in its terms (a foreign checker's findings, read in the editor's).
+ * An offset between the two halves of a surrogate pair is the pair's start,
+ * past the end is the end.
+ */
+export function charToByteConverter(text: string): (charOffset: CharOffset) => ByteOffset {
+    const table = new Uint32Array(text.length + 1);
+    let byte = 0;
+    let unit = 0;
+    for (const char of text) {
+        table.fill(byte, unit, unit + char.length);
+        byte += utf8Length(char);
+        unit += char.length;
+    }
+    table[unit] = byte;
+    return (offset: CharOffset) => table[Math.min(Math.max(Math.trunc(offset) || 0, 0), text.length)] as ByteOffset;
+}
