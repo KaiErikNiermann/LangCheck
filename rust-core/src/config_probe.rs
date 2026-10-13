@@ -158,7 +158,99 @@ pub async fn probe_config(config: &Config, workspace_root: &Path) -> Vec<Probe> 
         workspace_root,
         crate::site_dictionary::now(),
     ));
+    out.push(probe_add_to(config, workspace_root));
     out
+}
+
+/// Where "Add to dictionary" puts a word, or why it cannot.
+///
+/// The default draws nothing: it is where words always went.
+fn probe_add_to(config: &Config, workspace_root: &Path) -> Probe {
+    use crate::config::{AddTarget, AddTargetName, SiteDictionaryMode};
+    const KEY: &str = "dictionaries.add_to";
+    let site_mode = config.dictionaries.site;
+    match &config.dictionaries.add_to {
+        AddTarget::Named(AddTargetName::Languagecheck) if site_mode == SiteDictionaryMode::Only => {
+            Probe::new(
+                KEY,
+                "",
+                ProbeStatus::Degraded,
+                "Words are added to LangCheck's dictionary.txt, which dictionaries.site: only leaves out; adding is refused. Set add_to to site.",
+            )
+        }
+        AddTarget::Named(AddTargetName::Languagecheck) => Probe::new(
+            KEY,
+            "",
+            ProbeStatus::Skipped,
+            "Words are added to LangCheck's dictionary.txt.",
+        ),
+        AddTarget::Named(AddTargetName::Site) if site_mode == SiteDictionaryMode::Ignore => {
+            Probe::new(
+                KEY,
+                "",
+                ProbeStatus::Down,
+                "Words would go to the site's dictionary, which dictionaries.site: ignore leaves out; adding is refused.",
+            )
+        }
+        AddTarget::Named(AddTargetName::Site) => crate::site_dictionary::SiteWords::load(workspace_root).map_or_else(
+            || {
+                Probe::new(
+                    KEY,
+                    "",
+                    ProbeStatus::Degraded,
+                    "Words would go to the site's dictionary, and none has arrived: that works in the browser extension, on Overleaf and Typst.",
+                )
+            },
+            |site| Probe::new(KEY, "", ProbeStatus::Ok, format!("Words are added to the {}.", site.title())),
+        ),
+        AddTarget::Path(path) => probe_add_to_path(workspace_root, path),
+    }
+}
+
+/// A wordlist "Add to dictionary" writes to: inside the workspace, and readable or not there yet.
+fn probe_add_to_path(workspace_root: &Path, path: &str) -> Probe {
+    const KEY: &str = "dictionaries.add_to";
+    let full = absolute_against(workspace_root, path);
+    let inside = full
+        .parent()
+        .and_then(|parent| parent.canonicalize().ok())
+        .zip(workspace_root.canonicalize().ok())
+        .is_none_or(|(parent, root)| parent.starts_with(root));
+    if !inside {
+        return Probe::new(
+            KEY,
+            "",
+            ProbeStatus::Down,
+            format!("{path} is outside the workspace; words cannot be added there."),
+        );
+    }
+    match std::fs::read_to_string(&full) {
+        Ok(text) => {
+            let words = text
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty() && !l.starts_with('#'))
+                .count();
+            Probe::new(
+                KEY,
+                "",
+                ProbeStatus::Ok,
+                format!("Words are added to {path} ({words} there now)."),
+            )
+        }
+        Err(_) if !full.exists() => Probe::new(
+            KEY,
+            "",
+            ProbeStatus::Ok,
+            format!("Words are added to {path}, created with the first one."),
+        ),
+        Err(e) => Probe::new(
+            KEY,
+            "",
+            ProbeStatus::Down,
+            format!("{path} cannot be read: {e}"),
+        ),
+    }
 }
 
 /// Whether the site's own dictionary is registered, and what came of it.
@@ -718,6 +810,51 @@ mod tests {
             1000,
         );
         assert_eq!(ignored.status, ProbeStatus::Skipped);
+    }
+
+    #[test]
+    fn the_add_to_target_is_reported_with_why_it_cannot_work() {
+        let dir = tempfile::tempdir().unwrap();
+        let probe = |yaml: &str| probe_add_to(&config_from(yaml), dir.path());
+        assert_eq!(probe("dictionaries: {}\n").status, ProbeStatus::Skipped);
+        assert_eq!(
+            probe("dictionaries:\n  site: only\n").status,
+            ProbeStatus::Degraded
+        );
+        assert_eq!(
+            probe("dictionaries:\n  add_to: site\n  site: ignore\n").status,
+            ProbeStatus::Down
+        );
+        assert_eq!(
+            probe("dictionaries:\n  add_to: site\n").status,
+            ProbeStatus::Degraded
+        );
+        crate::site_dictionary::SiteWords::coerce("overleaf", &["Vrije".to_string()], 0)
+            .unwrap()
+            .store(dir.path())
+            .unwrap();
+        assert_eq!(
+            probe("dictionaries:\n  add_to: site\n").detail,
+            "Words are added to the Overleaf learned words."
+        );
+
+        let fresh = probe("dictionaries:\n  add_to: terms.txt\n");
+        assert_eq!(
+            (fresh.status, fresh.detail.as_str()),
+            (
+                ProbeStatus::Ok,
+                "Words are added to terms.txt, created with the first one."
+            )
+        );
+        std::fs::write(dir.path().join("terms.txt"), "# terms\nfunctor\nmonad\n").unwrap();
+        assert_eq!(
+            probe("dictionaries:\n  add_to: terms.txt\n").detail,
+            "Words are added to terms.txt (2 there now)."
+        );
+        assert_eq!(
+            probe("dictionaries:\n  add_to: ../outside.txt\n").status,
+            ProbeStatus::Down
+        );
     }
 
     #[test]

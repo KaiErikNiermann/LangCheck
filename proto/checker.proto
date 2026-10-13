@@ -63,7 +63,19 @@ message Response {
     ListConfigFilesResponse list_config_files = 7;
     InitializeResponse initialize = 8;
     ReadConfigResponse read_config = 9;
+    SiteWriteResponse site_write = 10;
   }
+}
+
+// The answer to AddDictionaryWord when `dictionaries.add_to` is `site`: the
+// core has applied the word, and the client writes it to that site's own
+// dictionary, which only the page can reach (it holds the site's session).
+// The next copy of the site's dictionary the page sends replaces the core's,
+// so a write that failed undoes itself there.
+message SiteWriteResponse {
+  // Which site ("typst", "overleaf"), as its dictionary was last received.
+  string source = 1;
+  string word = 2;
 }
 
 message OkResponse {}

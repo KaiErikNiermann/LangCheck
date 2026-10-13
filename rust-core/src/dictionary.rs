@@ -78,6 +78,23 @@ impl Dictionary {
         };
     }
 
+    /// Accepts one more of the site's words until the site's next list
+    /// replaces them all: the word a user just asked to add to the site's
+    /// dictionary, applied before the site has it.
+    pub fn add_site_word(&mut self, word: &str, inflect: bool) {
+        let lower = word.to_lowercase();
+        if inflect && let Ok(forms) = inflection::expand([lower.as_str()]) {
+            self.site_derived.extend(forms);
+        }
+        self.site_words.insert(lower);
+    }
+
+    /// Whether the site's words are accepted; when not, adding one there changes nothing here.
+    #[must_use]
+    pub const fn uses_site(&self) -> bool {
+        self.use_site
+    }
+
     /// How many of the site's words are loaded (accepted or not).
     #[must_use]
     pub fn site_len(&self) -> usize {
@@ -145,6 +162,63 @@ impl Dictionary {
     ///
     /// Paths are resolved relative to `base` if they are not absolute.
     pub fn load_wordlist_file(&mut self, path: &Path, base: &Path) -> Result<()> {
+        let resolved = Self::wordlist_path(path, base)?;
+        let content = std::fs::read_to_string(&resolved)
+            .map_err(|e| anyhow::anyhow!("Cannot read wordlist {}: {e}", resolved.display()))?;
+        parse_wordlist_into(&content, &mut self.bundled_words);
+        Ok(())
+    }
+
+    /// Adds `word` to the wordlist file at `path` (as [`Self::load_wordlist_file`]
+    /// resolves it), creating the file inside the workspace when it is not
+    /// there yet, and accepts it at once with its inflections.
+    pub fn add_to_wordlist(&mut self, path: &Path, base: &Path, word: &str) -> Result<()> {
+        let target = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            base.join(path)
+        };
+        if !target.exists() {
+            // Created where the config says, but only inside the workspace:
+            // the parent is held to the same rule as an existing file.
+            let parent = target.parent().unwrap_or(base);
+            std::fs::create_dir_all(parent)?;
+            let canonical_parent = parent.canonicalize()?;
+            let canonical_base = base.canonicalize().unwrap_or_else(|_| base.to_path_buf());
+            anyhow::ensure!(
+                canonical_parent.starts_with(&canonical_base),
+                "Wordlist path {} is outside the workspace",
+                target.display()
+            );
+            std::fs::write(&target, "")?;
+        }
+        let resolved = Self::wordlist_path(path, base)?;
+        let content = std::fs::read_to_string(&resolved)?;
+        let lower = word.to_lowercase();
+        let present = content
+            .lines()
+            .map(str::trim)
+            .any(|line| !line.starts_with('#') && line.to_lowercase() == lower);
+        if !present {
+            let mut text = content;
+            if !text.is_empty() && !text.ends_with('\n') {
+                text.push('\n');
+            }
+            text.push_str(word.trim());
+            text.push('\n');
+            crate::fs_util::write_replacing(&resolved, text.as_bytes())?;
+        }
+        if self.bundled_words.insert(lower.clone())
+            && let Ok(forms) = inflection::expand([lower.as_str()])
+        {
+            self.derived_words.extend(forms);
+        }
+        Ok(())
+    }
+
+    /// Where a wordlist path names, refused outside the workspace and the
+    /// user's config directories.
+    fn wordlist_path(path: &Path, base: &Path) -> Result<PathBuf> {
         let resolved = if path.is_absolute() {
             path.to_path_buf()
         } else {
@@ -167,11 +241,7 @@ impl Dictionary {
                 resolved.display()
             );
         }
-
-        let content = std::fs::read_to_string(&resolved)
-            .map_err(|e| anyhow::anyhow!("Cannot read wordlist {}: {e}", resolved.display()))?;
-        parse_wordlist_into(&content, &mut self.bundled_words);
-        Ok(())
+        Ok(resolved)
     }
 
     /// Add a word to the user dictionary and persist to disk.
@@ -767,5 +837,34 @@ mod tests {
         dict.set_site_mode(crate::config::SiteDictionaryMode::Only);
         dict.derive_inflections();
         assert!(!dict.contains("functors"));
+    }
+
+    #[test]
+    fn a_word_is_added_to_a_wordlist_once_and_counts_at_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut dict = Dictionary::new();
+        let path = Path::new("lists/terms.txt");
+        dict.add_to_wordlist(path, dir.path(), "Functor").unwrap();
+        dict.add_to_wordlist(path, dir.path(), "functor").unwrap();
+        dict.add_to_wordlist(path, dir.path(), "Monad").unwrap();
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join(path)).unwrap(),
+            "Functor\nMonad\n"
+        );
+        assert!(dict.contains("functor") && dict.contains("functors") && dict.contains("monad"));
+        assert!(!dir.path().join(".languagecheck/dictionary.txt").exists());
+    }
+
+    #[test]
+    fn a_wordlist_outside_the_workspace_is_not_written() {
+        let outer = tempfile::tempdir().unwrap();
+        let workspace = outer.path().join("ws");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let mut dict = Dictionary::new();
+        assert!(
+            dict.add_to_wordlist(Path::new("../escape.txt"), &workspace, "word")
+                .is_err()
+        );
+        assert!(!outer.path().join("escape.txt").exists());
     }
 }

@@ -2,6 +2,38 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "definitions": {
+    "AddTarget": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/AddTargetName"
+        },
+        {
+          "description": "A wordlist file, relative to the workspace root; inside the workspace.",
+          "markdownDescription": "A wordlist file, relative to the workspace root; inside the workspace.",
+          "type": "string"
+        }
+      ],
+      "description": "The dictionary \"Add to dictionary\" writes to ([`DictionaryConfig::add_to`]):\none of the names, or a wordlist's path.",
+      "markdownDescription": "The dictionary \"Add to dictionary\" writes to ([`DictionaryConfig::add_to`]):\none of the names, or a wordlist's path."
+    },
+    "AddTargetName": {
+      "description": "The dictionaries \"Add to dictionary\" can name.",
+      "markdownDescription": "The dictionaries \"Add to dictionary\" can name.",
+      "oneOf": [
+        {
+          "const": "languagecheck",
+          "description": "the checker's own `dictionary.txt`.",
+          "markdownDescription": "the checker's own `dictionary.txt`.",
+          "type": "string"
+        },
+        {
+          "const": "site",
+          "description": "The site's own dictionary (Typst's personal dictionary, Overleaf's learned words).",
+          "markdownDescription": "The site's own dictionary (Typst's personal dictionary, Overleaf's learned words).",
+          "type": "string"
+        }
+      ]
+    },
     "Aggressiveness": {
       "description": "How much corroboration is required before a diagnostic is dropped.",
       "markdownDescription": "How much corroboration is required before a diagnostic is dropped.",
@@ -71,6 +103,16 @@
       "description": "Configuration for bundled and additional wordlist dictionaries.",
       "markdownDescription": "Configuration for bundled and additional wordlist dictionaries.",
       "properties": {
+        "add_to": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/AddTarget"
+            }
+          ],
+          "default": "languagecheck",
+          "description": "Where \"Add to dictionary\" puts a word: `languagecheck` (default),\nthe checker's own `dictionary.txt`; `site`, the dictionary of the site\nthe document is edited on (in the web extension), so the site stops\nmarking it too; or the path of a wordlist file in the workspace, which\nis then read as if it were listed in `paths`.",
+          "markdownDescription": "Where \"Add to dictionary\" puts a word: `languagecheck` (default),\nthe checker's own `dictionary.txt`; `site`, the dictionary of the site\nthe document is edited on (in the web extension), so the site stops\nmarking it too; or the path of a wordlist file in the workspace, which\nis then read as if it were listed in `paths`."
+        },
         "bundled": {
           "default": true,
           "description": "Whether to load the bundled domain-specific dictionaries (software terms,\nTypeScript, companies, jargon, mathematics). Default: true.",
@@ -102,8 +144,8 @@
             }
           ],
           "default": "merge",
-          "description": "The dictionary of the site the document is edited on, which the web\nextension reads there: Typst's personal dictionary, Overleaf's learned\nwords. `merge` (default) uses it beside LangCheck's own, `ignore` leaves\nit out, `only` uses it instead of LangCheck's `dictionary.txt` (bundled\nsets and `paths` still apply).",
-          "markdownDescription": "The dictionary of the site the document is edited on, which the web\nextension reads there: Typst's personal dictionary, Overleaf's learned\nwords. `merge` (default) uses it beside LangCheck's own, `ignore` leaves\nit out, `only` uses it instead of LangCheck's `dictionary.txt` (bundled\nsets and `paths` still apply)."
+          "description": "The dictionary of the site the document is edited on, which the web\nextension reads there: Typst's personal dictionary, Overleaf's learned\nwords. `merge` (default) uses it beside the checker's own, `ignore` leaves\nit out, `only` uses it instead of the checker's `dictionary.txt` (bundled\nsets and `paths` still apply).",
+          "markdownDescription": "The dictionary of the site the document is edited on, which the web\nextension reads there: Typst's personal dictionary, Overleaf's learned\nwords. `merge` (default) uses it beside the checker's own, `ignore` leaves\nit out, `only` uses it instead of the checker's `dictionary.txt` (bundled\nsets and `paths` still apply)."
         }
       },
       "type": "object"
@@ -709,20 +751,20 @@
       "oneOf": [
         {
           "const": "merge",
-          "description": "The site's words and LangCheck's own.",
-          "markdownDescription": "The site's words and LangCheck's own.",
+          "description": "The site's words and the checker's own.",
+          "markdownDescription": "The site's words and the checker's own.",
           "type": "string"
         },
         {
           "const": "ignore",
-          "description": "LangCheck's own words only.",
-          "markdownDescription": "LangCheck's own words only.",
+          "description": "the checker's own words only.",
+          "markdownDescription": "the checker's own words only.",
           "type": "string"
         },
         {
           "const": "only",
-          "description": "The site's words instead of LangCheck's `dictionary.txt`.",
-          "markdownDescription": "The site's words instead of LangCheck's `dictionary.txt`.",
+          "description": "The site's words instead of the checker's `dictionary.txt`.",
+          "markdownDescription": "The site's words instead of the checker's `dictionary.txt`.",
           "type": "string"
         }
       ]
@@ -841,6 +883,7 @@
         }
       ],
       "default": {
+        "add_to": "languagecheck",
         "bundled": true,
         "disabled": [],
         "paths": [],

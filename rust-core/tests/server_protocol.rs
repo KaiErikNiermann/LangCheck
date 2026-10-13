@@ -915,3 +915,128 @@ fn the_config_probe_reports_the_sites_dictionary() {
     assert!(detail.contains("1 entry left out"), "{detail}");
     child.kill().ok();
 }
+
+fn add_word(child: &mut Child, id: u64, word: &str) -> Response {
+    ask(
+        child,
+        id,
+        request::Payload::AddDictionaryWord(lang_check::checker::AddDictionaryWordRequest {
+            word: word.into(),
+        }),
+    )
+}
+
+/// With `dictionaries.add_to: site`, "Add to dictionary" is answered with the
+/// site to write to, applied at once, and settled by the site's next list.
+#[test]
+fn add_to_site_answers_with_the_site_to_write_to() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        dir.path().join(".languagecheck.yaml"),
+        "dictionaries:\n  add_to: site\n",
+    )
+    .unwrap();
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+
+    // No site has sent its dictionary: nothing to write to, and the reason says so.
+    let Some(response::Payload::Error(nowhere)) = add_word(&mut child, 10, "Wrodle").payload else {
+        panic!("added with no site dictionary");
+    };
+    assert!(
+        nowhere.for_page && nowhere.message.contains("no site dictionary"),
+        "{nowhere:?}"
+    );
+
+    send_site_dictionary(&mut child, 11, "typst", &["Vrije"]);
+    let Some(response::Payload::SiteWrite(write)) = add_word(&mut child, 12, "Wrodle").payload
+    else {
+        panic!("not answered with a site write");
+    };
+    assert_eq!(
+        (write.source.as_str(), write.word.as_str()),
+        ("typst", "Wrodle")
+    );
+    assert!(
+        !marks(&check(&mut child, 13, SITE_TEXT, None, None), "Wrodle"),
+        "applied at once"
+    );
+    assert!(
+        !std::fs::read_to_string(dir.path().join(".languagecheck/dictionary.txt"))
+            .unwrap_or_default()
+            .contains("wrodle"),
+        "not written to LangCheck's own"
+    );
+
+    // The site's next list settles it: here the write did not land.
+    send_site_dictionary(&mut child, 14, "typst", &["Vrije"]);
+    assert!(marks(
+        &check(&mut child, 15, SITE_TEXT, None, None),
+        "Wrodle"
+    ));
+    child.kill().ok();
+}
+
+/// Adding to the site's dictionary while the config leaves it out would
+/// change nothing, and is refused with the reason.
+#[test]
+fn add_to_site_is_refused_when_the_site_dictionary_is_ignored() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        dir.path().join(".languagecheck.yaml"),
+        "dictionaries:\n  add_to: site\n  site: ignore\n",
+    )
+    .unwrap();
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    send_site_dictionary(&mut child, 10, "overleaf", &["Vrije"]);
+    let Some(response::Payload::Error(refused)) = add_word(&mut child, 11, "Wrodle").payload else {
+        panic!("added to an ignored site dictionary");
+    };
+    assert!(
+        refused.for_page && refused.message.contains("dictionaries.site: ignore"),
+        "{refused:?}"
+    );
+    child.kill().ok();
+}
+
+/// `dictionaries.add_to` naming a wordlist: "Add to dictionary" appends
+/// there, the word counts at once, and a new server reads the file whether
+/// or not `paths` lists it.
+#[test]
+fn add_to_a_wordlist_writes_there_and_reads_it_back() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        dir.path().join(".languagecheck.yaml"),
+        "dictionaries:\n  add_to: terms/project.txt\n",
+    )
+    .unwrap();
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    let added = add_word(&mut child, 10, "Wrodle");
+    assert!(
+        matches!(added.payload, Some(response::Payload::Ok(_))),
+        "{added:?}"
+    );
+    assert!(!marks(
+        &check(&mut child, 11, SITE_TEXT, None, None),
+        "Wrodle"
+    ));
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("terms/project.txt")).unwrap(),
+        "Wrodle\n"
+    );
+    assert!(
+        !dir.path().join(".languagecheck/dictionary.txt").exists(),
+        "not LangCheck's own"
+    );
+    child.kill().ok();
+
+    let mut restarted = server();
+    initialize(&mut restarted, dir.path(), &dir.path().join("index.db"));
+    assert!(!marks(
+        &check(&mut restarted, 10, SITE_TEXT, None, None),
+        "Wrodle"
+    ));
+    restarted.kill().ok();
+}

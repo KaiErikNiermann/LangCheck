@@ -292,23 +292,67 @@ pub struct DictionaryConfig {
     pub paths: Vec<String>,
     /// The dictionary of the site the document is edited on, which the web
     /// extension reads there: Typst's personal dictionary, Overleaf's learned
-    /// words. `merge` (default) uses it beside LangCheck's own, `ignore` leaves
-    /// it out, `only` uses it instead of LangCheck's `dictionary.txt` (bundled
+    /// words. `merge` (default) uses it beside the checker's own, `ignore` leaves
+    /// it out, `only` uses it instead of the checker's `dictionary.txt` (bundled
     /// sets and `paths` still apply).
     #[serde(default)]
     pub site: SiteDictionaryMode,
+    /// Where "Add to dictionary" puts a word: `languagecheck` (default),
+    /// the checker's own `dictionary.txt`; `site`, the dictionary of the site
+    /// the document is edited on (in the web extension), so the site stops
+    /// marking it too; or the path of a wordlist file in the workspace, which
+    /// is then read as if it were listed in `paths`.
+    #[serde(default)]
+    pub add_to: AddTarget,
+}
+
+/// The dictionary "Add to dictionary" writes to ([`DictionaryConfig::add_to`]):
+/// one of the names, or a wordlist's path.
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum AddTarget {
+    Named(AddTargetName),
+    /// A wordlist file, relative to the workspace root; inside the workspace.
+    Path(String),
+}
+
+impl Default for AddTarget {
+    fn default() -> Self {
+        Self::Named(AddTargetName::Languagecheck)
+    }
+}
+
+impl AddTarget {
+    /// The wordlist's path, when the target is one.
+    #[must_use]
+    pub fn path(&self) -> Option<&str> {
+        match self {
+            Self::Path(path) => Some(path),
+            Self::Named(_) => None,
+        }
+    }
+}
+
+/// The dictionaries "Add to dictionary" can name.
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AddTargetName {
+    /// the checker's own `dictionary.txt`.
+    Languagecheck,
+    /// The site's own dictionary (Typst's personal dictionary, Overleaf's learned words).
+    Site,
 }
 
 /// What becomes of a site's own dictionary ([`DictionaryConfig::site`]).
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Copy, Default, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum SiteDictionaryMode {
-    /// The site's words and LangCheck's own.
+    /// The site's words and the checker's own.
     #[default]
     Merge,
-    /// LangCheck's own words only.
+    /// the checker's own words only.
     Ignore,
-    /// The site's words instead of LangCheck's `dictionary.txt`.
+    /// The site's words instead of the checker's `dictionary.txt`.
     Only,
 }
 
@@ -319,7 +363,7 @@ impl SiteDictionaryMode {
         !matches!(self, Self::Ignore)
     }
 
-    /// Whether LangCheck's own `dictionary.txt` is accepted.
+    /// Whether the checker's own `dictionary.txt` is accepted.
     #[must_use]
     pub const fn uses_own(self) -> bool {
         !matches!(self, Self::Only)
@@ -333,6 +377,7 @@ impl Default for DictionaryConfig {
             disabled: Vec::new(),
             paths: Vec::new(),
             site: SiteDictionaryMode::Merge,
+            add_to: AddTarget::Named(AddTargetName::Languagecheck),
         }
     }
 }
@@ -1049,6 +1094,9 @@ impl Config {
         }
         for path in &config.dictionaries.paths {
             check("dictionaries.paths", path);
+        }
+        if let Some(path) = config.dictionaries.add_to.path() {
+            check("dictionaries.add_to", path);
         }
         for path in config.engines.hunspell.dictionary_paths.values() {
             check("engines.hunspell.dictionary_paths", path);

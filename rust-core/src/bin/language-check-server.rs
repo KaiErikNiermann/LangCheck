@@ -490,6 +490,14 @@ async fn main() -> Result<()> {
                     disabled_sets.extend(req.dictionaries_disabled.iter().cloned());
                     let mut wordlist_paths = config.dictionaries.paths.clone();
                     wordlist_paths.extend(req.dictionaries_paths.iter().cloned());
+                    // The wordlist "Add to dictionary" writes to is read too,
+                    // whether or not `paths` lists it.
+                    if let Some(path) = config.dictionaries.add_to.path()
+                        && !wordlist_paths.iter().any(|p| p == path)
+                        && root_path.join(path).exists()
+                    {
+                        wordlist_paths.push(path.to_string());
+                    }
 
                     // Load persisted ignore store and dictionary from workspace
                     match Dictionary::load(&root_path) {
@@ -1082,14 +1090,78 @@ async fn main() -> Result<()> {
                     Some(response::Payload::Ok(checker::OkResponse {}))
                 }
                 Some(checker::request::Payload::AddDictionaryWord(req)) => 'add: {
-                    debug!(id = request_id, word = %req.word, "AddDictionaryWord: persisting");
+                    debug!(id = request_id, word = %req.word, "AddDictionaryWord");
+                    // A sentence for the person at the editor: why the word
+                    // was not added where they would expect it to go.
+                    let refuse = |message: &str| {
+                        Some(response::Payload::Error(ErrorResponse {
+                            message: message.to_string(),
+                            for_page: true,
+                        }))
+                    };
+                    // Lock order: see LOCK ORDER at the top of this file.
+                    let (add_to, inflect) = {
+                        let cfg = config_arc.lock().await;
+                        (cfg.dictionaries.add_to.clone(), cfg.morphology.inflections)
+                    };
+                    let root = workspace_root_arc.lock().await.clone();
                     let mut dict = dictionary_arc.lock().await;
+                    if let Some(path) = add_to.path() {
+                        let Some(root) = root.as_deref() else {
+                            break 'add refuse("No workspace yet to add the word to.");
+                        };
+                        break 'add match dict.add_to_wordlist(
+                            std::path::Path::new(path),
+                            root,
+                            &req.word,
+                        ) {
+                            Ok(()) => {
+                                info!(id = request_id, word = %req.word, wordlist = path, "Word added to wordlist");
+                                Some(response::Payload::Ok(checker::OkResponse {}))
+                            }
+                            Err(e) => {
+                                warn!(id = request_id, word = %req.word, "Failed to add word to {path}: {e}");
+                                Some(response::Payload::Error(ErrorResponse {
+                                    message: format!("Failed to add word to {path}: {e}"),
+                                    for_page: false,
+                                }))
+                            }
+                        };
+                    }
+                    if add_to
+                        == lang_check::config::AddTarget::Named(
+                            lang_check::config::AddTargetName::Site,
+                        )
+                    {
+                        // Only the page can write to the site; the core applies
+                        // the word now and the page's next copy of the site's
+                        // dictionary settles it.
+                        if !dict.uses_site() {
+                            break 'add refuse(
+                                "Words are added to the site's dictionary (dictionaries.add_to: site), which this workspace leaves out (dictionaries.site: ignore). Set dictionaries.site to merge or only.",
+                            );
+                        }
+                        let site = root
+                            .as_deref()
+                            .and_then(lang_check::site_dictionary::SiteWords::load);
+                        let Some(site) = site else {
+                            break 'add refuse(
+                                "There is no site dictionary to add to here (dictionaries.add_to: site): that works in the browser extension, on Overleaf and Typst.",
+                            );
+                        };
+                        dict.add_site_word(&req.word, inflect);
+                        info!(id = request_id, word = %req.word, site = site.source, "Word applied; the page writes it to the site");
+                        break 'add Some(response::Payload::SiteWrite(
+                            checker::SiteWriteResponse {
+                                source: site.source,
+                                word: req.word.clone(),
+                            },
+                        ));
+                    }
                     if !dict.uses_own() {
-                        // The words in use are the site's, and writing to the
-                        // site's dictionary is not something this does yet: a
-                        // word added to LangCheck's would change nothing.
-                        break 'add Some(response::Payload::Error(ErrorResponse {
-                            message: "This workspace uses the site's dictionary only (dictionaries.site: only). Add the word in the site, or set dictionaries.site to merge to add words here.".to_string(), for_page: true }));
+                        break 'add refuse(
+                            "This workspace uses the site's dictionary only (dictionaries.site: only). Set dictionaries.add_to to site to add words there.",
+                        );
                     }
                     match dict.add_word(&req.word) {
                         Ok(()) => {
