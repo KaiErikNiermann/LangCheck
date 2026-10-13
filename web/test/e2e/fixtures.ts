@@ -281,3 +281,21 @@ export async function setChecking(context: BrowserContext, extensionId: string, 
     await expect(page.locator('#checking-status')).toContainText('Saved');
     await page.close();
 }
+
+/** What becomes of the site's own spellchecker, set on the options page as a user does. */
+export async function setForeignCheckers(context: BrowserContext, extensionId: string, mode: 'merge' | 'ours' | 'both'): Promise<void> {
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/options.html`);
+    await page.locator(`input[name="foreign"][value="${mode}"]`).check();
+    await page.getByRole('button', { name: 'Save checking options' }).click();
+    await expect(page.locator('#checking-status')).toContainText('Saved');
+    await page.close();
+}
+
+/** The page's URL with the site's own spellchecker on, marking `words` (fakeHost `?foreign=`). */
+export function withForeign(url: string, words: readonly string[]): string {
+    const u = new URL(url);
+    u.searchParams.set('foreign', words.join(','));
+    return u.href;
+}
+

@@ -120,7 +120,7 @@ if (test) {
     /** @type {{ name: string, alias: Record<string, string> }[]} */
     const variants = [
         { name: 'current', alias: {} },
-        { name: '6-38', alias: { '@codemirror/view': 'cm-view-6-38' } },
+        { name: '6-38', alias: { '@codemirror/view': 'cm-view-6-38', '@codemirror/lint': 'cm-lint-6-9-5' } },
     ];
     await esbuild.build({
         entryPoints: ['test/e2e/fakeNotion.ts'],

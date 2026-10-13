@@ -3,16 +3,16 @@
 // The built page bundle runs against a stub content script whose "core"
 // can be held, so the window between an edit and its recheck is testable.
 import { expect, test, type Page } from '@playwright/test';
-import { host, hoverPainted, notionUrl, pageUrl, painted, type Site } from './fixtures';
+import { host, hoverPainted, notionUrl, pageUrl, painted, withForeign, type Site } from './fixtures';
 
 const BASE = 'http://127.0.0.1:4180';
 
-async function open(page: Page, site: Site, text: string, cm: 'current' | '6.38' = 'current'): Promise<void> {
+async function open(page: Page, site: Site, text: string, cm: 'current' | '6.38' = 'current', foreign: readonly string[] = []): Promise<void> {
     const errors: string[] = [];
     page.on('pageerror', (e) => {
         errors.push(e.message);
     });
-    await page.goto(pageUrl(site, cm, text));
+    await page.goto(foreign.length === 0 ? pageUrl(site, cm, text) : withForeign(pageUrl(site, cm, text), foreign));
     await page.addScriptTag({ url: `${BASE}/stub-content.js` });
     await page.addScriptTag({ url: `${BASE}/extension/page-${site}.js` });
     await expect.poll(() => page.evaluate(() => (globalThis as any).__languageCheck?.bridge.getStatus().state)).toBe('attached');
@@ -214,3 +214,27 @@ test.describe('Notion (DOM editor, CSS highlights)', () => {
         await expect(page.locator('.lc-popover, .lc-toast-host')).toHaveCount(0);
     });
 });
+
+// The site's own spellchecker (research/foreign-checkers.md): read out of
+// the page's CodeMirror, sent with the check, its marks hidden while merged.
+// On both engines and both sides of the 6.39 rewrite; the core's half is in
+// realPathForeign.spec.ts.
+for (const site of ['typst', 'overleaf'] as const) {
+    test(`${site}: the site's own spellchecker is read, sent with the check, and hidden (6.38 and current)`, async ({ page }) => {
+        for (const cm of ['6.38', 'current'] as const) {
+            await open(page, site, 'I recieve teh parcel.', cm, ['teh', 'parcel']);
+            await expect(marks(page)).toHaveText(['recieve', 'teh', 'parcel']);
+            const sent = await page.evaluate(() => (globalThis as any).__stub.foreign.map((f: { checker: string; startByte: number }) => `${f.checker}@${String(f.startByte)}`));
+            expect(sent).toEqual([`${site}@10`, `${site}@14`]);
+            await expect(page.locator(`.cm-editor[data-lc-absorb="${site}"]`)).toHaveCount(1);
+            const shown = await page.locator(site === 'typst' ? '.cm-lintRange.misspelling' : '.ol-cm-spelling-error').evaluateAll((elements, typst) =>
+                elements.map((el) => (typst ? getComputedStyle(el).backgroundImage : getComputedStyle(el).textDecorationLine) !== 'none'), site === 'typst');
+            expect(shown.length).toBeGreaterThan(0);
+            expect(shown).not.toContain(true);
+            const c = await hover(page, 'parcel');
+            await expect(c.locator('p').first()).toHaveText(site === 'typst' ? 'the word "parcel" seems to be misspelled' : 'Possible spelling mistake: "parcel" (overleaf)');
+            await expect(page.locator('.cm-tooltip-hover')).toBeHidden();
+        }
+    });
+}
+
