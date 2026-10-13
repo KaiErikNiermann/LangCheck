@@ -93,3 +93,26 @@ test('a command typed and entered straight after the binding runs, and no key re
     await expect(page.locator('iframe[title="Language Check commands"]')).toHaveCount(0);
     expect(await docText(page)).toBe(before);
 });
+
+// The palette page holds the keyboard from its first moment. It used to
+// start only on the content script's init message, and the frame took focus
+// before that arrived: a key typed in the gap reached a page with nothing to
+// take it, and was lost ("opn sp", so Enter matched nothing; seen as a flake
+// under load). Here the gap is made as wide as it gets: every key is typed
+// before the init message is sent, standing in for the content script.
+test('keys typed into the palette before its init arrives are its search', async ({ page, extensionId }) => {
+    await page.goto(`chrome-extension://${extensionId}/palette.html#${encodeURIComponent('ctrl+p')}`);
+    await page.keyboard.type('open sp', { delay: 0 });
+    await page.evaluate(() => {
+        // The content script's side: send the port, and when the palette is
+        // ready, say nothing was typed into the site first.
+        const channel = new MessageChannel();
+        channel.port1.addEventListener('message', (event: MessageEvent) => {
+            if ((event.data as { type?: string } | null)?.type === 'ready') channel.port1.postMessage({ type: 'typed', text: '', submit: false });
+        });
+        channel.port1.start();
+        window.postMessage({ type: 'language-check:palette-init', ids: ['language-check.checkDocument', 'language-check.openSpeedFix'], hotkey: 'ctrl+p' }, location.origin, [channel.port2]);
+    });
+    const search = page.locator('ninja-keys').locator('ninja-header').locator('input');
+    await expect(search).toHaveValue('open sp');
+});

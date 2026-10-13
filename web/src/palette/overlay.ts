@@ -90,7 +90,10 @@ export function startPalette(run: (id: PaletteCommandId) => void): void {
             close();
         }, READY_DEADLINE_MS);
         const created = document.createElement('iframe');
-        created.src = browser.runtime.getURL('palette.html');
+        // The binding rides in the fragment: the palette holds the keyboard
+        // from its first moment, before the init message, and must know
+        // which key closes it (page.ts).
+        created.src = `${browser.runtime.getURL('palette.html')}#${encodeURIComponent(binding)}`;
         created.title = 'Language Check commands';
         Object.assign(created.style, {
             position: 'fixed',
