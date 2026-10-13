@@ -7,6 +7,8 @@
 // - An atom (an element the editor marks `contenteditable="false"`, or one
 //   the site excludes, like inline code) becomes one U+FFFC, which the core
 //   skips without a finding. A `<br>` becomes a line break.
+// - A block element inside a leaf (Gmail's body holds a `<div>` per line)
+//   starts and ends a line, or its first word runs into the line before.
 // - Offsets are UTF-16 code units, like everything else in the extension.
 //
 // Only text-node characters map to the DOM; separators, atoms and breaks
@@ -39,6 +41,12 @@ export interface TextMap {
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
 
+/** Elements that lay out as their own lines. */
+const BLOCKS: ReadonlySet<string> = new Set(['DIV', 'P', 'LI', 'UL', 'OL', 'BLOCKQUOTE', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'TABLE', 'TR', 'SECTION', 'ARTICLE', 'HR']);
+
+/** Where a block element ends, in the walk's stack. */
+const BLOCK_END = Symbol('block end');
+
 export function buildTextMap(leaves: Iterable<Element>, isAtom: (element: Element) => boolean, maxChars: number): TextMap {
     const builder = new TextMapBuilder(isAtom);
     for (const leaf of leaves) {
@@ -62,14 +70,18 @@ class TextMapBuilder {
         if (this.leaves.length > 0) this.emit(LEAF_SEPARATOR);
         const start = this.length;
         // Iterative, so a deeply nested leaf cannot overflow the stack.
-        const stack: Node[] = [...leaf.childNodes].toReversed();
+        const stack: (Node | typeof BLOCK_END)[] = [...leaf.childNodes].toReversed();
         for (let node = stack.pop(); node !== undefined; node = stack.pop()) {
-            if (node.nodeType === TEXT_NODE) this.addText(node as Text);
+            if (node === BLOCK_END) this.lineBreak(start);
+            else if (node.nodeType === TEXT_NODE) this.addText(node as Text);
             else if (node.nodeType === ELEMENT_NODE) {
                 const element = node as Element;
                 if (element.tagName === 'BR') this.emit('\n');
                 else if (this.isAtom(element)) this.emit(ATOM);
-                else stack.push(...[...element.childNodes].toReversed());
+                else if (BLOCKS.has(element.tagName)) {
+                    this.lineBreak(start);
+                    stack.push(BLOCK_END, ...[...element.childNodes].toReversed());
+                } else stack.push(...[...element.childNodes].toReversed());
             }
         }
         this.leaves.push({ element: leaf, start, end: this.length });
@@ -90,9 +102,14 @@ class TextMapBuilder {
         this.parts.push(text);
         this.length += text.length;
     }
+
+    /** A line break, unless the leaf has nothing yet or a line just ended. */
+    private lineBreak(leafStart: number): void {
+        if (this.length > leafStart && !this.parts.at(-1)?.endsWith('\n')) this.emit('\n');
+    }
 }
 
-/** What a leaf would add, without building it: for the size cap. */
+/** What a leaf would add, without building it, at most: for the size cap. */
 function textLength(leaf: Element, isAtom: (element: Element) => boolean): number {
     let total = 0;
     const stack: Node[] = [...leaf.childNodes];
@@ -101,7 +118,11 @@ function textLength(leaf: Element, isAtom: (element: Element) => boolean): numbe
         else if (node.nodeType === ELEMENT_NODE) {
             const element = node as Element;
             if (element.tagName === 'BR' || isAtom(element)) total += 1;
-            else stack.push(...element.childNodes);
+            else {
+                // A block adds at most a break before and one after.
+                if (BLOCKS.has(element.tagName)) total += 2;
+                stack.push(...element.childNodes);
+            }
         }
     }
     return total;

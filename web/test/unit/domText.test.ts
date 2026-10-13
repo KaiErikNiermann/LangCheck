@@ -30,6 +30,21 @@ describe('buildTextMap', () => {
         expect(map.truncated).toBe(true);
     });
 
+    // Gmail's body is one leaf holding a <div> per line: the lines must not run together.
+    test('block elements inside a leaf are lines: no words run together, an empty line stays one', () => {
+        const map = buildTextMap(leaves('first line<div>I recieve</div><div><br></div><div>teh <b>end</b></div><div><div>nested</div></div>'), isAtom, 1000);
+        expect(map.text).toBe('first line\nI recieve\n\nteh end\nnested\n');
+        const at = map.text.indexOf('recieve');
+        expect(rangeOf(map, at, at + 'recieve'.length)?.toString()).toBe('recieve');
+        const teh = map.text.indexOf('teh');
+        expect(rangeOf(map, teh, teh + 3)?.toString()).toBe('teh');
+    });
+
+    test('a leaf of blocks alone starts with its first line, not a break', () => {
+        expect(buildTextMap(leaves('<div>one</div><div>two</div>'), isAtom, 1000).text).toBe('one\ntwo\n');
+        expect(buildTextMap(leaves('<p>a</p>', '<p>b</p>'), isAtom, 1000).text).toBe(`a\n${LEAF_SEPARATOR}b\n`);
+    });
+
     test('a deeply nested leaf is walked without recursion', () => {
         const [leaf] = leaves('');
         let parent: Element = leaf!;
