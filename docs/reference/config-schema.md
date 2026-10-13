@@ -184,6 +184,7 @@ domain wordlists ship with the checker and all of them load by default.
 | `bundled`  | `bool`     | `true`  | Load the bundled domain wordlists                    |
 | `disabled` | `string[]` | `[]`    | Names of individual bundled wordlists to skip        |
 | `paths`    | `string[]` | `[]`    | Extra wordlist files, one word per line, `#` comments |
+| `site`     | `merge` \| `ignore` \| `only` | `merge` | The site's own dictionary, in the browser extension |
 
 ```yaml
 dictionaries:
@@ -191,6 +192,18 @@ dictionaries:
   paths:
     - .languagecheck/project-terms.txt
 ```
+
+### The site's own dictionary
+
+In the browser extension, the site you write on keeps a dictionary of its own: Typst's personal dictionary, Overleaf's learned words. LangCheck reads it there each time it opens a project and uses it as one more wordlist, so a word you taught the site is not marked by LangCheck either. `site` chooses what becomes of it:
+
+| Value    | Words accepted |
+|----------|----------------|
+| `merge`  | The site's and LangCheck's own (`dictionary.txt`) |
+| `ignore` | LangCheck's own only |
+| `only`   | The site's instead of LangCheck's `dictionary.txt`; "Add to dictionary" is then refused, since LangCheck does not write to the site's dictionary |
+
+Bundled wordlists and `paths` apply in every case. The words are kept in `.languagecheck/site-dictionary.txt` in the workspace, and the config page shows on the `dictionaries` line (or its own status line) whether they arrived, how many there are, and how many entries were left out for not being single words.
 
 ### Bundled wordlists
 
