@@ -3,7 +3,7 @@
 // The built page bundle runs against a stub content script whose "core"
 // can be held, so the window between an edit and its recheck is testable.
 import { expect, test, type Page } from '@playwright/test';
-import { host, hoverPainted, notionUrl, pageUrl, painted, withForeign, type Site } from './fixtures';
+import { gmailUrl, host, hoverPainted, notionUrl, pageUrl, painted, withForeign, type Site } from './fixtures';
 
 const BASE = 'http://127.0.0.1:4180';
 
@@ -237,4 +237,34 @@ for (const site of ['typst', 'overleaf'] as const) {
         }
     });
 }
+
+// Gmail's compose on both engines: one body, lines as <div>s, the quote and
+// the signature left out, and full screen the same body at another size.
+// ?tt=0: the stub and the page bundle are injected by script tags here,
+// which Gmail's Trusted Types policy (on in the real-path suite) would stop.
+test.describe('Gmail (DOM editor, one body)', () => {
+    async function openGmail(page: Page): Promise<void> {
+        const errors: string[] = [];
+        page.on('pageerror', (e) => {
+            errors.push(e.message);
+        });
+        pageErrors.set(page, errors);
+        await page.goto(gmailUrl({ tt: '0', quote: 'You wrote wrod.' }));
+        await page.addScriptTag({ url: `${BASE}/stub-content.js` });
+        await page.addScriptTag({ url: `${BASE}/extension/page-gmail.js` });
+        await expect.poll(() => page.evaluate(() => (globalThis as any).__languageCheck?.bridge.getStatus().state)).toBe('attached');
+    }
+
+    test('paints the compose only, keeps it through full screen, and a fix lands in the body', async ({ page }) => {
+        await openGmail(page);
+        await expect.poll(() => painted(page)).toEqual(['recieve', 'teh']);
+        await page.evaluate(() => {
+            (globalThis as any).__gmail.fullScreen();
+        });
+        expect(await painted(page)).toEqual(['recieve', 'teh']);
+        const c = await hoverPainted(page, 'recieve', 0);
+        await c.getByRole('button', { name: 'Fix: "receive"' }).click();
+        await expect.poll(() => page.evaluate(() => (globalThis as any).__gmail.text() as string)).toContain('I will receive teh parcel.');
+    });
+});
 

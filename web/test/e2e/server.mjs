@@ -13,6 +13,11 @@ const port = Number(process.env.PORT ?? 4180);
 // check on the live sites injects them.
 const cors = process.env.CORS === '1' ? { 'access-control-allow-origin': '*' } : {};
 
+/** Gmail's stand-in. Sent with Gmail's Trusted Types requirement, which an HTML-string sink anywhere in the page breaks. */
+const gmailPage = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>fake gmail</title></head>
+<body><script src="/fake-gmail.js"></script></body></html>`;
+
 const notionPage = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>fake notion</title></head>
 <body><script src="/fake-notion.js"></script></body></html>`;
@@ -41,6 +46,8 @@ const server = http.createServer((req, res) => void serve(req, res));
 server.listen(port, '127.0.0.1');
 // Notion's stand-in lives on its own loopback origin.
 http.createServer((req, res) => void serve(req, res)).listen(port, '127.0.0.2');
+// And Gmail's on a third.
+http.createServer((req, res) => void serve(req, res)).listen(port, '127.0.0.3');
 
 /** The editor page, with the project's learned words in it. @param {URL} url @param {http.ServerResponse} res */
 function projectPage(url, res) {
@@ -82,6 +89,12 @@ async function serve(req, res) {
     }
     if (url.pathname.startsWith('/project/')) {
         projectPage(url, res);
+        return;
+    }
+    if (url.pathname.startsWith('/mail/u/')) {
+        // ?tt=0 leaves the policy off, for the page-layer suite's injected scripts.
+        const tt = url.searchParams.get('tt') === '0' ? {} : { 'content-security-policy': "require-trusted-types-for 'script'" };
+        res.writeHead(200, { 'content-type': 'text/html', ...tt }).end(gmailPage);
         return;
     }
     if (req.method === 'POST' && (url.pathname === '/spelling/learn' || url.pathname === '/spelling/unlearn')) {

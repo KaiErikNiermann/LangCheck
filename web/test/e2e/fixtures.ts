@@ -120,6 +120,14 @@ export function notionUrl(page = '3f2b8b37e541802f96a1c557a6b01a44'): string {
     return `${BASE.replace('127.0.0.1', '127.0.0.2')}/p/test-workspace/tests-${page}`;
 }
 
+/** The Gmail stand-in: its own loopback origin, Gmail's URL shape; `query` as fakeGmail.ts reads it. */
+export function gmailUrl(query: Record<string, string> = {}): string {
+    const url = new URL(`${BASE.replace('127.0.0.1', '127.0.0.3')}/mail/u/0/`);
+    for (const [name, value] of Object.entries(query)) url.searchParams.set(name, value);
+    url.hash = 'inbox?compose=new';
+    return url.href;
+}
+
 /** The words painted as findings with the CSS Highlight API (Notion has no marks in the DOM). */
 export function painted(page: Page): Promise<string[]> {
     return page.evaluate(() => [...(CSS.highlights.get('lc-warning') ?? [])].map((r) => (r as Range).toString()));

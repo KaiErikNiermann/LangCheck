@@ -132,6 +132,14 @@ if (test) {
         logLevel: 'warning',
     });
     await esbuild.build({
+        entryPoints: ['test/e2e/fakeGmail.ts'],
+        outfile: '.e2e/pages/fake-gmail.js',
+        bundle: true,
+        format: 'iife',
+        platform: 'browser',
+        logLevel: 'warning',
+    });
+    await esbuild.build({
         entryPoints: ['test/e2e/stubContent.ts'],
         outfile: '.e2e/pages/stub-content.js',
         bundle: true,
