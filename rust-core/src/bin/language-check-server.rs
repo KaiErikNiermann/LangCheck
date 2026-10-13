@@ -418,6 +418,7 @@ async fn main() -> Result<()> {
                     id: lang_check::wire::leading_request_id(&msg_data).unwrap_or(0),
                     payload: Some(response::Payload::Error(ErrorResponse {
                         message: format!("Failed to decode request: {e}"),
+                        for_page: false,
                     })),
                 };
                 send_response(&stdout_arc, response).await?;
@@ -947,6 +948,7 @@ async fn main() -> Result<()> {
                         }
                         Err(e) => Some(response::Payload::Error(ErrorResponse {
                             message: format!("Extraction error: {e}"),
+                            for_page: false,
                         })),
                     }
                 }
@@ -1058,6 +1060,7 @@ async fn main() -> Result<()> {
                         }
                         Err(e) => Some(response::Payload::Error(ErrorResponse {
                             message: format!("Listing the config's files failed: {e}"),
+                            for_page: false,
                         })),
                     }
                 }
@@ -1086,8 +1089,7 @@ async fn main() -> Result<()> {
                         // site's dictionary is not something this does yet: a
                         // word added to LangCheck's would change nothing.
                         break 'add Some(response::Payload::Error(ErrorResponse {
-                            message: "This workspace uses the site's dictionary only (dictionaries.site: only). Add the word in the site, or set dictionaries.site to merge to add words here.".to_string(),
-                        }));
+                            message: "This workspace uses the site's dictionary only (dictionaries.site: only). Add the word in the site, or set dictionaries.site to merge to add words here.".to_string(), for_page: true }));
                     }
                     match dict.add_word(&req.word) {
                         Ok(()) => {
@@ -1098,6 +1100,7 @@ async fn main() -> Result<()> {
                             warn!(id = request_id, word = %req.word, "Failed to add word: {e}");
                             Some(response::Payload::Error(ErrorResponse {
                                 message: format!("Failed to add word to dictionary: {e}"),
+                                for_page: false,
                             }))
                         }
                     }
@@ -1120,6 +1123,7 @@ async fn main() -> Result<()> {
                             warn!(id = request_id, "ReadConfig: {e}");
                             Some(response::Payload::Error(ErrorResponse {
                                 message: format!("The config could not be read: {e}"),
+                                for_page: false,
                             }))
                         }
                     }
@@ -1139,6 +1143,7 @@ async fn main() -> Result<()> {
                             warn!(id = request_id, "WriteConfig: {e}");
                             Some(response::Payload::Error(ErrorResponse {
                                 message: format!("The config could not be written: {e}"),
+                                for_page: false,
                             }))
                         }
                     }
@@ -1152,6 +1157,7 @@ async fn main() -> Result<()> {
                     let Some(root) = workspace_root_arc.lock().await.clone() else {
                         break 'site Some(response::Payload::Error(ErrorResponse {
                             message: "No workspace yet: send Initialize first".to_string(),
+                            for_page: false,
                         }));
                     };
                     match lang_check::site_dictionary::SiteWords::coerce(
@@ -1161,6 +1167,7 @@ async fn main() -> Result<()> {
                     ) {
                         None => Some(response::Payload::Error(ErrorResponse {
                             message: format!("{:?} is not a site's name", req.source),
+                            for_page: false,
                         })),
                         Some(site) => {
                             if let Err(e) = site.store(&root) {
@@ -1183,6 +1190,7 @@ async fn main() -> Result<()> {
                 }
                 None => Some(response::Payload::Error(ErrorResponse {
                     message: "Empty payload".to_string(),
+                    for_page: false,
                 })),
             };
 
@@ -1218,6 +1226,7 @@ async fn main() -> Result<()> {
                     id: request_id,
                     payload: Some(response::Payload::Error(ErrorResponse {
                         message: format!("The core failed while handling this request: {e}"),
+                        for_page: false,
                     })),
                 };
                 if let Err(e) = send_response(&stdout_for_panic, response).await {

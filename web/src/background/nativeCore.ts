@@ -340,7 +340,8 @@ function toProto(request: CoreRequestOf): languagecheck.Request.$Properties {
 
 /** The decoded Response as plain data, the shape the client's Checker reads. Errors are sanitised (see PAGE_MESSAGE). */
 function fromProto(id: number, response: languagecheck.Response, detailed = false): PageResponse {
-    if (response.error) return failed(id, { failure: 'failed', message: response.error.message || 'the core reported an error' }, detailed);
+    // A sentence the core wrote for the person at the editor (forPage) goes as it is.
+    if (response.error) return failed(id, { failure: 'failed', message: response.error.message || 'the core reported an error' }, detailed || response.error.forPage === true);
     const plain = languagecheck.Response.toObject(response, { enums: Number, longs: Number, defaults: true }) as Record<string, unknown>;
     return { id, ok: true, response: plain };
 }

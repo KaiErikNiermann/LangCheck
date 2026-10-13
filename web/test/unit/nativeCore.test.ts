@@ -216,23 +216,33 @@ describe('what reaches the page', () => {
         expect(JSON.stringify(response)).not.toContain('someone');
     });
 
-    test('a core ErrorResponse is reported without its message', async () => {
-        const clock = new FakeClock();
-        const secret = 'Extraction error: /home/someone/project/main.tex';
+    /** The page's answer when the core fails every request after initialize with `error`. */
+    async function failingWith(error: { message: string; forPage?: boolean }) {
         const connect = (): NativePort => {
             const host = new FakeHost('silent');
             const original = host.postMessage.bind(host);
             host.postMessage = (message: unknown) => {
                 original(message);
                 const request = host.received.at(-1)!;
-                const response = request.initialize ? { id: request.id, initialize: {} } : { id: request.id, error: { message: secret } };
+                const response = request.initialize ? { id: request.id, initialize: {} } : { id: request.id, error };
                 queueMicrotask(() => host.emit({ frame: bytesToBase64(languagecheck.Response.encode(response).finish()), more: false }));
             };
             return host;
         };
-        const response = await new CoreConnection('k', connect, clock).request(check);
+        return new CoreConnection('k', connect, new FakeClock()).request(check);
+    }
+
+    test('a core ErrorResponse is reported without its message', async () => {
+        const response = await failingWith({ message: 'Extraction error: /home/someone/project/main.tex' });
         expect(response).toMatchObject({ ok: false, code: 'failed' });
         expect(JSON.stringify(response)).not.toContain('someone');
+    });
+
+    // A sentence the core wrote for the user, naming nothing local, is worth
+    // more to them than the fixed one: the core marks such errors.
+    test('an ErrorResponse the core marked for the page reaches it as written', async () => {
+        const sentence = 'This workspace uses the site\'s dictionary only (dictionaries.site: only).';
+        expect(await failingWith({ message: sentence, forPage: true })).toMatchObject({ ok: false, code: 'failed', error: sentence });
     });
 });
 

@@ -70,6 +70,11 @@ message OkResponse {}
 
 message ErrorResponse {
   string message = 1;
+  // Whether `message` was written for the person at the editor and names
+  // nothing local (no path, no host detail), so a web page may show it as
+  // it is. Other errors reach a page as a fixed sentence (web/src/background
+  // /nativeCore.ts): their text can name the user's home directory.
+  bool for_page = 2;
 }
 
 service CheckerProvider {

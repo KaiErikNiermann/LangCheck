@@ -264,7 +264,10 @@ pub fn scrub(response: &mut Response, workspace: Option<&Path>) {
 const fn error_response(id: u64, message: String) -> Response {
     Response {
         id,
-        payload: Some(response::Payload::Error(ErrorResponse { message })),
+        payload: Some(response::Payload::Error(ErrorResponse {
+            message,
+            for_page: false,
+        })),
     }
 }
 
@@ -839,6 +842,7 @@ mod tests {
             id: 3,
             payload: Some(response::Payload::Error(ErrorResponse {
                 message: "x".repeat(2 * SEGMENT_CHARS),
+                for_page: false,
             })),
         };
         let parts = segments(&response);
