@@ -131,6 +131,15 @@ Object.assign(globalThis, {
         remoteInsert(at: number, text: string) {
             view.dispatch({ changes: { from: at, insert: text }, userEvent: 'remote' });
         },
+        /** Overleaf's "Add to dictionary": the request its editor makes (the stand-in server keeps the word). */
+        async learn(word: string) {
+            const project = location.pathname.split('/', 3)[2] ?? '';
+            await fetch('/spelling/learn', { method: 'POST', body: JSON.stringify({ word, project }) });
+        },
+        /** Typst saving its settings: a request to its API, as the app makes one (the test answers it). */
+        async typstSettingsSaved() {
+            await fetch('https://api.typst.app/v1/graphql', { method: 'POST', body: '{"query":"mutation EditUser { x }"}' });
+        },
         /** The user typing at the end of the document. */
         typeAtEnd(text: string) {
             view.dispatch({ changes: { from: view.state.doc.length, insert: text }, userEvent: 'input.type' });

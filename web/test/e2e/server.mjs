@@ -17,14 +17,46 @@ const notionPage = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>fake notion</title></head>
 <body><script src="/fake-notion.js"></script></body></html>`;
 
-const page = (cm) => `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>fake editor</title></head>
+/**
+ * Overleaf's learned words, per project: rendered into the project page as
+ * `ol-learnedWords`, as Overleaf does, seeded by `?learned=a,b` on a page's
+ * first load and changed by POST /spelling/learn and /spelling/unlearn.
+ * @type {Map<string, string[]>}
+ */
+const learned = new Map();
+/** @param {string} text */
+const attribute = (text) => text.replaceAll('&', '&amp;').replaceAll("'", '&#39;').replaceAll('<', '&lt;');
+
+/** @param {string} cm @param {string[]} words */
+const page = (cm, words) => `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>fake editor</title>
+<meta name="ol-learnedWords" content='${attribute(JSON.stringify(words))}'></head>
 <body><div id="editor"></div><script src="/fake-host-${cm}.js"></script></body></html>`;
 
 const server = http.createServer((req, res) => void serve(req, res));
 server.listen(port, '127.0.0.1');
 // Notion's stand-in lives on its own loopback origin.
 http.createServer((req, res) => void serve(req, res)).listen(port, '127.0.0.2');
+
+/** The editor page, with the project's learned words in it. @param {URL} url @param {http.ServerResponse} res */
+function projectPage(url, res) {
+    const cm = url.searchParams.get('cm') === '6.38' ? '6-38' : 'current';
+    const project = url.pathname.split('/', 3)[2] ?? '';
+    const seed = url.searchParams.get('learned');
+    if (seed !== null && !learned.has(project)) learned.set(project, seed.split(',').filter((w) => w !== ''));
+    res.writeHead(200, { 'content-type': 'text/html' }).end(page(cm, learned.get(project) ?? []));
+}
+
+/** Overleaf's learn and unlearn. @param {http.IncomingMessage} req @param {URL} url @param {http.ServerResponse} res */
+async function spelling(req, url, res) {
+    /** @type {Buffer[]} */
+    const chunks = await Array.fromAsync(req);
+    /** @type {{ word: string, project: string }} */
+    const { word, project } = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    const words = learned.get(project) ?? [];
+    learned.set(project, url.pathname.endsWith('/learn') ? [...words, word] : words.filter((w) => w !== word));
+    res.writeHead(200, { 'content-type': 'application/json' }).end('{}');
+}
 
 /** @param {http.IncomingMessage} req @param {http.ServerResponse} res */
 async function serve(req, res) {
@@ -35,8 +67,11 @@ async function serve(req, res) {
         return;
     }
     if (url.pathname.startsWith('/project/')) {
-        const cm = url.searchParams.get('cm') === '6.38' ? '6-38' : 'current';
-        res.writeHead(200, { 'content-type': 'text/html' }).end(page(cm));
+        projectPage(url, res);
+        return;
+    }
+    if (req.method === 'POST' && (url.pathname === '/spelling/learn' || url.pathname === '/spelling/unlearn')) {
+        await spelling(req, url, res);
         return;
     }
     // /extension/<bundle> is the extension's own build, for the page-layer suite.
