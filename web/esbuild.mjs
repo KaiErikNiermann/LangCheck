@@ -1,6 +1,7 @@
 // Builds the extension into dist/. `--test` also matches the local pages the
 // end-to-end tests serve (http://127.0.0.1 stands in for Overleaf,
-// http://localhost for Typst, http://127.0.0.2 for Notion), in a separate
+// http://localhost for Typst, http://127.0.0.2 for Notion, http://127.0.0.3
+// for Gmail), in a separate
 // dist-test/.
 import * as esbuild from 'esbuild';
 import { access, copyFile, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -8,7 +9,7 @@ import { access, copyFile, cp, mkdir, readFile, writeFile } from 'node:fs/promis
 const test = process.argv.includes('--test');
 const manifestVersion = JSON.parse(await readFile('manifest.json', 'utf8')).version;
 const outdir = test ? 'dist-test' : 'dist';
-const SITES = ['overleaf', 'typst', 'notion'];
+const SITES = ['overleaf', 'typst', 'notion', 'gmail'];
 
 const result = await esbuild.build({
     entryPoints: Object.fromEntries([
@@ -52,7 +53,7 @@ for (const [file, output] of Object.entries(result.metafile.outputs)) {
 
 const manifest = JSON.parse(await readFile('manifest.json', 'utf8'));
 if (test) {
-    const local = { overleaf: 'http://127.0.0.1/project/*', typst: 'http://localhost/project/*', notion: 'http://127.0.0.2/*' };
+    const local = { overleaf: 'http://127.0.0.1/project/*', typst: 'http://localhost/project/*', notion: 'http://127.0.0.2/*', gmail: 'http://127.0.0.3/mail/*' };
     for (const script of manifest.content_scripts) {
         const site = SITES.find((s) => script.js[0].endsWith(`-${s}.js`));
         script.matches.push(local[site]);

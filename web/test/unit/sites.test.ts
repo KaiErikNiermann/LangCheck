@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { gmailAccountFromPath } from '../../src/sites/gmail';
 import { notionWorkspaceFromPath } from '../../src/sites/notion';
 import { workspaceForUrl } from '../../src/sites/registry';
 import { languageFromName, projectFromProjectPath, workspaceKey } from '../../src/sites/site';
@@ -62,3 +63,19 @@ describe('notionWorkspaceFromPath', () => {
         expect(workspaceForUrl('http://127.0.0.2/p/test-workspace/tests-3f2b8b37e541802f96a1c557a6b01a44')).toBeUndefined();
     });
 });
+
+describe('gmailAccountFromPath', () => {
+    test.each([
+        ['/mail/u/0/', 'u0'],
+        ['/mail/u/1/', 'u1'],
+        ['/mail/u/12', 'u12'],
+    ])('%s is account %s', (path, account) => expect(gmailAccountFromPath(path)).toBe(account));
+    test.each(['/', '/mail/', '/mail/u/', '/mail/u/abc/', '/mail/u/123/', '/chat/u/0/'])('%s names no account', (path) => expect(gmailAccountFromPath(path)).toBeUndefined());
+    test('the background files a Gmail tab by its account, and nothing else that looks like Gmail', () => {
+        expect(workspaceForUrl('https://mail.google.com/mail/u/0/#inbox?compose=new')).toBe('gmail-u0');
+        expect(workspaceForUrl('https://mail.google.com/mail/u/1/#sent')).toBe('gmail-u1');
+        expect(workspaceForUrl('https://mail.google.com.evil.example/mail/u/0/')).toBeUndefined();
+        expect(workspaceForUrl('https://mail.google.com/chat/u/0/')).toBeUndefined();
+    });
+});
+

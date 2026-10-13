@@ -34,6 +34,13 @@ export interface DomEditorRules {
     readonly isAtom: (element: Element) => boolean;
     /** A selector matching an ancestor when the site shows its dark theme. */
     readonly darkSelector?: string;
+    /**
+     * Whether the site leaves the root's `spellcheck` attribute to us once
+     * set (Gmail does; Notion sets it back at once). Then the browser's own
+     * checker, which nothing can read, is switched off while ours absorbs
+     * other checkers, and its value put back after.
+     */
+    readonly ownsSpellcheck?: boolean;
 }
 
 /** Whether this browser can paint findings without touching the DOM (Firefox 140+, Chrome 105+, Safari 17.2+). */
@@ -222,6 +229,17 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
         }
     };
 
+    /** The root's `spellcheck` as the site set it, to put back (null: it had none). */
+    const siteSpellcheck = root.getAttribute('spellcheck');
+    const restoreSpellcheck = (): void => {
+        if (rules.ownsSpellcheck !== true) return;
+        if (siteSpellcheck === null) {
+            root.removeAttribute('spellcheck');
+            return;
+        }
+        root.setAttribute('spellcheck', siteSpellcheck);
+    };
+
     const adapter: EditorAdapter = {
         uri,
         languageId,
@@ -251,6 +269,13 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
             if (!root.isConnected || !editsHold([edit], map.text.length, (from, to) => map.text.slice(from, to))) return false;
             return applyEdit(map, edit, () => current().text);
         },
+        ...(rules.ownsSpellcheck === true && {
+            setForeignHidden: (hidden: boolean) => {
+                if (disposed) return;
+                if (hidden) root.setAttribute('spellcheck', 'false');
+                else restoreSpellcheck();
+            },
+        }),
         focusOffset: () => {
             if (disposed) return;
             const now = current();
@@ -281,6 +306,7 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
         isInstalled: () => !disposed && root.isConnected,
         dispose: () => {
             if (disposed) return;
+            restoreSpellcheck();
             disposed = true;
             observer.disconnect();
             lifetime.abort();

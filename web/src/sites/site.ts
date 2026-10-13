@@ -7,7 +7,7 @@ import { viewFromContentDom } from '../editor/cm6kit';
 import type { EditorHandle } from '../editor/handle';
 import type { LanguageId } from '../messaging/protocol';
 
-export type SiteId = 'overleaf' | 'typst' | 'notion';
+export type SiteId = 'overleaf' | 'typst' | 'notion' | 'gmail';
 
 /** Facts about a site the content script may rely on: they come from the tab's URL, not the page. */
 export interface SiteWorkspace {

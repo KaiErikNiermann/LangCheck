@@ -1,6 +1,6 @@
 # LangCheck for web editors
 
-A browser extension (Firefox 128+, Chrome 128+) that checks prose in Overleaf, Typst and Notion with the LangCheck core running on your machine. It is the VS Code client's checking path behind a `vscode` shim: the code that turns the core's findings into squiggles, fixes and hints is the same code VS Code runs.
+A browser extension (Firefox 128+, Chrome 128+) that checks prose in Overleaf, Typst, Notion and Gmail with the LangCheck core running on your machine. It is the VS Code client's checking path behind a `vscode` shim: the code that turns the core's findings into squiggles, fixes and hints is the same code VS Code runs.
 
 ## How it fits together
 
@@ -13,6 +13,7 @@ joins the site's own editor      MessagePort            project, backoff      na
 - The page world joins the site's own CodeMirror 6 editor. It finds the CodeMirror classes by shape in the running editor (`src/editor/cm6kit.ts`) because a bundled copy could not share identity with the page's; the build fails if one slips into a page bundle.
 - A site is a few facts in `src/sites/`: where the editor is, what the open document is called, what language it is in. Everything else is shared.
 - Notion has no CodeMirror: it is a block editor of `contenteditable` leaves. `src/editor/domAdapter.ts` paints findings there with the CSS Custom Highlight API (live DOM ranges, no DOM changes, so nothing fights Notion's renderer), reads the text through `src/editor/domText.ts`, and applies a fix as typed input. It needs the Highlight API: Firefox 140+, Chrome 105+. Notion's code blocks, inline code and equations are not checked; there are no inlay hints, since highlights can only style existing text (`research/notion-editor.md` has the evaluation).
+- Gmail goes through the same DOM editor, with the compose body as one leaf whose `<div>` lines are read as lines (`research/gmail-editor.md`). The compose being written in is checked; the quoted message and the signature are not. The small and the full-screen compose are one element at two sizes, so findings stay through the switch. While findings are merged or ours alone (the options page), the browser's own spellchecker is switched off on the body and put back after; Gmail, unlike Notion, leaves that attribute alone.
 - Both editors share the card (`src/editor/card.ts`, `popover.ts`) and its styles.
 - `language-check-native-host` (in `rust-core/`) relays to the unchanged `language-check-server`, so checking, caching, dictionaries and suppression are the same as in VS Code.
 - The command palette (Ctrl+P by default, changeable on the options page) is ninja-keys in an extension-page iframe over the site. It lists the client's commands that mean something on the web, under their VS Code titles (`src/palette/`).
@@ -32,7 +33,7 @@ cd rust-core && cargo build --release
 cd ../web && pnpm install && pnpm run build
 ```
 
-Then load `web/dist/manifest.json` as a temporary add-on (Firefox: `about:debugging` → This Firefox → Load Temporary Add-on) or `web/dist` as an unpacked extension (Chrome). Learned words live under `~/.local/share/language-check/web/<site>-<project>/`: per Overleaf or Typst project, and per Notion workspace.
+Then load `web/dist/manifest.json` as a temporary add-on (Firefox: `about:debugging` → This Firefox → Load Temporary Add-on) or `web/dist` as an unpacked extension (Chrome). Learned words live under `~/.local/share/language-check/web/<site>-<project>/`: per Overleaf or Typst project, per Notion workspace, and per Gmail account.
 
 ## Tests
 
@@ -42,7 +43,7 @@ pnpm test          # unit tests
 pnpm run test:e2e  # builds the core and the test extension, then Playwright
 ```
 
-`test/e2e/realPath*.spec.ts` drive the whole path in Chromium with the real native host: stand-ins for Overleaf (127.0.0.1) and Typst (localhost), each on CodeMirror 6.43 and 6.38, either side of the 6.39 rewrite that moved its internals, and for Notion (127.0.0.2), whose stand-in saves only edits that arrive as input, as Notion does, and has side and centre peeks. `test/e2e/pageLayer.spec.ts` runs the page bundle in Chromium and Firefox against a stub core whose answers can be held. `.jscpd.json` scans this package together with the VS Code client's sources.
+`test/e2e/realPath*.spec.ts` drive the whole path in Chromium with the real native host: stand-ins for Overleaf (127.0.0.1) and Typst (localhost), each on CodeMirror 6.43 and 6.38, either side of the 6.39 rewrite that moved its internals, for Notion (127.0.0.2), whose stand-in saves only edits that arrive as input, as Notion does, and has side and centre peeks, and for Gmail (127.0.0.3), served with Gmail's Trusted Types policy so an HTML-string sink in the page code fails a test. `test/e2e/pageLayer.spec.ts` runs the page bundle in Chromium and Firefox against a stub core whose answers can be held. `.jscpd.json` scans this package together with the VS Code client's sources.
 
 What must behave the same in VS Code and in the browser is written once, next to the VS Code UI tests, and run by both: each host's spec supplies a driver for its own window.
 

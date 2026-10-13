@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "LangCheck for web editors",
   "version": "0.1.0",
-  "description": "Prose checking in Overleaf, Typst and Notion, by the LangCheck core running on your machine.",
+  "description": "Prose checking in Overleaf, Typst, Notion and Gmail, by the LangCheck core running on your machine.",
   "icons": {
     "128": "icon.png"
   },
@@ -75,6 +75,25 @@
       ],
       "run_at": "document_idle",
       "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://mail.google.com/mail/*"
+      ],
+      "js": [
+        "content-gmail.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://mail.google.com/mail/*"
+      ],
+      "js": [
+        "page-gmail.js"
+      ],
+      "run_at": "document_idle",
+      "world": "MAIN"
     }
   ],
   "browser_specific_settings": {
@@ -94,7 +113,8 @@
         "https://app.notion.com/*",
         "https://typst.app/*",
         "https://www.notion.so/*",
-        "https://www.overleaf.com/*"
+        "https://www.overleaf.com/*",
+        "https://mail.google.com/*"
       ]
     }
   ],

@@ -2,6 +2,7 @@
 // derives a request's workspace from the port's `sender.url`, which the
 // browser reports and nothing in a page can forge, rather than from
 // anything inside the message.
+import { gmailWorkspace } from './gmail';
 import { notionWorkspace } from './notion';
 import { overleafWorkspace } from './overleaf';
 import { workspaceKey, type SiteWorkspace } from './site';
@@ -14,12 +15,14 @@ const ORIGINS: ReadonlyMap<string, SiteWorkspace> = new Map([
     ['https://typst.app', typstWorkspace],
     ['https://app.notion.com', notionWorkspace],
     ['https://www.notion.so', notionWorkspace],
+    ['https://mail.google.com', gmailWorkspace],
     // The end-to-end tests' stand-in pages; compiled out of the release build.
     ...(__LANGUAGE_CHECK_TEST__
         ? ([
               ['http://127.0.0.1', overleafWorkspace],
               ['http://localhost', typstWorkspace],
               ['http://127.0.0.2', notionWorkspace],
+              ['http://127.0.0.3', gmailWorkspace],
           ] as const)
         : []),
 ]);
