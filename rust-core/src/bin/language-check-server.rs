@@ -740,6 +740,12 @@ async fn main() -> Result<()> {
                                 start: w.start_byte as usize,
                                 end: w.end_byte as usize,
                             });
+                            // The ranges this check covers: those the window
+                            // owns, or all of them.
+                            let owned: Vec<usize> = window.map_or_else(
+                                || (0..ranges.len()).collect(),
+                                |w| prose::window::owned_by(&ranges, w),
+                            );
                             let cached = match req.file_path.as_deref().filter(|_| window.is_none())
                             {
                                 Some(path) => workspace_index_arc
@@ -759,12 +765,6 @@ async fn main() -> Result<()> {
                                 );
                                 all_diagnostics = stored;
                             } else {
-                                // The ranges this check covers: those the
-                                // window owns, or all of them.
-                                let owned: Vec<usize> = match window {
-                                    Some(w) => prose::window::owned_by(&ranges, w),
-                                    None => (0..ranges.len()).collect(),
-                                };
                                 let owned_units: Vec<prose::ProseUnit> =
                                     owned.iter().map(|&i| units[i].clone()).collect();
                                 // One batch, one lock: the engines decide internally
@@ -853,6 +853,38 @@ async fn main() -> Result<()> {
                                     .unwrap_or_else(|e| {
                                         warn!(file = file_path, "Error updating insights: {e}");
                                     });
+                            }
+
+                            // What a host page's own checker found joins here:
+                            // after the engines' answer is stored (it is not
+                            // theirs, and must not change with the host's
+                            // worker), before the suppression pass (so the
+                            // dictionary and ignores apply to it), and merged
+                            // with the engines' findings on the same span.
+                            if !req.foreign.is_empty() {
+                                let checked: Vec<lang_check::foreign::CheckedRange<'_>> = owned
+                                    .iter()
+                                    .map(|&i| lang_check::foreign::CheckedRange {
+                                        range: &ranges[i],
+                                        language: &units[i].language,
+                                    })
+                                    .collect();
+                                let adopted = lang_check::foreign::adopt(
+                                    &req.foreign,
+                                    &req.text,
+                                    &checked,
+                                    &*config_arc.lock().await,
+                                );
+                                debug!(
+                                    id = request_id,
+                                    sent = req.foreign.len(),
+                                    kept = adopted.len(),
+                                    "CheckProse: foreign findings"
+                                );
+                                all_diagnostics.extend(adopted);
+                                all_diagnostics = lang_check::orchestrator::merge_duplicates(
+                                    std::mem::take(&mut all_diagnostics),
+                                );
                             }
 
                             // One suppression pass, whichever path produced the

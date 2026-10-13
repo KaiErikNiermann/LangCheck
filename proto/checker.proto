@@ -91,6 +91,34 @@ message CheckRequest {
   // document's first check, a window at a time: rust-core/src/prose/window.rs).
   // The extraction still describes every range. Without it, all are checked.
   optional ByteWindow window = 5;
+  // What checkers other than ours found in this text (a host page's own
+  // spellchecker), read against the same text. The core treats them as one
+  // more engine's answer: kept only inside the prose it checks, filtered by
+  // the dictionary and ignores, merged with its own on the same span. Never
+  // part of a stored result.
+  repeated ForeignFinding foreign = 6;
+}
+
+// One finding of a checker that is not one of ours (rust-core/src/foreign.rs).
+message ForeignFinding {
+  // Who found it ("typst", "overleaf"); `<checker>.<rule>` is its rule id.
+  string checker = 1;
+  string rule = 2;
+  ForeignCategory category = 3;
+  // A half-open byte span of the request's text.
+  uint32 start_byte = 4;
+  uint32 end_byte = 5;
+  // What the checker said; empty for a bare mark.
+  string message = 6;
+  // The language the checker read the word in (BCP 47); empty when unknown.
+  string language = 7;
+}
+
+// What kind of finding a foreign one is. Only categories the core can place
+// among its own are accepted; the rest are dropped.
+enum ForeignCategory {
+  FOREIGN_CATEGORY_UNSPECIFIED = 0;
+  FOREIGN_CATEGORY_SPELLING = 1;
 }
 
 // A half-open byte window [start_byte, end_byte) of a request's text.

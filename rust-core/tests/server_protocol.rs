@@ -591,3 +591,178 @@ fn a_windowed_check_is_not_stored_as_the_files_result() {
     assert_eq!(findings(&again), findings(&first));
     child.kill().ok();
 }
+
+/// What a host page's own spellchecker marked, as the web client sends it.
+fn foreign(text: &str, word: &str) -> lang_check::checker::ForeignFinding {
+    let start = text.find(word).expect("the word is in the text");
+    lang_check::checker::ForeignFinding {
+        checker: "typst".into(),
+        rule: "misspelling".into(),
+        category: lang_check::checker::ForeignCategory::Spelling as i32,
+        start_byte: u32::try_from(start).expect("small"),
+        end_byte: u32::try_from(start + word.len()).expect("small"),
+        message: format!("the word \"{word}\" seems to be misspelled"),
+        language: "en".into(),
+    }
+}
+
+/// A check carrying foreign findings; `window` and `file_path` as in [`check`].
+fn check_foreign(
+    child: &mut Child,
+    id: u64,
+    text: &str,
+    window: Option<(u32, u32)>,
+    file_path: Option<&str>,
+    foreign: Vec<lang_check::checker::ForeignFinding>,
+) -> lang_check::checker::CheckResponse {
+    let request = request::Payload::CheckProse(lang_check::checker::CheckRequest {
+        text: text.into(),
+        language_id: "markdown".into(),
+        file_path: file_path.map(Into::into),
+        window: window.map(|(start_byte, end_byte)| lang_check::checker::ByteWindow {
+            start_byte,
+            end_byte,
+        }),
+        foreign,
+        ..Default::default()
+    });
+    match ask(child, id, request).payload {
+        Some(response::Payload::CheckProse(answer)) => answer,
+        other => panic!("CheckProse answered {other:?}"),
+    }
+}
+
+/// The diagnostics over `word`'s first occurrence, by rule id.
+fn rules_at(answer: &lang_check::checker::CheckResponse, text: &str, word: &str) -> Vec<String> {
+    let start = u32::try_from(text.find(word).expect("the word is in the text")).expect("small");
+    let mut rules: Vec<String> = answer
+        .diagnostics
+        .iter()
+        .filter(|d| d.start_byte == start)
+        .map(|d| d.rule_id.clone())
+        .collect();
+    rules.sort();
+    rules
+}
+
+const FOREIGN_TEXT: &str =
+    "I recieve teh parcel with `wrod` inside.\n\nA second paragraph about parcels.\n";
+
+/// A host's spellchecker marking the word an engine marks too is one
+/// diagnostic, the engine's; one it alone marks is drawn as its own; one in
+/// code our extraction skips is dropped.
+#[test]
+fn foreign_findings_merge_with_the_engines_and_stand_where_they_alone_found_something() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    let text = FOREIGN_TEXT;
+    let answer = check_foreign(
+        &mut child,
+        10,
+        text,
+        None,
+        None,
+        vec![
+            foreign(text, "teh"),
+            foreign(text, "parcel"),
+            foreign(text, "wrod"),
+        ],
+    );
+    let teh = rules_at(&answer, text, "teh");
+    assert_eq!(teh.len(), 1, "one diagnostic on teh: {teh:?}");
+    assert!(teh[0].starts_with("harper"), "the engine's kept: {teh:?}");
+    assert_eq!(rules_at(&answer, text, "parcel"), ["typst.misspelling"]);
+    assert!(rules_at(&answer, text, "wrod").is_empty(), "inside code");
+
+    // Without them, the same text answers as before.
+    let plain = check(&mut child, 11, text, None, None);
+    assert!(rules_at(&plain, text, "parcel").is_empty());
+    child.kill().ok();
+}
+
+/// The dictionary applies to what a host found, as to what an engine found.
+#[test]
+fn a_dictionary_word_is_not_shown_from_a_foreign_checker_either() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    let text = FOREIGN_TEXT;
+    let add = request::Payload::AddDictionaryWord(lang_check::checker::AddDictionaryWordRequest {
+        word: "parcel".into(),
+    });
+    ask(&mut child, 10, add);
+    let answer = check_foreign(
+        &mut child,
+        11,
+        text,
+        None,
+        None,
+        vec![foreign(text, "parcel")],
+    );
+    assert!(
+        rules_at(&answer, text, "parcel").is_empty(),
+        "{:?}",
+        findings(&answer)
+    );
+    child.kill().ok();
+}
+
+/// Foreign findings are not the engines' answer: the stored result does not
+/// hold them, and a window takes only those in the ranges it owns.
+#[test]
+fn foreign_findings_are_never_stored_and_follow_the_window() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    let file = dir.path().join("doc.md");
+    let file = file.to_str().expect("utf-8 path");
+    let text = FOREIGN_TEXT;
+    let second = text.find("parcels").expect("second paragraph");
+    let in_second = {
+        let mut finding = foreign(text, "parcels");
+        finding.start_byte = u32::try_from(second).expect("small");
+        finding
+    };
+
+    let first = check_foreign(
+        &mut child,
+        10,
+        text,
+        None,
+        Some(file),
+        vec![foreign(text, "parcel"), in_second.clone()],
+    );
+    assert!(!first.served_from_cache);
+    assert_eq!(rules_at(&first, text, "parcel"), ["typst.misspelling"]);
+    let again = check(&mut child, 11, text, None, Some(file));
+    assert!(again.served_from_cache, "the engines' answer was stored");
+    assert!(
+        again
+            .diagnostics
+            .iter()
+            .all(|d| !d.rule_id.starts_with("typst.")),
+        "and it holds none of the host's: {:?}",
+        findings(&again)
+    );
+
+    // A window over the first paragraph only: the second one's is not its to show.
+    let paragraph = text.find("A second").expect("second paragraph");
+    let window = (0, u32::try_from(paragraph).expect("small"));
+    let windowed = check_foreign(
+        &mut child,
+        12,
+        text,
+        Some(window),
+        Some(file),
+        vec![foreign(text, "parcel"), in_second],
+    );
+    assert_eq!(rules_at(&windowed, text, "parcel"), ["typst.misspelling"]);
+    assert!(
+        windowed
+            .diagnostics
+            .iter()
+            .all(|d| d.start_byte as usize != second)
+    );
+    child.kill().ok();
+}

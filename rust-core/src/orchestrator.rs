@@ -494,7 +494,11 @@ const fn severity_rank(severity: i32) -> u8 {
 /// Identity is still the exact `(start, end, unified_id)` triple. Engines
 /// tokenise independently, so spans that differ by a byte are left as separate
 /// diagnostics rather than guessed at.
-fn merge_duplicates(diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
+///
+/// Idempotent, so it runs again over a whole document once a check's foreign
+/// findings ([`crate::foreign`]) have joined the engines' already merged ones.
+#[must_use]
+pub fn merge_duplicates(diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
     let mut merged: Vec<Diagnostic> = Vec::with_capacity(diagnostics.len());
     // One list of suggestions per contributing engine, per surviving slot.
     let mut contributions: Vec<Vec<Vec<String>>> = Vec::new();
@@ -582,23 +586,29 @@ fn adopt_results(
                 "languagetool"
             };
             d.unified_id = normalizer.normalize(provider, &d.rule_id);
-
-            // The category decides the severity, not the engine -- otherwise
-            // the same misspelling is an error from LanguageTool and a warning
-            // from Harper, and the colour of a squiggle says which engine
-            // noticed it instead of how serious it is.
-            if let Some(severity) = crate::rules::default_severity(&d.unified_id) {
-                d.severity = severity;
-            }
-
-            // Applied after, so a configured override beats the default.
-            if let Some(severity) = rule_override_severity(config, &d.rule_id, &d.unified_id) {
-                d.severity = severity;
-            }
+            assign_severity(config, d);
         }
 
         diagnostics.retain(|d| d.severity != -1);
         slot.extend(diagnostics);
+    }
+}
+
+/// Give a diagnostic whose `unified_id` is set the severity it is shown at:
+/// its category's, then the user's `rules:` override (`-1` marks it for
+/// removal). The same for an engine's finding and a foreign one.
+///
+/// The category decides the severity, not the engine -- otherwise the same
+/// misspelling is an error from `LanguageTool` and a warning from Harper, and
+/// the colour of a squiggle says which engine noticed it instead of how
+/// serious it is.
+pub fn assign_severity(config: &Config, d: &mut Diagnostic) {
+    if let Some(severity) = crate::rules::default_severity(&d.unified_id) {
+        d.severity = severity;
+    }
+    // Applied after, so a configured override beats the default.
+    if let Some(severity) = rule_override_severity(config, &d.rule_id, &d.unified_id) {
+        d.severity = severity;
     }
 }
 

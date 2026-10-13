@@ -18,6 +18,7 @@ pub mod dictionary;
 pub mod document;
 pub mod engines;
 pub mod feedback;
+pub mod foreign;
 pub mod fs_util;
 pub mod grammars;
 pub mod hashing;
