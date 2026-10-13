@@ -185,6 +185,7 @@ domain wordlists ship with the checker and all of them load by default.
 | `disabled` | `string[]` | `[]`    | Names of individual bundled wordlists to skip        |
 | `paths`    | `string[]` | `[]`    | Extra wordlist files, one word per line, `#` comments |
 | `site`     | `merge` \| `ignore` \| `only` | `merge` | The site's own dictionary, in the browser extension |
+| `add_to`   | `languagecheck` \| `site` \| a path | `languagecheck` | Where "Add to dictionary" puts a word |
 
 ```yaml
 dictionaries:
@@ -224,6 +225,25 @@ the other wordlists down with it.
 
 See `rust-core/dictionaries/THIRD_PARTY_NOTICES.md` for each list's source and
 licensing.
+
+### Where "Add to dictionary" puts a word
+
+`add_to` names the dictionary that "Add to dictionary" writes to:
+
+| Value | Where the word goes |
+|-------|---------------------|
+| `languagecheck` | LangCheck's own `.languagecheck/dictionary.txt` (the default) |
+| `site` | The site's own dictionary, in the browser extension: Typst's personal dictionary or Overleaf's learned words, so the site stops marking the word too |
+| a path | That wordlist file in the workspace, created with the first word; it is read as if it were listed in `paths` |
+
+```yaml
+dictionaries:
+  add_to: .languagecheck/project-terms.txt
+```
+
+The word counts at once wherever it goes. Adding is refused, with the reason, where the word would change nothing: `languagecheck` under `site: only`, or `site` under `site: ignore` or where no site dictionary has arrived (VS Code). The config page marks `add_to` with where words go or why they cannot.
+
+Typst keeps at most 100 words in a personal dictionary, and an open Typst tab writes all of its settings back on its next settings change: reload the Typst tab after adding words from LangCheck before you edit the dictionary in Typst itself.
 
 ### Hyphenated words
 
