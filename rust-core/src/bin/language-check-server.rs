@@ -873,6 +873,7 @@ async fn main() -> Result<()> {
                                     &req.foreign,
                                     &req.text,
                                     &checked,
+                                    &all_diagnostics,
                                     &*config_arc.lock().await,
                                 );
                                 debug!(

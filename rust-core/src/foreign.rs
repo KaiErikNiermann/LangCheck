@@ -15,6 +15,11 @@
 //!   and then reports every English word of a German document.
 //! - Severity by category, with the user's `rules:` override, as for an
 //!   engine's finding ([`crate::orchestrator::assign_severity`]).
+//! - Not where an engine marked the same word under another span. The merge
+//!   folds exactly equal spans into one; a host that tokenises differently
+//!   (`naem's` against `naem`, a hyphenated word whole or in parts) would
+//!   otherwise put a second mark of ours over the engine's, the double
+//!   marking this module exists to end. The engine's span stands.
 //!
 //! What survives goes through the suppression pass (dictionary, ignores,
 //! directives, names, identifiers) and the merge with the engines' findings
@@ -47,18 +52,37 @@ pub struct CheckedRange<'a> {
 }
 
 /// The diagnostics `foreign` contributes to a check of `text` covering
-/// `checked`, in document byte offsets; see the module documentation.
+/// `checked`, beside the engines' `found` (document offsets, both); see the
+/// module documentation.
 #[must_use]
 pub fn adopt(
     foreign: &[ForeignFinding],
     text: &str,
     checked: &[CheckedRange<'_>],
+    found: &[Diagnostic],
     config: &Config,
 ) -> Vec<Diagnostic> {
+    // Sorted starts of the engines' spelling findings, so each foreign one
+    // looks only at those that could overlap it.
+    let mut spelling: Vec<(u32, u32)> = found
+        .iter()
+        .filter(|d| crate::prose::is_spelling_category(&d.unified_id))
+        .map(|d| (d.start_byte, d.end_byte))
+        .collect();
+    spelling.sort_unstable();
+    let longest = spelling.iter().map(|&(s, e)| e - s).max().unwrap_or(0);
+    let crossed = |d: &Diagnostic| {
+        let from = spelling.partition_point(|&(s, _)| s < d.start_byte.saturating_sub(longest));
+        spelling[from..]
+            .iter()
+            .take_while(|&&(s, _)| s < d.end_byte)
+            .any(|&(s, e)| e > d.start_byte && (s, e) != (d.start_byte, d.end_byte))
+    };
     foreign
         .iter()
         .take(MAX_FINDINGS)
         .filter_map(|finding| adopt_one(finding, text, checked, config))
+        .filter(|d| !crossed(d))
         .collect()
 }
 
@@ -189,6 +213,7 @@ mod tests {
                 range: &range,
                 language,
             }],
+            &[],
             config,
         )
     }
@@ -228,6 +253,7 @@ mod tests {
                 range: &partial,
                 language: "en",
             }],
+            &[],
             &Config::default(),
         );
         assert_eq!(found.len(), 1);
@@ -289,6 +315,7 @@ mod tests {
                     range: &range,
                     language: "en"
                 }],
+                &[],
                 &Config::default()
             ),
             Vec::new()
@@ -381,6 +408,58 @@ mod tests {
         assert_eq!(
             adopt_in(&many, "en", &Config::default()).len(),
             MAX_FINDINGS
+        );
+    }
+
+    #[test]
+    fn a_finding_crossing_an_engines_spelling_span_yields_to_it() {
+        let range = range();
+        let engine = |start: usize, end: usize, unified: &str| Diagnostic {
+            start_byte: start as u32,
+            end_byte: end as u32,
+            unified_id: unified.to_string(),
+            ..Diagnostic::default()
+        };
+        let teh = TEXT.find("teh").unwrap();
+        let checked = [CheckedRange {
+            range: &range,
+            language: "en",
+        }];
+        let adopt_beside = |found: &[Diagnostic]| {
+            adopt(
+                &[spelling("teh"), spelling("parcel")],
+                TEXT,
+                &checked,
+                found,
+                &Config::default(),
+            )
+            .iter()
+            .map(|d| &TEXT[d.start_byte as usize..d.end_byte as usize])
+            .collect::<Vec<_>>()
+            .join(",")
+        };
+        // The engine read " teh" as its word: theirs on "teh" would sit under it.
+        assert_eq!(
+            adopt_beside(&[engine(teh - 1, teh + 3, "spelling.typo")]),
+            "parcel"
+        );
+        // The same span is for the merge, not for this.
+        assert_eq!(
+            adopt_beside(&[engine(teh, teh + 3, "spelling.typo")]),
+            "teh,parcel"
+        );
+        // Only spelling yields: a grammar finding over the words is another matter.
+        assert_eq!(
+            adopt_beside(&[engine(0, TEXT.len(), "grammar.agreement")]),
+            "teh,parcel"
+        );
+        // A long engine span starting well before still counts.
+        assert_eq!(
+            adopt_beside(&[
+                engine(0, teh + 1, "spelling.unknown"),
+                engine(1, 2, "spelling.typo")
+            ]),
+            "parcel"
         );
     }
 }
