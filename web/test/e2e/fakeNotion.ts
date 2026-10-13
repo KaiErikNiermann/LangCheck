@@ -1,5 +1,7 @@
 // A stand-in for a Notion page, built to the contract the live page showed
-// (research/notion-editor.md): a `.notion-frame`, one contenteditable leaf
+// (research/notion-editor.md): a `.notion-frame`, every block inside one
+// outer editing host (`div.whenContentEditable`, contenteditable: focusing a
+// leaf focuses it, and input events fire on it), one contenteditable leaf
 // per block, prose leaves `spellcheck="true"` and the code block "false",
 // inline formatting as spans around text nodes, inline code in
 // `.notion-inline-code-container`, an equation as a contenteditable="false"
@@ -44,11 +46,28 @@ document.body.append(frame, peek);
 /** The saved text of each leaf, by block id (`<page>-<n>`), for every page drawn. */
 const model = new Map<string, string>();
 
+/** The leaf the selection is in: where an input event on the editing host landed. */
+function leafOfSelection(): HTMLElement | undefined {
+    const node = document.getSelection()?.anchorNode;
+    const element = node instanceof Element ? node : node?.parentElement;
+    return element?.closest<HTMLElement>('[data-content-editable-leaf="true"]') ?? undefined;
+}
+
 function render(pageId: string, into: HTMLElement = frame): void {
     // Deleting from a Map while iterating it is defined: the loop sees the rest.
     for (const id of model.keys()) if (id.startsWith(`${pageId}-`)) model.delete(id);
     const blocks = PAGES[pageId] ?? [];
-    into.replaceChildren(
+    // As live: one editing host around every block, which takes focus and input.
+    const host = document.createElement('div');
+    host.className = 'whenContentEditable';
+    host.contentEditable = 'true';
+    host.addEventListener('input', () => {
+        const leaf = leafOfSelection();
+        const id = leaf?.closest<HTMLElement>('[data-block-id]')?.dataset.blockId;
+        if (leaf !== undefined && id !== undefined) model.set(id, leaf.textContent);
+    });
+    into.replaceChildren(host);
+    host.append(
         ...blocks.map((block, i) => {
             const element = document.createElement('div');
             const id = `${pageId}-${String(i)}`;
@@ -62,9 +81,6 @@ function render(pageId: string, into: HTMLElement = frame): void {
             leaf.style.whiteSpace = 'break-spaces';
             // Fixed test fixtures, never page input.
             leaf.innerHTML = block.html;
-            leaf.addEventListener('input', () => {
-                model.set(id, leaf.textContent);
-            });
             element.append(leaf);
             model.set(id, leaf.textContent);
             return element;

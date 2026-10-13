@@ -367,7 +367,13 @@ export function applyEdit(map: TextMap, edit: TextEdit, reread: () => string): b
     if (selection === null) return false;
     selection.removeAllRanges();
     selection.addRange(range);
-    if (selection.rangeCount !== 1 || selection.toString() !== span || !leaf.contains(document.activeElement)) return false;
+    // Focus is on the leaf's editing host: the leaf, or an editable element
+    // around it. Live Notion wraps every block in one (div.whenContentEditable),
+    // and focusing a leaf there focuses that: requiring the leaf itself refused
+    // every fix in Notion.
+    const host = document.activeElement;
+    const focusedHere = host instanceof HTMLElement && host.isContentEditable && (host === leaf || host.contains(leaf));
+    if (!focusedHere || selection.rangeCount !== 1 || selection.toString() !== span) return false;
     // execCommand is deprecated but is the one way to produce trusted input
     // events, which is what the editor listens to.
     // eslint-disable-next-line sonarjs/deprecation, @typescript-eslint/no-deprecated
