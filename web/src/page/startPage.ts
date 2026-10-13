@@ -73,7 +73,7 @@ function start(site: SitePage, project: string): void {
     // settings, so the first check is planned under them (or once it never
     // will, so the client can say the checker cannot be reached).
     void core.ready.then(() => {
-        if (!stopped) clientStats = startClient(context, core);
+        if (!stopped) clientStats = startClient(context, core, site.dictionary?.());
     });
     // Palette commands run like VS Code's: through the command registry.
     core.onCommand((id) => {

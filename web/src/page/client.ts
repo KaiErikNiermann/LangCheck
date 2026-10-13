@@ -24,6 +24,8 @@ import type { CoreClient } from '../messaging/pageClient';
 import { DEFAULT_CHECK_SETTINGS, type ForeignMode } from '../messaging/protocol';
 import { WEBVIEW_TYPE } from '../messaging/webview';
 import { host } from '../shim/vscode';
+import type { SiteDictionarySource } from '../sites/site';
+import { syncSiteDictionary } from './siteDictionary';
 import { WebCore } from './transport';
 
 /** Typing pause before a check, as in the VS Code client's default. */
@@ -95,7 +97,8 @@ function webEnvironment(results: CheckResults): InspectorEnvironment {
     };
 }
 
-export function startClient(context: vscode.ExtensionContext, connection: CoreClient): () => ClientStats {
+/** `siteDictionary`: the site's own dictionary, for a site that keeps one. */
+export function startClient(context: vscode.ExtensionContext, connection: CoreClient, siteDictionary?: SiteDictionarySource): () => ClientStats {
     let completed = 0;
     let reportedUnavailable = false;
     const store = new DiagnosticStore();
@@ -288,6 +291,21 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
 
     for (const doc of vscode.workspace.textDocuments) joinForeign(doc);
     checkAll();
+    // The site's own dictionary, kept current in the core; a change checks again.
+    if (siteDictionary !== undefined) {
+        context.subscriptions.push(
+            syncSiteDictionary(siteDictionary, {
+                send: async (source, words) => {
+                    const response = await core.client.sendRequest({ siteDictionary: { source, words: [...words] } });
+                    return Boolean(response.ok);
+                },
+                changed: checkAll,
+                warn: (message, error) => {
+                    console.warn('[language-check]', message, error);
+                },
+            }),
+        );
+    }
     return () => ({
         checks: completed,
         findings: [...store].reduce((sum, [, list]) => sum + list.length, 0),

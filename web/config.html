@@ -21,11 +21,14 @@
   #status { padding: var(--space); border-block-end: 1px solid var(--bar-border); color: var(--unsaved); }
   #status[data-state="saved"] { color: var(--saved); }
   #status[data-state="error"] { color: var(--error); }
+  #site-dictionary { padding: var(--space); border-block-end: 1px solid var(--bar-border); color: var(--unsaved); }
+  #site-dictionary[data-state="ok"] { color: var(--saved); }
   #editor { flex: 1; min-block-size: 0; }
 </style>
 </head>
 <body>
 <p id="status" role="status">Loading the config…</p>
+<p id="site-dictionary" role="status" hidden></p>
 <div id="editor"></div>
 <script src="config/config.js"></script>
 </body>

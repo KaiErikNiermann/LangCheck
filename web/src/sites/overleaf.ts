@@ -5,7 +5,7 @@
 import { isView } from '../editor/cm6kit';
 import type { ForeignCheckerSpec } from '../editor/foreign';
 import { cm6Editor } from '../editor/handle';
-import { languageFromEditor, languageFromName, projectFromProjectPath, viewInDocument, type SitePage, type SiteWorkspace } from './site';
+import { languageFromEditor, languageFromName, projectFromProjectPath, stringsIn, viewInDocument, watchRequests, type SiteDictionarySource, type SitePage, type SiteWorkspace } from './site';
 
 interface StoreItem {
     readonly value: unknown;
@@ -43,10 +43,54 @@ export const OVERLEAF_SPELLING: ForeignCheckerSpec = {
     hide: { '.ol-cm-spelling-error': { textDecoration: 'none' } },
 };
 
+/** The user's learned words in a project page: a JSON array in a meta tag. */
+export function learnedWordsIn(page: Document): readonly string[] | undefined {
+    const content = page.querySelector('meta[name="ol-learnedWords"]')?.getAttribute('content');
+    if (content === null || content === undefined) return undefined;
+    try {
+        return stringsIn(JSON.parse(content));
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Overleaf's learned words: per user, rendered into the project page as
+ * `ol-learnedWords`. A word learned or unlearned after the page loaded is not
+ * in that tag, so after one (an `editor:remove-learned-word` event, or a
+ * request to `/spelling/learn` or `/spelling/unlearn`) the project page is
+ * fetched again and the tag read from it.
+ */
+export function overleafDictionary(): SiteDictionarySource {
+    let stale = false;
+    return {
+        source: 'overleaf',
+        async read() {
+            if (!stale) return learnedWordsIn(document);
+            const response = await fetch(location.href);
+            if (!response.ok) return;
+            return learnedWordsIn(new DOMParser().parseFromString(await response.text(), 'text/html'));
+        },
+        watch(changed) {
+            const mark = (): void => {
+                stale = true;
+                changed();
+            };
+            window.addEventListener('editor:remove-learned-word', mark);
+            const stop = watchRequests((url) => url.origin === location.origin && /^\/spelling\/(?:un)?learn$/u.test(url.pathname), mark);
+            return () => {
+                window.removeEventListener('editor:remove-learned-word', mark);
+                stop();
+            };
+        },
+    };
+}
+
 export const overleafWorkspace: SiteWorkspace = { id: 'overleaf', projectFromPath: projectFromProjectPath };
 
 export const overleafPage: SitePage = {
     id: 'overleaf',
+    dictionary: overleafDictionary,
     findEditor() {
         const fromStore = storeValue('editor.view');
         const view = isView(fromStore) ? fromStore : viewInDocument();

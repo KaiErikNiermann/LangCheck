@@ -16,12 +16,48 @@ export interface SiteWorkspace {
     projectFromPath(pathname: string): string | undefined;
 }
 
+/**
+ * The dictionary a site keeps for the user (Typst's personal dictionary,
+ * Overleaf's learned words), read in the page with the page's own session
+ * (research/site-dictionaries.md). The core turns it into words.
+ */
+export interface SiteDictionarySource {
+    /** The site's name, as the core files it. */
+    readonly source: string;
+    /** Its entries now, or undefined when they cannot be read (signed out, the site changed shape). */
+    read(): Promise<readonly string[] | undefined>;
+    /** Calls `changed` whenever the dictionary may have changed; returns what stops watching. */
+    watch(changed: () => void): () => void;
+}
+
 /** Facts read in the page world, from the site's running editor. */
 export interface SitePage {
     readonly id: SiteId;
     /** The editor on the page now, with the document it shows; undefined while there is none. */
     findEditor(): EditorHandle | undefined;
+    /** The site's own dictionary, for a site that keeps one. */
+    readonly dictionary?: () => SiteDictionarySource;
 }
+
+/** Calls `seen` for each request the page makes whose URL `matches`, from now on. */
+export function watchRequests(matches: (url: URL) => boolean, seen: (entry: PerformanceEntry) => void): () => void {
+    const observer = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+            try {
+                if (matches(new URL(entry.name))) seen(entry);
+            } catch {
+                // Not a URL: nothing of ours.
+            }
+        }
+    });
+    observer.observe({ type: 'resource' });
+    return () => {
+        observer.disconnect();
+    };
+}
+
+/** `value` as a list of strings, when it is one; other entries dropped. */
+export const stringsIn = (value: unknown): readonly string[] | undefined => (Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : undefined);
 
 /** Project ids on both sites are URL-safe tokens; anything else is not a project URL. */
 const PROJECT_ID = /^[A-Za-z0-9_-]{1,100}$/u;

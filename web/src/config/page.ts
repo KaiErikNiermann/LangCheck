@@ -64,6 +64,23 @@ function connect(): (request: ConfigRequest) => Promise<PageResponse> {
         });
 }
 
+/** The config key whose probe says whether the site's own dictionary is registered. */
+const SITE_DICTIONARY_KEY = 'dictionaries.site';
+const PROBE_STATUS_OK = 1;
+
+/**
+ * Says on its own line whether the site's dictionary arrived and is in use.
+ * A gutter mark needs the key, or `dictionaries`, written in the file, and a
+ * workspace's config starts empty; this line does not.
+ */
+function showSiteDictionary(probe: languagecheck.ConfigProbe.$Properties | undefined): void {
+    const line = document.querySelector<HTMLElement>('#site-dictionary');
+    if (line === null) return;
+    line.hidden = probe === undefined;
+    line.textContent = probe?.detail ?? '';
+    line.dataset.state = Number(probe?.status) === PROBE_STATUS_OK ? 'ok' : 'none';
+}
+
 async function start(): Promise<void> {
     // eslint-disable-next-line unicorn/no-global-object-property-assignment -- Monaco reads its worker's URL from this global
     (globalThis as { MonacoEnvironment?: unknown }).MonacoEnvironment = {
@@ -107,7 +124,9 @@ async function start(): Promise<void> {
         Uri.parse(browser.runtime.getURL('config')),
         async (text, _filePath, format) => {
             const answer = await ask({ probeConfig: { text, format: format === 'json' ? 'json' : 'yaml' } });
-            return answer.ok ? (answer.response.probeConfig as languagecheck.ProbeConfigResponse.$Properties) : null;
+            const probed = answer.ok ? (answer.response.probeConfig as languagecheck.ProbeConfigResponse.$Properties) : null;
+            showSiteDictionary(probed?.probes?.find((probe) => probe.key === SITE_DICTIONARY_KEY));
+            return probed;
         },
         { warn: (message: string) => { console.warn('[language-check]', message); } },
     );

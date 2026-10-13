@@ -53,6 +53,11 @@ export interface ForeignFindingWire {
     readonly language: string;
 }
 
+/** The most entries of a site's dictionary sent on; the core keeps at most as many (`site_dictionary::MAX_WORDS`). */
+export const MAX_SITE_DICTIONARY_WORDS = 10_000;
+/** Longer than any word the core keeps (64 characters), so an over-long one reaches it to be counted as dropped. */
+const MAX_SITE_DICTIONARY_ENTRY = 256;
+
 /** The most foreign findings a check carries, as the core takes (`foreign::MAX_FINDINGS`). */
 export const MAX_FOREIGN_FINDINGS = 10_000;
 
@@ -66,6 +71,8 @@ export type CoreRequest =
           };
       }
     | { readonly addDictionaryWord: { readonly word: string } }
+    /** The site's own dictionary, as read in the page (rust-core/src/site_dictionary.rs coerces it). */
+    | { readonly siteDictionary: { readonly source: string; readonly words: string[] } }
     | {
           readonly ignore: {
               readonly message: string;
@@ -169,6 +176,13 @@ function parseCoreRequest(kind: string | undefined, body: unknown): CoreRequest 
     switch (kind) {
         case 'checkProse':
             return parseCheckProse(body);
+        case 'siteDictionary': {
+            const { source, words } = body;
+            if (typeof source !== 'string' || !FOREIGN_NAME.test(source) || !Array.isArray(words)) return undefined;
+            // Entries as the site holds them: strings, bounded; the core decides which are words.
+            const kept = words.slice(0, MAX_SITE_DICTIONARY_WORDS).filter((w): w is string => isText(w, MAX_SITE_DICTIONARY_ENTRY));
+            return { siteDictionary: { source, words: kept } };
+        }
         case 'addDictionaryWord':
             return isText(body.word, MAX_WORD_CHARS) && body.word.length > 0 && !CONTROL_OR_SPACE.test(body.word)
                 ? { addDictionaryWord: { word: body.word.normalize('NFC') } }
