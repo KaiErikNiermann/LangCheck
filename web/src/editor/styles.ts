@@ -95,6 +95,10 @@ const CARD_RULES: Rules = {
         insetBlockEnd: 'var(--lc-space-3)',
         insetInlineEnd: 'var(--lc-space-3)',
         zIndex: 'var(--lc-z-card)',
+        // Its own width, not its container's: positioned in the corner of
+        // a host with no size (a DOM editor's), it shrank to one word a line.
+        inlineSize: 'max-content',
+        maxInlineSize: 'var(--lc-card-width)',
         paddingBlock: 'var(--lc-space-2)',
         paddingInline: 'var(--lc-space-3)',
         borderRadius: 'var(--lc-radius)',

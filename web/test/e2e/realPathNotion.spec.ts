@@ -132,3 +132,24 @@ test('leaving and coming back many times keeps the page checked', async ({ page 
         await expect.poll(() => painted(page)).toHaveLength(4);
     }
 });
+
+// Found validating live: a refused fix's toast sat in the corner of a host
+// with no size, and shrank to a column one word wide.
+test('a refused fix says so in a toast that reads as a line, not a column', async ({ page }) => {
+    await page.goto(notionUrl());
+    await expect.poll(() => painted(page)).toHaveLength(4);
+    const before = await notionSaved(page);
+    // The editor turns the input down, as a page that moved focus or the text in between would.
+    await page.evaluate(() => {
+        // eslint-disable-next-line sonarjs/deprecation, @typescript-eslint/no-deprecated
+        document.execCommand = () => false;
+    });
+    const card = await hoverPainted(page, 'recieve', 1);
+    await card.getByRole('button', { name: 'Fix: "receive"' }).click();
+    const toast = page.locator('.lc-toast');
+    await expect(toast).toContainText('not applied');
+    const box = await toast.boundingBox();
+    expect(box).not.toBeNull();
+    if (box !== null) expect(box.width).toBeGreaterThan(box.height * 2);
+    expect(await notionSaved(page)).toEqual(before);
+});
