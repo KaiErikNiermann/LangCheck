@@ -4,7 +4,7 @@ import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
 import { parseBackgroundRequest } from '../../src/messaging/background';
 import { readFileSync } from 'node:fs';
-import { DEFAULT_CHECK_SETTINGS, MAX_CHECK_TEXT_BYTES, MAX_CHECK_TEXT_CHARS, MAX_FOREIGN_FINDINGS, MAX_WORD_CHARS, parseCheckSettings, parsePageRequest, parsePageResponse, withinCheckLimits } from '../../src/messaging/protocol';
+import { DEFAULT_CHECK_SETTINGS, EXTRAS_BUDGET_BYTES, MAX_CHECK_TEXT_BYTES, MAX_CHECK_TEXT_CHARS, MAX_FOREIGN_FINDINGS, MAX_WORD_CHARS, parseCheckSettings, parsePageRequest, parsePageResponse, withinCheckLimits } from '../../src/messaging/protocol';
 
 describe('parsePageRequest', () => {
     const req = (request: unknown) => ({ id: 1, request });
@@ -77,9 +77,22 @@ describe("the site's own checker's findings on a check", () => {
     ])('an entry with %s is dropped, not the check', (_name, entry) => {
         expect(check([entry, sound])).toEqual({ checkProse: { text: 'one teh', languageId: 'typst', foreign: [sound] } });
     });
+    // One request is one browser message to the native host (8 MiB, as
+    // base64): findings that would push it past that end the connection.
+    test('foreign findings stay within the byte budget, and messages are cut to the core\'s length', () => {
+        const long = { ...sound, message: 'é'.repeat(1000) };
+        const taken = (check(Array.from({ length: 2000 }, () => long)) as { checkProse: { foreign: { message: string }[] } }).checkProse.foreign;
+        expect(taken[0]?.message).toHaveLength(500);
+        const bytes = taken.reduce((sum, f) => sum + 32 + new TextEncoder().encode(f.message + 'typstmisspellingen').length, 0);
+        expect(bytes).toBeLessThanOrEqual(EXTRAS_BUDGET_BYTES);
+        expect(taken.length).toBeLessThan(2000);
+    });
+
     test('at most MAX_FOREIGN_FINDINGS are taken', () => {
+        // Small findings: the count cap or the byte budget, whichever comes first.
         const many = check(Array.from({ length: MAX_FOREIGN_FINDINGS + 3 }, () => sound)) as { checkProse: { foreign: unknown[] } };
-        expect(many.checkProse.foreign).toHaveLength(MAX_FOREIGN_FINDINGS);
+        expect(many.checkProse.foreign.length).toBeLessThanOrEqual(MAX_FOREIGN_FINDINGS);
+        expect(many.checkProse.foreign).toHaveLength(Math.min(MAX_FOREIGN_FINDINGS, Math.floor(EXTRAS_BUDGET_BYTES / (32 + 'typstmisspellingthe word "teh"en'.length))));
     });
 });
 

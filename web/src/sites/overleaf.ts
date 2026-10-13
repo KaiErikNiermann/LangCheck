@@ -43,6 +43,9 @@ export const OVERLEAF_SPELLING: ForeignCheckerSpec = {
     hide: { '.ol-cm-spelling-error': { textDecoration: 'none' } },
 };
 
+/** How long a request to Overleaf may take before it is given up: a stalled one must not hold the sync forever. */
+const SITE_REQUEST_TIMEOUT_MS = 15_000;
+
 /** The user's learned words in a project page: a JSON array in a meta tag. */
 export function learnedWordsIn(page: Document): readonly string[] | undefined {
     const content = page.querySelector('meta[name="ol-learnedWords"]')?.getAttribute('content');
@@ -67,7 +70,7 @@ export function overleafDictionary(): SiteDictionarySource {
         source: 'overleaf',
         async read() {
             if (!stale) return learnedWordsIn(document);
-            const response = await fetch(location.href);
+            const response = await fetch(location.href, { signal: AbortSignal.timeout(SITE_REQUEST_TIMEOUT_MS) });
             if (!response.ok) return;
             return learnedWordsIn(new DOMParser().parseFromString(await response.text(), 'text/html'));
         },
@@ -79,6 +82,7 @@ export function overleafDictionary(): SiteDictionarySource {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Csrf-Token': token, Accept: 'application/json' },
                 body: JSON.stringify({ word }),
+                signal: AbortSignal.timeout(SITE_REQUEST_TIMEOUT_MS),
             });
             return response.ok ? undefined : `Overleaf did not take the word (HTTP ${String(response.status)}).`;
         },

@@ -31,6 +31,9 @@ export const TYPST_SPELLING: ForeignCheckerSpec = {
 /** Typst's API: the one endpoint the app itself reads the user's settings from. */
 const TYPST_GRAPHQL = 'https://api.typst.app/v1/graphql';
 
+/** How long a request to Typst's API may take before it is given up. */
+const SITE_REQUEST_TIMEOUT_MS = 15_000;
+
 /** The most words Typst keeps in a personal dictionary (its MAX_PERSONAL_DICTIONARY_SIZE). */
 const TYPST_DICTIONARY_CAP = 100;
 
@@ -78,6 +81,8 @@ export function typstDictionary(): SiteDictionarySource {
                 credentials: 'include',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify(body),
+                // A stalled request must not hold the sync (or an add) forever.
+                signal: AbortSignal.timeout(SITE_REQUEST_TIMEOUT_MS),
             });
             return response.ok ? ((await response.json()) as unknown) : undefined;
         } finally {

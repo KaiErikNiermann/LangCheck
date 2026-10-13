@@ -110,10 +110,18 @@ export function startContent(site: SiteWorkspace): void {
             ports++;
             const index = ports;
             const channel = new MessageChannel();
-            servePort(channel.port1, index, background, panels, inFlight, () => {
-                pagePorts.delete(index);
-                channel.port1.close();
-            });
+            servePort(
+                channel.port1,
+                index,
+                background,
+                panels,
+                inFlight,
+                () => {
+                    pagePorts.delete(index);
+                    channel.port1.close();
+                },
+                site.id,
+            );
             pagePorts.set(index, channel.port1);
             window.postMessage({ type: HANDSHAKE_TYPE, version: PROTOCOL_VERSION, settings }, location.origin, [channel.port2]);
         });
@@ -145,7 +153,8 @@ function relayPanelMessage(data: unknown, index: number, background: BackgroundL
     background.postWebview(panelMessage);
 }
 
-function servePort(port: MessagePort, index: number, background: BackgroundLink, panels: Set<string>, inFlight: { count: number }, bye: () => void): void {
+/** `siteId`: the site this content script runs for; a page may send only its dictionary. */
+function servePort(port: MessagePort, index: number, background: BackgroundLink, panels: Set<string>, inFlight: { count: number }, bye: () => void, siteId: string): void {
     const reply = (response: PageResponse): void => { port.postMessage(response); };
     const fail = (id: number, code: ErrorCode, error: string): void => { reply({ id, ok: false, code, error }); };
 
@@ -159,7 +168,7 @@ function servePort(port: MessagePort, index: number, background: BackgroundLink,
             relayPanelMessage(event.data, index, background, panels);
             return;
         }
-        const request = parsePageRequest(event.data);
+        const request = parsePageRequest(event.data, siteId);
         if (request === undefined) {
             const id = (event.data as { id?: unknown } | null)?.id;
             if (Number.isSafeInteger(id) && (id as number) > 0) fail(id as number, 'refused', 'malformed request');

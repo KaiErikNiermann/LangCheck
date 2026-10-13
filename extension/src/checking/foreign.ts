@@ -48,5 +48,5 @@ export function foreignToWire(findings: readonly ForeignFinding[], text: string)
  * over other findings is not.
  */
 export function foreignKey(findings: readonly ForeignFinding[]): string {
-    return findings.map(f => `${f.checker}.${f.rule}@${String(f.from)}-${String(f.to)}:${f.language}`).join('|');
+    return findings.map(f => `${f.checker}.${f.rule}@${String(f.from)}-${String(f.to)}:${f.language}:${f.message}`).join('|');
 }

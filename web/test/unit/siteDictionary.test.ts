@@ -2,7 +2,7 @@
 // The site's own dictionary: read in the page (Overleaf's meta tag, Typst's
 // user settings), kept in step with the core, sent only when it changed.
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { parsePageRequest } from '../../src/messaging/protocol';
+import { EXTRAS_BUDGET_BYTES, parsePageRequest } from '../../src/messaging/protocol';
 import { MIN_READ_INTERVAL_MS, syncSiteDictionary } from '../../src/page/siteDictionary';
 import { learnedWordsIn } from '../../src/sites/overleaf';
 import type { SiteDictionarySource } from '../../src/sites/site';
@@ -144,6 +144,19 @@ test('refresh reads again without a signal from the site: after this page wrote 
     expect(sent.at(-1)).toEqual(['a', 'Wrodle']);
 });
 
+// The core takes the word before the site does; a write the site refused
+// leaves the list as the core last had it, and only sending it again
+// takes the word back out there.
+test('refresh sends the list even when it is the same: a failed write is undone in the core', async () => {
+    const site = fakeSite(['a']);
+    const { sync, sent } = harness(site);
+    await vi.runAllTimersAsync();
+    expect(sent).toEqual([['a']]);
+    sync.refresh();
+    await vi.runAllTimersAsync();
+    expect(sent).toEqual([['a'], ['a']]);
+});
+
 test('dispose stops watching and reading', async () => {
     const site = fakeSite(['a']);
     const { sync } = harness(site);
@@ -168,6 +181,17 @@ test("Typst's personal dictionary comes from the user settings, a JSON string", 
     expect(personalDictionaryIn(answer('{broken'))).toBeUndefined();
     expect(personalDictionaryIn({ data: { user: null } })).toBeUndefined();
     expect(personalDictionaryIn({ errors: [{ message: 'unauthenticated' }] })).toBeUndefined();
+});
+
+test('a site dictionary is the page\'s own site\'s, and stays within the byte budget', () => {
+    const req = (siteDictionary: unknown, site?: string) => parsePageRequest({ id: 1, request: { siteDictionary } }, site)?.request;
+    expect(req({ source: 'typst', words: ['Vue'] }, 'typst')).toEqual({ siteDictionary: { source: 'typst', words: ['Vue'] } });
+    // A Notion page naming Typst's dictionary: refused by Notion's content script.
+    expect(req({ source: 'typst', words: ['Vue'] }, 'notion')).toBeUndefined();
+    const big = req({ source: 'overleaf', words: Array.from({ length: 10_000 }, (_, i) => `${'é'.repeat(250)}${String(i)}`) }, 'overleaf') as { siteDictionary: { words: string[] } };
+    const bytes = big.siteDictionary.words.reduce((sum, w) => sum + 4 + new TextEncoder().encode(w).length, 0);
+    expect(bytes).toBeLessThanOrEqual(EXTRAS_BUDGET_BYTES);
+    expect(big.siteDictionary.words.length).toBeGreaterThan(0);
 });
 
 test('the page may send a site dictionary: a site name, and entries that are strings', () => {

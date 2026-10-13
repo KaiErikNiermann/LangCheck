@@ -66,11 +66,26 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
     let disposed = false;
     const changeListeners: (() => void)[] = [];
 
+    /**
+     * Says once that the text was cut: a leaf that would pass the cap is left
+     * out whole, and Gmail's compose is one leaf, so an over-long message was
+     * otherwise left unchecked without a word.
+     */
+    let toldTruncated = false;
+    const noteTruncation = (): void => {
+        if (toldTruncated || !map.truncated) return;
+        toldTruncated = true;
+        queueMicrotask(() => {
+            if (!disposed) adapter.notify(`This page is too long for LangCheck to check whole: what comes after its first ${MAX_CHECK_TEXT_CHARS.toLocaleString('en')} characters is not checked.`);
+        });
+    };
+
     /** The map as the DOM is now: a rebuild still queued from a mutation runs first. */
     const current = (): TextMap => {
         if (dirty) {
             dirty = false;
             map = buildTextMap(rules.leaves(root), rules.isAtom, MAX_CHECK_TEXT_CHARS);
+            noteTruncation();
         }
         return map;
     };
@@ -249,6 +264,8 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
         }
         root.setAttribute('spellcheck', siteSpellcheck);
     };
+
+    noteTruncation();
 
     const adapter: EditorAdapter = {
         uri,

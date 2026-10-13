@@ -10,7 +10,12 @@ import type { SiteDictionarySource } from '../sites/site';
 export const MIN_READ_INTERVAL_MS = 2000;
 
 export interface SiteDictionarySync {
-    /** Reads the site's dictionary again soon: after this page changed it. */
+    /**
+     * Reads the site's dictionary again soon: after this page wrote to it.
+     * Sent even when it reads as the core last had it: the core took the
+     * word before the site did, so a write that failed leaves the list the
+     * same here and the word applied there, until this sends it.
+     */
     refresh(): void;
     dispose(): void;
 }
@@ -71,7 +76,10 @@ export function syncSiteDictionary(dictionary: SiteDictionarySource, deps: SiteD
     const stopWatching = dictionary.watch(schedule);
     void read();
     return {
-        refresh: schedule,
+        refresh: () => {
+            sent = undefined;
+            schedule();
+        },
         dispose() {
             disposed = true;
             clearTimeout(timer);

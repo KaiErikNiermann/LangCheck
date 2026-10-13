@@ -136,7 +136,8 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         writeToSite: async (source, word) => {
             if (siteDictionary?.source !== source) return `There is no ${source} dictionary on this page to add "${word}" to.`;
             const failure = await siteDictionary.add(word);
-            // The site has it now: read it back, so the core's copy agrees.
+            // Read it back and send it, so the core's copy agrees with the
+            // site's whether the write took or not.
             siteSync?.refresh();
             return failure;
         },

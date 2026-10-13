@@ -53,6 +53,21 @@ export interface ForeignFindingWire {
     readonly language: string;
 }
 
+/**
+ * UTF-8 bytes a request may spend on foreign findings, and on a site's
+ * dictionary. The native host takes one browser message of at most 8 MiB,
+ * and a request travels in it as base64: a 4 MiB text is 5.3 MiB of that,
+ * so what rides with it must stay well under the rest, or the oversized
+ * message ends the connection every tab on the workspace shares.
+ */
+export const EXTRAS_BUDGET_BYTES = 512 * 1024;
+/** Bytes counted per foreign finding besides its strings: offsets, category, field tags. */
+const FINDING_OVERHEAD_BYTES = 32;
+/** A foreign message's length; the core cuts at this too (foreign::MAX_MESSAGE_LEN). */
+const MAX_FOREIGN_MESSAGE_CHARS = 500;
+
+const utf8Length = (text: string): number => utf8.encode(text).length;
+
 /** The most entries of a site's dictionary sent on; the core keeps at most as many (`site_dictionary::MAX_WORDS`). */
 export const MAX_SITE_DICTIONARY_WORDS = 10_000;
 /** Longer than any word the core keeps (64 characters), so an over-long one reaches it to be counted as dropped. */
@@ -119,11 +134,17 @@ const isLanguage = (v: unknown): v is LanguageId => (LANGUAGE_IDS as readonly un
 /** A checker's or rule's name: what the core accepts in a rule id. */
 const FOREIGN_NAME = /^[a-z0-9_-]{1,32}$/u;
 
-/** The well-formed entries of `value`, each rebuilt from its fields; the rest dropped, not the check. */
+/**
+ * The well-formed entries of `value`, each rebuilt from its fields; the rest
+ * dropped, not the check. At most MAX_FOREIGN_FINDINGS of them, within
+ * EXTRAS_BUDGET_BYTES: past either, the rest are left out.
+ */
 function parseForeign(value: unknown): ForeignFindingWire[] {
     if (!Array.isArray(value)) return [];
-    return value.slice(0, MAX_FOREIGN_FINDINGS).flatMap((entry: unknown): ForeignFindingWire[] => {
-        if (!isBag(entry)) return [];
+    const kept: ForeignFindingWire[] = [];
+    let spent = 0;
+    for (const entry of value.slice(0, MAX_FOREIGN_FINDINGS) as unknown[]) {
+        if (!isBag(entry)) continue;
         const { checker, rule, category, startByte, endByte, message, language } = entry;
         const sound =
             typeof checker === 'string' && FOREIGN_NAME.test(checker) &&
@@ -132,8 +153,26 @@ function parseForeign(value: unknown): ForeignFindingWire[] {
             isByte(startByte) && isByte(endByte) && startByte < endByte &&
             isText(message ?? '', 1000) &&
             isText(language ?? '', 35);
-        return sound ? [{ checker, rule, category, startByte, endByte, message: (message as string | undefined) ?? '', language: (language as string | undefined) ?? '' }] : [];
-    });
+        if (!sound) continue;
+        const finding = { checker, rule, category, startByte, endByte, message: ((message as string | undefined) ?? '').slice(0, MAX_FOREIGN_MESSAGE_CHARS), language: (language as string | undefined) ?? '' };
+        spent += FINDING_OVERHEAD_BYTES + utf8Length(finding.checker + finding.rule + finding.message + finding.language);
+        if (spent > EXTRAS_BUDGET_BYTES) break;
+        kept.push(finding);
+    }
+    return kept;
+}
+
+/** A site's dictionary entries: strings of bounded length, as many as fit MAX_SITE_DICTIONARY_WORDS and EXTRAS_BUDGET_BYTES. */
+function parseSiteWords(words: readonly unknown[]): string[] {
+    const kept: string[] = [];
+    let spent = 0;
+    for (const word of words.slice(0, MAX_SITE_DICTIONARY_WORDS)) {
+        if (!isText(word, MAX_SITE_DICTIONARY_ENTRY)) continue;
+        spent += 4 + utf8Length(word);
+        if (spent > EXTRAS_BUDGET_BYTES) break;
+        kept.push(word);
+    }
+    return kept;
 }
 // Every whitespace character `\s` matches, C0/C1 controls, zero-width and
 // bidi controls, as explicit, non-overlapping ranges (escapes, so no
@@ -148,11 +187,14 @@ const CONTROL_OR_SPACE = /[\u{0}-\u{20}\u{7F}-\u{A0}\u{1680}\u{2000}-\u{200F}\u{
  * dropped: a web page names no file), oversized text refused, and words with
  * whitespace, control or bidi characters refused.
  */
-export function parsePageRequest(value: unknown): PageRequest | undefined {
+export function parsePageRequest(value: unknown, site?: string): PageRequest | undefined {
     if (!isBag(value) || !isId(value.id) || !isBag(value.request)) return undefined;
     const keys = Object.keys(value.request);
     if (keys.length !== 1) return undefined;
     const request = parseCoreRequest(keys[0], value.request[keys[0] ?? '']);
+    // A page sends its own site's dictionary, never another's: `site` is the
+    // content script's, which knows which site it was loaded for.
+    if (site !== undefined && request !== undefined && 'siteDictionary' in request && request.siteDictionary.source !== site) return undefined;
     return request === undefined ? undefined : { id: value.id, request };
 }
 
@@ -180,8 +222,7 @@ function parseCoreRequest(kind: string | undefined, body: unknown): CoreRequest 
             const { source, words } = body;
             if (typeof source !== 'string' || !FOREIGN_NAME.test(source) || !Array.isArray(words)) return undefined;
             // Entries as the site holds them: strings, bounded; the core decides which are words.
-            const kept = words.slice(0, MAX_SITE_DICTIONARY_WORDS).filter((w): w is string => isText(w, MAX_SITE_DICTIONARY_ENTRY));
-            return { siteDictionary: { source, words: kept } };
+            return { siteDictionary: { source, words: parseSiteWords(words) } };
         }
         case 'addDictionaryWord':
             return isText(body.word, MAX_WORD_CHARS) && body.word.length > 0 && !CONTROL_OR_SPACE.test(body.word)

@@ -285,6 +285,21 @@ describe('Checker, progressive', () => {
             await plain;
         });
 
+        it('with another message at the same span are not the same: the running check is not joined', async () => {
+            let message = 'the word "teh" seems to be misspelled';
+            const { checker, pending, requests } = harness({ foreignOf: () => [{ ...finding(0, 3), message }] });
+            const doc = editableDocument('teh');
+            const first = checker.check(doc as unknown as vscode.TextDocument);
+            await settle();
+            message = 'das Wort "teh" scheint falsch geschrieben';
+            const second = checker.check(doc as unknown as vscode.TextDocument);
+            await settle();
+            expect(requests).toHaveLength(2);
+            pending[0]!(answer('a'));
+            pending[1]!(answer('b'));
+            await Promise.all([first, second]);
+        });
+
         it('join a running check only when they are the same, as the text is', async () => {
             let foreign = [finding(0, 3)];
             const { checker, pending, requests } = harness({ foreignOf: () => foreign });
