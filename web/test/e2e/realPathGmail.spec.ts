@@ -73,3 +73,14 @@ test('with two composes open, the one being written in is checked', async ({ pag
     await gmail(page, 'focus', 0);
     await expect.poll(() => painted(page)).toEqual(['recieve', 'teh']);
 });
+
+// The markup Gmail's size, bold and colour tools left in a live compose:
+// each finding covers exactly its word, however the word is split.
+test("formatted text: a word split by Gmail's size or bold tools is one finding over exactly that word", async ({ page }) => {
+    await open(page, { fixture: 'formatted' });
+    await expect.poll(() => painted(page)).toEqual(['recieve', 'teh', 'teh', 'recieve']);
+    const card = await hoverPainted(page, 'recieve');
+    await card.getByRole('button', { name: 'Fix: "receive"' }).click();
+    await expect.poll(() => gmail(page, 'text')).toContain('Split by size: receive here.');
+    await expect.poll(() => painted(page)).toEqual(['teh', 'teh', 'recieve']);
+});

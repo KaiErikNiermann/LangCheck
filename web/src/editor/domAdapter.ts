@@ -51,6 +51,8 @@ export function highlightsSupported(): boolean {
 interface Painted {
     readonly range: Range;
     readonly diagnostic: RenderedDiagnostic;
+    /** What the range covered when it was painted. */
+    readonly text: string;
 }
 
 export function createDomAdapter(root: Element, rules: DomEditorRules, uri: string, languageId: string): AttachedEditor {
@@ -205,6 +207,14 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
                 if (painted.some((p) => p.range.collapsed || !p.range.startContainer.isConnected)) repaint();
                 return;
             }
+            // A live range follows the DOM, but an edit that replaces the
+            // nodes it points into (a fix, typing in the word) moves it onto
+            // other text: seen in Gmail, a fixed word's mark slid onto
+            // " receive" until the recheck. A finding whose range no longer
+            // covers what it did is left unpainted until then.
+            const paintedBefore = painted.length;
+            painted = painted.filter((p) => !p.range.collapsed && p.range.startContainer.isConnected && p.range.toString() === p.text);
+            if (painted.length !== paintedBefore) paint();
             card.edited();
             for (const listener of changeListeners) listener();
         });
@@ -217,7 +227,7 @@ export function createDomAdapter(root: Element, rules: DomEditorRules, uri: stri
         painted = [];
         for (const diagnostic of published) {
             const range = rangeOf(now, diagnostic.from, diagnostic.to);
-            if (range !== undefined) painted.push({ range, diagnostic });
+            if (range !== undefined) painted.push({ range, diagnostic, text: range.toString() });
         }
         paint();
     };

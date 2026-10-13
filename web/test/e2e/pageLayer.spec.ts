@@ -243,13 +243,13 @@ for (const site of ['typst', 'overleaf'] as const) {
 // ?tt=0: the stub and the page bundle are injected by script tags here,
 // which Gmail's Trusted Types policy (on in the real-path suite) would stop.
 test.describe('Gmail (DOM editor, one body)', () => {
-    async function openGmail(page: Page): Promise<void> {
+    async function openGmail(page: Page, query?: Record<string, string>): Promise<void> {
         const errors: string[] = [];
         page.on('pageerror', (e) => {
             errors.push(e.message);
         });
         pageErrors.set(page, errors);
-        await page.goto(gmailUrl({ tt: '0', quote: 'You wrote wrod.' }));
+        await page.goto(gmailUrl({ tt: '0', ...(query ?? { quote: 'You wrote wrod.' }) }));
         await page.addScriptTag({ url: `${BASE}/stub-content.js` });
         await page.addScriptTag({ url: `${BASE}/extension/page-gmail.js` });
         await expect.poll(() => page.evaluate(() => (globalThis as any).__languageCheck?.bridge.getStatus().state)).toBe('attached');
@@ -265,6 +265,23 @@ test.describe('Gmail (DOM editor, one body)', () => {
         const c = await hoverPainted(page, 'recieve', 0);
         await c.getByRole('button', { name: 'Fix: "receive"' }).click();
         await expect.poll(() => page.evaluate(() => (globalThis as any).__gmail.text() as string)).toContain('I will receive teh parcel.');
+    });
+
+    // As measured in a live compose: Gmail's size and bold tools split words
+    // across <font> and <b>, and a fix replaces the nodes a highlight's live
+    // range pointed into. Before the fix's recheck, that range had slid onto
+    // " receive".
+    test('a word split across sizes and bold is one finding, and a fixed one leaves no mark behind', async ({ page }) => {
+        await openGmail(page, { fixture: 'formatted' });
+        await expect.poll(() => painted(page)).toEqual(['recieve', 'teh', 'teh', 'recieve']);
+        await stub(page, '__stub.hold = true');
+        const c = await hoverPainted(page, 'recieve', 0);
+        await c.getByRole('button', { name: 'Fix: "receive"' }).click();
+        await expect.poll(() => page.evaluate(() => (globalThis as any).__gmail.text() as string)).toContain('Split by size: receive here.');
+        // The recheck is held: what is painted now is what survived the edit.
+        expect(await painted(page)).toEqual(['teh', 'teh', 'recieve']);
+        await stub(page, '__stub.release()');
+        await expect.poll(() => painted(page)).toEqual(['teh', 'teh', 'recieve']);
     });
 });
 
