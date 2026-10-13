@@ -133,8 +133,8 @@ Object.assign(globalThis, {
         },
         /** Overleaf's "Add to dictionary": the request its editor makes (the stand-in server keeps the word). */
         async learn(word: string) {
-            const project = location.pathname.split('/', 3)[2] ?? '';
-            await fetch('/spelling/learn', { method: 'POST', body: JSON.stringify({ word, project }) });
+            const token = document.querySelector('meta[name="ol-csrfToken"]')?.getAttribute('content') ?? '';
+            await fetch('/spelling/learn', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Csrf-Token': token }, body: JSON.stringify({ word }) });
         },
         /** Typst saving its settings: a request to its API, as the app makes one (the test answers it). */
         async typstSettingsSaved() {

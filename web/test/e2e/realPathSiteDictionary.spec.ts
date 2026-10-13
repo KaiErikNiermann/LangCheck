@@ -4,7 +4,7 @@
 // stand-in page's meta tag, which the stand-in server renders as Overleaf
 // does and changes on /spelling/learn; Typst's personal dictionary from its
 // API, which the test answers.
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BrowserContext, Page } from '@playwright/test';
 import { configPage, expect, host, hoverMark, marks, pageUrl, setText, status, test, workspaceDir } from './fixtures';
@@ -22,8 +22,16 @@ async function openOverleaf(page: Page, learned: readonly string[], project: str
     await expect.poll(() => status(page)).toMatchObject({ state: 'attached' });
 }
 
-/** Answers Typst's API as it answers the app: the user's settings, holding `words()`. */
-async function typstApi(context: BrowserContext, words: () => readonly string[]): Promise<void> {
+/** Typst's user settings as its API keeps them: one JSON object, written whole. */
+interface TypstUser {
+    settings: Record<string, unknown>;
+}
+
+/**
+ * Answers Typst's API as it answers the app: `{ user { settings } }` reads
+ * the settings (a JSON string), `updateUser(settings:)` replaces them.
+ */
+async function typstApi(context: BrowserContext, user: TypstUser): Promise<void> {
     await context.route('https://api.typst.app/v1/graphql', async (route) => {
         const origin = route.request().headers().origin ?? '*';
         const cors = { 'access-control-allow-origin': origin, 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'content-type' };
@@ -31,9 +39,27 @@ async function typstApi(context: BrowserContext, words: () => readonly string[])
             await route.fulfill({ status: 204, headers: cors });
             return;
         }
-        const settings = JSON.stringify({ vim: false, spellcheck: true, personalDictionary: words() });
-        await route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ data: { user: { settings } } }) });
+        const body = route.request().postDataJSON() as { query?: string; variables?: { settings?: string } } | null;
+        if (body?.query?.includes('updateUser') === true && typeof body.variables?.settings === 'string') {
+            user.settings = JSON.parse(body.variables.settings) as Record<string, unknown>;
+            await route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ data: { updateUser: { id: 'u1' } } }) });
+            return;
+        }
+        await route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ data: { user: { settings: JSON.stringify(user.settings) } } }) });
     });
+}
+
+/** Gives a project's workspace `config` before its page loads. */
+function seedConfig(dataHome: string, site: 'overleaf' | 'typst', project: string, config: string): void {
+    const dir = workspaceDir(dataHome, site, project);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, '.languagecheck.yaml'), config);
+}
+
+/** Adds "Wrodle", the word only LangCheck marks in TEXT, from the card, as a user would. */
+async function addFromCard(page: Page): Promise<void> {
+    const card = await hoverMark(page, 'Wrodle');
+    await card.getByRole('button', { name: 'Add "Wrodle" to dictionary' }).click();
 }
 
 test('overleaf: learned words are not marked, and a word learned in the page stops being marked', async ({ page }) => {
@@ -44,12 +70,12 @@ test('overleaf: learned words are not marked, and a word learned in the page sto
 });
 
 test('typst: the personal dictionary is used, and read again after the app saves its settings', async ({ page, context }) => {
-    let words: readonly string[] = ['Vrije'];
-    await typstApi(context, () => words);
+    const user: TypstUser = { settings: { vim: false, personalDictionary: ['Vrije'] } };
+    await typstApi(context, user);
     await page.goto(pageUrl('typst', 'current', TEXT, 'sd-typst'));
     await expect.poll(() => status(page)).toMatchObject({ state: 'attached' });
     await expect(marks(page)).toHaveText(['Wrodle']);
-    words = ['Vrije', 'Wrodle'];
+    user.settings = { ...user.settings, personalDictionary: ['Vrije', 'Wrodle'] };
     await host(page, 'typstSettingsSaved');
     await expect(marks(page)).toHaveCount(0);
 });
@@ -64,9 +90,7 @@ test('the config page says the site dictionary is registered, without the key in
 });
 
 test('dictionaries.site: ignore leaves the site dictionary out', async ({ page, dataHome }) => {
-    const dir = workspaceDir(dataHome, 'overleaf', 'sd-ignore');
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(path.join(dir, '.languagecheck.yaml'), 'dictionaries:\n  site: ignore\n');
+    seedConfig(dataHome, 'overleaf', 'sd-ignore', 'dictionaries:\n  site: ignore\n');
     await openOverleaf(page, ['Vrije'], 'sd-ignore');
     await expect(marks(page)).toHaveText(['Vrije', 'Wrodle']);
 });
@@ -77,14 +101,49 @@ test('written in the config, dictionaries.site gets its gutter mark; "only" refu
     const config = await configPage(page, context);
     await setText(config, 'dictionaries:\n  site: only\n');
     await expect(config.locator('#status')).toHaveText('Saved');
-    // The only key written that a probe is about, so the only mark; a probe
-    // that found nothing is skipped and draws none.
-    await expect(config.locator('[class*="lc-gutter-"]')).toHaveCount(1);
+    // Two keys a probe is about: `site:` (in use), and add_to, which is not
+    // written and so marks `dictionaries:` (adding to LangCheck's own is
+    // refused under `only`).
+    await expect(config.locator('[class*="lc-gutter-"]')).toHaveCount(2);
     await expect(config.locator('#site-dictionary')).toContainText("used instead of LangCheck's dictionary.txt");
 
-    const card = await hoverMark(page, 'Wrodle');
-    await card.getByRole('button', { name: 'Add "Wrodle" to dictionary' }).click();
+    await addFromCard(page);
     await expect(page.locator('.lc-toast')).toContainText('dictionaries.site: only');
     await expect(marks(page)).toHaveText(['Wrodle']);
+});
+
+test('add_to: site on Overleaf learns the word there, so it stays known after a reload', async ({ page, dataHome }) => {
+    seedConfig(dataHome, 'overleaf', 'sd-add-overleaf', 'dictionaries:\n  add_to: site\n');
+    await openOverleaf(page, ['Vrije'], 'sd-add-overleaf');
+    await expect(marks(page)).toHaveText(['Wrodle']);
+    await addFromCard(page);
+    await expect(marks(page)).toHaveCount(0);
+    expect(existsSync(path.join(workspaceDir(dataHome, 'overleaf', 'sd-add-overleaf'), '.languagecheck/dictionary.txt'))).toBe(false);
+    // Overleaf has it: the page as the server renders it now carries it.
+    await page.reload();
+    await expect.poll(() => status(page)).toMatchObject({ state: 'attached' });
+    await expect(page.locator('meta[name="ol-learnedWords"]')).toHaveAttribute('content', '["Vrije","Wrodle"]');
+    await expect(marks(page)).toHaveCount(0);
+});
+
+test('add_to: site on Typst adds the word to the personal dictionary and keeps every other setting', async ({ page, context, dataHome }) => {
+    seedConfig(dataHome, 'typst', 'sd-add-typst', 'dictionaries:\n  add_to: site\n');
+    const user: TypstUser = { settings: { vim: true, editorFontSize: 15, spellcheck: true, personalDictionary: ['Vrije'] } };
+    await typstApi(context, user);
+    await page.goto(pageUrl('typst', 'current', TEXT, 'sd-add-typst'));
+    await expect.poll(() => status(page)).toMatchObject({ state: 'attached' });
+    await expect(marks(page)).toHaveText(['Wrodle']);
+    await addFromCard(page);
+    await expect(marks(page)).toHaveCount(0);
+    expect(user.settings).toEqual({ vim: true, editorFontSize: 15, spellcheck: true, personalDictionary: ['Vrije', 'Wrodle'] });
+});
+
+test('add_to: a wordlist path puts the word in that file', async ({ page, dataHome }) => {
+    seedConfig(dataHome, 'overleaf', 'sd-add-path', 'dictionaries:\n  add_to: terms/project.txt\n');
+    await openOverleaf(page, ['Vrije'], 'sd-add-path');
+    await expect(marks(page)).toHaveText(['Wrodle']);
+    await addFromCard(page);
+    await expect(marks(page)).toHaveCount(0);
+    expect(readFileSync(path.join(workspaceDir(dataHome, 'overleaf', 'sd-add-path'), 'terms/project.txt'), 'utf8')).toBe('Wrodle\n');
 });
 

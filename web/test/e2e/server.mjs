@@ -24,13 +24,17 @@ const notionPage = `<!doctype html>
  * @type {Map<string, string[]>}
  */
 const learned = new Map();
+/** What Overleaf's pages carry for their own JSON requests; /spelling/learn refuses a request without it. */
+const CSRF_TOKEN = 'stand-in-csrf-token';
+
 /** @param {string} text */
 const attribute = (text) => text.replaceAll('&', '&amp;').replaceAll("'", '&#39;').replaceAll('<', '&lt;');
 
 /** @param {string} cm @param {string[]} words */
 const page = (cm, words) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>fake editor</title>
-<meta name="ol-learnedWords" content='${attribute(JSON.stringify(words))}'></head>
+<meta name="ol-learnedWords" content='${attribute(JSON.stringify(words))}'>
+<meta name="ol-csrfToken" content="${CSRF_TOKEN}"></head>
 <body><div id="editor"></div><script src="/fake-host-${cm}.js"></script></body></html>`;
 
 const server = http.createServer((req, res) => void serve(req, res));
@@ -47,12 +51,22 @@ function projectPage(url, res) {
     res.writeHead(200, { 'content-type': 'text/html' }).end(page(cm, learned.get(project) ?? []));
 }
 
-/** Overleaf's learn and unlearn. @param {http.IncomingMessage} req @param {URL} url @param {http.ServerResponse} res */
+/**
+ * Overleaf's learn and unlearn: `{ word }` with the page's CSRF token, as
+ * Overleaf's editor sends them; the project is the page's (the referrer),
+ * where Overleaf keeps the words per user.
+ * @param {http.IncomingMessage} req @param {URL} url @param {http.ServerResponse} res
+ */
 async function spelling(req, url, res) {
+    if (req.headers['x-csrf-token'] !== CSRF_TOKEN) {
+        res.writeHead(403).end();
+        return;
+    }
     /** @type {Buffer[]} */
     const chunks = await Array.fromAsync(req);
-    /** @type {{ word: string, project: string }} */
-    const { word, project } = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    /** @type {{ word: string }} */
+    const { word } = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    const project = new URL(req.headers.referer ?? 'http://x/').pathname.split('/', 3)[2] ?? '';
     const words = learned.get(project) ?? [];
     learned.set(project, url.pathname.endsWith('/learn') ? [...words, word] : words.filter((w) => w !== word));
     res.writeHead(200, { 'content-type': 'application/json' }).end('{}');
