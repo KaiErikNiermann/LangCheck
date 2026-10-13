@@ -4,7 +4,7 @@
 // (research/notion-editor.md). Notion's class names appear only where no
 // standard signal exists: the page frame, and inline code.
 import { domEditor } from '../editor/handle';
-import type { SitePage, SiteWorkspace } from './site';
+import type { SiteModule, SitePage, SiteWorkspace } from './site';
 
 /** Notion URLs: /p/<workspace>/<page>, /<workspace>/<page>, or /<page>, with a 32-hex page id at the end. */
 const PAGE_ID = /([0-9a-f]{32})(?:$|[?#])/u;
@@ -61,3 +61,5 @@ export const notionPage: SitePage = {
         });
     },
 };
+
+export const site: SiteModule = { workspace: notionWorkspace, createPage: () => notionPage };

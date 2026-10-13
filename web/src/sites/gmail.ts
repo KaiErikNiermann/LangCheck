@@ -5,7 +5,7 @@
 // so an editor attached in one mode stays attached in the other. A page can
 // hold several composes; the one being written in is checked.
 import { domEditor } from '../editor/handle';
-import type { SitePage, SiteWorkspace } from './site';
+import type { SiteModule, SitePage, SiteWorkspace } from './site';
 
 /** `/mail/u/<n>/…`: the signed-in account, which is the workspace (one dictionary per account). */
 const ACCOUNT = /^\/mail\/u\/(\d{1,2})(?:\/|$)/u;
@@ -80,3 +80,5 @@ export function createGmailPage(): SitePage {
         },
     };
 }
+
+export const site: SiteModule = { workspace: gmailWorkspace, createPage: createGmailPage };

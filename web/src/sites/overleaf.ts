@@ -5,7 +5,7 @@
 import { isView } from '../editor/cm6kit';
 import type { ForeignCheckerSpec } from '../editor/foreign';
 import { cm6Editor } from '../editor/handle';
-import { languageFromEditor, languageFromName, projectFromProjectPath, stringsIn, viewInDocument, watchRequests, type SiteDictionarySource, type SitePage, type SiteWorkspace } from './site';
+import { languageFromEditor, languageFromName, projectFromProjectPath, stringsIn, viewInDocument, watchRequests, type SiteDictionarySource, type SiteModule, type SitePage, type SiteWorkspace } from './site';
 
 interface StoreItem {
     readonly value: unknown;
@@ -116,3 +116,5 @@ export const overleafPage: SitePage = {
         );
     },
 };
+
+export const site: SiteModule = { workspace: overleafWorkspace, createPage: () => overleafPage };

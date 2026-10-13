@@ -5,7 +5,7 @@
 // when CodeMirror reports another (a .bib file, say).
 import { lintPayloadLanguage, type ForeignCheckerSpec } from '../editor/foreign';
 import { cm6Editor } from '../editor/handle';
-import { languageFromEditor, projectFromProjectPath, stringsIn, viewInDocument, watchRequests, type SiteDictionarySource, type SitePage, type SiteWorkspace } from './site';
+import { languageFromEditor, projectFromProjectPath, stringsIn, viewInDocument, watchRequests, type SiteDictionarySource, type SiteModule, type SitePage, type SiteWorkspace } from './site';
 
 /**
  * Typst's own spellchecker: @codemirror/lint diagnostics at hint severity
@@ -134,3 +134,5 @@ export const typstPage: SitePage = {
         return view === undefined ? undefined : cm6Editor(view, 'document', languageFromEditor(view) ?? 'typst', [TYPST_SPELLING]);
     },
 };
+
+export const site: SiteModule = { workspace: typstWorkspace, createPage: () => typstPage };

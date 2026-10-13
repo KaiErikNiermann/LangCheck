@@ -6,8 +6,9 @@ import type { EditorView } from '@codemirror/view';
 import { viewFromContentDom } from '../editor/cm6kit';
 import type { EditorHandle } from '../editor/handle';
 import type { LanguageId } from '../messaging/protocol';
+import type { SiteId } from './catalog';
 
-export type SiteId = 'overleaf' | 'typst' | 'notion' | 'gmail';
+export type { SiteId } from './catalog';
 
 /** Facts about a site the content script may rely on: they come from the tab's URL, not the page. */
 export interface SiteWorkspace {
@@ -33,6 +34,17 @@ export interface SiteDictionarySource {
      * undefined once done, else a sentence saying why not.
      */
     add(word: string): Promise<string | undefined>;
+}
+
+/**
+ * What a site does, exported as `site` from src/sites/<id>.ts: the build's
+ * entries start it (src/build/sites.ts), workspaces.ts lists it for the
+ * background.
+ */
+export interface SiteModule {
+    readonly workspace: SiteWorkspace;
+    /** The page-world half, made in the page (never on import: the background imports the module too). */
+    createPage(): SitePage;
 }
 
 /** Facts read in the page world, from the site's running editor. */

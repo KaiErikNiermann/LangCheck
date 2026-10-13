@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "LangCheck for web editors",
   "version": "0.1.0",
-  "description": "Prose checking in Overleaf, Typst, Notion and Gmail, by the LangCheck core running on your machine.",
+  "description": "Prose checking in {sites}, by the LangCheck core running on your machine.",
   "icons": {
     "128": "icon.png"
   },
@@ -16,86 +16,6 @@
       "background.js"
     ]
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://www.overleaf.com/project/*"
-      ],
-      "js": [
-        "content-overleaf.js"
-      ],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://www.overleaf.com/project/*"
-      ],
-      "js": [
-        "page-overleaf.js"
-      ],
-      "run_at": "document_idle",
-      "world": "MAIN"
-    },
-    {
-      "matches": [
-        "https://typst.app/project/*"
-      ],
-      "js": [
-        "content-typst.js"
-      ],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://typst.app/project/*"
-      ],
-      "js": [
-        "page-typst.js"
-      ],
-      "run_at": "document_idle",
-      "world": "MAIN"
-    },
-    {
-      "matches": [
-        "https://app.notion.com/*",
-        "https://www.notion.so/*"
-      ],
-      "js": [
-        "content-notion.js"
-      ],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://app.notion.com/*",
-        "https://www.notion.so/*"
-      ],
-      "js": [
-        "page-notion.js"
-      ],
-      "run_at": "document_idle",
-      "world": "MAIN"
-    },
-    {
-      "matches": [
-        "https://mail.google.com/mail/*"
-      ],
-      "js": [
-        "content-gmail.js"
-      ],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://mail.google.com/mail/*"
-      ],
-      "js": [
-        "page-gmail.js"
-      ],
-      "run_at": "document_idle",
-      "world": "MAIN"
-    }
-  ],
   "browser_specific_settings": {
     "gecko": {
       "id": "language-check@kaierikniermann.github.io",
@@ -109,13 +29,7 @@
         "palette.html",
         "palette.js"
       ],
-      "matches": [
-        "https://app.notion.com/*",
-        "https://typst.app/*",
-        "https://www.notion.so/*",
-        "https://www.overleaf.com/*",
-        "https://mail.google.com/*"
-      ]
+      "matches": []
     }
   ],
   "options_ui": {

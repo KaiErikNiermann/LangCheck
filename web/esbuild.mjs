@@ -1,15 +1,39 @@
 // Builds the extension into dist/. `--test` also matches the local pages the
-// end-to-end tests serve (http://127.0.0.1 stands in for Overleaf,
-// http://localhost for Typst, http://127.0.0.2 for Notion, http://127.0.0.3
-// for Gmail), in a separate
-// dist-test/.
+// end-to-end tests serve (each site's stand-in origin in the catalog), in a
+// separate dist-test/.
+//
+// The sites come from one list, src/sites/catalog.ts: each site's content
+// and page scripts are generated entries (src/build/sites.ts), and the
+// manifest's content_scripts, resource matches and description are derived
+// from it, so a site is added in one place.
 import * as esbuild from 'esbuild';
 import { access, copyFile, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 
 const test = process.argv.includes('--test');
 const manifestVersion = JSON.parse(await readFile('manifest.json', 'utf8')).version;
 const outdir = test ? 'dist-test' : 'dist';
-const SITES = ['overleaf', 'typst', 'notion', 'gmail'];
+const SRC = path.resolve('src');
+
+/** The catalog and its derivation, compiled here and imported: TypeScript, so the build and the extension read one source. */
+async function loadSiteBuild() {
+    const bundled = await esbuild.build({ stdin: { contents: "export * from './src/sites/catalog.ts'; export * from './src/build/sites.ts';", resolveDir: '.', loader: 'ts' }, bundle: true, format: 'esm', write: false, logLevel: 'warning' });
+    return import(`data:text/javascript;base64,${Buffer.from(bundled.outputFiles[0].text).toString('base64')}`);
+}
+const { SITES, contentScripts, entrySource, resourceMatches, siteNames } = await loadSiteBuild();
+
+/** `site-entry:<content|page>:<id>`: a site's script, generated from the catalog rather than kept as a file per site. */
+const siteEntries = {
+    name: 'site-entries',
+    setup(build) {
+        // esbuild runs these filters as Go regular expressions, which take no `u` flag.
+        build.onResolve({ filter: /^site-entry:/ }, (args) => ({ path: args.path, namespace: 'site-entry' }));
+        build.onLoad({ filter: /.*/, namespace: 'site-entry' }, (args) => {
+            const [, kind, id] = args.path.split(':', 3);
+            return { contents: entrySource(kind, id, SRC), loader: 'ts', resolveDir: SRC };
+        });
+    },
+};
 
 const result = await esbuild.build({
     entryPoints: Object.fromEntries([
@@ -20,9 +44,9 @@ const result = await esbuild.build({
         // The config page, and Monaco's editor worker for it.
         ['config/config', 'src/config/page.ts'],
         ['config/editor.worker', 'monaco-editor/editor/editor.worker.js'],
-        ...SITES.flatMap((s) => [
-            [`content-${s}`, `src/entries/content-${s}.ts`],
-            [`page-${s}`, `src/entries/page-${s}.ts`],
+        ...SITES.flatMap((site) => [
+            [`content-${site.id}`, `site-entry:content:${site.id}`],
+            [`page-${site.id}`, `site-entry:page:${site.id}`],
         ]),
     ]),
     outdir,
@@ -40,6 +64,7 @@ const result = await esbuild.build({
     // Monaco's styles and its icon font, for the config page.
     loader: { '.ttf': 'file' },
     logLevel: 'warning',
+    plugins: [siteEntries],
 });
 
 // The page bundles join the site's own editor through its own CodeMirror
@@ -52,16 +77,10 @@ for (const [file, output] of Object.entries(result.metafile.outputs)) {
 }
 
 const manifest = JSON.parse(await readFile('manifest.json', 'utf8'));
-if (test) {
-    const local = { overleaf: 'http://127.0.0.1/project/*', typst: 'http://localhost/project/*', notion: 'http://127.0.0.2/*', gmail: 'http://127.0.0.3/mail/*' };
-    for (const script of manifest.content_scripts) {
-        const site = SITES.find((s) => script.js[0].endsWith(`-${s}.js`));
-        script.matches.push(local[site]);
-    }
-    // Resources are matched by origin only (the path must be /*).
-    const origins = Object.values(local).map((pattern) => `${new URL(pattern.replace('*', '')).origin}/*`);
-    for (const resources of manifest.web_accessible_resources) resources.matches.push(...origins);
-}
+// The sites' parts of the manifest, from the catalog (the test build adds each stand-in's origin).
+manifest.content_scripts = contentScripts(SITES, test);
+for (const resources of manifest.web_accessible_resources) resources.matches = resourceMatches(SITES, test);
+manifest.description = manifest.description.replace('{sites}', () => siteNames(SITES));
 // The tab's current URL names its workspace (single-page apps move without a
 // load, and a port's sender.url stays the URL the page loaded with); reading
 // it needs host permission, for exactly the pages the scripts already run in.

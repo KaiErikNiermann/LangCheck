@@ -2,30 +2,23 @@
 // derives a request's workspace from the port's `sender.url`, which the
 // browser reports and nothing in a page can forge, rather than from
 // anything inside the message.
-import { gmailWorkspace } from './gmail';
-import { notionWorkspace } from './notion';
-import { overleafWorkspace } from './overleaf';
+import { SITES } from './catalog';
 import { workspaceKey, type SiteWorkspace } from './site';
-import { typstWorkspace } from './typst';
+import { SITE_MODULES } from './workspaces';
 
 declare const __LANGUAGE_CHECK_TEST__: boolean;
 
-const ORIGINS: ReadonlyMap<string, SiteWorkspace> = new Map([
-    ['https://www.overleaf.com', overleafWorkspace],
-    ['https://typst.app', typstWorkspace],
-    ['https://app.notion.com', notionWorkspace],
-    ['https://www.notion.so', notionWorkspace],
-    ['https://mail.google.com', gmailWorkspace],
-    // The end-to-end tests' stand-in pages; compiled out of the release build.
-    ...(__LANGUAGE_CHECK_TEST__
-        ? ([
-              ['http://127.0.0.1', overleafWorkspace],
-              ['http://localhost', typstWorkspace],
-              ['http://127.0.0.2', notionWorkspace],
-              ['http://127.0.0.3', gmailWorkspace],
-          ] as const)
-        : []),
-]);
+/** Each origin's site, from the catalog; the end-to-end stand-ins' only in the test build. */
+const ORIGINS: ReadonlyMap<string, SiteWorkspace> = new Map(
+    SITES.flatMap((entry) => {
+        const { workspace } = SITE_MODULES[entry.id];
+        const origins: readonly string[] = __LANGUAGE_CHECK_TEST__ ? [...entry.origins, entry.test.origin] : entry.origins;
+        return origins.map((origin) => [origin, workspace] as const);
+    }),
+);
+
+/** The origins the background files tabs from, in this build. */
+export const KNOWN_ORIGINS: readonly string[] = [...ORIGINS.keys()];
 
 /** The workspace key for a tab at `url`, or undefined when it is not a page of a known site that names one. */
 export function workspaceForUrl(url: string | undefined): string | undefined {
