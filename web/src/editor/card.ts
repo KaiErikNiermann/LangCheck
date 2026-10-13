@@ -11,6 +11,7 @@
 // - A recheck that drops or reshapes the finding closes the card; one that
 //   keeps it refreshes the card, so actions withheld while the check was
 //   stale appear.
+import { actionKind } from './actionKind';
 import type { Popover, PopoverContent } from './popover';
 import type { ActionSource, EditorAdapter, HoverSource, RenderedDiagnostic } from './types';
 
@@ -169,9 +170,11 @@ export class CardController {
         if (mine !== this.generation || this.disposed) return;
         const content: PopoverContent = {
             message: finding?.message,
+            origin: finding === undefined ? undefined : originOf(finding),
             paragraphs: hover,
             actions: actions.map((a) => ({
                 title: a.title,
+                kind: actionKind(a),
                 run: () => {
                     this.close();
                     a.run().catch(report);
@@ -189,4 +192,10 @@ export class CardController {
             },
         });
     }
+}
+
+/** As VS Code's hover names a diagnostic's origin: `source(code)`. */
+function originOf({ source, code }: Finding): string | undefined {
+    if (source === undefined) return code;
+    return code === undefined ? source : `${source}(${code})`;
 }

@@ -17,6 +17,12 @@ export interface RenderedDiagnostic {
 
 export interface RenderedAction {
     readonly title: string;
+    /** VS Code's `isPreferred`: the top suggestion. */
+    readonly preferred: boolean;
+    /** It carries a text edit of its own. */
+    readonly edits: boolean;
+    /** The command it runs, if any. */
+    readonly command: string | undefined;
     run(): Promise<void>;
 }
 

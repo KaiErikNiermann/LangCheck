@@ -3,14 +3,18 @@
 // kind, so the card is an element we position ourselves. Where it lives and
 // how an offset in the document maps to the screen is the editor's business,
 // behind PopoverSurface; everything else about the card is shared.
+import type { ActionKind } from './actionKind';
 
 export interface PopoverAction {
     readonly title: string;
+    readonly kind: ActionKind;
     run(): void;
 }
 
 export interface PopoverContent {
     readonly message: string | undefined;
+    /** Where the finding came from (`source(rule)`), under the message. */
+    readonly origin: string | undefined;
     readonly paragraphs: readonly string[];
     readonly actions: readonly PopoverAction[];
 }
@@ -106,21 +110,34 @@ export class Popover {
         }
         this.anchor = { at, onDismiss: options.onDismiss };
         const children: HTMLElement[] = [];
-        for (const text of [content.message, ...content.paragraphs]) {
-            if (text === undefined) continue;
+        const paragraph = (text: string | undefined, className?: string): void => {
+            if (text === undefined) return;
             const p = document.createElement('p');
             p.textContent = text;
+            if (className !== undefined) p.className = className;
             children.push(p);
-        }
-        for (const action of content.actions) {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'lc-action';
-            button.textContent = action.title;
-            button.addEventListener('click', () => {
-                action.run();
-            });
-            children.push(button);
+        };
+        paragraph(content.message);
+        paragraph(content.origin, 'lc-origin');
+        for (const text of content.paragraphs) paragraph(text);
+        if (content.actions.length > 0) {
+            const list = document.createElement('div');
+            list.className = 'lc-actions';
+            for (const action of content.actions) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'lc-action';
+                button.dataset['kind'] = action.kind;
+                const glyph = document.createElement('span');
+                glyph.className = 'lc-glyph';
+                glyph.setAttribute('aria-hidden', 'true');
+                button.append(glyph, action.title);
+                button.addEventListener('click', () => {
+                    action.run();
+                });
+                list.append(button);
+            }
+            children.push(list);
         }
         this.dom.replaceChildren(...children);
         if (this.dom.parentNode !== this.surface.mount) this.surface.mount.append(this.dom);
