@@ -33,7 +33,16 @@ function browserDriver(page: Page, context: BrowserContext, dataHome: string): S
             return panel;
         },
         press: async (key) => {
-            await panel?.keyboard.press(key);
+            try {
+                await panel?.keyboard.press(key);
+            } catch (error) {
+                // A press is a keydown and a keyup; a key that closes the tab
+                // (Escape) can close it before the keyup is sent, and the
+                // press then throws over a key that did its job. Only that is
+                // let through: the tab must really be gone, and the scenario
+                // goes on to assert so.
+                if (panel?.isClosed() !== true) throw error;
+            }
         },
         editorText: () => docText(page),
         dictionary: () => Promise.resolve(dictionaries(dataHome)),
