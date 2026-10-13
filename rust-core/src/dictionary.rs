@@ -169,30 +169,24 @@ impl Dictionary {
         Ok(())
     }
 
-    /// Adds `word` to the wordlist file at `path` (as [`Self::load_wordlist_file`]
-    /// resolves it), creating the file inside the workspace when it is not
+    /// Adds `word` to the wordlist file at `path`, creating it when it is not
     /// there yet, and accepts it at once with its inflections.
+    ///
+    /// Stricter than reading ([`Self::load_wordlist_file`], which also takes
+    /// the user's config directories): a word can come from a web page, so it
+    /// is written only to a file inside the workspace, and only when it is one
+    /// plain token. A config naming `~/.config/fish/config.fish` would
+    /// otherwise have a page's `$(...)` appended to a shell's startup file.
+    /// Symlinks are followed only to check where they lead: a directory or a
+    /// file linked out of the workspace is refused, and a new file is created
+    /// without following anything already at its path.
     pub fn add_to_wordlist(&mut self, path: &Path, base: &Path, word: &str) -> Result<()> {
-        let target = if path.is_absolute() {
-            path.to_path_buf()
-        } else {
-            base.join(path)
-        };
-        if !target.exists() {
-            // Created where the config says, but only inside the workspace:
-            // the parent is held to the same rule as an existing file.
-            let parent = target.parent().unwrap_or(base);
-            std::fs::create_dir_all(parent)?;
-            let canonical_parent = parent.canonicalize()?;
-            let canonical_base = base.canonicalize().unwrap_or_else(|_| base.to_path_buf());
-            anyhow::ensure!(
-                canonical_parent.starts_with(&canonical_base),
-                "Wordlist path {} is outside the workspace",
-                target.display()
-            );
-            std::fs::write(&target, "")?;
-        }
-        let resolved = Self::wordlist_path(path, base)?;
+        let word = word.trim();
+        anyhow::ensure!(
+            !word.is_empty() && !word.chars().any(|c| c.is_whitespace() || c.is_control()),
+            "{word:?} is not a single word"
+        );
+        let resolved = Self::writable_wordlist(path, base)?;
         let content = std::fs::read_to_string(&resolved)?;
         let lower = word.to_lowercase();
         let present = content
@@ -204,8 +198,10 @@ impl Dictionary {
             if !text.is_empty() && !text.ends_with('\n') {
                 text.push('\n');
             }
-            text.push_str(word.trim());
+            text.push_str(word);
             text.push('\n');
+            // Replaces the file by rename: a link put at its path since the
+            // check is replaced, not followed.
             crate::fs_util::write_replacing(&resolved, text.as_bytes())?;
         }
         if self.bundled_words.insert(lower.clone())
@@ -214,6 +210,53 @@ impl Dictionary {
             self.derived_words.extend(forms);
         }
         Ok(())
+    }
+
+    /// The real path of the wordlist at `path`, created empty when missing,
+    /// inside the workspace `base` or refused.
+    fn writable_wordlist(path: &Path, base: &Path) -> Result<PathBuf> {
+        use std::path::Component;
+        let root = base.canonicalize()?;
+        let outside =
+            || anyhow::anyhow!("Wordlist path {} is outside the workspace", path.display());
+        // Lexically first: no climbing out, and an absolute path only into the workspace.
+        anyhow::ensure!(
+            !path.components().any(|c| c == Component::ParentDir),
+            outside()
+        );
+        let target = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            root.join(path)
+        };
+        anyhow::ensure!(target.starts_with(&root), outside());
+        let name = target.file_name().ok_or_else(outside)?.to_owned();
+        let parent = target.parent().ok_or_else(outside)?;
+        // The nearest directory that exists must really be inside (a link
+        // there would carry the new ones elsewhere); then create the rest.
+        let existing = parent
+            .ancestors()
+            .find(|a| a.exists())
+            .ok_or_else(outside)?;
+        anyhow::ensure!(existing.canonicalize()?.starts_with(&root), outside());
+        std::fs::create_dir_all(parent)?;
+        let real_parent = parent.canonicalize()?;
+        anyhow::ensure!(real_parent.starts_with(&root), outside());
+        let file = real_parent.join(name);
+        // create_new refuses anything already at the path, a dangling link
+        // included, so a missing file is never created through one.
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&file)
+        {
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(e.into()),
+        }
+        let real = file.canonicalize().map_err(|_| outside())?;
+        anyhow::ensure!(real.starts_with(&root) && real.is_file(), outside());
+        Ok(real)
     }
 
     /// Where a wordlist path names, refused outside the workspace and the
@@ -866,5 +909,79 @@ mod tests {
                 .is_err()
         );
         assert!(!outer.path().join("escape.txt").exists());
+    }
+
+    #[test]
+    fn a_wordlist_is_written_only_inside_the_workspace() {
+        let outer = tempfile::tempdir().unwrap();
+        let workspace = outer.path().join("ws");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let mut dict = Dictionary::new();
+        let refused = |dict: &mut Dictionary, path: &Path| {
+            dict.add_to_wordlist(path, &workspace, "word").is_err()
+        };
+        // Climbing out, or an absolute path elsewhere (a config directory included).
+        assert!(refused(&mut dict, Path::new("../escape.txt")));
+        assert!(refused(&mut dict, &outer.path().join("abs.txt")));
+        assert!(refused(
+            &mut dict,
+            &dirs::config_dir().unwrap_or_default().join("lc-never.txt")
+        ));
+        assert!(
+            !outer.path().join("escape.txt").exists() && !outer.path().join("abs.txt").exists()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_out_of_the_workspace_is_neither_followed_nor_written_through() {
+        use std::os::unix::fs::symlink;
+        let outer = tempfile::tempdir().unwrap();
+        let workspace = outer.path().join("ws");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let mut dict = Dictionary::new();
+        // A dangling link where the new file would go.
+        symlink(
+            outer.path().join("target.txt"),
+            workspace.join("dangling.txt"),
+        )
+        .unwrap();
+        assert!(
+            dict.add_to_wordlist(Path::new("dangling.txt"), &workspace, "word")
+                .is_err()
+        );
+        assert!(!outer.path().join("target.txt").exists());
+        // A link to an existing file outside.
+        std::fs::write(outer.path().join("real.txt"), "keep\n").unwrap();
+        symlink(outer.path().join("real.txt"), workspace.join("linked.txt")).unwrap();
+        assert!(
+            dict.add_to_wordlist(Path::new("linked.txt"), &workspace, "word")
+                .is_err()
+        );
+        assert_eq!(
+            std::fs::read_to_string(outer.path().join("real.txt")).unwrap(),
+            "keep\n"
+        );
+        // A directory linked out, with the file to be made inside it.
+        symlink(outer.path(), workspace.join("out")).unwrap();
+        assert!(
+            dict.add_to_wordlist(Path::new("out/new/list.txt"), &workspace, "word")
+                .is_err()
+        );
+        assert!(!outer.path().join("new").exists());
+    }
+
+    #[test]
+    fn only_a_single_plain_word_is_written() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut dict = Dictionary::new();
+        for word in ["", "two words", "a\nb", "x\u{7}"] {
+            assert!(
+                dict.add_to_wordlist(Path::new("list.txt"), dir.path(), word)
+                    .is_err(),
+                "{word:?}"
+            );
+        }
+        assert!(!dir.path().join("list.txt").exists());
     }
 }
