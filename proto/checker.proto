@@ -14,6 +14,7 @@ message Request {
     ListConfigFilesRequest list_config_files = 8;
     ReadConfigRequest read_config = 9;
     WriteConfigRequest write_config = 10;
+    SiteDictionaryRequest site_dictionary = 11;
   }
 }
 
@@ -230,6 +231,18 @@ enum Severity {
 
 message AddDictionaryWordRequest {
   string word = 1;
+}
+
+// The dictionary of the site the document is edited on, as the web extension
+// read it there (Typst's personal dictionary, Overleaf's learned words). The
+// core coerces it into words, keeps it in the workspace, and accepts it as
+// `dictionaries.site` says (rust-core/src/site_dictionary.rs). Answered with
+// Ok; what was kept shows in the config probe for `dictionaries.site`.
+message SiteDictionaryRequest {
+  // Which site ("typst", "overleaf").
+  string source = 1;
+  // Its entries as the site holds them, one word each.
+  repeated string words = 2;
 }
 
 message MetadataRequest {}

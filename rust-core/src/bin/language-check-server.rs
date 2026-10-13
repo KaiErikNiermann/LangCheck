@@ -436,6 +436,7 @@ async fn main() -> Result<()> {
             Some(checker::request::Payload::ListConfigFiles(_)) => "ListConfigFiles",
             Some(checker::request::Payload::ReadConfig(_)) => "ReadConfig",
             Some(checker::request::Payload::WriteConfig(_)) => "WriteConfig",
+            Some(checker::request::Payload::SiteDictionary(_)) => "SiteDictionary",
             None => "Empty",
         };
         debug!(id = request_id, kind = payload_kind, "Request received");
@@ -503,8 +504,18 @@ async fn main() -> Result<()> {
                                     warn!(path = path_str, "Could not load wordlist: {e}");
                                 }
                             }
+                            // The site's own dictionary, as the web extension last
+                            // sent it, and which dictionaries the config accepts.
+                            loaded_dict.set_site_mode(config.dictionaries.site);
+                            if let Some(site) =
+                                lang_check::site_dictionary::SiteWords::load(&root_path)
+                            {
+                                loaded_dict
+                                    .set_site_words(&site.words, config.morphology.inflections);
+                            }
                             info!(
                                 words = loaded_dict.len(),
+                                site_words = loaded_dict.site_len(),
                                 bundled = load_bundled,
                                 disabled = ?disabled_sets,
                                 extra_paths = wordlist_paths.len(),
@@ -1067,9 +1078,17 @@ async fn main() -> Result<()> {
 
                     Some(response::Payload::Ok(checker::OkResponse {}))
                 }
-                Some(checker::request::Payload::AddDictionaryWord(req)) => {
+                Some(checker::request::Payload::AddDictionaryWord(req)) => 'add: {
                     debug!(id = request_id, word = %req.word, "AddDictionaryWord: persisting");
                     let mut dict = dictionary_arc.lock().await;
+                    if !dict.uses_own() {
+                        // The words in use are the site's, and writing to the
+                        // site's dictionary is not something this does yet: a
+                        // word added to LangCheck's would change nothing.
+                        break 'add Some(response::Payload::Error(ErrorResponse {
+                            message: "This workspace uses the site's dictionary only (dictionaries.site: only). Add the word in the site, or set dictionaries.site to merge to add words here.".to_string(),
+                        }));
+                    }
                     match dict.add_word(&req.word) {
                         Ok(()) => {
                             info!(id = request_id, word = %req.word, "Word added to dictionary");
@@ -1121,6 +1140,44 @@ async fn main() -> Result<()> {
                             Some(response::Payload::Error(ErrorResponse {
                                 message: format!("The config could not be written: {e}"),
                             }))
+                        }
+                    }
+                }
+                Some(checker::request::Payload::SiteDictionary(req)) => 'site: {
+                    // Lock order: see LOCK ORDER at the top of this file.
+                    let inflect = config_arc.lock().await.morphology.inflections;
+                    // Kept in the workspace, so not before there is one: the
+                    // fallback other requests use (the working directory) is
+                    // the web host's root, shared by every workspace.
+                    let Some(root) = workspace_root_arc.lock().await.clone() else {
+                        break 'site Some(response::Payload::Error(ErrorResponse {
+                            message: "No workspace yet: send Initialize first".to_string(),
+                        }));
+                    };
+                    match lang_check::site_dictionary::SiteWords::coerce(
+                        &req.source,
+                        &req.words,
+                        lang_check::site_dictionary::now(),
+                    ) {
+                        None => Some(response::Payload::Error(ErrorResponse {
+                            message: format!("{:?} is not a site's name", req.source),
+                        })),
+                        Some(site) => {
+                            if let Err(e) = site.store(&root) {
+                                warn!(id = request_id, "SiteDictionary: not kept: {e}");
+                            }
+                            dictionary_arc
+                                .lock()
+                                .await
+                                .set_site_words(&site.words, inflect);
+                            info!(
+                                id = request_id,
+                                source = site.source,
+                                words = site.words.len(),
+                                dropped = site.dropped,
+                                "SiteDictionary: in use"
+                            );
+                            Some(response::Payload::Ok(checker::OkResponse {}))
                         }
                     }
                 }

@@ -153,7 +153,76 @@ pub async fn probe_config(config: &Config, workspace_root: &Path) -> Vec<Probe> 
     out.extend(vale);
     out.extend(proselint);
     out.extend(spell);
+    out.push(probe_site_dictionary(
+        config,
+        workspace_root,
+        crate::site_dictionary::now(),
+    ));
     out
+}
+
+/// Whether the site's own dictionary is registered, and what came of it.
+///
+/// Nothing is reached over the network here: the web extension sent the
+/// words, and the question the config page answers is whether they arrived
+/// and are in use. Skipped when there are none (a VS Code workspace has no
+/// site, and a mark there would be noise), with the sentence the web config
+/// page shows on its own.
+fn probe_site_dictionary(config: &Config, workspace_root: &Path, now: u64) -> Probe {
+    use crate::config::SiteDictionaryMode;
+    const KEY: &str = "dictionaries.site";
+    let mode = config.dictionaries.site;
+    if mode == SiteDictionaryMode::Ignore {
+        return Probe::new(
+            KEY,
+            "",
+            ProbeStatus::Skipped,
+            "The site's dictionary is not used (dictionaries.site: ignore).",
+        );
+    }
+    let Some(site) = crate::site_dictionary::SiteWords::load(workspace_root) else {
+        return Probe::new(
+            KEY,
+            "",
+            ProbeStatus::Skipped,
+            "No site dictionary received yet: the web extension sends it when it opens a project on Overleaf or Typst.",
+        );
+    };
+    let words = match site.words.len() {
+        1 => "1 word".to_string(),
+        n => format!("{n} words"),
+    };
+    let dropped = match site.dropped {
+        0 => String::new(),
+        1 => "; 1 entry left out, not a single word".to_string(),
+        n => format!("; {n} entries left out, not single words"),
+    };
+    let role = if mode == SiteDictionaryMode::Only {
+        ", used instead of LangCheck's dictionary.txt"
+    } else {
+        ", used beside LangCheck's own"
+    };
+    Probe::new(
+        KEY,
+        "",
+        ProbeStatus::Ok,
+        format!(
+            "{}: {words}, received {}{role}{dropped}.",
+            site.title(),
+            ago(now.saturating_sub(site.received))
+        ),
+    )
+}
+
+/// `seconds` as a reader says it: "just now", "5 minutes ago", "3 days ago".
+fn ago(seconds: u64) -> String {
+    let (n, unit) = match seconds {
+        0..60 => return "just now".to_string(),
+        60..3600 => (seconds / 60, "minute"),
+        3600..86_400 => (seconds / 3600, "hour"),
+        _ => (seconds / 86_400, "day"),
+    };
+    format!("{n} {unit}{} ago", if n == 1 { "" } else { "s" })
 }
 
 /// Harper runs in this process, so the engine itself cannot be unreachable.
@@ -608,6 +677,64 @@ mod tests {
 
     fn find<'a>(probes: &'a [Probe], key: &str) -> Option<&'a Probe> {
         probes.iter().find(|p| p.key == key)
+    }
+
+    #[test]
+    fn the_site_dictionary_is_reported_as_registered_or_not() {
+        let dir = tempfile::tempdir().unwrap();
+        let none = probe_site_dictionary(&Config::default(), dir.path(), 1000);
+        assert_eq!(none.status, ProbeStatus::Skipped);
+        assert!(
+            none.detail.starts_with("No site dictionary received yet"),
+            "{}",
+            none.detail
+        );
+
+        let words = ["Databricks", "Vrije", "New York"].map(String::from);
+        crate::site_dictionary::SiteWords::coerce("typst", &words, 1000)
+            .unwrap()
+            .store(dir.path())
+            .unwrap();
+        let merged = probe_site_dictionary(&Config::default(), dir.path(), 1000 + 180);
+        assert_eq!(merged.status, ProbeStatus::Ok);
+        assert_eq!(
+            merged.detail,
+            "Typst personal dictionary: 2 words, received 3 minutes ago, used beside LangCheck's own; 1 entry left out, not a single word."
+        );
+        let only = probe_site_dictionary(
+            &config_from("dictionaries:\n  site: only\n"),
+            dir.path(),
+            1000,
+        );
+        assert!(
+            only.detail
+                .contains("instead of LangCheck's dictionary.txt"),
+            "{}",
+            only.detail
+        );
+        let ignored = probe_site_dictionary(
+            &config_from("dictionaries:\n  site: ignore\n"),
+            dir.path(),
+            1000,
+        );
+        assert_eq!(ignored.status, ProbeStatus::Skipped);
+    }
+
+    #[test]
+    fn ages_read_as_a_person_says_them() {
+        assert_eq!(
+            [0, 59, 60, 119, 3600, 7200, 86_400, 200_000].map(ago),
+            [
+                "just now",
+                "just now",
+                "1 minute ago",
+                "1 minute ago",
+                "1 hour ago",
+                "2 hours ago",
+                "1 day ago",
+                "2 days ago"
+            ]
+        );
     }
 
     /// A server that answers `/v2/languages` with `codes`, and 404 elsewhere.

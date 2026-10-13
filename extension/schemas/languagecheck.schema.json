@@ -94,6 +94,16 @@
           },
           "markdownDescription": "Paths to additional wordlist files (one word per line, `#` comments).\nRelative paths are resolved from the workspace root.",
           "type": "array"
+        },
+        "site": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/SiteDictionaryMode"
+            }
+          ],
+          "default": "merge",
+          "description": "The dictionary of the site the document is edited on, which the web\nextension reads there: Typst's personal dictionary, Overleaf's learned\nwords. `merge` (default) uses it beside LangCheck's own, `ignore` leaves\nit out, `only` uses it instead of LangCheck's `dictionary.txt` (bundled\nsets and `paths` still apply).",
+          "markdownDescription": "The dictionary of the site the document is edited on, which the web\nextension reads there: Typst's personal dictionary, Overleaf's learned\nwords. `merge` (default) uses it beside LangCheck's own, `ignore` leaves\nit out, `only` uses it instead of LangCheck's `dictionary.txt` (bundled\nsets and `paths` still apply)."
         }
       },
       "type": "object"
@@ -693,6 +703,30 @@
       },
       "type": "object"
     },
+    "SiteDictionaryMode": {
+      "description": "What becomes of a site's own dictionary ([`DictionaryConfig::site`]).",
+      "markdownDescription": "What becomes of a site's own dictionary ([`DictionaryConfig::site`]).",
+      "oneOf": [
+        {
+          "const": "merge",
+          "description": "The site's words and LangCheck's own.",
+          "markdownDescription": "The site's words and LangCheck's own.",
+          "type": "string"
+        },
+        {
+          "const": "ignore",
+          "description": "LangCheck's own words only.",
+          "markdownDescription": "LangCheck's own words only.",
+          "type": "string"
+        },
+        {
+          "const": "only",
+          "description": "The site's words instead of LangCheck's `dictionary.txt`.",
+          "markdownDescription": "The site's words instead of LangCheck's `dictionary.txt`.",
+          "type": "string"
+        }
+      ]
+    },
     "ValeConfig": {
       "additionalProperties": false,
       "description": "Vale engine configuration.",
@@ -809,7 +843,8 @@
       "default": {
         "bundled": true,
         "disabled": [],
-        "paths": []
+        "paths": [],
+        "site": "merge"
       }
     },
     "engines": {

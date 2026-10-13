@@ -290,6 +290,40 @@ pub struct DictionaryConfig {
     /// Relative paths are resolved from the workspace root.
     #[serde(default)]
     pub paths: Vec<String>,
+    /// The dictionary of the site the document is edited on, which the web
+    /// extension reads there: Typst's personal dictionary, Overleaf's learned
+    /// words. `merge` (default) uses it beside LangCheck's own, `ignore` leaves
+    /// it out, `only` uses it instead of LangCheck's `dictionary.txt` (bundled
+    /// sets and `paths` still apply).
+    #[serde(default)]
+    pub site: SiteDictionaryMode,
+}
+
+/// What becomes of a site's own dictionary ([`DictionaryConfig::site`]).
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SiteDictionaryMode {
+    /// The site's words and LangCheck's own.
+    #[default]
+    Merge,
+    /// LangCheck's own words only.
+    Ignore,
+    /// The site's words instead of LangCheck's `dictionary.txt`.
+    Only,
+}
+
+impl SiteDictionaryMode {
+    /// Whether the site's words are accepted.
+    #[must_use]
+    pub const fn uses_site(self) -> bool {
+        !matches!(self, Self::Ignore)
+    }
+
+    /// Whether LangCheck's own `dictionary.txt` is accepted.
+    #[must_use]
+    pub const fn uses_own(self) -> bool {
+        !matches!(self, Self::Only)
+    }
 }
 
 impl Default for DictionaryConfig {
@@ -298,6 +332,7 @@ impl Default for DictionaryConfig {
             bundled: true,
             disabled: Vec::new(),
             paths: Vec::new(),
+            site: SiteDictionaryMode::Merge,
         }
     }
 }

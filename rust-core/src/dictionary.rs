@@ -20,6 +20,14 @@ pub struct Dictionary {
     /// correct by construction: it reads `user_words` alone, and no derived form can
     /// ever reach the file that records what the user actually typed.
     derived_words: HashSet<String>,
+    /// The site's own dictionary (`crate::site_dictionary`), lowercased, and its
+    /// inflections: apart from the rest so it can be swapped whole when the site
+    /// sends a new list, and left out whole when the config says so.
+    site_words: HashSet<String>,
+    site_derived: HashSet<String>,
+    /// Which of the user's own words and the site's are accepted (`dictionaries.site`).
+    use_own: bool,
+    use_site: bool,
     workspace_path: Option<PathBuf>,
 }
 
@@ -36,8 +44,44 @@ impl Dictionary {
             user_words: HashSet::new(),
             bundled_words: HashSet::new(),
             derived_words: HashSet::new(),
+            site_words: HashSet::new(),
+            site_derived: HashSet::new(),
+            use_own: true,
+            use_site: true,
             workspace_path: None,
         }
+    }
+
+    /// Which dictionaries are accepted, as `dictionaries.site` says. Set before
+    /// [`Self::derive_inflections`], which leaves out the words this turns off.
+    pub const fn set_site_mode(&mut self, mode: crate::config::SiteDictionaryMode) {
+        self.use_own = mode.uses_own();
+        self.use_site = mode.uses_site();
+    }
+
+    /// Whether the user's own words are accepted; when not, adding one is pointless.
+    #[must_use]
+    pub const fn uses_own(&self) -> bool {
+        self.use_own
+    }
+
+    /// Replaces the site's words, inflected when `inflect` is set.
+    pub fn set_site_words(&mut self, words: &[String], inflect: bool) {
+        self.site_words = words.iter().map(|w| w.to_lowercase()).collect();
+        self.site_derived = if inflect {
+            inflection::expand(self.site_words.iter().map(String::as_str)).unwrap_or_else(|error| {
+                warn!(%error, "Could not inflect the site dictionary; exact matching only");
+                HashSet::new()
+            })
+        } else {
+            HashSet::new()
+        };
+    }
+
+    /// How many of the site's words are loaded (accepted or not).
+    #[must_use]
+    pub fn site_len(&self) -> usize {
+        self.site_words.len()
     }
 
     /// Load dictionaries from a workspace root.
@@ -159,6 +203,7 @@ impl Dictionary {
         let lemmas: Vec<&str> = self
             .user_words
             .iter()
+            .filter(|_| self.use_own)
             .chain(self.bundled_words.iter())
             .map(String::as_str)
             .collect();
@@ -194,9 +239,11 @@ impl Dictionary {
 
     /// Look a single already-lowercased token up in all three sets.
     fn contains_exact(&self, lower: &str) -> bool {
-        self.user_words.contains(lower)
+        (self.use_own && self.user_words.contains(lower))
             || self.bundled_words.contains(lower)
             || self.derived_words.contains(lower)
+            || (self.use_site
+                && (self.site_words.contains(lower) || self.site_derived.contains(lower)))
     }
 
     /// Whether `lower` is a hyphenated compound whose every part is known.
@@ -213,9 +260,13 @@ impl Dictionary {
                 .all(|part| !part.is_empty() && self.contains_exact(part))
     }
 
-    /// Return all words the user configured (user + bundled), excluding derived forms.
+    /// Return every word accepted (user, bundled, site, as the config allows), excluding derived forms.
     pub fn words(&self) -> impl Iterator<Item = &String> {
-        self.user_words.iter().chain(self.bundled_words.iter())
+        self.user_words
+            .iter()
+            .filter(|_| self.use_own)
+            .chain(self.bundled_words.iter())
+            .chain(self.site_words.iter().filter(|_| self.use_site))
     }
 
     /// Return the number of words loaded (user + bundled), excluding derived forms.
@@ -681,5 +732,40 @@ mod tests {
         assert!(dict.contains("myterm"));
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_sites_words_count_as_the_config_says() {
+        use crate::config::SiteDictionaryMode;
+        let mut dict = Dictionary::new();
+        dict.user_words.insert("ownword".to_string());
+        dict.set_site_words(&["Databricks".to_string(), "functor".to_string()], true);
+        assert!(dict.contains("databricks") && dict.contains("Databricks"));
+        assert!(dict.contains("functors"), "the site's words inflect too");
+        assert!(dict.contains("ownword"));
+
+        dict.set_site_mode(SiteDictionaryMode::Ignore);
+        assert!(!dict.contains("databricks") && !dict.contains("functors"));
+        assert!(dict.contains("ownword"));
+
+        dict.set_site_mode(SiteDictionaryMode::Only);
+        assert!(dict.contains("databricks"));
+        assert!(!dict.contains("ownword"));
+        assert!(!dict.uses_own());
+
+        // A new list replaces the old one whole.
+        dict.set_site_mode(SiteDictionaryMode::Merge);
+        dict.set_site_words(&["Vue".to_string()], true);
+        assert!(dict.contains("vue") && !dict.contains("databricks"));
+        assert_eq!(dict.site_len(), 1);
+    }
+
+    #[test]
+    fn only_leaves_the_users_own_inflections_out_too() {
+        let mut dict = Dictionary::new();
+        dict.user_words.insert("functor".to_string());
+        dict.set_site_mode(crate::config::SiteDictionaryMode::Only);
+        dict.derive_inflections();
+        assert!(!dict.contains("functors"));
     }
 }

@@ -146,6 +146,8 @@ pub fn admit(mut req: Request, web_root: &Path) -> Result<Request, String> {
         // (`scrub`).
         Some(
             request::Payload::AddDictionaryWord(_)
+            // Words only, no path; the core coerces and caps them (site_dictionary.rs).
+            | request::Payload::SiteDictionary(_)
             | request::Payload::Ignore(_)
             | request::Payload::GetMetadata(_)
             | request::Payload::ReadConfig(_)

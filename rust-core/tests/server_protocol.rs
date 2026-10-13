@@ -766,3 +766,152 @@ fn foreign_findings_are_never_stored_and_follow_the_window() {
     );
     child.kill().ok();
 }
+
+/// Sends a site's dictionary as the web extension does.
+fn send_site_dictionary(child: &mut Child, id: u64, source: &str, words: &[&str]) -> Response {
+    let request = request::Payload::SiteDictionary(lang_check::checker::SiteDictionaryRequest {
+        source: source.into(),
+        words: words.iter().map(ToString::to_string).collect(),
+    });
+    ask(child, id, request)
+}
+
+const SITE_TEXT: &str = "Databricks and Vrije met Wrodle at the cafe.\n";
+
+/// Whether the check of [`SITE_TEXT`] marks `word`.
+fn marks(answer: &lang_check::checker::CheckResponse, word: &str) -> bool {
+    !rules_at(answer, SITE_TEXT, word).is_empty()
+}
+
+/// A site's dictionary takes effect at once, survives a restart, and its
+/// absence from the config means merged with LangCheck's own.
+#[test]
+fn a_sites_dictionary_is_used_at_once_and_kept() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    let before = check(&mut child, 10, SITE_TEXT, None, None);
+    assert!(
+        marks(&before, "Vrije") && marks(&before, "Wrodle"),
+        "{:?}",
+        findings(&before)
+    );
+
+    let sent = send_site_dictionary(
+        &mut child,
+        11,
+        "typst",
+        &["Databricks", "Vrije", "New York"],
+    );
+    assert!(
+        matches!(sent.payload, Some(response::Payload::Ok(_))),
+        "{sent:?}"
+    );
+    let after = check(&mut child, 12, SITE_TEXT, None, None);
+    assert!(
+        !marks(&after, "Vrije") && marks(&after, "Wrodle"),
+        "{:?}",
+        findings(&after)
+    );
+    child.kill().ok();
+
+    // A new server on the same workspace has it from the workspace.
+    let mut restarted = server();
+    initialize(&mut restarted, dir.path(), &dir.path().join("index.db"));
+    assert!(!marks(
+        &check(&mut restarted, 10, SITE_TEXT, None, None),
+        "Vrije"
+    ));
+    restarted.kill().ok();
+}
+
+/// `dictionaries.site: ignore` leaves it out; `only` uses it instead of
+/// LangCheck's dictionary.txt and refuses to add a word there.
+#[test]
+fn the_config_chooses_which_dictionaries_count() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::create_dir_all(dir.path().join(".languagecheck")).unwrap();
+    std::fs::write(dir.path().join(".languagecheck/dictionary.txt"), "wrodle\n").unwrap();
+
+    std::fs::write(
+        dir.path().join(".languagecheck.yaml"),
+        "dictionaries:\n  site: ignore\n",
+    )
+    .unwrap();
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    send_site_dictionary(&mut child, 10, "overleaf", &["Vrije"]);
+    let ignored = check(&mut child, 11, SITE_TEXT, None, None);
+    assert!(
+        marks(&ignored, "Vrije") && !marks(&ignored, "Wrodle"),
+        "{:?}",
+        findings(&ignored)
+    );
+    child.kill().ok();
+
+    std::fs::write(
+        dir.path().join(".languagecheck.yaml"),
+        "dictionaries:\n  site: only\n",
+    )
+    .unwrap();
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    let only = check(&mut child, 10, SITE_TEXT, None, None);
+    assert!(
+        !marks(&only, "Vrije") && marks(&only, "Wrodle"),
+        "{:?}",
+        findings(&only)
+    );
+    let add = ask(
+        &mut child,
+        11,
+        request::Payload::AddDictionaryWord(lang_check::checker::AddDictionaryWordRequest {
+            word: "Databricks".into(),
+        }),
+    );
+    let Some(response::Payload::Error(refused)) = add.payload else {
+        panic!("adding a word under `only` was accepted: {add:?}");
+    };
+    assert!(
+        refused.message.contains("dictionaries.site"),
+        "{}",
+        refused.message
+    );
+    child.kill().ok();
+}
+
+/// The config page sees what arrived.
+#[test]
+fn the_config_probe_reports_the_sites_dictionary() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    let probe = |child: &mut Child, id| {
+        let answer = ask(
+            child,
+            id,
+            request::Payload::ProbeConfig(lang_check::checker::ProbeConfigRequest::default()),
+        );
+        let Some(response::Payload::ProbeConfig(probes)) = answer.payload else {
+            panic!("{answer:?}");
+        };
+        probes
+            .probes
+            .into_iter()
+            .find(|p| p.key == "dictionaries.site")
+            .expect("a probe for dictionaries.site")
+    };
+    assert!(
+        probe(&mut child, 10)
+            .detail
+            .starts_with("No site dictionary received yet")
+    );
+    send_site_dictionary(&mut child, 11, "overleaf", &["Vrije", "two words"]);
+    let detail = probe(&mut child, 12).detail;
+    assert!(
+        detail.starts_with("Overleaf learned words: 1 word, received just now"),
+        "{detail}"
+    );
+    assert!(detail.contains("1 entry left out"), "{detail}");
+    child.kill().ok();
+}
