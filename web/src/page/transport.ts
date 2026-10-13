@@ -21,6 +21,11 @@ export interface AvailabilityEvents {
     recovered(): void;
     /** A document is too long to check; said once until a check fits again. */
     tooLong(limitBytes: number): void;
+    /**
+     * Writes `word` to the site's own dictionary (the core answered "Add to
+     * dictionary" with a site write); undefined once done, else why not.
+     */
+    writeToSite(source: string, word: string): Promise<string | undefined>;
 }
 
 class WebTransport implements CoreTransport {
@@ -52,7 +57,15 @@ class WebTransport implements CoreTransport {
         // The content script parses this against the requests a page may make
         // and rebuilds it from the allowed fields (dropping filePath, settings).
         const response = await this.core.request(request as unknown as CoreRequest);
-        if (response.ok) return response.response as unknown as languagecheck.Response;
+        if (response.ok) {
+            const answer = response.response as unknown as languagecheck.Response;
+            // Only the page can reach the site: the write happens here, and the
+            // caller sees the add as done or failed, as for LangCheck's own.
+            const write = answer.siteWrite;
+            if (write === null || write === undefined) return answer;
+            const failure = await this.events.writeToSite(write.source ?? '', write.word ?? '');
+            return (failure === undefined ? { id: 0, ok: {} } : { id: 0, error: { message: failure } }) as unknown as languagecheck.Response;
+        }
         if (response.code === 'interrupted') {
             // Cut off on the way, not failed: dropped quietly, as a check a
             // newer one replaced is. The content script has the page check

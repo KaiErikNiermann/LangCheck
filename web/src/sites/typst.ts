@@ -31,45 +31,79 @@ export const TYPST_SPELLING: ForeignCheckerSpec = {
 /** Typst's API: the one endpoint the app itself reads the user's settings from. */
 const TYPST_GRAPHQL = 'https://api.typst.app/v1/graphql';
 
-/** The personal dictionary in Typst's user settings (a JSON string in GraphQL), or undefined. */
-export function personalDictionaryIn(body: unknown): readonly string[] | undefined {
+/** The most words Typst keeps in a personal dictionary (its MAX_PERSONAL_DICTIONARY_SIZE). */
+const TYPST_DICTIONARY_CAP = 100;
+
+type Settings = Record<string, unknown>;
+
+/** Typst's user settings from a `{ user { settings } }` answer (a JSON string there), or undefined. */
+function settingsIn(body: unknown): Settings | undefined {
     const settings = (body as { data?: { user?: { settings?: unknown } | null } } | null)?.data?.user?.settings;
     if (typeof settings !== 'string') return undefined;
     try {
-        return stringsIn((JSON.parse(settings) as { personalDictionary?: unknown } | null)?.personalDictionary);
+        const parsed: unknown = JSON.parse(settings);
+        return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? (parsed as Settings) : undefined;
     } catch {
         return undefined;
     }
 }
 
+/** The personal dictionary in Typst's user settings (a JSON string in GraphQL), or undefined. */
+export function personalDictionaryIn(body: unknown): readonly string[] | undefined {
+    return stringsIn(settingsIn(body)?.personalDictionary);
+}
+
 /**
  * Typst's personal dictionary: per user, `personalDictionary` in the user's
  * editor settings, which the app reads with `{ user { settings } }` and
- * writes with a mutation on the same endpoint. So it is read the same way,
- * and read again after the app's own requests there (a handful an hour) and
- * when the tab comes back into view; this reader's own requests are not
- * taken for the app's.
+ * writes whole with `updateUser(settings:)` on the same endpoint. So it is
+ * read and written the same way: a write reads the settings fresh and changes
+ * that one field. It is read again after the app's own requests there (a
+ * handful an hour) and when the tab comes back into view; this reader's own
+ * requests are not taken for the app's.
+ *
+ * The open Typst tab keeps its own copy of the settings, and writes all of
+ * them on its next settings change: a word added here before that tab reloads
+ * can be written away again by it.
  */
 export function typstDictionary(): SiteDictionarySource {
     /** When this reader's requests were in flight, so their timing entries are not taken for the app's. */
     const ours: { start: number; end: number }[] = [];
+    const ask = async (body: unknown): Promise<unknown> => {
+        const span = { start: performance.now(), end: Infinity };
+        ours.push(span);
+        try {
+            const response = await fetch(TYPST_GRAPHQL, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            return response.ok ? ((await response.json()) as unknown) : undefined;
+        } finally {
+            span.end = performance.now();
+            if (ours.length > 20) ours.splice(0, ours.length - 20);
+        }
+    };
+    const readSettings = async (): Promise<Settings | undefined> => settingsIn(await ask({ query: '{ user { settings } }' }));
     return {
         source: 'typst',
         async read() {
-            const span = { start: performance.now(), end: Infinity };
-            ours.push(span);
-            try {
-                const response = await fetch(TYPST_GRAPHQL, {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify({ query: '{ user { settings } }' }),
-                });
-                return response.ok ? personalDictionaryIn(await response.json()) : undefined;
-            } finally {
-                span.end = performance.now();
-                if (ours.length > 20) ours.splice(0, ours.length - 20);
-            }
+            const settings = await readSettings();
+            return stringsIn(settings?.personalDictionary);
+        },
+        async add(word) {
+            const settings = await readSettings();
+            if (settings === undefined) return "Typst's settings could not be read; is this tab signed in?";
+            const words = stringsIn(settings.personalDictionary) ?? [];
+            const present = words.some((w) => w.toLowerCase() === word.toLowerCase());
+            if (!present && words.length >= TYPST_DICTIONARY_CAP) return `Typst's personal dictionary is full (${String(TYPST_DICTIONARY_CAP)} words); remove some in Typst's settings first.`;
+            if (present) return;
+            const answer = (await ask({
+                query: 'mutation AddWord($settings: String) { updateUser(settings: $settings) { id } }',
+                variables: { settings: JSON.stringify({ ...settings, personalDictionary: [...words, word] }) },
+            })) as { data?: unknown; errors?: unknown } | undefined;
+            return answer?.data !== undefined && answer.errors === undefined ? undefined : 'Typst did not take the word.';
         },
         watch(changed) {
             const stop = watchRequests(

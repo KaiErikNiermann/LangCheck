@@ -10,6 +10,8 @@ import type { SiteDictionarySource } from '../sites/site';
 export const MIN_READ_INTERVAL_MS = 2000;
 
 export interface SiteDictionarySync {
+    /** Reads the site's dictionary again soon: after this page changed it. */
+    refresh(): void;
     dispose(): void;
 }
 
@@ -69,6 +71,7 @@ export function syncSiteDictionary(dictionary: SiteDictionarySource, deps: SiteD
     const stopWatching = dictionary.watch(schedule);
     void read();
     return {
+        refresh: schedule,
         dispose() {
             disposed = true;
             clearTimeout(timer);

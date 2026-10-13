@@ -71,6 +71,17 @@ export function overleafDictionary(): SiteDictionarySource {
             if (!response.ok) return;
             return learnedWordsIn(new DOMParser().parseFromString(await response.text(), 'text/html'));
         },
+        async add(word) {
+            // Overleaf's own request: its JSON helper sends the page's CSRF token.
+            const token = document.querySelector('meta[name="ol-csrfToken"]')?.getAttribute('content');
+            if (!token) return 'Overleaf gave this page no token to add words with; reload it and try again.';
+            const response = await fetch('/spelling/learn', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Csrf-Token': token, Accept: 'application/json' },
+                body: JSON.stringify({ word }),
+            });
+            return response.ok ? undefined : `Overleaf did not take the word (HTTP ${String(response.status)}).`;
+        },
         watch(changed) {
             const mark = (): void => {
                 stale = true;

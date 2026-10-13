@@ -27,6 +27,7 @@ function fakeSite(initial: readonly string[] | undefined) {
             reads++;
             return fail ? Promise.reject(new Error('offline')) : Promise.resolve(words);
         },
+        add: () => Promise.resolve(undefined),
         watch(changed) {
             signal = changed;
             return () => {
@@ -131,6 +132,16 @@ test('a list the core did not take is sent again on the next read', async () => 
     site.signal();
     await vi.runAllTimersAsync();
     expect(sent).toEqual([['Vue'], ['Vue']]);
+});
+
+test('refresh reads again without a signal from the site: after this page wrote to it', async () => {
+    const site = fakeSite(['a']);
+    const { sync, sent } = harness(site);
+    await vi.runAllTimersAsync();
+    site.set(['a', 'Wrodle']);
+    sync.refresh();
+    await vi.runAllTimersAsync();
+    expect(sent.at(-1)).toEqual(['a', 'Wrodle']);
 });
 
 test('dispose stops watching and reading', async () => {

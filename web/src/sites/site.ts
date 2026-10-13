@@ -28,6 +28,11 @@ export interface SiteDictionarySource {
     read(): Promise<readonly string[] | undefined>;
     /** Calls `changed` whenever the dictionary may have changed; returns what stops watching. */
     watch(changed: () => void): () => void;
+    /**
+     * Adds `word` to it, as the site's own "Add to dictionary" does;
+     * undefined once done, else a sentence saying why not.
+     */
+    add(word: string): Promise<string | undefined>;
 }
 
 /** Facts read in the page world, from the site's running editor. */

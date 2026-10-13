@@ -25,7 +25,7 @@ import { DEFAULT_CHECK_SETTINGS, type ForeignMode } from '../messaging/protocol'
 import { WEBVIEW_TYPE } from '../messaging/webview';
 import { host } from '../shim/vscode';
 import type { SiteDictionarySource } from '../sites/site';
-import { syncSiteDictionary } from './siteDictionary';
+import { syncSiteDictionary, type SiteDictionarySync } from './siteDictionary';
 import { WebCore } from './transport';
 
 /** Typing pause before a check, as in the VS Code client's default. */
@@ -107,6 +107,8 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
     const suppression = new Suppression();
     const fixTarget = new FixTarget(store);
     const debouncer = new Debouncer();
+    /** Keeps the core's copy of the site's dictionary current; set up once the client has started. */
+    let siteSync: SiteDictionarySync | undefined;
     // The site's own spellchecker: merged into ours until the options page
     // says otherwise (research/foreign-checkers.md).
     let foreignMode: ForeignMode = DEFAULT_CHECK_SETTINGS.foreignCheckers;
@@ -130,6 +132,13 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         recovered: () => {
             reportedUnavailable = false;
             checkAll();
+        },
+        writeToSite: async (source, word) => {
+            if (siteDictionary?.source !== source) return `There is no ${source} dictionary on this page to add "${word}" to.`;
+            const failure = await siteDictionary.add(word);
+            // The site has it now: read it back, so the core's copy agrees.
+            siteSync?.refresh();
+            return failure;
         },
     });
 
@@ -293,8 +302,7 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
     checkAll();
     // The site's own dictionary, kept current in the core; a change checks again.
     if (siteDictionary !== undefined) {
-        context.subscriptions.push(
-            syncSiteDictionary(siteDictionary, {
+        siteSync = syncSiteDictionary(siteDictionary, {
                 send: async (source, words) => {
                     const response = await core.client.sendRequest({ siteDictionary: { source, words: [...words] } });
                     return Boolean(response.ok);
@@ -303,8 +311,8 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
                 warn: (message, error) => {
                     console.warn('[language-check]', message, error);
                 },
-            }),
-        );
+            });
+        context.subscriptions.push(siteSync);
     }
     return () => ({
         checks: completed,
