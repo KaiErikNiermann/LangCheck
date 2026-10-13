@@ -1040,3 +1040,29 @@ fn add_to_a_wordlist_writes_there_and_reads_it_back() {
     ));
     restarted.kill().ok();
 }
+
+/// A site dictionary the workspace cannot keep is still used, and the page is
+/// told, so it sends the list again on its next read rather than counting it
+/// as kept (and a restart dropping it without a word).
+#[cfg(unix)]
+#[test]
+fn a_site_dictionary_that_cannot_be_kept_is_used_and_reported() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut child = server();
+    initialize(&mut child, dir.path(), &dir.path().join("index.db"));
+    let keep = dir.path().join(".languagecheck");
+    std::fs::create_dir_all(&keep).unwrap();
+    std::fs::set_permissions(&keep, std::fs::Permissions::from_mode(0o500)).unwrap();
+    let answer = send_site_dictionary(&mut child, 10, "typst", &["Vrije"]);
+    std::fs::set_permissions(&keep, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let Some(response::Payload::Error(error)) = answer.payload else {
+        panic!("an unkept dictionary answered {answer:?}");
+    };
+    assert!(error.message.contains("could not be kept"), "{error:?}");
+    assert!(
+        !marks(&check(&mut child, 11, SITE_TEXT, None, None), "Vrije"),
+        "used all the same"
+    );
+    child.kill().ok();
+}

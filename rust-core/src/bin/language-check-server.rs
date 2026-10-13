@@ -1242,9 +1242,11 @@ async fn main() -> Result<()> {
                             for_page: false,
                         })),
                         Some(site) => {
-                            if let Err(e) = site.store(&root) {
-                                warn!(id = request_id, "SiteDictionary: not kept: {e}");
-                            }
+                            // Used now either way; kept only if the workspace
+                            // takes the file. When it does not, the page is told
+                            // (it then sends the list again on its next read),
+                            // or a restart would quietly drop the words.
+                            let kept = site.store(&root);
                             dictionary_arc
                                 .lock()
                                 .await
@@ -1256,7 +1258,18 @@ async fn main() -> Result<()> {
                                 dropped = site.dropped,
                                 "SiteDictionary: in use"
                             );
-                            Some(response::Payload::Ok(checker::OkResponse {}))
+                            match kept {
+                                Ok(_) => Some(response::Payload::Ok(checker::OkResponse {})),
+                                Err(e) => {
+                                    warn!(id = request_id, "SiteDictionary: not kept: {e}");
+                                    Some(response::Payload::Error(ErrorResponse {
+                                        message: format!(
+                                            "The site's dictionary is in use but could not be kept: {e}"
+                                        ),
+                                        for_page: false,
+                                    }))
+                                }
+                            }
                         }
                     }
                 }
