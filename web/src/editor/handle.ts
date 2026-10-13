@@ -4,6 +4,7 @@ import type { EditorView } from '@codemirror/view';
 import type { LanguageId } from '../messaging/protocol';
 import { createCm6Adapter } from './cm6Adapter';
 import { discoverCm6Kit } from './cm6kit';
+import type { ForeignCheckerSpec } from './foreign';
 import { createDomAdapter, highlightsSupported, type DomEditorRules } from './domAdapter';
 import type { EditorAdapter } from './types';
 
@@ -26,8 +27,11 @@ export interface EditorHandle {
     attach(uri: string): AttachResult;
 }
 
-/** A CodeMirror 6 view, joined through the page's own CodeMirror (Overleaf, Typst). */
-export function cm6Editor(view: EditorView, name: string, languageId: LanguageId): EditorHandle {
+/**
+ * A CodeMirror 6 view, joined through the page's own CodeMirror (Overleaf,
+ * Typst), with the site's own spellcheckers in it, if it has any.
+ */
+export function cm6Editor(view: EditorView, name: string, languageId: LanguageId, foreign: readonly ForeignCheckerSpec[] = []): EditorHandle {
     return {
         identity: view,
         name,
@@ -35,7 +39,7 @@ export function cm6Editor(view: EditorView, name: string, languageId: LanguageId
         attach(uri) {
             const discovery = discoverCm6Kit(view);
             if (!discovery.ok) return { ok: false, reason: `CodeMirror classes not found: ${discovery.missing.join(', ')}` };
-            const cm6 = createCm6Adapter(view, discovery.kit, uri, languageId);
+            const cm6 = createCm6Adapter(view, discovery.kit, uri, languageId, foreign);
             view.dispatch({ effects: discovery.kit.StateEffect.appendConfig.of(cm6.extension) });
             // Verified by behaviour, not assumed: if the page's editor did not
             // take the extension, say so instead of acting attached.

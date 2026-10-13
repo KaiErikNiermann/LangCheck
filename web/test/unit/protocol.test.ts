@@ -4,7 +4,7 @@ import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
 import { parseBackgroundRequest } from '../../src/messaging/background';
 import { readFileSync } from 'node:fs';
-import { DEFAULT_CHECK_SETTINGS, MAX_CHECK_TEXT_BYTES, MAX_CHECK_TEXT_CHARS, MAX_WORD_CHARS, parseCheckSettings, parsePageRequest, parsePageResponse, withinCheckLimits } from '../../src/messaging/protocol';
+import { DEFAULT_CHECK_SETTINGS, MAX_CHECK_TEXT_BYTES, MAX_CHECK_TEXT_CHARS, MAX_FOREIGN_FINDINGS, MAX_WORD_CHARS, parseCheckSettings, parsePageRequest, parsePageResponse, withinCheckLimits } from '../../src/messaging/protocol';
 
 describe('parsePageRequest', () => {
     const req = (request: unknown) => ({ id: 1, request });
@@ -57,6 +57,32 @@ describe('parsePageRequest', () => {
     });
 });
 
+describe("the site's own checker's findings on a check", () => {
+    const sound = { checker: 'typst', rule: 'misspelling', category: 1, startByte: 4, endByte: 7, message: 'the word "teh"', language: 'en' };
+    const check = (foreign: unknown) => parsePageRequest({ id: 1, request: { checkProse: { text: 'one teh', languageId: 'typst', foreign } } })?.request;
+    test('sound entries are rebuilt from their fields; a check without any carries none', () => {
+        expect(check([{ ...sound, extra: 'x' }])).toEqual({ checkProse: { text: 'one teh', languageId: 'typst', foreign: [sound] } });
+        expect(check([{ ...sound, message: undefined, language: undefined }])).toEqual({ checkProse: { text: 'one teh', languageId: 'typst', foreign: [{ ...sound, message: '', language: '' }] } });
+        expect(check([])).toEqual({ checkProse: { text: 'one teh', languageId: 'typst' } });
+        expect(check(undefined)).toEqual({ checkProse: { text: 'one teh', languageId: 'typst' } });
+    });
+    test.each([
+        ['a name that could not be a rule id', { ...sound, checker: 'Typst.x' }],
+        ['an unknown category', { ...sound, category: 2 }],
+        ['an empty span', { ...sound, endByte: 4 }],
+        ['a negative offset', { ...sound, startByte: -1 }],
+        ['a long message', { ...sound, message: 'x'.repeat(1001) }],
+        ['a language that is not text', { ...sound, language: 7 }],
+        ['not an object', 'teh'],
+    ])('an entry with %s is dropped, not the check', (_name, entry) => {
+        expect(check([entry, sound])).toEqual({ checkProse: { text: 'one teh', languageId: 'typst', foreign: [sound] } });
+    });
+    test('at most MAX_FOREIGN_FINDINGS are taken', () => {
+        const many = check(Array.from({ length: MAX_FOREIGN_FINDINGS + 3 }, () => sound)) as { checkProse: { foreign: unknown[] } };
+        expect(many.checkProse.foreign).toHaveLength(MAX_FOREIGN_FINDINGS);
+    });
+});
+
 describe('a check window', () => {
     const check = (window: unknown) => parsePageRequest({ id: 1, request: { checkProse: { text: 'teh', languageId: 'latex', window } } })?.request;
     test('two byte offsets in order are kept, and nothing else of the window', () => {
@@ -78,10 +104,10 @@ describe('a check window', () => {
 
 describe('parseCheckSettings', () => {
     test('sound values are kept', () => {
-        expect(parseCheckSettings({ progressive: true, windowBytes: 4096, maxBytes: 65_536 })).toEqual({ progressive: true, windowBytes: 4096, maxBytes: 65_536 });
+        expect(parseCheckSettings({ progressive: true, windowBytes: 4096, maxBytes: 65_536, foreignCheckers: 'both' })).toEqual({ progressive: true, windowBytes: 4096, maxBytes: 65_536, foreignCheckers: 'both' });
     });
     test('each unsound field falls back to its default alone', () => {
-        expect(parseCheckSettings({ progressive: 'yes', windowBytes: 10, maxBytes: -1 })).toEqual(DEFAULT_CHECK_SETTINGS);
+        expect(parseCheckSettings({ progressive: 'yes', windowBytes: 10, maxBytes: -1, foreignCheckers: 'all' })).toEqual(DEFAULT_CHECK_SETTINGS);
         expect(parseCheckSettings({ progressive: true, windowBytes: 2 ** 21, maxBytes: 1.5 })).toEqual({ ...DEFAULT_CHECK_SETTINGS, progressive: true });
         expect(parseCheckSettings(null)).toEqual(DEFAULT_CHECK_SETTINGS);
         expect(parseCheckSettings('progressive')).toEqual(DEFAULT_CHECK_SETTINGS);

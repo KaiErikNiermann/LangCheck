@@ -1,4 +1,5 @@
-// The options page: the palette's shortcut, and how long documents are checked.
+// The options page: the palette's shortcut, how long documents are checked,
+// and what becomes of a site's own spellchecker.
 import browser from 'webextension-polyfill';
 import { CHECK_SETTINGS_KEY, parseCheckSettings, WINDOW_BYTES_RANGE } from '../messaging/protocol';
 import { DEFAULT_PALETTE_HOTKEY, PALETTE_HOTKEY_KEY } from '../palette/protocol';
@@ -41,6 +42,7 @@ if (checking !== null && progressive !== null && windowKib !== null && maxKib !=
         progressive.checked = settings.progressive;
         windowKib.value = String(Math.round(settings.windowBytes / KIB));
         maxKib.value = String(Math.round(settings.maxBytes / KIB));
+        for (const radio of checking.querySelectorAll<HTMLInputElement>('input[name="foreign"]')) radio.checked = radio.value === settings.foreignCheckers;
     };
     show(undefined);
     void browser.storage.local.get(CHECK_SETTINGS_KEY).then((stored) => {
@@ -58,7 +60,8 @@ if (checking !== null && progressive !== null && windowKib !== null && maxKib !=
             checkingStatus.textContent = 'The most to check must be a whole number of KiB, or 0 for all of it.';
             return;
         }
-        const settings = parseCheckSettings({ progressive: progressive.checked, windowBytes, maxBytes });
+        const foreignCheckers = checking.querySelector<HTMLInputElement>('input[name="foreign"]:checked')?.value;
+        const settings = parseCheckSettings({ progressive: progressive.checked, windowBytes, maxBytes, foreignCheckers });
         void browser.storage.local.set({ [CHECK_SETTINGS_KEY]: settings }).then(() => {
             checkingStatus.textContent = 'Saved. Pages check under it from their next check.';
         });

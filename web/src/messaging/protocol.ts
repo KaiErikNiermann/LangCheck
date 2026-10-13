@@ -42,8 +42,29 @@ export type LanguageId = (typeof LANGUAGE_IDS)[number];
  * A request to the core, in the protobuf `Request` payload shape the client's
  * Checker sends (`{ checkProse: {...} }`), limited to what a web page may ask.
  */
+/** One finding of the site's own checker, as the Checker sends it (rust-core/src/foreign.rs validates it again). */
+export interface ForeignFindingWire {
+    readonly checker: string;
+    readonly rule: string;
+    readonly category: number;
+    readonly startByte: number;
+    readonly endByte: number;
+    readonly message: string;
+    readonly language: string;
+}
+
+/** The most foreign findings a check carries, as the core takes (`foreign::MAX_FINDINGS`). */
+export const MAX_FOREIGN_FINDINGS = 10_000;
+
 export type CoreRequest =
-    | { readonly checkProse: { readonly text: string; readonly languageId: LanguageId; readonly window?: { readonly startByte: number; readonly endByte: number } } }
+    | {
+          readonly checkProse: {
+              readonly text: string;
+              readonly languageId: LanguageId;
+              readonly window?: { readonly startByte: number; readonly endByte: number };
+              readonly foreign?: ForeignFindingWire[];
+          };
+      }
     | { readonly addDictionaryWord: { readonly word: string } }
     | {
           readonly ignore: {
@@ -88,6 +109,25 @@ const isId = (v: unknown): v is number => Number.isSafeInteger(v) && (v as numbe
 const isByte = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= 0xFF_FF_FF_FF;
 const isText = (v: unknown, max: number): v is string => typeof v === 'string' && v.length <= max;
 const isLanguage = (v: unknown): v is LanguageId => (LANGUAGE_IDS as readonly unknown[]).includes(v);
+/** A checker's or rule's name: what the core accepts in a rule id. */
+const FOREIGN_NAME = /^[a-z0-9_-]{1,32}$/u;
+
+/** The well-formed entries of `value`, each rebuilt from its fields; the rest dropped, not the check. */
+function parseForeign(value: unknown): ForeignFindingWire[] {
+    if (!Array.isArray(value)) return [];
+    return value.slice(0, MAX_FOREIGN_FINDINGS).flatMap((entry: unknown): ForeignFindingWire[] => {
+        if (!isBag(entry)) return [];
+        const { checker, rule, category, startByte, endByte, message, language } = entry;
+        const sound =
+            typeof checker === 'string' && FOREIGN_NAME.test(checker) &&
+            typeof rule === 'string' && FOREIGN_NAME.test(rule) &&
+            category === 1 &&
+            isByte(startByte) && isByte(endByte) && startByte < endByte &&
+            isText(message ?? '', 1000) &&
+            isText(language ?? '', 35);
+        return sound ? [{ checker, rule, category, startByte, endByte, message: (message as string | undefined) ?? '', language: (language as string | undefined) ?? '' }] : [];
+    });
+}
 // Every whitespace character `\s` matches, C0/C1 controls, zero-width and
 // bidi controls, as explicit, non-overlapping ranges (escapes, so no
 // invisible character sits in the source). One character class: linear.
@@ -109,20 +149,26 @@ export function parsePageRequest(value: unknown): PageRequest | undefined {
     return request === undefined ? undefined : { id: value.id, request };
 }
 
+/** A check: its text within the limits, a language we know, and the window and foreign findings, each validated. */
+function parseCheckProse(body: Bag): CoreRequest | undefined {
+    // Bytes too, not only characters: past the host's cap, the frame
+    // would end the native connection every tab on the workspace shares.
+    if (typeof body.text !== 'string' || !withinCheckLimits(body.text) || !isLanguage(body.languageId)) return undefined;
+    // What the site's own spellchecker found in the text (research/foreign-checkers.md).
+    const foreign = parseForeign(body.foreign);
+    const withForeign = foreign.length > 0 ? { foreign } : {};
+    // A window of the text, when the page checks it a window at a time: two byte offsets, in order.
+    const { window } = body;
+    if (window === undefined || window === null) return { checkProse: { text: body.text, languageId: body.languageId, ...withForeign } };
+    if (!isBag(window) || !isByte(window.startByte) || !isByte(window.endByte) || window.startByte > window.endByte) return undefined;
+    return { checkProse: { text: body.text, languageId: body.languageId, window: { startByte: window.startByte, endByte: window.endByte }, ...withForeign } };
+}
+
 function parseCoreRequest(kind: string | undefined, body: unknown): CoreRequest | undefined {
     if (!isBag(body)) return undefined;
     switch (kind) {
         case 'checkProse':
-            // Bytes too, not only characters: past the host's cap, the frame
-            // would end the native connection every tab on the workspace shares.
-        {
-            if (typeof body.text !== 'string' || !withinCheckLimits(body.text) || !isLanguage(body.languageId)) return undefined;
-            // A window of the text, when the page checks it a window at a time: two byte offsets, in order.
-            const { window } = body;
-            if (window === undefined || window === null) return { checkProse: { text: body.text, languageId: body.languageId } };
-            if (!isBag(window) || !isByte(window.startByte) || !isByte(window.endByte) || window.startByte > window.endByte) return undefined;
-            return { checkProse: { text: body.text, languageId: body.languageId, window: { startByte: window.startByte, endByte: window.endByte } } };
-        }
+            return parseCheckProse(body);
         case 'addDictionaryWord':
             return isText(body.word, MAX_WORD_CHARS) && body.word.length > 0 && !CONTROL_OR_SPACE.test(body.word)
                 ? { addDictionaryWord: { word: body.word.normalize('NFC') } }
@@ -154,14 +200,24 @@ export const SETTINGS_TYPE = 'settings';
 /** Where the options page keeps the checking settings (browser.storage.local). */
 export const CHECK_SETTINGS_KEY = 'checkSettings';
 
-/** The client's `languageCheck.check.*` settings the options page sets: see the extension's package.json. */
+/**
+ * What becomes of a site's own spellchecker (Overleaf's, Typst's) where it
+ * marks the words we check: `merge` hides its marks and takes its findings
+ * into ours (one mark per word, in our style, under our dictionary), `ours`
+ * hides it and ignores it, `both` leaves it alone.
+ */
+export type ForeignMode = 'merge' | 'ours' | 'both';
+export const FOREIGN_MODES: readonly ForeignMode[] = ['merge', 'ours', 'both'];
+
+/** The client's `languageCheck.check.*` settings the options page sets (see the extension's package.json), and the web's own. */
 export interface CheckSettings {
     readonly progressive: boolean;
     readonly windowBytes: number;
     readonly maxBytes: number;
+    readonly foreignCheckers: ForeignMode;
 }
 
-export const DEFAULT_CHECK_SETTINGS: CheckSettings = { progressive: false, windowBytes: 16 * 1024, maxBytes: 0 };
+export const DEFAULT_CHECK_SETTINGS: CheckSettings = { progressive: false, windowBytes: 16 * 1024, maxBytes: 0, foreignCheckers: 'merge' };
 
 /** Bounds the options page offers (the client holds the window to the same). */
 export const WINDOW_BYTES_RANGE = { min: 1024, max: 1024 * 1024 } as const;
@@ -176,6 +232,7 @@ export function parseCheckSettings(value: unknown): CheckSettings {
         progressive: typeof bag.progressive === 'boolean' ? bag.progressive : DEFAULT_CHECK_SETTINGS.progressive,
         windowBytes: wholeIn(bag.windowBytes, WINDOW_BYTES_RANGE.min, WINDOW_BYTES_RANGE.max) ?? DEFAULT_CHECK_SETTINGS.windowBytes,
         maxBytes: wholeIn(bag.maxBytes, 0, 0xFF_FF_FF_FF) ?? DEFAULT_CHECK_SETTINGS.maxBytes,
+        foreignCheckers: (FOREIGN_MODES as readonly unknown[]).includes(bag.foreignCheckers) ? (bag.foreignCheckers as ForeignMode) : DEFAULT_CHECK_SETTINGS.foreignCheckers,
     };
 }
 

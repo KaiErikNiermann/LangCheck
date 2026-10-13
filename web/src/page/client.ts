@@ -21,6 +21,7 @@ import { InspectorLog } from '../../../extension/src/ui/inspectorLog';
 import { InspectorPanel, type InspectorEnvironment } from '../../../extension/src/ui/webviews/inspector';
 import { SpeedFixPanel, speedFixActions } from '../../../extension/src/ui/webviews/speedFix';
 import type { CoreClient } from '../messaging/pageClient';
+import { DEFAULT_CHECK_SETTINGS, type ForeignMode } from '../messaging/protocol';
 import { WEBVIEW_TYPE } from '../messaging/webview';
 import { host } from '../shim/vscode';
 import { WebCore } from './transport';
@@ -103,6 +104,10 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
     const suppression = new Suppression();
     const fixTarget = new FixTarget(store);
     const debouncer = new Debouncer();
+    // The site's own spellchecker: merged into ours until the options page
+    // says otherwise (research/foreign-checkers.md).
+    let foreignMode: ForeignMode = DEFAULT_CHECK_SETTINGS.foreignCheckers;
+    const adapterOf = (doc: vscode.TextDocument) => host.documents.get(doc.uri.toString())?.adapter;
     const hintsChanged = new vscode.EventEmitter<void>();
 
     const core = new WebCore(connection, {
@@ -160,7 +165,8 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         inspectorLog,
         languageToolRestartable: () => false,
         // Where the user is in the page's editor, for a progressive check to start there.
-        focusOf: (document) => host.documents.get(document.uri.toString())?.adapter.focusOffset?.(),
+        focusOf: (document) => adapterOf(document)?.focusOffset?.(),
+        foreignOf: (document) => (foreignMode === 'merge' ? (adapterOf(document)?.foreignFindings?.() ?? []) : []),
         observer: {
             checkRecorded: (document, timings) => {
                 completed++;
@@ -181,6 +187,17 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
     const checkAll = (): void => {
         for (const doc of vscode.workspace.textDocuments) check(doc);
     };
+    /** Hide the site's checker as the mode says; while merging, check again when it answers. */
+    const joinForeign = (doc: vscode.TextDocument): void => {
+        const adapter = adapterOf(doc);
+        adapter?.setForeignHidden?.(foreignMode !== 'both');
+        adapter?.onDidChangeForeign?.(() => {
+            if (foreignMode !== 'merge') return;
+            debouncer.schedule(uriKey(doc.uri), CHECK_DELAY_MS, () => {
+                check(doc);
+            });
+        });
+    };
 
     const handlers: Record<string, (...args: never[]) => unknown> = {
         ...checkCommands({ results, checker, speedFix, inspector }),
@@ -197,6 +214,10 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         host.settings.set('languageCheck.check.progressive', settings.progressive);
         host.settings.set('languageCheck.check.windowBytes', settings.windowBytes);
         host.settings.set('languageCheck.check.maxBytes', settings.maxBytes);
+        if (settings.foreignCheckers === foreignMode) return;
+        foreignMode = settings.foreignCheckers;
+        for (const doc of vscode.workspace.textDocuments) adapterOf(doc)?.setForeignHidden?.(foreignMode !== 'both');
+        checkAll();
     });
     // Saved there: the core re-read it, and checks run again under it, as
     // VS Code's reload does after a config change.
@@ -232,7 +253,10 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         hintsChanged,
         core,
         { dispose: () => { debouncer.cancelAll(); } },
-        vscode.workspace.onDidOpenTextDocument(check),
+        vscode.workspace.onDidOpenTextDocument((doc) => {
+            joinForeign(doc);
+            check(doc);
+        }),
         vscode.workspace.onDidChangeTextDocument((event) => {
             const doc = event.document;
             debouncer.schedule(uriKey(doc.uri), CHECK_DELAY_MS, () => {
@@ -262,6 +286,7 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         }),
     );
 
+    for (const doc of vscode.workspace.textDocuments) joinForeign(doc);
     checkAll();
     return () => ({
         checks: completed,

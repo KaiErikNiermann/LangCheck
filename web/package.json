@@ -18,6 +18,7 @@
     "check": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run test:e2e"
   },
   "devDependencies": {
+    "@codemirror/lint": "^6.9.7",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.14",
     "@eslint/js": "^10.0.1",
@@ -25,6 +26,7 @@
     "@types/node": "^24.19.1",
     "@types/path-browserify": "^1.0.3",
     "@types/webextension-polyfill": "^0.12.6",
+    "cm-lint-6-9-5": "npm:@codemirror/lint@6.9.5",
     "cm-view-6-38": "npm:@codemirror/view@6.38.6",
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",

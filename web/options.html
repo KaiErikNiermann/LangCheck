@@ -27,6 +27,11 @@
   <input id="window-kib" type="number" min="1" max="1024" step="1">
   <label for="max-kib">Check at most the first (KiB; 0 for all of it)</label>
   <input id="max-kib" type="number" min="0" step="1">
+  <h2>The site's own spellchecker</h2>
+  <p>Overleaf and Typst mark misspellings themselves. Where they mark the words LangCheck checks:</p>
+  <label><input type="radio" name="foreign" value="merge"> Show one mark per word: hide theirs and take what they found into LangCheck's findings</label>
+  <label><input type="radio" name="foreign" value="ours"> Show only LangCheck's: hide theirs</label>
+  <label><input type="radio" name="foreign" value="both"> Show both</label>
   <button type="submit">Save checking options</button>
   <p id="checking-status" role="status"></p>
 </form>

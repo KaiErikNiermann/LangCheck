@@ -1,6 +1,7 @@
 // The contract between the dispatcher and a concrete web editor. Adapters
 // deal only in document offsets (UTF-16, i.e. JS string indices); all of the
 // vscode-shaped line/character bookkeeping stays in the shim.
+import type { ForeignFinding } from '../../../extension/src/checking/foreign';
 
 /** Mirrors `vscode.DiagnosticSeverity`: Error=0, Warning=1, Information=2, Hint=3. */
 export type Severity = 0 | 1 | 2 | 3;
@@ -84,4 +85,14 @@ export interface EditorAdapter {
     select(from: number, to: number): void;
     /** Where the user is: the cursor while it is in view, else the top of the view (a character offset). For a progressive check to start there. */
     focusOffset?(): number | undefined;
+    /**
+     * What the site's own checkers found, in the current text's offsets,
+     * leaving out marks an edit since their last answer may have made
+     * stale; for an editor whose site has one (foreign.ts).
+     */
+    foreignFindings?(): readonly ForeignFinding[];
+    /** Called when a site checker has answered, so its findings changed without the text. */
+    onDidChangeForeign?(listener: () => void): void;
+    /** Hides (or shows again) what the site's own checkers draw. */
+    setForeignHidden?(hidden: boolean): void;
 }

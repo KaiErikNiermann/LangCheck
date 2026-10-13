@@ -11,6 +11,7 @@ import type { Extension, Range as CmRange, StateEffectType, StateField, Text } f
 import type { Decoration as CmDecoration, DecorationSet, EditorView } from '@codemirror/view';
 import { CardController, cardMembers, type Finding } from './card';
 import type { Cm6Kit } from './cm6kit';
+import { absorbTheme, ForeignMarks, type ForeignCheckerSpec } from './foreign';
 import { Popover, type PopoverSurface } from './popover';
 import { CM6_THEME, SEVERITY_CLASS } from './styles';
 import type { EditorAdapter, RenderedDiagnostic, RenderedHint, TextEdit } from './types';
@@ -62,11 +63,40 @@ function themeFor(Ev: Cm6Kit['EditorView']): Extension {
     return theme;
 }
 
-export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, languageId: string): Cm6Adapter {
+/** The theme hiding a site's foreign checkers, likewise one per CodeMirror build and site. */
+const absorbThemes = new WeakMap<object, Map<string, Extension>>();
+
+function absorbThemeFor(Ev: Cm6Kit['EditorView'], specs: readonly ForeignCheckerSpec[]): Extension {
+    const key = specs.map((s) => s.checker).join(' ');
+    const bySite = absorbThemes.get(Ev) ?? new Map<string, Extension>();
+    absorbThemes.set(Ev, bySite);
+    let theme = bySite.get(key);
+    if (theme === undefined) {
+        theme = Ev.baseTheme(absorbTheme(specs));
+        bySite.set(key, theme);
+    }
+    return theme;
+}
+
+export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, languageId: string, foreignSpecs: readonly ForeignCheckerSpec[] = []): Cm6Adapter {
     const { Compartment, Decoration, EditorView: Ev, StateEffect } = kit;
     const compartment = Compartment === undefined ? undefined : new Compartment();
     const diagnosticsEffect = StateEffect.define<readonly RenderedDiagnostic[]>();
     const hintsEffect = StateEffect.define<readonly RenderedHint[]>();
+    const absorbEffect = StateEffect.define<boolean>();
+
+    // The site's own spellcheckers (none on a site without one): read, and
+    // hidden while absorbed, by naming them in `data-lc-absorb` on the editor.
+    const foreign = new ForeignMarks(foreignSpecs, Ev);
+    const absorbed = foreignSpecs.map((s) => s.checker).join(' ');
+    const absorbField = kit.StateField.define<boolean>({
+        create: () => false,
+        update(hidden, tr) {
+            for (const e of tr.effects) if (e.is(absorbEffect)) hidden = e.value;
+            return hidden;
+        },
+        provide: (field) => Ev.editorAttributes.from(field, (hidden): Record<string, string> => (hidden ? { 'data-lc-absorb': absorbed } : {})),
+    });
 
     // The marks are the only copy of where findings are: CM6 maps them
     // through every edit, and lookups read them back (findingAt), so a
@@ -155,6 +185,7 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
         }),
         Ev.updateListener.of((update) => {
             if (disposed || update.view !== view) return;
+            foreign.update(update);
             if (update.docChanged) {
                 card.edited();
                 for (const l of changeListeners) l();
@@ -164,6 +195,7 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
             if (update.transactions.some((tr) => tr.effects.some((e) => e.is(diagnosticsEffect)))) card.republished();
         }),
         themeFor(Ev),
+        ...(foreignSpecs.length > 0 ? [absorbField, absorbThemeFor(Ev, foreignSpecs)] : []),
     ];
     const extension: Extension = compartment === undefined ? parts : compartment.of(parts);
 
@@ -199,6 +231,13 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
             const head = Math.max(anchor, Math.min(to, length));
             view.dispatch({ selection: { anchor, head }, effects: Ev.scrollIntoView(anchor, { y: 'center' }) });
         },
+        foreignFindings: () => (disposed ? [] : foreign.read(view)),
+        onDidChangeForeign: (listener) => {
+            foreign.onDidAnswer(listener);
+        },
+        setForeignHidden: (hidden) => {
+            if (!disposed && foreignSpecs.length > 0 && view.state.field(absorbField, false) !== hidden) view.dispatch({ effects: absorbEffect.of(hidden) });
+        },
         focusOffset: () => {
             if (disposed) return;
             // What is on screen, whichever scrolls: the editor's own
@@ -222,13 +261,14 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
             if (disposed) return;
             disposed = true;
             card.dispose();
+            foreign.dispose();
             changeListeners.length = 0;
             // Only when our compartment is still in this state: after a
             // setState it is gone, and reconfiguring it would throw. Without
             // a Compartment, the fields stay installed but empty and inert.
             if (view.state.field(diagnosticField, false) === undefined) return;
             view.dispatch({
-                effects: compartment === undefined ? [diagnosticsEffect.of([]), hintsEffect.of([])] : compartment.reconfigure([]),
+                effects: compartment === undefined ? [diagnosticsEffect.of([]), hintsEffect.of([]), absorbEffect.of(false)] : compartment.reconfigure([]),
             });
         },
     };

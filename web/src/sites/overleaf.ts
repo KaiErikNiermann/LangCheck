@@ -3,6 +3,7 @@
 // or changes shape, the DOM still finds the view and CodeMirror's own
 // `data-language` still gives the language, so the store only refines.
 import { isView } from '../editor/cm6kit';
+import type { ForeignCheckerSpec } from '../editor/foreign';
 import { cm6Editor } from '../editor/handle';
 import { languageFromEditor, languageFromName, projectFromProjectPath, viewInDocument, type SitePage, type SiteWorkspace } from './site';
 
@@ -27,6 +28,21 @@ const storeString = (key: string): string | undefined => {
     return typeof value === 'string' && value.length > 0 && value.length <= 256 ? value : undefined;
 };
 
+/**
+ * Overleaf's own spellchecker: mark decorations `ol-cm-spelling-error`
+ * with `word: { text, from, to, lineNumber, lang }`, the project's language
+ * (`en_US`). Its only UI besides the mark is the right-click menu, which
+ * stays: a different gesture from our hover card.
+ */
+export const OVERLEAF_SPELLING: ForeignCheckerSpec = {
+    checker: 'overleaf',
+    rule: 'spelling',
+    category: 'spelling',
+    classToken: 'ol-cm-spelling-error',
+    language: (spec) => (typeof spec.word === 'object' && spec.word !== null ? (spec.word as { lang?: unknown }).lang : undefined),
+    hide: { '.ol-cm-spelling-error': { textDecoration: 'none' } },
+};
+
 export const overleafWorkspace: SiteWorkspace = { id: 'overleaf', projectFromPath: projectFromProjectPath };
 
 export const overleafPage: SitePage = {
@@ -41,6 +57,7 @@ export const overleafPage: SitePage = {
             view,
             id === undefined ? (name ?? 'document') : `${id}/${name ?? 'document'}`,
             (name === undefined ? undefined : languageFromName(name)) ?? languageFromEditor(view) ?? 'latex',
+            [OVERLEAF_SPELLING],
         );
     },
 };
