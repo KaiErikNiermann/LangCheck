@@ -4,6 +4,7 @@ import { describe, expect, test } from 'vitest';
 import { MAX_PANEL_MESSAGE_CHARS, parsePageToPanel, parsePanelToPage, WEBVIEW_TYPE } from '../../src/messaging/webview';
 import { PALETTE } from '../../src/palette/commands';
 import { WEB_COMMANDS } from '../../src/page/client';
+import { notOpenedMessage } from '../../src/page/webviewHost';
 
 describe('parsePageToPanel', () => {
     test('accepts each operation, rebuilt from its own fields', () => {
@@ -42,6 +43,18 @@ describe('parsePanelToPage', () => {
         expect(parsePanelToPage({ type: WEBVIEW_TYPE, op: 'closed', panel: 'p2' })).toEqual({ type: WEBVIEW_TYPE, op: 'closed', panel: 'p2' });
         expect(parsePanelToPage({ type: WEBVIEW_TYPE, op: 'open', panel: 'p2' })).toBeUndefined();
         expect(parsePanelToPage({ type: WEBVIEW_TYPE, op: 'closed', panel: 'P 2' })).toBeUndefined();
+    });
+
+    test('a tab that did not open carries why, from a closed set', () => {
+        expect(parsePanelToPage({ type: WEBVIEW_TYPE, op: 'closed', panel: 'p2', reason: 'busy' })).toEqual({ type: WEBVIEW_TYPE, op: 'closed', panel: 'p2', reason: 'busy' });
+        expect(parsePanelToPage({ type: WEBVIEW_TYPE, op: 'closed', panel: 'p2', reason: 'whatever' })).toEqual({ type: WEBVIEW_TYPE, op: 'closed', panel: 'p2' });
+        expect(parsePanelToPage({ type: WEBVIEW_TYPE, op: 'configNotOpened', reason: 'failed' })).toEqual({ type: WEBVIEW_TYPE, op: 'configNotOpened', reason: 'failed' });
+        expect(parsePanelToPage({ type: WEBVIEW_TYPE, op: 'configNotOpened' })).toBeUndefined();
+    });
+
+    test('the user is told what did not open, and why', () => {
+        expect(notOpenedMessage('speedFix', 'busy')).toBe('SpeedFix did not open: this page opened too many tabs in the last minute; try again shortly.');
+        expect(notOpenedMessage('config', 'failed')).toContain('The config page did not open');
     });
 });
 

@@ -50,7 +50,7 @@ export function startContent(site: SiteWorkspace): void {
     const pagePorts = new Map<number, MessagePort>();
     /** Panels this tab opened (scoped ids), so a background restart can report them closed. */
     const panels = new Set<string>();
-    const toOwner = (message: PanelToPage): void => {
+    const toOwner = (message: Exclude<PanelToPage, { op: 'configNotOpened' }>): void => {
         const owner = unscopePanel(message.panel);
         if (owner === undefined) return;
         pagePorts.get(owner.port)?.postMessage({ ...message, panel: owner.panel });
@@ -58,7 +58,9 @@ export function startContent(site: SiteWorkspace): void {
     const background = new BackgroundLink(
         (message) => {
             if (message.op === 'closed') panels.delete(message.panel);
-            toOwner(message);
+            // A config page is the workspace's, not one port's: every page hears.
+            if (message.op === 'configNotOpened') for (const port of pagePorts.values()) port.postMessage(message);
+            else toOwner(message);
         },
         () => {
             for (const panel of panels) toOwner({ type: WEBVIEW_TYPE, op: 'closed', panel });

@@ -31,9 +31,17 @@ export type PageToPanel =
     /** Show the config page of the page's workspace (which the background takes from the tab, not from here). */
     | { readonly type: typeof WEBVIEW_TYPE; readonly op: 'openConfig' };
 
+/** Why a tab the page asked for did not open: too many opened from the page this minute, or the browser would not open one. */
+export const NOT_OPENED_REASONS = ['busy', 'failed'] as const;
+export type NotOpenedReason = (typeof NOT_OPENED_REASONS)[number];
+const isNotOpenedReason = (v: unknown): v is NotOpenedReason => (NOT_OPENED_REASONS as readonly unknown[]).includes(v);
+
 export type PanelToPage =
     | { readonly type: typeof WEBVIEW_TYPE; readonly op: 'message'; readonly panel: string; readonly message: unknown }
-    | { readonly type: typeof WEBVIEW_TYPE; readonly op: 'closed'; readonly panel: string };
+    /** `reason`: the panel's tab never opened, and why (none when the page closed it, or the user did). */
+    | { readonly type: typeof WEBVIEW_TYPE; readonly op: 'closed'; readonly panel: string; readonly reason?: NotOpenedReason }
+    /** The config page the page asked for did not open. */
+    | { readonly type: typeof WEBVIEW_TYPE; readonly op: 'configNotOpened'; readonly reason: NotOpenedReason };
 
 type Bag = Record<string, unknown>;
 const isBag = (v: unknown): v is Bag => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -72,7 +80,11 @@ export function parsePageToPanel(value: unknown): PageToPanel | undefined {
 
 /** Parses a panel message arriving in the page (from the trusted side; checked for shape only). */
 export function parsePanelToPage(value: unknown): PanelToPage | undefined {
-    if (!isBag(value) || value.type !== WEBVIEW_TYPE || !isPanelId(value.panel)) return undefined;
-    if (value.op === 'closed') return { type: WEBVIEW_TYPE, op: 'closed', panel: value.panel };
+    if (!isBag(value) || value.type !== WEBVIEW_TYPE) return undefined;
+    if (value.op === 'configNotOpened') return isNotOpenedReason(value.reason) ? { type: WEBVIEW_TYPE, op: 'configNotOpened', reason: value.reason } : undefined;
+    if (!isPanelId(value.panel)) return undefined;
+    if (value.op === 'closed') {
+        return isNotOpenedReason(value.reason) ? { type: WEBVIEW_TYPE, op: 'closed', panel: value.panel, reason: value.reason } : { type: WEBVIEW_TYPE, op: 'closed', panel: value.panel };
+    }
     return value.op === 'message' ? { type: WEBVIEW_TYPE, op: 'message', panel: value.panel, message: value.message } : undefined;
 }

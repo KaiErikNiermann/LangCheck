@@ -3,6 +3,7 @@
 // which is also how the page's requests are tied to a workspace: never by
 // anything the page says. Opening one comes out of the source tab's open
 // budget, shared with the panels.
+import type { NotOpenedReason } from '../messaging/webview';
 import type { OpenBudget } from './openBudget';
 
 /** The tab calls the config tabs make (browser.tabs, or a fake). */
@@ -45,23 +46,31 @@ export class ConfigTabs {
     }
 
     /** Shows `workspace`'s config page, opening it beside `source` if there is none. */
-    open(source: number, workspace: string, windowId?: number): void {
+    open(source: number, workspace: string, windowId?: number, notOpened: (reason: NotOpenedReason) => void = () => {}): void {
         const existing = this.byWorkspace.get(workspace);
         if (existing !== undefined) {
             void this.tabs.activate(existing).catch(ignore);
             return;
         }
-        if (this.opening.has(workspace) || !this.budget.take(source)) return;
+        if (this.opening.has(workspace)) return;
+        if (!this.budget.take(source)) {
+            notOpened('busy');
+            return;
+        }
         this.opening.add(workspace);
         void this.tabs
             .create({ url: this.tabs.url, openerTabId: source, ...(windowId !== undefined && { windowId }) })
             .then((tab) => {
-                if (tab.id === undefined) return;
+                if (tab.id === undefined) {
+                    notOpened('failed');
+                    return;
+                }
                 this.byWorkspace.set(workspace, tab.id);
                 this.byTab.set(tab.id, workspace);
                 this.save();
             }, (error: unknown) => {
                 console.warn('[language-check] the config page did not open:', error);
+                notOpened('failed');
             })
             .finally(() => {
                 this.opening.delete(workspace);

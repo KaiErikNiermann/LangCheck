@@ -8,7 +8,7 @@ import { startClient, type ClientStats } from './client';
 import { connectCore } from '../messaging/pageClient';
 import type { SitePage, SiteWorkspace } from '../sites/site';
 import { Bridge } from './bridge';
-import { webviewHost } from './webviewHost';
+import { notOpenedMessage, webviewHost } from './webviewHost';
 import { host } from '../shim/vscode';
 
 interface Running {
@@ -63,7 +63,9 @@ function start(site: SitePage, project: string): void {
         extensionUri: vscode.Uri.parse('extension:/'),
         extension: { id: 'language-check-web', packageJSON: { version: __LANGUAGE_CHECK_VERSION__ } },
     };
-    const webviews = webviewHost(core);
+    const webviews = webviewHost(core, (what, reason) => {
+        void vscode.window.showErrorMessage(notOpenedMessage(what, reason));
+    });
     host.webviews = webviews.open;
     host.focusPage = webviews.focusPage;
     const bridge = new Bridge(site, project);

@@ -8,7 +8,7 @@ import { BACKGROUND_PORT_NAME, parseBackgroundRequest, type BackgroundResponse }
 import { forPage } from './forPage';
 import { CONFIG_PORT_NAME, parseConfigPageRequest } from '../messaging/config';
 import { isKeepalive } from '../messaging/keepalive';
-import { PANEL_PORT_NAME, parsePageToPanel } from '../messaging/webview';
+import { PANEL_PORT_NAME, parsePageToPanel, WEBVIEW_TYPE } from '../messaging/webview';
 import { workspaceForUrl } from '../sites/registry';
 import { CoreManager, IDLE_CLOSE_MS } from './nativeCore';
 import { ConfigTabs } from './configTabs';
@@ -196,7 +196,15 @@ function serveContent(port: Runtime.Port, tabId: number, windowId: number | unde
     const webview = (message as { webview?: unknown } | null)?.webview;
     if (webview !== undefined) {
         const parsed = parsePageToPanel(webview);
-        if (parsed?.op === 'openConfig') configTabs.open(tabId, key, windowId);
+        if (parsed?.op === 'openConfig') {
+            configTabs.open(tabId, key, windowId, (reason) => {
+                try {
+                    port.postMessage({ webview: { type: WEBVIEW_TYPE, op: 'configNotOpened', reason } });
+                } catch {
+                    // The tab went away meanwhile.
+                }
+            });
+        }
         else if (parsed !== undefined) panels.fromPage(tabId, port, parsed, windowId);
         return;
     }

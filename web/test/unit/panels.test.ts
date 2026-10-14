@@ -171,13 +171,13 @@ describe('Panels', () => {
         expect(panels.size).toBe(0);
     });
 
-    test('a tab that cannot be created is reported closed', async () => {
+    test('a tab that cannot be created is reported closed, with why', async () => {
         const fake = fakeTabs({ failCreate: true });
         const panels = new Panels(fake.tabs);
         const page = new FakePort();
         panels.fromPage(SOURCE, page, open());
         await fake.settle();
-        expect(page.sent).toEqual([closedMessage]);
+        expect(page.sent).toEqual([{ webview: { ...closedMessage.webview, reason: 'failed' } }]);
         expect(panels.size).toBe(0);
     });
 
@@ -301,7 +301,8 @@ describe('Panels', () => {
         panels.fromPage(SOURCE, page, open('again'));
         await fake.settle();
         expect(fake.created).toHaveLength(MAX_OPENS);
-        expect(page.sent).toEqual([{ webview: { type: WEBVIEW_TYPE, op: 'closed', panel: 'again' } }]);
+        // Refused for the budget, and the page told so: the user is shown why nothing opened.
+        expect(page.sent).toEqual([{ webview: { type: WEBVIEW_TYPE, op: 'closed', panel: 'again', reason: 'busy' } }]);
         panels.tabRemoved(SOURCE);
         panels.fromPage(SOURCE, new FakePort(), open('fresh'));
         expect(fake.created).toHaveLength(MAX_OPENS + 1);

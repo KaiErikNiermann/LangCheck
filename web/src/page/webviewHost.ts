@@ -4,11 +4,26 @@
 // tab sends and when it closes; the content script and background carry it.
 import type { WebviewChannel, WebviewOpener } from '../shim/vscode';
 import type { CoreClient } from '../messaging/pageClient';
-import { VIEW_TYPES, WEBVIEW_TYPE, type ViewType } from '../messaging/webview';
+import { VIEW_TYPES, WEBVIEW_TYPE, type NotOpenedReason, type ViewType } from '../messaging/webview';
 
 interface Listeners {
+    readonly viewType: ViewType;
     readonly message: ((message: unknown) => void)[];
     readonly close: (() => void)[];
+}
+
+/** What did not open: a panel, or the workspace's config page. */
+export type NotOpened = ViewType | 'config';
+
+const TITLE: Readonly<Record<NotOpened, string>> = { speedFix: 'SpeedFix', inspector: 'The Inspector', config: 'The config page' };
+const BECAUSE: Readonly<Record<NotOpenedReason, string>> = {
+    busy: 'this page opened too many tabs in the last minute; try again shortly',
+    failed: 'the browser would not open a tab for it (details in the extension console)',
+};
+
+/** The sentence the user is shown when `what` did not open. */
+export function notOpenedMessage(what: NotOpened, reason: NotOpenedReason): string {
+    return `${TITLE[what]} did not open: ${BECAUSE[reason]}.`;
 }
 
 /** Opens panels for the shim, and closes every one still open when the page's client stops. */
@@ -21,11 +36,16 @@ export interface WebviewHost {
     readonly openCount: () => number;
 }
 
-export function webviewHost(core: CoreClient): WebviewHost {
+/** `notOpened` hears of a tab the page asked for that did not open, to tell the user. */
+export function webviewHost(core: CoreClient, notOpened: (what: NotOpened, reason: NotOpenedReason) => void = () => {}): WebviewHost {
     const panels = new Map<string, Listeners>();
     let next = 1;
 
     core.onWebview((event) => {
+        if (event.op === 'configNotOpened') {
+            notOpened('config', event.reason);
+            return;
+        }
         const listeners = panels.get(event.panel);
         if (listeners === undefined) return;
         if (event.op === 'message') {
@@ -33,13 +53,14 @@ export function webviewHost(core: CoreClient): WebviewHost {
             return;
         }
         panels.delete(event.panel);
+        if (event.reason !== undefined) notOpened(listeners.viewType, event.reason);
         for (const listener of listeners.close) listener();
     });
 
     const open: WebviewOpener = (viewType): WebviewChannel => {
         if (!(VIEW_TYPES as readonly string[]).includes(viewType)) throw new Error(`no web panel for ${viewType}`);
         const panel = `p${String(next++)}`;
-        const listeners: Listeners = { message: [], close: [] };
+        const listeners: Listeners = { viewType: viewType as ViewType, message: [], close: [] };
         panels.set(panel, listeners);
         core.post({ type: WEBVIEW_TYPE, op: 'open', panel, viewType: viewType as ViewType });
         return {

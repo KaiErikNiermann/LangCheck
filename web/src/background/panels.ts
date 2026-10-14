@@ -6,7 +6,7 @@
 // Lifetimes: closing the panel tab reports `closed` to the page; the page's
 // content script going away (navigation, tab closed) closes its panels.
 import { OpenBudget } from './openBudget';
-import { isBoundedMessage, MAX_PANEL_MESSAGE_CHARS, WEBVIEW_TYPE, type PageToPanel, type PanelToPage, type ViewType } from '../messaging/webview';
+import { isBoundedMessage, MAX_PANEL_MESSAGE_CHARS, WEBVIEW_TYPE, type NotOpenedReason, type PageToPanel, type PanelToPage, type ViewType } from '../messaging/webview';
 
 /** Messages kept for a panel tab that has not connected yet (its app is loading). */
 export const MAX_QUEUED = 256;
@@ -82,9 +82,12 @@ export class Panels {
         switch (message.op) {
             case 'open':
                 if (existing !== undefined) return;
-                if (this.mayOpen(source, message.viewType)) this.open(source, message.panel, message.viewType, windowId);
-                // Refused: the page's panel learns it will get no tab.
-                else this.toSource(source, { type: WEBVIEW_TYPE, op: 'closed', panel: message.panel });
+                // One of each kind per page: a second is refused quietly, as
+                // the page's client reveals the one it has instead.
+                if (this.hasOpen(source, message.viewType)) this.toSource(source, { type: WEBVIEW_TYPE, op: 'closed', panel: message.panel });
+                else if (this.budget.take(source)) this.open(source, message.panel, message.viewType, windowId);
+                // Over the budget: the page's panel learns it will get no tab, and why.
+                else this.toSource(source, { type: WEBVIEW_TYPE, op: 'closed', panel: message.panel, reason: 'busy' });
                 return;
             case 'post':
                 if (existing !== undefined) this.deliver(existing, message.message);
@@ -146,10 +149,10 @@ export class Panels {
         return this.panels.size;
     }
 
-    /** Whether `source` may open a `viewType` panel now, counting the open if so. */
-    private mayOpen(source: number, viewType: ViewType): boolean {
-        for (const panel of this.panels.values()) if (panel.source === source && panel.viewType === viewType) return false;
-        return this.budget.take(source);
+    /** Whether `source` has a `viewType` panel already. */
+    private hasOpen(source: number, viewType: ViewType): boolean {
+        for (const panel of this.panels.values()) if (panel.source === source && panel.viewType === viewType) return true;
+        return false;
     }
 
     private open(source: number, id: string, viewType: ViewType, windowId: number | undefined): void {
@@ -165,7 +168,7 @@ export class Panels {
             })
             .catch((error: unknown) => {
                 console.warn(`[language-check] the ${viewType} tab did not open:`, error);
-                if (!panel.closed) this.close(panel, true);
+                if (!panel.closed) this.close(panel, true, 'failed');
             });
     }
 
@@ -214,7 +217,7 @@ export class Panels {
     }
 
     /** Forget `panel`, close its tab, and tell the page when the page did not ask for it. */
-    private close(panel: Panel, tellPage: boolean): void {
+    private close(panel: Panel, tellPage: boolean, reason?: NotOpenedReason): void {
         panel.closed = true;
         this.panels.delete(key(panel.source, panel.id));
         if (panel.tab !== undefined) {
@@ -223,7 +226,7 @@ export class Panels {
         }
         panel.queue.length = 0;
         panel.queuedChars = 0;
-        if (tellPage) this.toPage(panel, { type: WEBVIEW_TYPE, op: 'closed', panel: panel.id });
+        if (tellPage) this.toPage(panel, reason === undefined ? { type: WEBVIEW_TYPE, op: 'closed', panel: panel.id } : { type: WEBVIEW_TYPE, op: 'closed', panel: panel.id, reason });
     }
 
     private toPage(panel: Panel, message: PanelToPage): void {
