@@ -14,6 +14,7 @@ import { CoreManager, IDLE_CLOSE_MS } from './nativeCore';
 import { ConfigTabs } from './configTabs';
 import { OpenBudget } from './openBudget';
 import { Panels } from './panels';
+import { browserSplitTabs, createBeside } from './splitTabs';
 import { WorkspacePages } from './workspacePages';
 
 const cores = new CoreManager((host) => browser.runtime.connectNative(host));
@@ -31,8 +32,11 @@ async function activate(tabId: number): Promise<void> {
     if (tab.windowId !== undefined) await browser.windows.update(tab.windowId, { focused: true });
 }
 
+/** Panel tabs open as their page's split-view partner where the browser makes splits (splitTabs.ts). */
+const splitTabs = browserSplitTabs(browser.runtime);
+
 const panels = new Panels({
-    create: (options) => browser.tabs.create(options),
+    create: (options) => createBeside(splitTabs, options).then(({ tab }) => tab),
     activate,
     // tabs.get and windows.get need no permission for these fields.
     isFrontmost: async (tabId) => {

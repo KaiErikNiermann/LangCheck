@@ -59,7 +59,9 @@ export const test = base.extend<Fixtures>({
         const profile = mkdtempSync(path.join(tmpdir(), 'lc-e2e-profile-'));
         const context = await chromium.launchPersistentContext(profile, {
             // The full Chromium build: the headless shell cannot load extensions.
-            channel: 'chromium',
+            // LC_CHROMIUM names another build (a newer one, for an API the
+            // pinned Playwright's lacks: realPathSplit.spec.ts).
+            ...(process.env.LC_CHROMIUM === undefined ? { channel: 'chromium' } : { executablePath: process.env.LC_CHROMIUM }),
             // Port 0: the browser picks one and writes it to DevToolsActivePort in the profile.
             args: [`--disable-extensions-except=${EXTENSION}`, `--load-extension=${EXTENSION}`, ...(devtools ? ['--remote-debugging-port=0'] : [])],
             env: { ...process.env, XDG_DATA_HOME: dataHome, RUST_LOG: 'warn' },
