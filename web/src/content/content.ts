@@ -160,8 +160,17 @@ function relayPanelMessage(data: unknown, index: number, background: BackgroundL
 }
 
 /** `siteId`: the site this content script runs for; a page may send only its dictionary. */
-function servePort(port: MessagePort, index: number, background: BackgroundLink, panels: Set<string>, inFlight: { count: number }, bye: () => void, siteId: string): void {
+/**
+ * At most one PONG per port this often: the page world can post pings as
+ * fast as it likes, and the page client asks once in PONG_WITHIN_MS (any
+ * PONG answers it). Less than that window, so a real ping is never left
+ * unanswered by the cap.
+ */
+export const PONG_EVERY_MS = 1000;
+
+export function servePort(port: MessagePort, index: number, background: BackgroundLink, panels: Set<string>, inFlight: { count: number }, bye: () => void, siteId: string, now: () => number = () => performance.now()): void {
     const reply = (response: PageResponse): void => { port.postMessage(response); };
+    let lastPong = -Infinity;
     const fail = (id: number, code: ErrorCode, error: string): void => { reply({ id, ok: false, code, error }); };
 
     port.addEventListener('message', (event: MessageEvent) => {
@@ -171,6 +180,8 @@ function servePort(port: MessagePort, index: number, background: BackgroundLink,
             return;
         }
         if (type === PING_TYPE) {
+            if (now() - lastPong < PONG_EVERY_MS) return;
+            lastPong = now();
             port.postMessage({ type: PONG_TYPE });
             return;
         }

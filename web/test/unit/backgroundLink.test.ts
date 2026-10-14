@@ -5,7 +5,7 @@ import { expect, test, vi } from 'vitest';
 
 vi.mock('webextension-polyfill', () => ({ default: {} }));
 
-const { BackgroundLink } = await import('../../src/content/content');
+const { BackgroundLink, PONG_EVERY_MS, servePort } = await import('../../src/content/content');
 
 const request = { id: 7, request: { getMetadata: {} } } as const;
 
@@ -103,4 +103,30 @@ test('a link cut off by the extension going away stops reconnecting', async () =
     await vi.advanceTimersByTimeAsync(10 * 60_000);
     expect(connects).toBe(2);
     vi.useRealTimers();
+});
+
+// The page world can post pings as fast as it likes: each port gets at most
+// one PONG per PONG_EVERY_MS, which still answers the page client's one ping
+// per window.
+test('pings are answered at most once a second per port', async () => {
+    const channel = new MessageChannel();
+    let now = 0;
+    const link = new BackgroundLink(() => {}, () => {}, () => fakePort() as never, () => 'p1');
+    servePort(channel.port1, 1, link, new Set(), { count: 0 }, () => {}, 'overleaf', () => now);
+    let pongs = 0;
+    channel.port2.addEventListener('message', (event: MessageEvent) => {
+        if ((event.data as { type?: string }).type === 'pong') pongs++;
+    });
+    channel.port2.start();
+    const flood = async (): Promise<void> => {
+        for (let i = 0; i < 500; i++) channel.port2.postMessage({ type: 'ping' });
+        await new Promise((resolve) => setTimeout(resolve, 20));
+    };
+    await flood();
+    expect(pongs).toBe(1);
+    now += PONG_EVERY_MS;
+    await flood();
+    expect(pongs).toBe(2);
+    channel.port1.close();
+    channel.port2.close();
 });
