@@ -167,15 +167,15 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
     /**
      * Ctrl+click (Cmd+click) on a hint's ghost text runs its command, as on
      * an inlay hint in VS Code. The ghost text is the hint mark's
-     * pseudo-element, so a click on it targets the mark: it is on the ghost
-     * text when it falls past the mark's own character (`::after`), or
-     * before it (`::before`). Returns whether the click was taken, so
-     * CodeMirror does not also add a cursor there.
+     * pseudo-element, and only it takes the pointer (styles.ts): a click
+     * that targets the mark is on the ghost text, wherever it was laid out,
+     * on the line or wrapped below it. Returns whether the click was taken,
+     * so CodeMirror does not also add a cursor there.
      */
     const onHintClick = (event: MouseEvent): boolean => {
         if (disposed || event.button !== 0 || !(event.ctrlKey || event.metaKey)) return false;
         const mark = event.target instanceof Element ? event.target.closest('.lc-hint-after, .lc-hint-before') : null;
-        if (mark === null || !view.contentDOM.contains(mark) || !onGhostText(mark, event)) return false;
+        if (mark === null || !view.contentDOM.contains(mark)) return false;
         let at: number;
         try {
             at = view.posAtDOM(mark, 0);
@@ -361,21 +361,6 @@ export function hintMarks(doc: Text, hints: readonly RenderedHint[], Decoration:
         }
         return [];
     });
-}
-
-/**
- * Whether the pointer of `event` is on `mark`'s ghost text rather than on its
- * character: past the character's box for `::after`, before it for
- * `::before`, on the same line box.
- */
-function onGhostText(mark: Element, event: MouseEvent): boolean {
-    const range = mark.ownerDocument.createRange();
-    range.selectNodeContents(mark);
-    const boxes = [...range.getClientRects()];
-    const after = mark.classList.contains('lc-hint-after');
-    const box = after ? boxes.at(-1) : boxes[0];
-    if (box === undefined || event.clientY < box.top || event.clientY > box.bottom) return false;
-    return after ? event.clientX >= box.right : event.clientX <= box.left;
 }
 
 const isHighSurrogate = (unit: string): boolean => unit.length === 1 && unit.charCodeAt(0) >= 0xD8_00 && unit.charCodeAt(0) <= 0xDB_FF;
