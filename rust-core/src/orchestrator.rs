@@ -847,6 +847,19 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn the_default_cache_holds_a_document_at_the_browser_clients_cap() {
+        // About 21 000 ranges: a Typst file of 2 Mi characters (a 1 MB one
+        // is 10 026). Under the old default of 4096 every answer was evicted
+        // before the second check asked for it.
+        let (mut orchestrator, seen) =
+            orchestrator_with_counter(Config::default().performance.result_cache_entries);
+        let texts: Vec<String> = (0..21_000).map(|i| format!("range {i}")).collect();
+        orchestrator.check_batch(&texts, "en-US").await.unwrap();
+        orchestrator.check_batch(&texts, "en-US").await.unwrap();
+        assert_eq!(seen.load(Ordering::SeqCst), texts.len());
+    }
+
+    #[tokio::test]
     async fn a_disabled_cache_rechecks_everything() {
         let (mut orchestrator, seen) = orchestrator_with_counter(0);
         let texts = ["alpha".to_string(), "beta".to_string()];

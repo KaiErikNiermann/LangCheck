@@ -260,10 +260,16 @@ const fn default_debounce_ms() -> u64 {
     500
 }
 
-/// Room for several long documents at once: a 36 kB file is around 110 prose
-/// ranges, so this holds roughly thirty of them per engine before evicting.
+/// Room for the longest document a client sends, for every engine at once,
+/// and then some. It has to be: a check walks every range in order, so a
+/// document with more ranges than the cache holds evicts each answer before
+/// the next check asks for it, and every keystroke re-checks the whole file.
+/// A 1 MB Typst file is about 10 000 ranges (headings, list items and
+/// paragraphs are each one), and the browser client sends up to 2 Mi
+/// characters: some 21 000 ranges, for each of up to four engines. Entries
+/// are small (most ranges have no findings), so this costs little memory.
 const fn default_result_cache_entries() -> usize {
-    4096
+    131_072
 }
 
 /// Several sentences, so the cross-sentence rules still have something to work

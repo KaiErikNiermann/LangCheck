@@ -678,7 +678,7 @@
           "type": "integer"
         },
         "result_cache_entries": {
-          "default": 4096,
+          "default": 131072,
           "description": "How many engine answers to keep, keyed by the prose that produced them.\n\nA keystroke re-checks the whole document although one prose range\nchanged, so the cache is what keeps a long file responsive. `0`\ndisables it and re-checks every range on every keystroke.",
           "format": "uint",
           "markdownDescription": "How many engine answers to keep, keyed by the prose that produced them.\n\nA keystroke re-checks the whole document although one prose range\nchanged, so the cache is what keeps a long file responsive. `0`\ndisables it and re-checks every range on every keystroke.",
@@ -1038,7 +1038,7 @@
         "high_performance_mode": false,
         "max_file_size": 0,
         "max_range_bytes": 2048,
-        "result_cache_entries": 4096
+        "result_cache_entries": 131072
       }
     },
     "rules": {
