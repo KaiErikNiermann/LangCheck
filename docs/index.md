@@ -68,4 +68,5 @@ reference/config-schema
 reference/directives
 reference/publishing
 reference/troubleshooting
+reference/benchmarks
 ```
