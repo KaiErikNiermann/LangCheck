@@ -22,8 +22,12 @@ struct Host {
 
 impl Host {
     fn start() -> Self {
+        Self::start_from(env!("CARGO_BIN_EXE_language-check-native-host").as_ref())
+    }
+
+    fn start_from(exe: &std::path::Path) -> Self {
         let data = tempfile::tempdir().expect("temp dir");
-        let child = Command::new(env!("CARGO_BIN_EXE_language-check-native-host"))
+        let child = Command::new(exe)
             // What Firefox passes; the host must ignore it.
             .args([
                 "/home/u/.mozilla/native-messaging-hosts/language_check.json",
@@ -248,4 +252,34 @@ fn a_server_crash_ends_the_host_while_the_port_is_open() {
         host.wait_exit(Duration::from_secs(10)),
         "host outlived its server"
     );
+}
+
+/// A host with no server beside it answers each request with why, instead
+/// of exiting, which Firefox reports only as "An unexpected error occurred".
+#[test]
+fn a_host_without_its_server_says_so_and_keeps_answering() {
+    let alone = tempfile::tempdir().expect("temp dir");
+    let exe = alone.path().join("language-check-native-host");
+    std::fs::copy(env!("CARGO_BIN_EXE_language-check-native-host"), &exe).unwrap();
+    let mut host = Host::start_from(&exe);
+    for id in [1, 2] {
+        host.send(
+            id,
+            request::Payload::Initialize(InitializeRequest {
+                workspace_root: "alone".into(),
+                ..Default::default()
+            }),
+        );
+        let response = host.receive();
+        assert_eq!(response.id, id);
+        let Some(response::Payload::Error(error)) = response.payload else {
+            panic!("expected an error, got {response:?}");
+        };
+        assert!(
+            error.message.contains("cannot start language-check-server")
+                && error.message.contains("doctor"),
+            "{}",
+            error.message
+        );
+    }
 }

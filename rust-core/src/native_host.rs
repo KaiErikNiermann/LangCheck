@@ -260,6 +260,29 @@ pub fn scrub(response: &mut Response, workspace: Option<&Path>) {
     }
 }
 
+/// Answers every request with `message` until the browser closes the port:
+/// what a host that cannot reach its server does.
+async fn refuse_all<R, W>(browser_in: R, browser_out: W, message: &str) -> Result<()>
+where
+    R: AsyncRead + Unpin,
+    W: AsyncWrite + Unpin,
+{
+    let (mut browser_in, mut browser_out) = (browser_in, browser_out);
+    while let Some(body) = read_browser_message(&mut browser_in, MAX_BROWSER_MESSAGE_BYTES).await? {
+        let id = match decode_browser_message(&body) {
+            Ok(req) => req.id,
+            Err((id, _)) => id,
+        };
+        let mut answer = error_response(id, message.to_owned());
+        // The message names where the host looked for the server.
+        scrub(&mut answer, None);
+        for segment in segments(&answer) {
+            write_browser_message(&mut browser_out, &segment).await?;
+        }
+    }
+    Ok(())
+}
+
 /// The id of a request the host refused, for the error it sends back.
 const fn error_response(id: u64, message: String) -> Response {
     Response {
@@ -426,7 +449,20 @@ where
     R: AsyncRead + Unpin + Send + 'static,
     W: AsyncWrite + Unpin + Send + 'static,
 {
-    let mut child = spawn_server(server, web_root)?;
+    let mut child = match spawn_server(server, web_root) {
+        Ok(child) => child,
+        Err(e) => {
+            // Exiting here would leave the extension with only the browser's
+            // own words for it ("An unexpected error occurred" in Firefox).
+            // Answer instead, so the reason reaches the config page.
+            warn!("{e:#}");
+            let message = format!(
+                "the native host cannot start language-check-server ({e:#}); install both \
+                 binaries side by side and run `language-check-native-host doctor`"
+            );
+            return refuse_all(browser_in, browser_out, &message).await;
+        }
+    };
     let mut server_in = child.stdin.take().context("server stdin")?;
     let server_out = child.stdout.take().context("server stdout")?;
     info!(server = %server.display(), "native host started");
