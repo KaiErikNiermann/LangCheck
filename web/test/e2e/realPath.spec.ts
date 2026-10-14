@@ -129,3 +129,29 @@ test('a read-only editor is not edited: the fix says so and the text stays', asy
 });
 
 
+// VS Code's editor.inlayHints.enabled, which a web editor has no setting
+// for, on the options page: hidden, or shown only while Ctrl+Alt is held.
+test('the options page turns the hints off, or on only while Ctrl+Alt is held', async ({ page, context, extensionId }) => {
+    await page.goto(pageUrl('overleaf', 'current', 'I will recieve it.'));
+    await expect(page.locator('[data-lc-hint]')).toHaveCount(1);
+    const options = await context.newPage();
+    await options.goto(`chrome-extension://${extensionId}/options.html`);
+    const save = async (label: string): Promise<void> => {
+        await options.getByLabel(label, { exact: true }).check();
+        await options.getByRole('button', { name: 'Save checking options' }).click();
+        await expect(options.locator('#checking-status')).toContainText('Saved');
+    };
+    await save('Hidden');
+    await page.bringToFront();
+    await expect(page.locator('[data-lc-hint]')).toHaveCount(0);
+    await save('Hidden, shown while Ctrl+Alt is held');
+    await page.bringToFront();
+    await page.locator('.cm-content').click();
+    await expect(page.locator('[data-lc-hint]')).toHaveCount(0);
+    await page.keyboard.down('Control');
+    await page.keyboard.down('Alt');
+    await expect(page.locator('[data-lc-hint]')).toHaveCount(1);
+    await page.keyboard.up('Alt');
+    await page.keyboard.up('Control');
+    await expect(page.locator('[data-lc-hint]')).toHaveCount(0);
+});

@@ -21,11 +21,12 @@ import { InspectorLog } from '../../../extension/src/ui/inspectorLog';
 import { InspectorPanel, type InspectorEnvironment } from '../../../extension/src/ui/webviews/inspector';
 import { SpeedFixPanel, speedFixActions } from '../../../extension/src/ui/webviews/speedFix';
 import type { CoreClient } from '../messaging/pageClient';
-import { DEFAULT_CHECK_SETTINGS, type ForeignMode } from '../messaging/protocol';
+import { DEFAULT_CHECK_SETTINGS, type ForeignMode, type InlayHintsMode } from '../messaging/protocol';
 import { WEBVIEW_TYPE } from '../messaging/webview';
 import { host } from '../shim/vscode';
 import type { SiteDictionarySource } from '../sites/site';
 import { syncSiteDictionary, type SiteDictionarySync } from './siteDictionary';
+import { followHintKeys, hintsVisible } from './hintVisibility';
 import { WebCore } from './transport';
 
 /** Typing pause before a check, as in the VS Code client's default. */
@@ -114,6 +115,12 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
     let foreignMode: ForeignMode = DEFAULT_CHECK_SETTINGS.foreignCheckers;
     const adapterOf = (doc: vscode.TextDocument) => host.documents.get(doc.uri.toString())?.adapter;
     const hintsChanged = new vscode.EventEmitter<void>();
+    // When the hints show (the options page), and whether Ctrl+Alt is held, which the pressed modes follow.
+    const hints: { mode: InlayHintsMode; pressed: boolean } = { mode: DEFAULT_CHECK_SETTINGS.inlayHints, pressed: false };
+    const stopFollowingKeys = followHintKeys(window, (pressed) => {
+        hints.pressed = pressed;
+        if (hints.mode === 'onUnlessPressed' || hints.mode === 'offUnlessPressed') hintsChanged.fire();
+    });
 
     const core = new WebCore(connection, {
         unavailable: (reason) => {
@@ -227,6 +234,10 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         host.settings.set('languageCheck.check.progressive', settings.progressive);
         host.settings.set('languageCheck.check.windowBytes', settings.windowBytes);
         host.settings.set('languageCheck.check.maxBytes', settings.maxBytes);
+        if (settings.inlayHints !== hints.mode) {
+            hints.mode = settings.inlayHints;
+            hintsChanged.fire();
+        }
         if (settings.foreignCheckers === foreignMode) return;
         foreignMode = settings.foreignCheckers;
         for (const doc of vscode.workspace.textDocuments) adapterOf(doc)?.setForeignHidden?.(foreignMode !== 'both');
@@ -287,15 +298,16 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         }),
         // The top suggestion as ghost text after each finding, built as VS
         // Code builds it (Ctrl+click applies it); only while the findings
-        // still describe the text.
+        // still describe the text, and while the options page shows them.
         vscode.languages.registerInlayHintsProvider(SELECTOR, {
             onDidChangeInlayHints: hintsChanged.event,
             provideInlayHints(doc) {
-                if (!store.isCurrent(doc)) return [];
+                if (!hintsVisible(hints.mode, hints.pressed) || !store.isCurrent(doc)) return [];
                 const key = uriKey(doc.uri);
                 return suggestionHints(doc, store.get(key) ?? [], (i) => store.idOf(key, i));
             },
         }),
+        { dispose: stopFollowingKeys },
     );
 
     for (const doc of vscode.workspace.textDocuments) joinForeign(doc);

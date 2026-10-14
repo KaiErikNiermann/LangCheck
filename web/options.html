@@ -40,6 +40,12 @@
   <label><input type="radio" name="foreign" value="merge"> Show one mark per word: hide theirs and take what they found into LangCheck's findings</label>
   <label><input type="radio" name="foreign" value="ours"> Show only LangCheck's: hide theirs</label>
   <label><input type="radio" name="foreign" value="both"> Show both</label>
+  <h2>Suggestion hints</h2>
+  <p>The top suggestion shown as ghost text after a finding (Overleaf and Typst); Ctrl+click (Cmd+click on a Mac) applies it. As VS Code's <code>editor.inlayHints.enabled</code>:</p>
+  <label><input type="radio" name="inlay-hints" value="on"> Shown</label>
+  <label><input type="radio" name="inlay-hints" value="onUnlessPressed"> Shown, hidden while Ctrl+Alt is held</label>
+  <label><input type="radio" name="inlay-hints" value="offUnlessPressed"> Hidden, shown while Ctrl+Alt is held</label>
+  <label><input type="radio" name="inlay-hints" value="off"> Hidden</label>
   <button type="submit">Save checking options</button>
   <p id="checking-status" role="status"></p>
 </form>

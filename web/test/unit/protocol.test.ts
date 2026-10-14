@@ -117,10 +117,10 @@ describe('a check window', () => {
 
 describe('parseCheckSettings', () => {
     test('sound values are kept', () => {
-        expect(parseCheckSettings({ progressive: true, windowBytes: 4096, maxBytes: 65_536, foreignCheckers: 'both' })).toEqual({ progressive: true, windowBytes: 4096, maxBytes: 65_536, foreignCheckers: 'both' });
+        expect(parseCheckSettings({ progressive: true, windowBytes: 4096, maxBytes: 65_536, foreignCheckers: 'both', inlayHints: 'offUnlessPressed' })).toEqual({ progressive: true, windowBytes: 4096, maxBytes: 65_536, foreignCheckers: 'both', inlayHints: 'offUnlessPressed' });
     });
     test('each unsound field falls back to its default alone', () => {
-        expect(parseCheckSettings({ progressive: 'yes', windowBytes: 10, maxBytes: -1, foreignCheckers: 'all' })).toEqual(DEFAULT_CHECK_SETTINGS);
+        expect(parseCheckSettings({ progressive: 'yes', windowBytes: 10, maxBytes: -1, foreignCheckers: 'all', inlayHints: true })).toEqual(DEFAULT_CHECK_SETTINGS);
         expect(parseCheckSettings({ progressive: true, windowBytes: 2 ** 21, maxBytes: 1.5 })).toEqual({ ...DEFAULT_CHECK_SETTINGS, progressive: true });
         expect(parseCheckSettings(null)).toEqual(DEFAULT_CHECK_SETTINGS);
         expect(parseCheckSettings('progressive')).toEqual(DEFAULT_CHECK_SETTINGS);

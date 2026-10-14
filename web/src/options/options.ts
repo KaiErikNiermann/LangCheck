@@ -92,6 +92,7 @@ if (checking !== null && progressive !== null && windowKib !== null && maxKib !=
         windowKib.value = String(Math.round(settings.windowBytes / KIB));
         maxKib.value = String(Math.round(settings.maxBytes / KIB));
         for (const radio of checking.querySelectorAll<HTMLInputElement>('input[name="foreign"]')) radio.checked = radio.value === settings.foreignCheckers;
+        for (const radio of checking.querySelectorAll<HTMLInputElement>('input[name="inlay-hints"]')) radio.checked = radio.value === settings.inlayHints;
     };
     show(undefined);
     void browser.storage.local.get(CHECK_SETTINGS_KEY).then(
@@ -115,7 +116,8 @@ if (checking !== null && progressive !== null && windowKib !== null && maxKib !=
             return;
         }
         const foreignCheckers = checking.querySelector<HTMLInputElement>('input[name="foreign"]:checked')?.value;
-        const settings = parseCheckSettings({ progressive: progressive.checked, windowBytes, maxBytes, foreignCheckers });
+        const inlayHints = checking.querySelector<HTMLInputElement>('input[name="inlay-hints"]:checked')?.value;
+        const settings = parseCheckSettings({ progressive: progressive.checked, windowBytes, maxBytes, foreignCheckers, inlayHints });
         void browser.storage.local.set({ [CHECK_SETTINGS_KEY]: settings }).then(
             () => {
                 checkingStatus.textContent = 'Saved. Pages check under it from their next check.';

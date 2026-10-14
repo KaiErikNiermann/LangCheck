@@ -279,15 +279,23 @@ export const CHECK_SETTINGS_KEY = 'checkSettings';
 export type ForeignMode = 'merge' | 'ours' | 'both';
 export const FOREIGN_MODES: readonly ForeignMode[] = ['merge', 'ours', 'both'];
 
+/**
+ * When the inline suggestion hints show: VS Code's `editor.inlayHints.enabled`,
+ * which a web editor has no setting for. "Pressed" is Ctrl+Alt held, as there.
+ */
+export type InlayHintsMode = 'on' | 'off' | 'onUnlessPressed' | 'offUnlessPressed';
+export const INLAY_HINTS_MODES: readonly InlayHintsMode[] = ['on', 'off', 'onUnlessPressed', 'offUnlessPressed'];
+
 /** The client's `languageCheck.check.*` settings the options page sets (see the extension's package.json), and the web's own. */
 export interface CheckSettings {
     readonly progressive: boolean;
     readonly windowBytes: number;
     readonly maxBytes: number;
     readonly foreignCheckers: ForeignMode;
+    readonly inlayHints: InlayHintsMode;
 }
 
-export const DEFAULT_CHECK_SETTINGS: CheckSettings = { progressive: false, windowBytes: 16 * 1024, maxBytes: 0, foreignCheckers: 'merge' };
+export const DEFAULT_CHECK_SETTINGS: CheckSettings = { progressive: false, windowBytes: 16 * 1024, maxBytes: 0, foreignCheckers: 'merge', inlayHints: 'on' };
 
 /** Bounds the options page offers (the client holds the window to the same). */
 export const WINDOW_BYTES_RANGE = { min: 1024, max: 1024 * 1024 } as const;
@@ -303,6 +311,7 @@ export function parseCheckSettings(value: unknown): CheckSettings {
         windowBytes: wholeIn(bag.windowBytes, WINDOW_BYTES_RANGE.min, WINDOW_BYTES_RANGE.max) ?? DEFAULT_CHECK_SETTINGS.windowBytes,
         maxBytes: wholeIn(bag.maxBytes, 0, 0xFF_FF_FF_FF) ?? DEFAULT_CHECK_SETTINGS.maxBytes,
         foreignCheckers: (FOREIGN_MODES as readonly unknown[]).includes(bag.foreignCheckers) ? (bag.foreignCheckers as ForeignMode) : DEFAULT_CHECK_SETTINGS.foreignCheckers,
+        inlayHints: (INLAY_HINTS_MODES as readonly unknown[]).includes(bag.inlayHints) ? (bag.inlayHints as InlayHintsMode) : DEFAULT_CHECK_SETTINGS.inlayHints,
     };
 }
 
