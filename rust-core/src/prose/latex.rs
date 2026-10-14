@@ -431,6 +431,32 @@ mod tests {
     use anyhow::Result;
 
     #[test]
+    fn a_backslash_before_a_multibyte_character_cuts_nothing() -> Result<()> {
+        // `\` then U+FEFF (or U+FFFD, what the browser client sends for a
+        // lone surrogate) between two words of one paragraph: the escape
+        // ended inside the character and the gap's slicing panicked.
+        let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
+        let mut extractor = ProseExtractor::new(language)?;
+        for odd in ['\u{FEFF}', '\u{FFFD}', '\u{E9}', '\u{1F600}'] {
+            let text = format!("Some prose here \\{odd}section and teh rest of it.\n");
+            let ranges = extractor.extract(&text, "latex", &LatexExtras::default())?;
+            for r in &ranges {
+                assert!(
+                    text.is_char_boundary(r.start_byte) && text.is_char_boundary(r.end_byte),
+                    "{r:?} in {text:?}"
+                );
+                for &(start, end) in &r.exclusions {
+                    assert!(
+                        text.is_char_boundary(start) && text.is_char_boundary(end),
+                        "{r:?} in {text:?}"
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
     fn test_latex_basic_extraction() -> Result<()> {
         let language: tree_sitter::Language = codebook_tree_sitter_latex::LANGUAGE.into();
         let mut extractor = ProseExtractor::new(language)?;

@@ -72,7 +72,34 @@ impl Match {
 ///
 /// Called only with `i < bytes.len()` and `i` on a character boundary. The
 /// returned `end` must be greater than `i`, or the scan cannot make progress.
+/// It need not be on a character boundary: matchers key on ASCII (`\` and
+/// any one byte is an escape), and [`recognize`] moves `end` past the rest of
+/// a character the token cut into.
 pub type Syntax = fn(&[u8], usize) -> Option<Match>;
+
+/// `syntax`'s token at `i`, with its `end` moved to the next character
+/// boundary and its `start` back to the one before: a token that cut a
+/// character in two would make every slice of the gap at its edge panic.
+fn recognize(syntax: Syntax, bytes: &[u8], i: usize) -> Option<Match> {
+    let found = syntax(bytes, i)?;
+    let mut end = found.end.min(bytes.len());
+    while end < bytes.len() && is_continuation(bytes[end]) {
+        end += 1;
+    }
+    let mut start = found.start.min(end);
+    while start > 0 && start < bytes.len() && is_continuation(bytes[start]) {
+        start -= 1;
+    }
+    Some(Match {
+        start,
+        end,
+        ..found
+    })
+}
+
+const fn is_continuation(byte: u8) -> bool {
+    byte & 0b1100_0000 == 0b1000_0000
+}
 
 /// The gap with its markup removed, for the bridge check.
 ///
@@ -85,7 +112,7 @@ pub fn strip(gap: &str, syntax: Syntax) -> String {
     let mut out = String::with_capacity(gap.len());
     let mut i = 0;
     while i < bytes.len() {
-        let Some(found) = syntax(bytes, i) else {
+        let Some(found) = recognize(syntax, bytes, i) else {
             // Ordinary text — copy the whole run in one go rather than a
             // character at a time.
             let start = i;
@@ -118,7 +145,7 @@ pub fn exclusions(gap: &str, offset: usize, syntax: Syntax, out: &mut Vec<(usize
     let mut i = 0;
     let mut previous_end = 0;
     while i < bytes.len() {
-        let Some(found) = syntax(bytes, i) else {
+        let Some(found) = recognize(syntax, bytes, i) else {
             i = next_boundary(bytes, i);
             continue;
         };
@@ -138,7 +165,7 @@ pub fn exclusions(gap: &str, offset: usize, syntax: Syntax, out: &mut Vec<(usize
 /// is not ASCII.
 const fn next_boundary(bytes: &[u8], i: usize) -> usize {
     let mut j = i + 1;
-    while j < bytes.len() && bytes[j] & 0b1100_0000 == 0b1000_0000 {
+    while j < bytes.len() && is_continuation(bytes[j]) {
         j += 1;
     }
     j
@@ -172,6 +199,16 @@ mod tests {
     #[test]
     fn strip_keeps_non_ascii_text_intact() {
         assert_eq!(strip("ä ö $x$ ü", toy), "ä ö   ü");
+    }
+
+    #[test]
+    fn a_token_that_ends_inside_a_character_takes_the_whole_character() {
+        // `\` and one byte is an escape, and the byte after `\` here is the
+        // first of U+FEFF's three: the slices at its end used to panic.
+        assert_eq!(strip("a \\\u{FEFF}b c", toy), "a b c");
+        let mut out = Vec::new();
+        exclusions("a \\\u{FEFF}b", 10, toy, &mut out);
+        assert_eq!(out, vec![(12, 16)]);
     }
 
     #[test]
