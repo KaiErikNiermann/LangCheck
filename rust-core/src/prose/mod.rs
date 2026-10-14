@@ -3,6 +3,7 @@ mod forester;
 pub mod gap;
 pub mod latex;
 mod markdown_depth;
+pub mod memo;
 mod org;
 mod query;
 mod rst;

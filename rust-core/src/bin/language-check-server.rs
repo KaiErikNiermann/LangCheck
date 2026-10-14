@@ -45,7 +45,7 @@ use workspace::{IndexOwner, IndexUnavailable, WorkspaceIndex};
 // them in this order, skipping the ones not needed:
 //
 //   workspace_index, config, workspace_root, dictionary, ignore_store,
-//   morphology, name_filter, schema_registry
+//   morphology, name_filter, schema_registry, last_extraction
 //
 // The orchestrator is only ever held alone (it is held across the engines).
 
@@ -238,6 +238,8 @@ async fn main() -> Result<()> {
     let schema_registry_arc: Arc<Mutex<SchemaRegistry>> =
         Arc::new(Mutex::new(SchemaRegistry::new()));
     let workspace_index_arc: Arc<Mutex<Option<WorkspaceIndex>>> = Arc::new(Mutex::new(None));
+    let last_extraction_arc: Arc<Mutex<prose::memo::LastExtraction>> =
+        Arc::new(Mutex::new(prose::memo::LastExtraction::default()));
     // Kept because `exclude` patterns are written relative to it, and a check
     // request carries an absolute path.
     let workspace_root_arc: Arc<Mutex<Option<PathBuf>>> = Arc::new(Mutex::new(None));
@@ -452,6 +454,7 @@ async fn main() -> Result<()> {
         let schema_registry_arc = schema_registry_arc.clone();
         let workspace_index_arc = workspace_index_arc.clone();
         let workspace_root_arc = workspace_root_arc.clone();
+        let last_extraction_arc = last_extraction_arc.clone();
         let indexing_notify = indexing_notify.clone();
         let stdout_arc_clone = stdout_arc.clone();
         let stdout_for_panic = stdout_arc.clone();
@@ -671,13 +674,30 @@ async fn main() -> Result<()> {
                             skip_envs: &cfg.languages.latex.skip_environments,
                             skip_commands: &cfg.languages.latex.skip_commands,
                         };
-                        let extraction = prose::extract_with_range_limit(
+                        // A progressive check's windows, a reopened file and
+                        // a re-check after a site's own checker answers all
+                        // send text extracted a moment ago.
+                        let inputs = prose::memo::ExtractionInputs {
+                            language: canonical_lang.to_owned(),
+                            path: file_path.map(Path::to_path_buf),
+                            max_range_bytes: cfg.performance.max_range_bytes,
+                            skip_environments: cfg.languages.latex.skip_environments.clone(),
+                            skip_commands: cfg.languages.latex.skip_commands.clone(),
+                            schemas: schema_registry.fingerprint(),
+                        };
+                        let extraction = last_extraction_arc.lock().await.get_or_extract(
                             &req.text,
-                            canonical_lang,
-                            file_path,
-                            Some(&schema_registry),
-                            &latex_extras,
-                            cfg.performance.max_range_bytes,
+                            inputs,
+                            || {
+                                prose::extract_with_range_limit(
+                                    &req.text,
+                                    canonical_lang,
+                                    file_path,
+                                    Some(&schema_registry),
+                                    &latex_extras,
+                                    cfg.performance.max_range_bytes,
+                                )
+                            },
                         );
                         (
                             extraction,
@@ -747,9 +767,9 @@ async fn main() -> Result<()> {
                                 )
                             };
 
-                            // The extraction above still ran, and has to: it is
-                            // a few milliseconds, the inspector reports it, and
-                            // the insights are computed from it. What a stored
+                            // The extraction above still ran (or came from the
+                            // last one), and has to: the inspector reports it,
+                            // and the insights are computed from it. What a stored
                             // result saves is the engines, which is where a
                             // check's time actually goes -- for LanguageTool, a
                             // network round trip per range.
