@@ -115,6 +115,11 @@ message CheckRequest {
   // the dictionary and ignores, merged with its own on the same span. Never
   // part of a stored result.
   repeated ForeignFinding foreign = 6;
+  // Where the document sits in the workspace when it has no file on disk (a
+  // browser site's document): workspace-relative, `/`-separated. Matched
+  // against `include`, `exclude` and `file_types` as `file_path` is, and used
+  // for nothing else. Ignored when `file_path` is set.
+  optional string document_path = 7;
 }
 
 // One finding of a checker that is not one of ours (rust-core/src/foreign.rs).
@@ -381,7 +386,16 @@ message WriteConfigRequest {
   string text = 1;
 }
 
-message ListConfigFilesRequest {}
+message ListConfigFilesRequest {
+  // The workspace's documents, to sort instead of walking the workspace
+  // directory: a browser site's project is on the site, not on disk.
+  DocumentList documents = 1;
+}
+
+message DocumentList {
+  // Workspace-relative, `/`-separated.
+  repeated string paths = 1;
+}
 
 message ListConfigFilesResponse {
   // Absolute path of the config file in force. Empty when there is none and

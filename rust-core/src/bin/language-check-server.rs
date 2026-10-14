@@ -644,19 +644,25 @@ async fn main() -> Result<()> {
                     // a check is asked for. They governed the background
                     // indexer alone, which meant a file in `node_modules/**`
                     // was skipped by the indexer and checked the moment
-                    // someone opened it.
-                    if let Some(path) = file_path {
-                        let skipped = {
-                            let cfg = config_arc.lock().await;
-                            let root = workspace_root_arc.lock().await;
-                            root.as_ref().is_some_and(|root| !cfg.checks(path, root))
-                        };
-                        if skipped {
-                            debug!(id = request_id, file = ?path, "CheckProse: not selected by config");
-                            break 'check Some(response::Payload::CheckProse(
-                                CheckResponse::default(),
-                            ));
-                        }
+                    // someone opened it. A document with no file (a browser
+                    // site's) names its place in the workspace instead.
+                    let document_path = req
+                        .document_path
+                        .as_deref()
+                        .and_then(lang_check::selection::document_path);
+                    let skipped = {
+                        let cfg = config_arc.lock().await;
+                        let root = workspace_root_arc.lock().await;
+                        root.as_ref().is_some_and(|root| {
+                            file_path
+                                .map(Path::to_path_buf)
+                                .or_else(|| document_path.as_ref().map(|d| root.join(d)))
+                                .is_some_and(|path| !cfg.checks(&path, root))
+                        })
+                    };
+                    if skipped {
+                        debug!(id = request_id, file = ?file_path, document = ?document_path, "CheckProse: not selected by config");
+                        break 'check Some(response::Payload::CheckProse(CheckResponse::default()));
                     }
 
                     debug!(
@@ -1068,7 +1074,7 @@ async fn main() -> Result<()> {
                         })),
                     }
                 }
-                Some(checker::request::Payload::ListConfigFiles(_)) => {
+                Some(checker::request::Payload::ListConfigFiles(listing)) => {
                     let root = workspace_root_arc
                         .lock()
                         .await
@@ -1076,7 +1082,12 @@ async fn main() -> Result<()> {
                         .unwrap_or_else(|| PathBuf::from("."));
                     // A glob walk over the workspace: off the runtime, so a
                     // large tree does not hold up the checks queued behind it.
-                    match tokio::task::spawn_blocking(move || list_config_files(&root)).await {
+                    let documents = listing.documents.map(|list| list.paths);
+                    match tokio::task::spawn_blocking(move || {
+                        list_config_files(&root, documents.as_deref())
+                    })
+                    .await
+                    {
                         Ok(listing) => {
                             debug!(
                                 id = request_id,
@@ -1350,12 +1361,24 @@ async fn main() -> Result<()> {
 ///
 /// The same answer `language-check config files --skipped` prints, from the
 /// same function, so the editor and the CLI cannot disagree about a file.
-fn list_config_files(root: &Path) -> ListConfigFilesResponse {
+/// `documents`, when given, are sorted in place of the files under `root`:
+/// a browser site's, whose project is on the site.
+fn list_config_files(root: &Path, documents: Option<&[String]>) -> ListConfigFilesResponse {
     let (config, load_error) = match Config::load(root) {
         Ok(config) => (config, String::new()),
         Err(e) => (Config::default(), e.to_string()),
     };
-    let selection = lang_check::selection::select_files(&config, root, root, true);
+    let selection = documents.map_or_else(
+        || lang_check::selection::select_files(&config, root, root, true),
+        |documents| {
+            lang_check::selection::select_documents(
+                &config,
+                root,
+                documents.iter().map(String::as_str),
+                true,
+            )
+        },
+    );
     let relative = |p: &Path| -> String {
         p.strip_prefix(root)
             .unwrap_or(p)
@@ -1421,7 +1444,7 @@ mod tests {
         )
         .unwrap();
 
-        let listing = list_config_files(dir.path());
+        let listing = list_config_files(dir.path(), None);
 
         assert_eq!(listing.config_path, config.to_string_lossy());
         assert_eq!(listing.load_error, "");
@@ -1444,7 +1467,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("a.md"), "Some prose.\n").unwrap();
 
-        let listing = list_config_files(dir.path());
+        let listing = list_config_files(dir.path(), None);
 
         assert_eq!(listing.config_path, "");
         assert_eq!(listing.selected, ["a.md"]);
@@ -1460,7 +1483,7 @@ mod tests {
         )
         .unwrap();
 
-        let listing = list_config_files(dir.path());
+        let listing = list_config_files(dir.path(), None);
 
         assert!(listing.config_path.ends_with(".languagecheck.yaml"));
         assert_ne!(listing.load_error, "");

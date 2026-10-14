@@ -10,8 +10,8 @@ use std::time::{Duration, Instant};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use lang_check::checker::{
-    AddDictionaryWordRequest, CheckRequest, InitializeRequest, Request, Response,
-    WriteConfigRequest, request, response,
+    AddDictionaryWordRequest, CheckRequest, DocumentList, InitializeRequest,
+    ListConfigFilesRequest, Request, Response, WriteConfigRequest, request, response,
 };
 use prost::Message;
 
@@ -101,11 +101,17 @@ impl Host {
     }
 
     fn check(&mut self, id: u64, text: &str) -> Vec<String> {
+        self.check_document(id, text, None)
+    }
+
+    /// A check of a site's document, named by its place in the project.
+    fn check_document(&mut self, id: u64, text: &str, path: Option<&str>) -> Vec<String> {
         self.send(
             id,
             request::Payload::CheckProse(CheckRequest {
                 text: text.into(),
                 language_id: "markdown".into(),
+                document_path: path.map(str::to_owned),
                 ..Default::default()
             }),
         );
@@ -161,6 +167,62 @@ fn checks_learns_a_word_and_rechecks_through_the_host() {
     );
 
     assert!(!host.check(4, text).contains(&"recieve".to_owned()));
+}
+
+#[test]
+fn a_sites_documents_are_held_to_the_workspace_config_by_their_paths() {
+    let mut host = Host::start();
+    host.initialize("notion-test");
+    host.send(
+        2,
+        request::Payload::WriteConfig(WriteConfigRequest {
+            text: "exclude: [\"Journal/**\"]\n".into(),
+        }),
+    );
+    assert!(matches!(
+        host.receive().payload,
+        Some(response::Payload::Ok(_))
+    ));
+    // The extension re-initializes after a write, so the core reads it.
+    host.initialize("notion-test");
+
+    let text = "I will recieve the parcel tomorrow.";
+    assert!(
+        host.check_document(3, text, Some("Journal/Monday.md"))
+            .is_empty()
+    );
+    assert!(
+        host.check_document(4, text, Some("Courses/Logic.md"))
+            .contains(&"recieve".to_owned())
+    );
+    // No path: checked, as before there were paths.
+    assert!(host.check(5, text).contains(&"recieve".to_owned()));
+
+    host.send(
+        6,
+        request::Payload::ListConfigFiles(ListConfigFilesRequest {
+            documents: Some(DocumentList {
+                paths: vec!["Journal/Monday.md".into(), "Courses/Logic.md".into()],
+            }),
+        }),
+    );
+    let Some(response::Payload::ListConfigFiles(listing)) = host.receive().payload else {
+        panic!("expected a listing");
+    };
+    assert_eq!(listing.selected, ["Courses/Logic.md"]);
+    assert_eq!(listing.skipped.len(), 1);
+    assert_eq!(listing.skipped[0].path, "Journal/Monday.md");
+    assert_eq!(listing.skipped[0].rejected_by, "exclude");
+
+    // None listed: none sorted, not the host's own files.
+    host.send(
+        7,
+        request::Payload::ListConfigFiles(ListConfigFilesRequest::default()),
+    );
+    let Some(response::Payload::ListConfigFiles(listing)) = host.receive().payload else {
+        panic!("expected a listing");
+    };
+    assert!(listing.selected.is_empty() && listing.skipped.is_empty());
 }
 
 #[test]

@@ -115,6 +115,10 @@ pub fn default_web_root() -> Result<PathBuf> {
         .join("web"))
 }
 
+/// The most documents a page may list for sorting: more than any project
+/// on a site holds, few enough that the answer stays small.
+pub const MAX_LISTED_DOCUMENTS: usize = 10_000;
+
 /// What the host lets through, after rewriting. `Err` carries the message
 /// sent back to the extension under the request's id.
 pub fn admit(mut req: Request, web_root: &Path) -> Result<Request, String> {
@@ -137,21 +141,25 @@ pub fn admit(mut req: Request, web_root: &Path) -> Result<Request, String> {
                 ));
             }
             check.file_path = None;
+            // A site's document is named by its place in the project, which
+            // must stay a place in the workspace.
+            if let Some(raw) = &check.document_path
+                && crate::selection::document_path(raw).is_none()
+            {
+                return Err(format!(
+                    "the document path is not a path inside the workspace (at most {} bytes, `/`-separated, no `.` or `..`)",
+                    crate::selection::MAX_DOCUMENT_PATH_BYTES
+                ));
+            }
         }
-        // ReadConfig and ListConfigFiles are the config page's. The extension
-        // sends those, writes and probes only for its own config page, never
-        // for a web page (a probe fetches URLs and looks at files, the text
-        // may hold an API key); here they are held to the workspace and a
-        // size, and their answers are scrubbed of paths on the way out
-        // (`scrub`).
+        Some(request::Payload::ListConfigFiles(listing)) => admit_listing(listing)?,
         Some(
             request::Payload::AddDictionaryWord(_)
             // Words only, no path; the core coerces and caps them (site_dictionary.rs).
             | request::Payload::SiteDictionary(_)
             | request::Payload::Ignore(_)
             | request::Payload::GetMetadata(_)
-            | request::Payload::ReadConfig(_)
-            | request::Payload::ListConfigFiles(_),
+            | request::Payload::ReadConfig(_),
         ) => {}
         Some(request::Payload::WriteConfig(write)) => {
             if write.text.len() > crate::config::Config::MAX_TEXT_BYTES {
@@ -189,6 +197,29 @@ pub fn admit(mut req: Request, web_root: &Path) -> Result<Request, String> {
         None => return Err("request has no payload".into()),
     }
     Ok(req)
+}
+
+/// A page lists its own documents: the workspace directory holds the
+/// host's files (the config, the dictionary), not the site's, so it is never
+/// walked for a page. A page that sends none is answered with none.
+fn admit_listing(listing: &mut crate::checker::ListConfigFilesRequest) -> Result<(), String> {
+    let documents = listing.documents.get_or_insert_default();
+    if documents.paths.len() > MAX_LISTED_DOCUMENTS {
+        return Err(format!(
+            "{} documents listed; the web host sorts at most {MAX_LISTED_DOCUMENTS}",
+            documents.paths.len()
+        ));
+    }
+    documents
+        .paths
+        .iter()
+        .find(|raw| crate::selection::document_path(raw).is_none())
+        .map_or(Ok(()), |bad| {
+            Err(format!(
+                "a listed document is not a path inside the workspace: {:?}",
+                bad.chars().take(80).collect::<String>()
+            ))
+        })
 }
 
 /// `Err` naming every key of `text` a browser workspace's config may not
@@ -797,6 +828,54 @@ mod tests {
     }
 
     #[test]
+    fn a_document_path_is_kept_only_inside_the_workspace() {
+        let root = tempfile::tempdir().unwrap();
+        let check = |path: &str| {
+            admit(
+                request(request::Payload::CheckProse(CheckRequest {
+                    text: "teh".into(),
+                    document_path: Some(path.into()),
+                    ..Default::default()
+                })),
+                root.path(),
+            )
+        };
+        let Some(request::Payload::CheckProse(kept)) = check("chapters/intro.tex").unwrap().payload
+        else {
+            panic!()
+        };
+        assert_eq!(kept.document_path.as_deref(), Some("chapters/intro.tex"));
+        for bad in ["../../.ssh/id_rsa.md", "/etc/hosts", "a/./b.tex"] {
+            assert!(check(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_page_lists_its_own_documents_never_the_workspace_directory() {
+        let root = tempfile::tempdir().unwrap();
+        let list = |documents: Option<Vec<&str>>| {
+            admit(
+                request(request::Payload::ListConfigFiles(
+                    crate::checker::ListConfigFilesRequest {
+                        documents: documents.map(|paths| crate::checker::DocumentList {
+                            paths: paths.into_iter().map(str::to_owned).collect(),
+                        }),
+                    },
+                )),
+                root.path(),
+            )
+        };
+        // None sent: an empty list, so the server sorts nothing rather than walking.
+        let Some(request::Payload::ListConfigFiles(none)) = list(None).unwrap().payload else {
+            panic!()
+        };
+        assert_eq!(none.documents.map(|d| d.paths), Some(Vec::new()));
+        assert!(list(Some(vec!["main.tex", "chapters/a.tex"])).is_ok());
+        assert!(list(Some(vec!["main.tex", "../outside.tex"])).is_err());
+        assert!(list(Some(vec!["a.md"; MAX_LISTED_DOCUMENTS + 1])).is_err());
+    }
+
+    #[test]
     fn config_requests_are_admitted_within_bounds_and_empty_ones_refused() {
         let root = tempfile::tempdir().unwrap();
         let admitted = admit(
@@ -817,7 +896,7 @@ mod tests {
             request::Payload::WriteConfig(crate::checker::WriteConfigRequest {
                 text: "engines: {}\n".into(),
             }),
-            request::Payload::ListConfigFiles(crate::checker::ListConfigFilesRequest {}),
+            request::Payload::ListConfigFiles(crate::checker::ListConfigFilesRequest::default()),
         ] {
             assert!(admit(request(payload), root.path()).is_ok());
         }
