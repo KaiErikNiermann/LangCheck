@@ -495,7 +495,7 @@ impl ProseRange {
             } else {
                 classify_gap(text, doc_end, es, byte_at_separates(text, es))
             };
-            best = best.max_severity(rel);
+            best = best.max(rel);
             if best == ExclusionAdjacency::Glued {
                 break; // strongest reachable here (overlap already handled)
             }
@@ -613,37 +613,19 @@ pub fn place_language_reports(range: &ProseRange, diagnostics: &mut [crate::chec
 }
 
 /// How a diagnostic span sits relative to a range's skipped segments.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Declared from weakest to strongest, which the derived `Ord` follows: of
+/// two classifications the stronger is the `max`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ExclusionAdjacency {
-    /// The diagnostic span intersects a skip.
-    Overlapping,
-    /// The diagnostic directly abuts a skip with no character between them.
-    Glued,
-    /// The diagnostic is separated from a skip by whitespace only.
-    WhitespaceAdjacent,
     /// The diagnostic is not near any skip.
     None,
-}
-
-impl ExclusionAdjacency {
-    const fn rank(self) -> u8 {
-        match self {
-            Self::None => 0,
-            Self::WhitespaceAdjacent => 1,
-            Self::Glued => 2,
-            Self::Overlapping => 3,
-        }
-    }
-
-    /// The stronger (higher-priority) of two classifications.
-    #[must_use]
-    const fn max_severity(self, other: Self) -> Self {
-        if other.rank() > self.rank() {
-            other
-        } else {
-            self
-        }
-    }
+    /// The diagnostic is separated from a skip by whitespace only.
+    WhitespaceAdjacent,
+    /// The diagnostic directly abuts a skip with no character between them.
+    Glued,
+    /// The diagnostic span intersects a skip.
+    Overlapping,
 }
 
 /// Classify the document text in `[lo, hi)` as the gap between a diagnostic and

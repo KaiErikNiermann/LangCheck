@@ -707,3 +707,18 @@ rules:
       - pattern-not-inside: |
           mod tests { ... }
 
+  - id: ordered-enum-through-derive-ord
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      An enum ranked by a hand-written `fn ...(self) -> u8 { match self { ... } }` and a
+      "pick the higher" method is `#[derive(PartialOrd, Ord)]` with its variants declared in rank
+      order, and `.max()`. ProbeStatus (config_probe.rs) and ExclusionAdjacency (prose/mod.rs)
+      each carried both. Matched 2 sites on the pre-refactor revision.
+    paths:
+      include:
+        - "**/rust-core/src/"
+    patterns:
+      - pattern: $OTHER.$RANK() > self.$RANK()
+      - pattern-inside: |
+          fn $F(self, $OTHER: Self) -> Self { ... }

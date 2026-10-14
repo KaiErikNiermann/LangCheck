@@ -33,43 +33,24 @@ use crate::config::Config;
 const PROBE_TIMEOUT: Duration = Duration::from_secs(4);
 
 /// What a probe found.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Declared in order of how much it should worry the reader, which the
+/// derived `Ord` follows: of two outcomes an engine's line shows the `max`,
+/// so a block with one broken reference reads as broken however many of its
+/// other keys resolved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ProbeStatus {
+    /// Not probed, because the engine is switched off.
+    Skipped,
     /// Resolved: the server answered, the file was read, the name is real.
     Ok,
     /// Reached, but not entirely as configured.
     Degraded,
     /// Did not resolve.
     Down,
-    /// Not probed, because the engine is switched off.
-    Skipped,
 }
 
 impl ProbeStatus {
-    /// Which of two outcomes an engine's line should show when it has both.
-    ///
-    /// Ordered by how much it should worry the reader, so a block with one
-    /// broken reference reads as broken however many of its other keys
-    /// resolved.
-    #[must_use]
-    const fn severity(self) -> u8 {
-        match self {
-            Self::Skipped => 0,
-            Self::Ok => 1,
-            Self::Degraded => 2,
-            Self::Down => 3,
-        }
-    }
-
-    #[must_use]
-    pub const fn worst(self, other: Self) -> Self {
-        if other.severity() > self.severity() {
-            other
-        } else {
-            self
-        }
-    }
-
     #[must_use]
     const fn wire(self) -> checker::ProbeStatus {
         match self {
@@ -919,19 +900,19 @@ mod tests {
 
     #[test]
     fn the_worst_of_two_outcomes_is_the_one_that_should_worry_the_reader() {
-        assert_eq!(ProbeStatus::Ok.worst(ProbeStatus::Down), ProbeStatus::Down);
-        assert_eq!(ProbeStatus::Down.worst(ProbeStatus::Ok), ProbeStatus::Down);
+        assert_eq!(ProbeStatus::Ok.max(ProbeStatus::Down), ProbeStatus::Down);
+        assert_eq!(ProbeStatus::Down.max(ProbeStatus::Ok), ProbeStatus::Down);
         assert_eq!(
-            ProbeStatus::Degraded.worst(ProbeStatus::Ok),
+            ProbeStatus::Degraded.max(ProbeStatus::Ok),
             ProbeStatus::Degraded
         );
         assert_eq!(
-            ProbeStatus::Down.worst(ProbeStatus::Degraded),
+            ProbeStatus::Down.max(ProbeStatus::Degraded),
             ProbeStatus::Down
         );
         // Skipped loses to everything: an engine that is off contributes
         // nothing to a line that has something else to say.
-        assert_eq!(ProbeStatus::Skipped.worst(ProbeStatus::Ok), ProbeStatus::Ok);
+        assert_eq!(ProbeStatus::Skipped.max(ProbeStatus::Ok), ProbeStatus::Ok);
     }
 
     #[test]
