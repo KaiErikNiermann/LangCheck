@@ -7,6 +7,10 @@
 import browser, { type Runtime } from 'webextension-polyfill';
 import {
     BYE_TYPE,
+    EXTENSION_GONE,
+    isExtensionGone,
+    PING_TYPE,
+    PONG_TYPE,
     CHECK_SETTINGS_KEY,
     COMMAND_TYPE,
     DEFAULT_CHECK_SETTINGS,
@@ -164,6 +168,10 @@ function servePort(port: MessagePort, index: number, background: BackgroundLink,
             bye();
             return;
         }
+        if (type === PING_TYPE) {
+            port.postMessage({ type: PONG_TYPE });
+            return;
+        }
         if (type === WEBVIEW_TYPE) {
             relayPanelMessage(event.data, index, background, panels);
             return;
@@ -181,8 +189,8 @@ function servePort(port: MessagePort, index: number, background: BackgroundLink,
         inFlight.count++;
         void background
             .send(request)
-            .then(reply, () => {
-                fail(request.id, 'unavailable', 'the extension background is not reachable');
+            .then(reply, (error: unknown) => {
+                fail(request.id, 'unavailable', isExtensionGone(error) ? EXTENSION_GONE : 'the extension background is not reachable');
             })
             .finally(() => {
                 inFlight.count--;
@@ -302,8 +310,10 @@ export class BackgroundLink {
             try {
                 this.connect();
                 this.onReload();
-            } catch {
-                this.reconnectSoon();
+            } catch (error) {
+                // An extension reloaded or removed under the tab never comes
+                // back to this script: the page's requests say so (servePort).
+                if (!isExtensionGone(error)) this.reconnectSoon();
             }
         }, delay);
     }

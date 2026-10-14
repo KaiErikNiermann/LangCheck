@@ -81,3 +81,26 @@ test('a request cut off by a background restart is interrupted, not unavailable,
         vi.useRealTimers();
     }
 });
+
+// Chrome leaves a content script running when its extension is reloaded,
+// but cut off for good: retrying the connection forever helps no one.
+test('a link cut off by the extension going away stops reconnecting', async () => {
+    vi.useFakeTimers();
+    const first = fakePort();
+    let connects = 0;
+    const link = new BackgroundLink(
+        () => {},
+        () => {},
+        () => {
+            connects++;
+            if (connects === 1) return first as never;
+            throw new Error('Extension context invalidated.');
+        },
+        () => 'p1',
+    );
+    void link.send(request);
+    first.stop();
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(connects).toBe(2);
+    vi.useRealTimers();
+});

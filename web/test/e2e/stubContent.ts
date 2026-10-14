@@ -5,7 +5,7 @@
 // or to fail requests the way an absent host does. Foreign findings (a
 // site's own spellchecker) join its answer as the core's merge does: one
 // per span, the stub's own first, a learned word left out.
-import { HANDSHAKE_TYPE, PAGE_READY_TYPE, PROTOCOL_VERSION, parsePageRequest, type ForeignFindingWire, type PageResponse } from '../../src/messaging/protocol';
+import { HANDSHAKE_TYPE, PAGE_READY_TYPE, PING_TYPE, PONG_TYPE, PROTOCOL_VERSION, parsePageRequest, type ForeignFindingWire, type PageResponse } from '../../src/messaging/protocol';
 
 const MISSPELLINGS: ReadonlyMap<string, string> = new Map([
     ['recieve', 'receive'],
@@ -14,7 +14,9 @@ const MISSPELLINGS: ReadonlyMap<string, string> = new Map([
 
 const learned = new Set<string>();
 const held: (() => void)[] = [];
-const stub = { hold: false, unavailable: false, checks: 0, foreign: [] as readonly ForeignFindingWire[] };
+// `gone`: answers nothing at all, not even a ping, as a content script whose
+// extension was turned off under the page.
+const stub = { hold: false, unavailable: false, gone: false, checks: 0, foreign: [] as readonly ForeignFindingWire[] };
 
 /** A diagnostic as Response.toObject gives it, as far as the stub answers. */
 interface StubDiagnostic {
@@ -83,6 +85,11 @@ window.addEventListener('message', (event: MessageEvent) => {
     if (event.origin !== location.origin || event.source !== window || data?.type !== PAGE_READY_TYPE || data.version !== PROTOCOL_VERSION) return;
     const channel = new MessageChannel();
     channel.port1.addEventListener('message', (e: MessageEvent) => {
+        if (stub.gone) return;
+        if ((e.data as { type?: unknown } | null)?.type === PING_TYPE) {
+            channel.port1.postMessage({ type: PONG_TYPE });
+            return;
+        }
         const reply = (): void => {
             const response = answer(e.data);
             if (response !== undefined) channel.port1.postMessage(response);

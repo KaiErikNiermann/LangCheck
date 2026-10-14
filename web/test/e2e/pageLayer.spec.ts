@@ -95,6 +95,17 @@ test('the card follows its mark when the host reconfigures the layout', async ({
     await expect.poll(gap).toEqual(before);
 });
 
+// The content script goes silent when its extension is turned off, or
+// reloaded in Chrome, under the page: the page asks whether it is there
+// after a few seconds instead of waiting out the request's minute, and says
+// what brings it back.
+test('a content script that stopped answering is noticed, and the user told to reload the page', async ({ page }) => {
+    await open(page, 'overleaf', 'teh');
+    await stub(page, '__stub.gone = true');
+    await host(page, 'typeAtEnd', ' recieve');
+    await expect(page.locator('.lc-toast')).toContainText('reload the page', { timeout: 15_000 });
+});
+
 test('an unavailable core is reported once and not asked again on every edit, then recovers', async ({ page }) => {
     await page.goto(pageUrl('overleaf', 'current', 'teh'));
     await page.addScriptTag({ url: `${BASE}/stub-content.js` });

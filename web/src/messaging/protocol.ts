@@ -251,6 +251,21 @@ export const BYE_TYPE = 'bye';
 export const RELOAD_TYPE = 'reload';
 /** The user changed the checking settings on the options page (`settings`: CheckSettings). */
 export const SETTINGS_TYPE = 'settings';
+/** The page asks whether the content script is still there; it answers PONG_TYPE at once. */
+export const PING_TYPE = 'ping';
+export const PONG_TYPE = 'pong';
+
+/**
+ * What the page is told when the extension went away under it: reloaded
+ * (Chrome leaves the old content script cut off), turned off or removed.
+ * Only reloading the page brings it back.
+ */
+export const EXTENSION_GONE = 'LangCheck was reloaded, updated or turned off since this page opened; reload the page to check it again';
+
+/** Whether `error` is the browser saying this script's extension is gone ("Extension context invalidated."). */
+export function isExtensionGone(error: unknown): boolean {
+    return /context invalidated/iu.test(error instanceof Error ? error.message : String(error));
+}
 
 /** Where the options page keeps the checking settings (browser.storage.local). */
 export const CHECK_SETTINGS_KEY = 'checkSettings';

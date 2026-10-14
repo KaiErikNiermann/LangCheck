@@ -8,6 +8,9 @@ import { WEBVIEW_TYPE, parsePanelToPage, type PageToPanel, type PanelToPage } fr
 import {
     BYE_TYPE,
     COMMAND_TYPE,
+    EXTENSION_GONE,
+    PING_TYPE,
+    PONG_TYPE,
     RELOAD_TYPE,
     SETTINGS_TYPE,
     parseCheckSettings,
@@ -29,6 +32,15 @@ const ANNOUNCE_EVERY_MS = 250;
 const HANDSHAKE_TIMEOUT_MS = 20_000;
 /** A check through LanguageTool can take seconds; past this, the answer is not coming. */
 export const REQUEST_TIMEOUT_MS = 60_000;
+/**
+ * A request unanswered this long has the content script asked whether it is
+ * still there. It answers at once however busy the core is; an extension
+ * turned off or removed under the page (or reloaded, in Chrome) leaves the
+ * port silent, which the page would otherwise learn only at the timeout.
+ */
+export const PING_AFTER_MS = 5000;
+/** How long the content script has to answer a ping. */
+export const PONG_WITHIN_MS = 2000;
 
 export class CoreError extends Error {
     constructor(
@@ -76,6 +88,10 @@ export function connectCore(target: Window = window): CoreClient {
         for (const listener of settingsListeners) listener(settings);
     };
     let disposed = false;
+    /** The content script stopped answering: the extension went away under the page, for good. */
+    let gone = false;
+    /** The ping awaiting its answer. */
+    let ping: ReturnType<typeof setTimeout> | undefined;
 
     const port = new Promise<MessagePort>((resolve, reject) => {
         const announce = (): void => { target.postMessage({ type: PAGE_READY_TYPE, version: PROTOCOL_VERSION }, target.location.origin); };
@@ -118,6 +134,10 @@ export function connectCore(target: Window = window): CoreClient {
             case SETTINGS_TYPE:
                 settingsChanged((data as { settings?: unknown }).settings);
                 return true;
+            case PONG_TYPE:
+                clearTimeout(ping);
+                ping = undefined;
+                return true;
             case WEBVIEW_TYPE: {
                 const panelMessage = parsePanelToPage(data);
                 if (panelMessage !== undefined) for (const listener of webviewListeners) listener(panelMessage);
@@ -145,9 +165,28 @@ export function connectCore(target: Window = window): CoreClient {
         () => {},
     );
 
+    /** Fails everything waiting, and all that follows: nothing is on the other end any more. */
+    const lose = (): void => {
+        gone = true;
+        console.warn(`[language-check] the content script did not answer a ping within ${String(PONG_WITHIN_MS / 1000)}s; the extension is gone from this page`);
+        for (const [id, entry] of pending) {
+            clearTimeout(entry.timer);
+            entry.resolve({ id, ok: false, code: 'unavailable', error: EXTENSION_GONE });
+        }
+        pending.clear();
+    };
+
+    /** Asks the content script whether it is there, unless already asking. */
+    const probe = (p: MessagePort): void => {
+        if (ping !== undefined || gone || disposed) return;
+        ping = setTimeout(lose, PONG_WITHIN_MS);
+        p.postMessage({ type: PING_TYPE });
+    };
+
     const send = async (core: CoreRequest): Promise<PageResponse> => {
         const id = nextId++;
         if (disposed) return { id, ok: false, code: 'failed', error: 'client disposed' };
+        if (gone) return { id, ok: false, code: 'unavailable', error: EXTENSION_GONE };
         if (pending.size >= MAX_IN_FLIGHT_PER_PAGE) return { id, ok: false, code: 'busy', error: 'too many requests in flight' };
         let p: MessagePort;
         try {
@@ -160,7 +199,16 @@ export function connectCore(target: Window = window): CoreClient {
                 pending.delete(id);
                 resolve({ id, ok: false, code: 'timeout', error: `no answer within ${REQUEST_TIMEOUT_MS / 1000}s` });
             }, REQUEST_TIMEOUT_MS);
-            pending.set(id, { resolve, timer });
+            const liveness = setTimeout(() => {
+                if (pending.has(id)) probe(p);
+            }, PING_AFTER_MS);
+            pending.set(id, {
+                resolve: (response) => {
+                    clearTimeout(liveness);
+                    resolve(response);
+                },
+                timer,
+            });
             const message: PageRequest = { id, request: core };
             p.postMessage(message);
         });
@@ -196,6 +244,7 @@ export function connectCore(target: Window = window): CoreClient {
         },
         dispose() {
             disposed = true;
+            clearTimeout(ping);
             commandListeners.length = 0;
             webviewListeners.length = 0;
             reloadListeners.length = 0;
