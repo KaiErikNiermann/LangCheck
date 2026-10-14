@@ -14,8 +14,6 @@ export interface ConfigTabsApi {
     readonly url: string;
 }
 
-const ignore = (): void => {};
-
 export class ConfigTabs {
     private readonly byWorkspace = new Map<string, number>();
     private readonly byTab = new Map<number, string>();
@@ -49,7 +47,13 @@ export class ConfigTabs {
     open(source: number, workspace: string, windowId?: number, notOpened: (reason: NotOpenedReason) => void = () => {}): void {
         const existing = this.byWorkspace.get(workspace);
         if (existing !== undefined) {
-            void this.tabs.activate(existing).catch(ignore);
+            void this.tabs.activate(existing).catch(() => {
+                // Gone before its removal reached us: forget it, and open a
+                // new one, once (the tab is no longer known, so this does not loop).
+                if (this.byWorkspace.get(workspace) !== existing) return;
+                this.tabRemoved(existing);
+                this.open(source, workspace, windowId, notOpened);
+            });
             return;
         }
         if (this.opening.has(workspace)) return;

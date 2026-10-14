@@ -34,3 +34,22 @@ test('past the open budget the page is told it is busy, and no tab is made', () 
     expect(heard).toEqual(['busy']);
     expect(created).toBe(0);
 });
+
+test('a config tab that went away unnoticed is replaced by a new one', async () => {
+    const created: string[] = [];
+    let nextId = 10;
+    const config = new ConfigTabs({
+        create: () => {
+            created.push('tab');
+            return Promise.resolve({ id: nextId++ });
+        },
+        activate: (tab) => (tab === 10 ? Promise.reject(new Error('No tab with id: 10')) : Promise.resolve()),
+        url: 'config.html',
+    }, new OpenBudget(() => 0));
+    config.open(SOURCE, 'overleaf-abc');
+    await expect.poll(() => config.workspaceOf(10)).toBe('overleaf-abc');
+    config.open(SOURCE, 'overleaf-abc');
+    await expect.poll(() => config.workspaceOf(11)).toBe('overleaf-abc');
+    expect(config.workspaceOf(10)).toBeUndefined();
+    expect(created).toHaveLength(2);
+});
