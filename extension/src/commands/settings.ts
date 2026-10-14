@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 
 import {
     addExclude,
+    globEscape,
     addLatexListEntry,
     engineEnabled,
     setEngineEnabled,
@@ -23,9 +24,6 @@ import {
 import { getSetting, updateSetting } from '../config/settings';
 import type { App } from '../services';
 import { COMMANDS, type CommandHandlers } from './ids';
-
-/** Escape glob metacharacters so a file name matches only itself. */
-const globEscape = (name: string): string => name.replace(/[*?[\]]/g, '[$&]');
 
 export function settingsCommands(app: App) {
     const { statusBars, configState, inlayHintEmitter, inlayHintSwitch, reloader } = app;

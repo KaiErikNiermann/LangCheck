@@ -88,6 +88,10 @@
     selected: string[];
     skipped: SkippedFile[];
     loadError: string;
+    /** Where the listed files come from, when not from a folder on disk (a site's project); empty otherwise. */
+    note: string;
+    /** The workspace has no files at all (Gmail): `note` says so, and there are no lists. */
+    filesless: boolean;
   }
 
   type Tab = 'extraction' | 'cleantext' | 'latency' | 'diagnostics' | 'names' | 'events' | 'config' | 'health';
@@ -407,7 +411,7 @@
     if (configScope) {
       lines.push('### Config');
       lines.push(`- **File:** ${configScope.configPath ? configScope.configPath.split(/[\\/]/).pop() : 'none, so the defaults'}`);
-      lines.push(`- **Checked:** ${configScope.selected.length} files, **skipped:** ${configScope.skipped.length}`);
+      if (!configScope.filesless) lines.push(`- **Checked:** ${configScope.selected.length} files, **skipped:** ${configScope.skipped.length}`);
       if (configScope.loadError) lines.push(`- **Could not be read:** ${configScope.loadError}`);
       lines.push('');
     }
@@ -905,10 +909,19 @@
             </div>
           </div>
 
+          {#if configScope.filesless}
+          <div class="section-header">
+            <span class="section-title">Checked</span>
+          </div>
+          <div class="names-hint" data-list="filesless">{configScope.note}</div>
+          {:else}
           <div class="section-header">
             <span class="section-title">Checked</span>
             <span class="section-count">{configScope.selected.length} files</span>
           </div>
+          {#if configScope.note}
+            <div class="names-hint" data-list="note">{configScope.note}</div>
+          {/if}
           <div class="scope-list" data-list="checked">
             {#each configScope.selected.slice(0, SCOPE_LIST_CAP) as file}
               <div class="scope-file"><span class="scope-path">{file}</span></div>
@@ -935,6 +948,7 @@
               <div class="names-hint">and {configScope.skipped.length - SCOPE_LIST_CAP} more</div>
             {/if}
           </div>
+          {/if}
         </div>
       {/if}
     {:else if activeTab === 'health'}

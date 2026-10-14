@@ -220,6 +220,9 @@ export function deactivateRule(content: string, ruleId: string): { content: stri
     return { content: finishEdit(edit, content), alreadyDeactivated: false };
 }
 
+/** Escape glob metacharacters so a file name matches only itself. */
+export const globEscape = (name: string): string => name.replace(/[*?[\]]/g, '[$&]');
+
 /**
  * Add `pattern` to the end of `exclude`, creating the key -- last in the file,
  * like `rules` -- when it is missing. The built-in excludes are merged in by

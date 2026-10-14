@@ -31,7 +31,7 @@ export interface InspectorDeps {
     readonly fixTarget: FixTarget;
     readonly inspectorLog: InspectorLog;
     readonly check: (document: vscode.TextDocument) => Promise<number>;
-    readonly listConfigFiles: () => Promise<languagecheck.IListConfigFilesResponse | null>;
+    readonly listConfigFiles: () => Promise<ConfigListing | null>;
     readonly environment: InspectorEnvironment;
 }
 
@@ -47,12 +47,23 @@ export interface InspectorEnvironment {
     detectEngineInfo(): Promise<InspectorEngineInfo[]>;
 }
 
+/** What the core says the config selects, with what the host knows of where its files are. */
+export interface ConfigListing {
+    readonly listing: languagecheck.IListConfigFilesResponse;
+    /** Where the files come from, when not from a folder on disk (a site's project). */
+    readonly note?: string;
+    /** The workspace has no files at all (Gmail); `note` says so. */
+    readonly filesless?: boolean;
+}
+
 /** How long a burst of file creations and deletions settles before the scope is re-listed. */
 const RELIST_DELAY_MS = 300;
 
 /** The wire answer as the webview draws it, with proto3's absent fields filled in. */
-function toConfigScope(listing: languagecheck.IListConfigFilesResponse): InspectorConfigScope {
+function toConfigScope({ listing, note = '', filesless = false }: ConfigListing): InspectorConfigScope {
     return {
+        note,
+        filesless,
         configPath: listing.configPath ?? '',
         include: listing.include ?? [],
         exclude: listing.exclude ?? [],
@@ -70,6 +81,8 @@ export class InspectorPanel {
     /** What is live only while the panel is: the edit and file listeners. */
     private liveListeners: vscode.Disposable[] = [];
     private relistTimer: ReturnType<typeof setTimeout> | undefined;
+    /** The latest config-scope ask: an earlier one answering later is dropped. */
+    private scopeAsk = 0;
 
     constructor(private readonly deps: InspectorDeps) {}
 
@@ -218,7 +231,10 @@ export class InspectorPanel {
     /** Ask the core which config is in force and what it selects, and show it. */
     async refreshConfigScope(): Promise<void> {
         if (!this.panel) return;
+        const ask = ++this.scopeAsk;
         const listing = await this.deps.listConfigFiles();
+        // A file created, or (in a browser) a page opened, while it was asked.
+        if (ask !== this.scopeAsk) return;
         this.post({ type: 'setConfigScope', payload: listing ? toConfigScope(listing) : null });
     }
 

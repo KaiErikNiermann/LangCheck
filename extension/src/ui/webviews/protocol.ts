@@ -155,6 +155,10 @@ export interface InspectorConfigScope {
     skipped: InspectorSkippedFile[];
     /** Why the config file could not be read, in which case the lists are the defaults'. */
     loadError: string;
+    /** Where the listed files come from, when not from a folder on disk (a site's project); empty otherwise. */
+    note: string;
+    /** The workspace has no files at all (Gmail): `note` says so, and there are no lists. */
+    filesless: boolean;
 }
 
 // Messages from extension → Inspector webview
