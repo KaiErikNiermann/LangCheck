@@ -304,9 +304,38 @@ const fn error_response(id: u64, message: String) -> Response {
 
 /// Reads one browser message: a native-endian `u32` length, then that many
 /// bytes. `Ok(None)` on a clean EOF between messages.
-pub async fn read_browser_message<R: AsyncRead + Unpin>(
+/// The byte order of a length prefix: a browser writes its own, the server
+/// big-endian.
+#[derive(Clone, Copy)]
+enum Prefix {
+    Native,
+    Big,
+}
+
+impl Prefix {
+    const fn decode(self, bytes: [u8; 4]) -> u32 {
+        match self {
+            Self::Native => u32::from_ne_bytes(bytes),
+            Self::Big => u32::from_be_bytes(bytes),
+        }
+    }
+
+    const fn encode(self, len: u32) -> [u8; 4] {
+        match self {
+            Self::Native => len.to_ne_bytes(),
+            Self::Big => len.to_be_bytes(),
+        }
+    }
+}
+
+/// Reads one length-prefixed message of at most `max` bytes: `None` at a
+/// clean end of stream, an error for one cut short or over the cap (after
+/// which the stream's framing cannot be trusted). `what` names it in errors.
+async fn read_prefixed<R: AsyncRead + Unpin>(
     reader: &mut R,
+    prefix: Prefix,
     max: usize,
+    what: &str,
 ) -> Result<Option<Vec<u8>>> {
     let mut len = [0u8; 4];
     match reader.read_exact(&mut len).await {
@@ -314,28 +343,50 @@ pub async fn read_browser_message<R: AsyncRead + Unpin>(
         Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(None),
         Err(e) => return Err(e.into()),
     }
-    let len = u32::from_ne_bytes(len) as usize;
+    let len = prefix.decode(len) as usize;
     if len > max {
-        bail!("browser message of {len} bytes exceeds the {max}-byte cap");
+        bail!("{what} of {len} bytes exceeds the {max}-byte cap");
     }
     let mut body = vec![0u8; len];
     reader
         .read_exact(&mut body)
         .await
-        .context("browser message truncated")?;
+        .with_context(|| format!("{what} truncated"))?;
     Ok(Some(body))
+}
+
+/// Writes `body` behind its length prefix, and flushes.
+async fn write_prefixed<W: AsyncWrite + Unpin>(
+    writer: &mut W,
+    prefix: Prefix,
+    body: &[u8],
+    what: &str,
+) -> Result<()> {
+    let len = u32::try_from(body.len()).with_context(|| format!("{what} too long"))?;
+    writer.write_all(&prefix.encode(len)).await?;
+    writer.write_all(body).await?;
+    writer.flush().await?;
+    Ok(())
+}
+
+pub async fn read_browser_message<R: AsyncRead + Unpin>(
+    reader: &mut R,
+    max: usize,
+) -> Result<Option<Vec<u8>>> {
+    read_prefixed(reader, Prefix::Native, max, "browser message").await
 }
 
 pub async fn write_browser_message<W: AsyncWrite + Unpin>(
     writer: &mut W,
     message: &HostMessage,
 ) -> Result<()> {
-    let body = serde_json::to_vec(message)?;
-    let len = u32::try_from(body.len()).context("host message too long")?;
-    writer.write_all(&len.to_ne_bytes()).await?;
-    writer.write_all(&body).await?;
-    writer.flush().await?;
-    Ok(())
+    write_prefixed(
+        writer,
+        Prefix::Native,
+        &serde_json::to_vec(message)?,
+        "host message",
+    )
+    .await
 }
 
 /// Splits an encoded response into messages the browser will accept.
@@ -381,30 +432,15 @@ pub fn decode_browser_message(body: &[u8]) -> Result<Request, (u64, String)> {
 }
 
 async fn write_server_frame<W: AsyncWrite + Unpin>(writer: &mut W, req: &Request) -> Result<()> {
-    let body = req.encode_to_vec();
-    let len = u32::try_from(body.len()).context("request too long")?;
-    writer.write_all(&len.to_be_bytes()).await?;
-    writer.write_all(&body).await?;
-    writer.flush().await?;
-    Ok(())
+    write_prefixed(writer, Prefix::Big, &req.encode_to_vec(), "request").await
 }
 
 async fn read_server_frame<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Option<Response>> {
-    let mut len = [0u8; 4];
-    match reader.read_exact(&mut len).await {
-        Ok(_) => {}
-        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(None),
-        Err(e) => return Err(e.into()),
-    }
-    let len = u32::from_be_bytes(len) as usize;
-    if len > MAX_SERVER_FRAME_BYTES {
-        bail!("server frame of {len} bytes exceeds the cap; the stream lost its framing");
-    }
-    let mut body = vec![0u8; len];
-    reader
-        .read_exact(&mut body)
-        .await
-        .context("server frame truncated")?;
+    let Some(body) =
+        read_prefixed(reader, Prefix::Big, MAX_SERVER_FRAME_BYTES, "server frame").await?
+    else {
+        return Ok(None);
+    };
     Ok(Some(Response::decode(body.as_slice())?))
 }
 

@@ -681,3 +681,29 @@ rules:
         - "**/extension/src/diagnostics/diagnostic.ts"
         - "**/extension/src/test/"
     pattern: parseDiagId(...)
+
+  - id: length-prefix-through-read-write-prefixed
+    languages: [rust]
+    severity: WARNING
+    message: >-
+      Read and write the native host's length-prefixed messages with `read_prefixed` /
+      `write_prefixed` (rust-core/src/native_host.rs), naming the byte order as a `Prefix`. The
+      browser side (native-endian) and the server side (big-endian) each had their own copy of
+      the prefix, the cap and the truncation handling; one copy keeps the trust boundary's caps
+      in one place. Matched 4 sites on the pre-refactor revision (read/write_browser_message,
+      read/write_server_frame).
+    paths:
+      include:
+        - "**/rust-core/src/native_host.rs"
+    patterns:
+      - pattern-either:
+          - pattern: u32::from_ne_bytes(...)
+          - pattern: u32::from_be_bytes(...)
+          - pattern: $N.to_ne_bytes()
+          - pattern: $N.to_be_bytes()
+      - pattern-not-inside: |
+          impl Prefix { ... }
+      # The tests write frames by hand on purpose, to feed the reader bad ones.
+      - pattern-not-inside: |
+          mod tests { ... }
+
