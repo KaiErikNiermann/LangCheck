@@ -173,6 +173,9 @@ fn check_manifest(browser: Browser, exe: &std::path::Path) -> Finding {
         Ok(manifest) => manifest,
         Err(e) => return Finding::Problem(format!("{} is not valid JSON: {e}", path.display())),
     };
+    if let Some(problem) = native_host::manifest_problem(&manifest, browser) {
+        return Finding::Problem(format!("{}: {problem}", path.display()));
+    }
     let Some(host) = manifest.get("path").and_then(serde_json::Value::as_str) else {
         return Finding::Problem(format!("{} names no host path", path.display()));
     };

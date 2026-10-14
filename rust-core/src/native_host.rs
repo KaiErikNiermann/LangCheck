@@ -615,6 +615,55 @@ pub fn manifest(
     })
 }
 
+/// What stops `browser` starting the host from an installed `manifest`.
+///
+/// `None` when it names the host the extension asks for, is a stdio host,
+/// and allows this extension. Chrome's allowed id cannot be known here (an
+/// unpacked extension's id is its own), only that one is there and well
+/// formed.
+#[must_use]
+pub fn manifest_problem(manifest: &serde_json::Value, browser: Browser) -> Option<String> {
+    if manifest.get("name").and_then(serde_json::Value::as_str) != Some(HOST_NAME) {
+        return Some(format!(
+            "its name is not \"{HOST_NAME}\", the one the extension asks for"
+        ));
+    }
+    if manifest.get("type").and_then(serde_json::Value::as_str) != Some("stdio") {
+        return Some("its type is not \"stdio\"".to_owned());
+    }
+    let allowed = |key: &str| -> Vec<&str> {
+        manifest
+            .get(key)
+            .and_then(serde_json::Value::as_array)
+            .map(|list| list.iter().filter_map(serde_json::Value::as_str).collect())
+            .unwrap_or_default()
+    };
+    match browser {
+        Browser::Firefox if !allowed("allowed_extensions").contains(&FIREFOX_EXTENSION_ID) => {
+            Some(format!(
+                "its allowed_extensions does not list {FIREFOX_EXTENSION_ID}, so Firefox will not start it for this extension"
+            ))
+        }
+        Browser::Chrome | Browser::Chromium => {
+            let origins = allowed("allowed_origins");
+            let well_formed = |origin: &&str| {
+                origin
+                    .strip_prefix("chrome-extension://")
+                    .and_then(|rest| rest.strip_suffix('/'))
+                    .is_some_and(|id| {
+                        id.len() == 32 && id.bytes().all(|b| (b'a'..=b'p').contains(&b))
+                    })
+            };
+            if origins.iter().any(well_formed) {
+                None
+            } else {
+                Some("its allowed_origins names no chrome-extension://<id>/, so the browser will start it for no extension".to_owned())
+            }
+        }
+        Browser::Firefox => None,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum Browser {
     Firefox,
@@ -1005,6 +1054,36 @@ mod tests {
                 .unwrap()
                 .id,
             9
+        );
+    }
+
+    #[test]
+    fn doctor_reads_a_manifest_as_the_browser_would() {
+        let path = Path::new("/usr/bin/language-check-native-host");
+        let firefox = manifest(path, Browser::Firefox, None).unwrap();
+        assert_eq!(manifest_problem(&firefox, Browser::Firefox), None);
+        let mut other = firefox.clone();
+        other["allowed_extensions"] = serde_json::json!(["someone-else@example.org"]);
+        assert!(
+            manifest_problem(&other, Browser::Firefox)
+                .unwrap()
+                .contains("allowed_extensions")
+        );
+        let mut renamed = firefox;
+        renamed["name"] = serde_json::json!("language_check_old");
+        assert!(
+            manifest_problem(&renamed, Browser::Firefox)
+                .unwrap()
+                .contains("name")
+        );
+        let chrome = manifest(path, Browser::Chrome, Some(&"b".repeat(32))).unwrap();
+        assert_eq!(manifest_problem(&chrome, Browser::Chrome), None);
+        let mut no_origin = chrome;
+        no_origin["allowed_origins"] = serde_json::json!(["https://example.org/"]);
+        assert!(
+            manifest_problem(&no_origin, Browser::Chrome)
+                .unwrap()
+                .contains("allowed_origins")
         );
     }
 
