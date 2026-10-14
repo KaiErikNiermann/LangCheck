@@ -91,6 +91,29 @@ export const test = base.extend<Fixtures>({
 export { expect } from '@playwright/test';
 
 export const marks = (page: Page): Locator => page.locator('.lc-diag');
+
+/**
+ * How an inlay hint (`mark`, an `.lc-hint-after`) is laid out: the width of
+ * its ghost text's box against the label's own width in its font (the two
+ * agree to rounding: allow half a pixel), how far its
+ * text is indented, and where a click lands on it (past the word).
+ */
+export function hintLayout(mark: Locator): Promise<{ boxWidth: number; labelWidth: number; textIndent: string; ghost: { x: number; y: number } }> {
+    return mark.evaluate((element) => {
+        const after = getComputedStyle(element, '::after');
+        const context = document.createElement('canvas').getContext('2d')!;
+        context.font = `${after.fontStyle} ${after.fontWeight} ${after.fontSize} ${after.fontFamily}`;
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const word = range.getBoundingClientRect();
+        return {
+            boxWidth: Number(after.width.replace('px', '')),
+            labelWidth: context.measureText((element as HTMLElement).dataset.lcHint ?? '').width,
+            textIndent: after.textIndent,
+            ghost: { x: word.right + 12, y: word.top + word.height / 2 },
+        };
+    });
+}
 export const popover = (page: Page): Locator => page.locator('.lc-popover:not([hidden])');
 /** A squiggled span whose text is exactly `text`. */
 export const mark = (page: Page, text: string): Locator => page.locator('.lc-diag', { hasText: new RegExp(`^${text}$`, 'u') });

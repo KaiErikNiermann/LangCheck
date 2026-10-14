@@ -15,8 +15,8 @@ import { DiagnosticActions } from '../../../extension/src/diagnostics/actions';
 import { FixTarget } from '../../../extension/src/diagnostics/fixTarget';
 import { DiagnosticStore, Suppression } from '../../../extension/src/diagnostics/store';
 import { registerCodeActions } from '../../../extension/src/providers/codeActions';
+import { suggestionHints } from '../../../extension/src/providers/suggestionHints';
 import { uriKey } from '../../../extension/src/shared/documents';
-import { formatSuggestionLabel } from '../../../extension/src/shared/inlayLabels';
 import { InspectorLog } from '../../../extension/src/ui/inspectorLog';
 import { InspectorPanel, type InspectorEnvironment } from '../../../extension/src/ui/webviews/inspector';
 import { SpeedFixPanel, speedFixActions } from '../../../extension/src/ui/webviews/speedFix';
@@ -285,16 +285,15 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
             results.forget(uriKey(doc.uri));
             store.notify();
         }),
-        // The top suggestion as ghost text after each finding, as in VS Code;
-        // only while the findings still describe the text.
+        // The top suggestion as ghost text after each finding, built as VS
+        // Code builds it (Ctrl+click applies it); only while the findings
+        // still describe the text.
         vscode.languages.registerInlayHintsProvider(SELECTOR, {
             onDidChangeInlayHints: hintsChanged.event,
             provideInlayHints(doc) {
                 if (!store.isCurrent(doc)) return [];
-                return (store.get(uriKey(doc.uri)) ?? []).flatMap((d) => {
-                    const label = formatSuggestionLabel(doc.getText(d.range), d.suggestions?.[0]);
-                    return label === null ? [] : [new vscode.InlayHint(d.range.end, label.label.trim())];
-                });
+                const key = uriKey(doc.uri);
+                return suggestionHints(doc, store.get(key) ?? [], (i) => store.idOf(key, i));
             },
         }),
     );

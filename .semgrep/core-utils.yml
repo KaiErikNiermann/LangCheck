@@ -644,6 +644,24 @@ rules:
           metavariable: $ACTIONS
           regex: ^\{[\s\S]*\bapplyFix\b
 
+  - id: suggestion-hints-through-helper
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      Build the suggestion inlay hints with `suggestionHints(document, diagnostics, idOf)`
+      (extension/src/providers/suggestionHints.ts). VS Code's provider and the browser client's
+      each formatted the labels themselves, and drifted: the browser's hints had no confidence
+      floor, no grouping per position and no command, so Ctrl+click on one did nothing. Matched
+      2 sites on the pre-refactor revision (inlayHints.ts, web/src/page/client.ts).
+    paths:
+      include:
+        - "**/extension/src/"
+        - "**/web/src/"
+      exclude:
+        - "**/extension/src/providers/suggestionHints.ts"
+        - "**/extension/src/shared/inlayLabels.ts"
+    pattern: formatSuggestionLabel(...)
+
   - id: findings-through-store-resolve
     languages: [typescript]
     severity: ERROR

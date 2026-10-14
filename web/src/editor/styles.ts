@@ -87,14 +87,31 @@ const FINDING_RULES: Rules = {
     '.lc-diag': { textDecoration: 'underline wavy', textDecorationSkipInk: 'none', textUnderlineOffset: 'var(--lc-underline-offset)' },
     ...Object.fromEntries(SEVERITY_CLASS.map((cls, i) => [`.${cls}`, { textDecorationColor: `var(${SEVERITY_TOKEN[i] ?? '--lc-info'})` }])),
     // inline-block, so the finding's wavy underline does not run under it.
+    // Being a block of its own, it would take the line's text-indent and
+    // wrapping as its own: Overleaf hangs wrapped lines (a negative
+    // text-indent, overflow-wrap: anywhere), which drew the hint over the
+    // next word in a box no wider than its padding. It is one unbroken run.
     '.lc-hint-after::after, .lc-hint-before::before': {
         content: 'attr(data-lc-hint)',
         display: 'inline-block',
         opacity: 'var(--lc-hint-opacity)',
         fontStyle: 'italic',
         paddingInline: 'var(--lc-hint-gap)',
-        pointerEvents: 'none',
+        textIndent: '0',
+        whiteSpace: 'pre',
+        overflowWrap: 'normal',
+        wordBreak: 'normal',
         userSelect: 'none',
+        pointerEvents: 'auto',
+    },
+    // Only the ghost text takes the pointer, not the character it hangs on:
+    // the mark is hovered (below) only while the pointer is on the hint.
+    '.lc-hint-after, .lc-hint-before': { pointerEvents: 'none' },
+    // With Ctrl (Cmd) held, the hint under the pointer reads as a link, as
+    // in VS Code; the others stay as they are.
+    '&[data-lc-mod] .lc-hint-after:hover::after, &[data-lc-mod] .lc-hint-before:hover::before': {
+        cursor: 'pointer',
+        textDecoration: 'underline',
     },
 };
 

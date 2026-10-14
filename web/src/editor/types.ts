@@ -43,6 +43,8 @@ export interface RenderedDecoration {
 export interface RenderedHint {
     readonly at: number;
     readonly label: string;
+    /** What Ctrl+click (Cmd+click on a Mac) on it does, as in VS Code: the label's command. */
+    readonly run?: () => void;
 }
 
 /**

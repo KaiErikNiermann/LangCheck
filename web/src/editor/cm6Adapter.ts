@@ -156,8 +156,54 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
         }
     };
 
+    /** Ctrl (Cmd) held: hints read as links, as VS Code shows an inlay hint's command. */
+    const setModifier = (event: MouseEvent | KeyboardEvent): void => {
+        const held = event.ctrlKey || event.metaKey;
+        if (held === (view.dom.dataset.lcMod !== undefined)) return;
+        if (held) view.dom.dataset.lcMod = '';
+        else delete view.dom.dataset.lcMod;
+    };
+
+    /**
+     * Ctrl+click (Cmd+click) on a hint's ghost text runs its command, as on
+     * an inlay hint in VS Code. The ghost text is the hint mark's
+     * pseudo-element, so a click on it targets the mark: it is on the ghost
+     * text when it falls past the mark's own character (`::after`), or
+     * before it (`::before`). Returns whether the click was taken, so
+     * CodeMirror does not also add a cursor there.
+     */
+    const onHintClick = (event: MouseEvent): boolean => {
+        if (disposed || event.button !== 0 || !(event.ctrlKey || event.metaKey)) return false;
+        const mark = event.target instanceof Element ? event.target.closest('.lc-hint-after, .lc-hint-before') : null;
+        if (mark === null || !view.contentDOM.contains(mark) || !onGhostText(mark, event)) return false;
+        let at: number;
+        try {
+            at = view.posAtDOM(mark, 0);
+        } catch {
+            return false;
+        }
+        const run = hintsAt(at).find((hint) => hint.run !== undefined)?.run;
+        if (run === undefined) return false;
+        event.preventDefault();
+        run();
+        return true;
+    };
+
+    /** The hints drawn on the mark starting at `at`. */
+    const hintsAt = (at: number): readonly RenderedHint[] => {
+        let found: readonly RenderedHint[] = [];
+        view.state.field(hintField, false)?.between(at, at + 2, (from, _to, deco) => {
+            const hints = (deco.spec as { lcHints?: readonly RenderedHint[] }).lcHints;
+            if (from !== at || hints === undefined) return;
+            found = hints;
+            return false;
+        });
+        return found;
+    };
+
     const onPointer = (event: MouseEvent): void => {
         if (disposed) return;
+        setModifier(event);
         if (card.popover.contains(event.target)) card.pointerOnCard();
         else card.pointerAt(findingPosUnder(event.target) ?? view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? undefined);
     };
@@ -181,7 +227,17 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
             mouseleave: (event) => {
                 if (!card.popover.contains(event.relatedTarget)) onPointer(event);
             },
-            keydown: (event) => onKey(event),
+            mousedown: (event) => onHintClick(event),
+            keydown: (event) => {
+                setModifier(event);
+                return onKey(event);
+            },
+            keyup: (event) => {
+                setModifier(event);
+            },
+            blur: () => {
+                delete view.dom.dataset.lcMod;
+            },
         }),
         Ev.updateListener.of((update) => {
             if (disposed || update.view !== view) return;
@@ -263,6 +319,7 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
             card.dispose();
             foreign.dispose();
             changeListeners.length = 0;
+            delete view.dom.dataset.lcMod;
             // Only when our compartment is still in this state: after a
             // setState it is gone, and reconfiguring it would throw. Without
             // a Compartment, the fields stay installed but empty and inert.
@@ -281,28 +338,44 @@ export function createCm6Adapter(view: EditorView, kit: Cm6Kit, uri: string, lan
  * an empty line has no character to hang on and is not shown.
  */
 export function hintMarks(doc: Text, hints: readonly RenderedHint[], Decoration: Cm6Kit['Decoration']): CmRange<CmDecoration>[] {
-    const byPosition = new Map<number, string[]>();
+    const byPosition = new Map<number, RenderedHint[]>();
     for (const hint of hints) {
         if (!Number.isSafeInteger(hint.at) || hint.at < 0 || hint.at > doc.length) continue;
         // A position inside a surrogate pair is not a place in the text;
         // the hint goes after the whole character.
         const at = isLowSurrogate(doc.sliceString(hint.at, hint.at + 1)) && isHighSurrogate(doc.sliceString(hint.at - 1, hint.at)) ? hint.at + 1 : hint.at;
-        byPosition.set(at, [...(byPosition.get(at) ?? []), hint.label]);
+        byPosition.set(at, [...(byPosition.get(at) ?? []), hint]);
     }
-    return [...byPosition].flatMap(([at, labels]) => {
+    return [...byPosition].flatMap(([at, lcHints]) => {
         const line = doc.lineAt(at);
-        const label = labels.join(' ');
+        // The gap before the ghost text is the style's, not the label's.
+        const label = lcHints.map((hint) => hint.label.trim()).join(' ');
         if (at > line.from) {
             // Step back over a whole surrogate pair, never into its middle.
             const from = at - (isLowSurrogate(doc.sliceString(at - 1, at)) && at - 2 >= line.from ? 2 : 1);
-            return [Decoration.mark({ class: 'lc-hint-after', attributes: { 'data-lc-hint': label } }).range(from, at)];
+            return [Decoration.mark({ class: 'lc-hint-after', attributes: { 'data-lc-hint': label }, lcHints }).range(from, at)];
         }
         if (at < line.to) {
             const to = at + (isHighSurrogate(doc.sliceString(at, at + 1)) && at + 2 <= line.to ? 2 : 1);
-            return [Decoration.mark({ class: 'lc-hint-before', attributes: { 'data-lc-hint': label } }).range(at, to)];
+            return [Decoration.mark({ class: 'lc-hint-before', attributes: { 'data-lc-hint': label }, lcHints }).range(at, to)];
         }
         return [];
     });
+}
+
+/**
+ * Whether the pointer of `event` is on `mark`'s ghost text rather than on its
+ * character: past the character's box for `::after`, before it for
+ * `::before`, on the same line box.
+ */
+function onGhostText(mark: Element, event: MouseEvent): boolean {
+    const range = mark.ownerDocument.createRange();
+    range.selectNodeContents(mark);
+    const boxes = [...range.getClientRects()];
+    const after = mark.classList.contains('lc-hint-after');
+    const box = after ? boxes.at(-1) : boxes[0];
+    if (box === undefined || event.clientY < box.top || event.clientY > box.bottom) return false;
+    return after ? event.clientX >= box.right : event.clientX <= box.left;
 }
 
 const isHighSurrogate = (unit: string): boolean => unit.length === 1 && unit.charCodeAt(0) >= 0xD8_00 && unit.charCodeAt(0) <= 0xDB_FF;

@@ -319,13 +319,18 @@ export enum InlayHintKind {
     Parameter = 2,
 }
 
+export interface InlayHintLabelPart {
+    readonly value: string;
+    readonly command?: Command;
+}
+
 export class InlayHint {
     paddingLeft: boolean | undefined;
     paddingRight: boolean | undefined;
     tooltip: string | MarkdownString | undefined;
     constructor(
         readonly position: Position,
-        readonly label: string | readonly { value: string }[],
+        readonly label: string | readonly InlayHintLabelPart[],
         readonly kind?: InlayHintKind,
     ) {}
 }
@@ -619,10 +624,18 @@ class Host {
             }),
         );
         if (doc.version !== version || this.documents.get(doc.uri.toString()) !== doc) return;
-        const hints: RenderedHint[] = batches.flat().map((h) => ({
-            at: doc.offsetAt(h.position),
-            label: `${h.paddingLeft === true ? ' ' : ''}${labelText(h.label)}${h.paddingRight === true ? ' ' : ''}`,
-        }));
+        const hints: RenderedHint[] = batches.flat().map((h) => {
+            // The label's command, as VS Code runs it on Ctrl+click.
+            const command = typeof h.label === 'string' ? undefined : h.label.find((part) => part.command !== undefined)?.command;
+            const label = `${h.paddingLeft === true ? ' ' : ''}${labelText(h.label)}${h.paddingRight === true ? ' ' : ''}`;
+            if (command === undefined) return { at: doc.offsetAt(h.position), label };
+            const run = (): void => {
+                void commands.executeCommand(command.command, ...(command.arguments ?? [])).then(undefined, (error: unknown) => {
+                    console.error('[vscode-shim] inlay hint command failed', error);
+                });
+            };
+            return { at: doc.offsetAt(h.position), label, run };
+        });
         doc.adapter.renderHints(hints);
     }
 

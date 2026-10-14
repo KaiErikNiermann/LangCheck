@@ -1,7 +1,7 @@
 // The whole path, for both sites and for CodeMirror on both sides of the
 // 6.39 rewrite: the real core decides what is squiggled, so these assert
 // the spans and texts a user would see.
-import { docText, expect, host, hoverMark, marks, pageUrl, popover, status, test, type Cm, type Site } from './fixtures';
+import { docText, expect, hintLayout, host, hoverMark, marks, pageUrl, popover, status, test, type Cm, type Site } from './fixtures';
 
 const CASES: readonly (readonly [Site, Cm])[] = [
     ['overleaf', 'current'],
@@ -23,6 +23,29 @@ for (const [site, cm] of CASES) {
             await card.getByRole('button', { name: 'Fix: "receive"' }).click();
             expect(await docText(page)).toBe('I will receive teh parcel tomorrow.\nTeh end.');
             await expect(marks(page)).toHaveText(['teh', 'Teh']);
+        });
+
+        // As an inlay hint in VS Code: ghost text after the word, in room of
+        // its own (on Overleaf it took the line's hanging indent and was drawn
+        // over the next word), that a plain click leaves alone and Ctrl+click
+        // (Cmd+click) applies.
+        test('a hint takes its own room after the word, and Ctrl+click on it applies it', async ({ page }) => {
+            await page.goto(pageUrl(site, cm, 'I will recieve teh parcel tomorrow.'));
+            await expect(marks(page)).toHaveText(['recieve', 'teh']);
+            const hint = page.locator('.lc-hint-after[data-lc-hint="→ receive"]');
+            await expect(hint).toHaveCount(1);
+            const { boxWidth, labelWidth, textIndent, ghost } = await hintLayout(hint);
+            // Its own room, not the line's hanging indent.
+            expect(textIndent).toBe('0px');
+            expect(boxWidth + 0.5).toBeGreaterThanOrEqual(labelWidth);
+            await page.mouse.click(ghost.x, ghost.y);
+            expect(await docText(page)).toBe('I will recieve teh parcel tomorrow.');
+            // page.mouse.click takes no modifiers: the key is held around it.
+            await page.keyboard.down('ControlOrMeta');
+            await page.mouse.click(ghost.x, ghost.y);
+            await page.keyboard.up('ControlOrMeta');
+            await expect.poll(() => docText(page)).toBe('I will receive teh parcel tomorrow.');
+            await expect(marks(page)).toHaveText(['teh']);
         });
 
         test('a learned word stays learned, across a reload, in that project only', async ({ page, context }) => {
@@ -104,4 +127,5 @@ test('a read-only editor is not edited: the fix says so and the text stays', asy
     await expect(page.locator('.lc-toast')).toContainText('not applied');
     expect(await docText(page)).toBe('I will recieve it.');
 });
+
 

@@ -84,7 +84,14 @@ const siteSpelling: Extension =
               }),
           ];
 
-const hostExtensions = (): Extension => [theme.of(baseTheme), endMarker, EditorView.lineWrapping, readOnly, siteSpelling];
+/**
+ * Overleaf hangs wrapped lines: each line gets a negative text-indent and a
+ * padding to match, inline (as measured on the live site, for a line with no
+ * leading whitespace). Inline hints used to take the indent as their own.
+ */
+const overleafLines: Extension = overleaf ? EditorView.theme({ '.cm-line': { textIndent: '-4ch', paddingLeft: 'calc(4ch + 6px)' } }) : [];
+
+const hostExtensions = (): Extension => [theme.of(baseTheme), endMarker, EditorView.lineWrapping, overleafLines, readOnly, siteSpelling];
 const initial = params.get('text') ?? 'I will recieve teh parcel tomorrow.\nTeh end.';
 const items = new Map<string, { value: unknown }>();
 const setItem = (key: string, value: unknown): void => {

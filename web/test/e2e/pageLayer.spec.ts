@@ -3,7 +3,7 @@
 // The built page bundle runs against a stub content script whose "core"
 // can be held, so the window between an edit and its recheck is testable.
 import { expect, test, type Page } from '@playwright/test';
-import { gmailUrl, host, hoverPainted, notionUrl, pageUrl, painted, withForeign, type Site } from './fixtures';
+import { gmailUrl, hintLayout, host, hoverPainted, notionUrl, pageUrl, painted, withForeign, type Site } from './fixtures';
 
 const BASE = 'http://127.0.0.1:4180';
 
@@ -42,6 +42,39 @@ test('squiggles, hints and the card, on the host page’s own CodeMirror (6.38 a
         const c = await hover(page, 'teh');
         await expect(c.locator('.lc-action')).toHaveText(['Fix: "the"', 'Add "teh" to dictionary', 'Ignore this issue']);
     }
+});
+
+// Overleaf hangs wrapped lines with a negative text-indent; the hint, an
+// inline-block, took it as its own: Firefox shrank its box to the padding and
+// drew the text over the next word, Chromium drew it over the word itself.
+test('a hint takes its own room on a line with a hanging indent (Overleaf)', async ({ page }) => {
+    await open(page, 'overleaf', 'I will recieve teh parcel.');
+    const { boxWidth, labelWidth, textIndent } = await hintLayout(page.locator('.lc-hint-after').first());
+    expect(textIndent).toBe('0px');
+    expect(boxWidth + 0.5).toBeGreaterThanOrEqual(labelWidth);
+});
+
+// With Ctrl held VS Code underlines the inlay hint under the pointer, not
+// every hint in the editor (as an underline on all of them did here), and
+// not while the pointer is on the word the hint follows.
+test('with Ctrl held, only the hint under the pointer is underlined', async ({ page }) => {
+    await open(page, 'overleaf', 'I will recieve teh parcel.');
+    const hints = page.locator('.lc-hint-after');
+    await expect(hints).toHaveCount(2);
+    const underlined = () => hints.evaluateAll((marks) => marks.map((m) => getComputedStyle(m, '::after').textDecorationLine));
+    const { ghost } = await hintLayout(hints.first());
+    await page.locator('.cm-content').click();
+    await page.keyboard.down('Control');
+    await page.mouse.move(ghost.x, ghost.y);
+    await expect.poll(underlined).toEqual(['underline', 'none']);
+    // On the word's last character, the one the hint hangs on: no hint.
+    const word = await hints.first().evaluate((m) => {
+        const box = m.getBoundingClientRect();
+        return { x: box.left + 2, y: box.top + box.height / 2 };
+    });
+    await page.mouse.move(word.x, word.y);
+    await expect.poll(underlined).toEqual(['none', 'none']);
+    await page.keyboard.up('Control');
 });
 
 // Between an edit and its recheck the offered ranges are stale, so no fix is
