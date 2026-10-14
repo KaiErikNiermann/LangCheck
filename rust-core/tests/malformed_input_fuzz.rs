@@ -340,11 +340,16 @@ fn last_case_file(lang: &str) -> PathBuf {
         .join(format!("malformed-fuzz-last-case-{lang}.txt"))
 }
 
-fn iterations() -> u64 {
-    std::env::var("MALFORMED_FUZZ_ITERATIONS")
+/// The number `var` holds, or `default` when it is unset or not one.
+fn env_or<T: std::str::FromStr>(var: &str, default: T) -> T {
+    std::env::var(var)
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(200)
+        .unwrap_or(default)
+}
+
+fn iterations() -> u64 {
+    env_or("MALFORMED_FUZZ_ITERATIONS", 200)
 }
 
 /// Every case for `lang`, or the one `MALFORMED_FUZZ_SEED` names.
@@ -366,10 +371,7 @@ fn seeds(lang: &str) -> Vec<u64> {
 /// read is quadratic somewhere, and a longer one is quadratic enough to hang
 /// the editor.
 fn slow_ms() -> u128 {
-    std::env::var("MALFORMED_FUZZ_SLOW_MS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(5_000)
+    env_or("MALFORMED_FUZZ_SLOW_MS", 5_000)
 }
 
 fn fuzz_extraction(lang: &str) {
