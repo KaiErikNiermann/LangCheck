@@ -109,6 +109,12 @@ class WebTransport implements CoreTransport {
                 }
                 this.probeDelay = Math.min(this.probeDelay * 2, PROBE_MAX_MS);
                 this.scheduleProbe();
+            }, (error: unknown) => {
+                // A probe that threw must not end the retrying: the checker would stay down for good.
+                console.warn('[language-check] probing the checker failed:', error);
+                if (this.disposed) return;
+                this.probeDelay = Math.min(this.probeDelay * 2, PROBE_MAX_MS);
+                this.scheduleProbe();
             });
         }, this.probeDelay);
     }

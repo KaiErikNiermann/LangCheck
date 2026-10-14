@@ -60,7 +60,9 @@ export class ConfigTabs {
                 this.byWorkspace.set(workspace, tab.id);
                 this.byTab.set(tab.id, workspace);
                 this.save();
-            }, ignore)
+            }, (error: unknown) => {
+                console.warn('[language-check] the config page did not open:', error);
+            })
             .finally(() => {
                 this.opening.delete(workspace);
             });

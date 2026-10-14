@@ -5,15 +5,26 @@ import { CHECK_SETTINGS_KEY, parseCheckSettings, WINDOW_BYTES_RANGE } from '../m
 import { DEFAULT_PALETTE_HOTKEY, PALETTE_HOTKEY_KEY } from '../palette/protocol';
 import { parseBinding } from '../palette/typing';
 
+/** What a failed read or write of the extension's storage tells the user. */
+const storageFailed = (doing: string, error: unknown): string => {
+    console.warn(`[language-check] ${doing}:`, error);
+    return `Could not ${doing}: ${error instanceof Error ? error.message : String(error)}`;
+};
+
 const form = document.querySelector<HTMLFormElement>('#form');
 const input = document.querySelector<HTMLInputElement>('#hotkey');
 const status = document.querySelector<HTMLElement>('#status');
 
 if (form !== null && input !== null && status !== null) {
-    void browser.storage.local.get(PALETTE_HOTKEY_KEY).then((stored) => {
-        const value = stored[PALETTE_HOTKEY_KEY];
-        input.value = typeof value === 'string' ? value : '';
-    });
+    void browser.storage.local.get(PALETTE_HOTKEY_KEY).then(
+        (stored) => {
+            const value = stored[PALETTE_HOTKEY_KEY];
+            input.value = typeof value === 'string' ? value : '';
+        },
+        (error: unknown) => {
+            status.textContent = storageFailed('read the saved shortcut', error);
+        },
+    );
     form.addEventListener('submit', (event) => {
         event.preventDefault();
         const typed = input.value.trim();
@@ -23,9 +34,14 @@ if (form !== null && input !== null && status !== null) {
             status.textContent = `"${typed}" cannot be the shortcut: it needs Ctrl, Alt or Cmd (or a function key), and must not be one an editor uses, such as Ctrl+C or Ctrl+S, or a browser one, such as Ctrl+P.`;
             return;
         }
-        void browser.storage.local.set({ [PALETTE_HOTKEY_KEY]: value }).then(() => {
-            status.textContent = `Saved. The palette opens with ${value === '' ? DEFAULT_PALETTE_HOTKEY : value}.`;
-        });
+        void browser.storage.local.set({ [PALETTE_HOTKEY_KEY]: value }).then(
+            () => {
+                status.textContent = `Saved. The palette opens with ${value === '' ? DEFAULT_PALETTE_HOTKEY : value}.`;
+            },
+            (error: unknown) => {
+                status.textContent = storageFailed('save the shortcut', error);
+            },
+        );
     });
 }
 
@@ -45,9 +61,14 @@ if (checking !== null && progressive !== null && windowKib !== null && maxKib !=
         for (const radio of checking.querySelectorAll<HTMLInputElement>('input[name="foreign"]')) radio.checked = radio.value === settings.foreignCheckers;
     };
     show(undefined);
-    void browser.storage.local.get(CHECK_SETTINGS_KEY).then((stored) => {
-        show(stored[CHECK_SETTINGS_KEY]);
-    });
+    void browser.storage.local.get(CHECK_SETTINGS_KEY).then(
+        (stored) => {
+            show(stored[CHECK_SETTINGS_KEY]);
+        },
+        (error: unknown) => {
+            checkingStatus.textContent = storageFailed('read the saved checking options', error);
+        },
+    );
     checking.addEventListener('submit', (event) => {
         event.preventDefault();
         const windowBytes = Number(windowKib.value) * KIB;
@@ -62,8 +83,13 @@ if (checking !== null && progressive !== null && windowKib !== null && maxKib !=
         }
         const foreignCheckers = checking.querySelector<HTMLInputElement>('input[name="foreign"]:checked')?.value;
         const settings = parseCheckSettings({ progressive: progressive.checked, windowBytes, maxBytes, foreignCheckers });
-        void browser.storage.local.set({ [CHECK_SETTINGS_KEY]: settings }).then(() => {
-            checkingStatus.textContent = 'Saved. Pages check under it from their next check.';
-        });
+        void browser.storage.local.set({ [CHECK_SETTINGS_KEY]: settings }).then(
+            () => {
+                checkingStatus.textContent = 'Saved. Pages check under it from their next check.';
+            },
+            (error: unknown) => {
+                checkingStatus.textContent = storageFailed('save the checking options', error);
+            },
+        );
     });
 }

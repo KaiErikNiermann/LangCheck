@@ -49,7 +49,9 @@ const configTabs = new ConfigTabs({
     activate,
     url: browser.runtime.getURL('config.html'),
 }, budget, (tabs) => {
-    void browser.storage.session.set({ [CONFIG_TABS_KEY]: tabs }).catch(() => {});
+    void browser.storage.session.set({ [CONFIG_TABS_KEY]: tabs }).catch((error: unknown) => {
+        console.warn('[language-check] the config tabs were not kept for a restart:', error);
+    });
 });
 
 /**
@@ -66,7 +68,10 @@ const configTabsRestored: Promise<void> = browser.storage.session
         const open = await Promise.all(entries.map(([tab]) => browser.tabs.get(tab).then(() => true, () => false)));
         configTabs.restore(entries.filter((_, i) => open[i] === true));
     })
-    .catch(() => {});
+    .catch((error: unknown) => {
+        // Config pages open from before the restart cannot save until reopened.
+        console.warn('[language-check] the config tabs from before a restart were not restored:', error);
+    });
 
 browser.tabs.onRemoved.addListener((tabId) => {
     panels.tabRemoved(tabId);

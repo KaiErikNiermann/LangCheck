@@ -124,6 +124,7 @@ async function start(): Promise<void> {
         Uri.parse(browser.runtime.getURL('config')),
         async (text, _filePath, format) => {
             const answer = await ask({ probeConfig: { text, format: format === 'json' ? 'json' : 'yaml' } });
+            if (!answer.ok) say(`The config could not be checked: ${answer.error}`, 'error');
             const probed = answer.ok ? (answer.response.probeConfig as languagecheck.ProbeConfigResponse.$Properties) : null;
             showSiteDictionary(probed?.probes?.find((probe) => probe.key === SITE_DICTIONARY_KEY));
             return probed;
@@ -156,6 +157,8 @@ async function start(): Promise<void> {
             } else {
                 say(`Not saved: ${answer.error}`, 'error');
             }
+        }).catch((error: unknown) => {
+            say(`Not saved: ${error instanceof Error ? error.message : String(error)}`, 'error');
         });
         await saving;
     };
@@ -176,4 +179,17 @@ async function start(): Promise<void> {
 
 declare const __LANGUAGE_CHECK_TEST__: boolean;
 
-void start();
+/** Runs the page; a failure says so on the page instead of leaving it blank. */
+async function main(): Promise<void> {
+    try {
+        await start();
+    } catch (error) {
+        console.error('[language-check] the config page did not start:', error);
+        const status = document.querySelector<HTMLElement>('#status');
+        if (status === null) return;
+        status.textContent = `The config page did not start: ${error instanceof Error ? error.message : String(error)}`;
+        status.dataset.state = 'error';
+    }
+}
+
+void main();

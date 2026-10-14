@@ -163,7 +163,8 @@ export class Panels {
                 if (panel.closed) void this.tabs.remove(tab.id).catch(ignore);
                 else this.byTab.set(tab.id, panel);
             })
-            .catch(() => {
+            .catch((error: unknown) => {
+                console.warn(`[language-check] the ${viewType} tab did not open:`, error);
                 if (!panel.closed) this.close(panel, true);
             });
     }
