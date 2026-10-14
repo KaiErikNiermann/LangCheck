@@ -210,6 +210,22 @@ install-local-web: build-rust-release build-web
     echo "│   web/dist), then re-run with CHROME_EXTENSION_ID=<its id>."
     echo "└─────────────────────────────────────────────────────────────────────"
 
+# The dev build reloads itself in your own browser after each build, with no
+# Reload click. Load web/dist-dev once (Firefox: about:debugging → Load
+# Temporary Add-on → web/dist-dev/manifest.json; Chrome: Load unpacked, with
+# developer mode on, then register the host for its id with
+# CHROME_EXTENSION_ID). Runs until stopped.
+# Build the web extension into web/dist-dev, rebuilding and reloading on save
+dev-web: build-rust-release install-ts
+    #!/usr/bin/env bash
+    set -euo pipefail
+    host="$(pwd)/rust-core/target/release/language-check-native-host"
+    "$host" install --browser firefox
+    if [ -n "${CHROME_EXTENSION_ID:-}" ]; then
+      "$host" install --browser chrome --chrome-extension-id "$CHROME_EXTENSION_ID"
+    fi
+    cd web && pnpm install --frozen-lockfile && pnpm run dev
+
 # --- Lua ---
 
 # Check Lua formatting with stylua

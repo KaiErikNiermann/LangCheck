@@ -11,6 +11,7 @@
     "build:webview": "pnpm --dir ../extension run build:webview",
     "build": "pnpm run build:webview && node esbuild.mjs",
     "build:test": "pnpm run build:webview && node esbuild.mjs --test",
+    "dev": "pnpm run build:webview && node esbuild.mjs --dev",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint src test *.mjs *.mts",
     "test": "vitest run",
@@ -29,6 +30,7 @@
     "@types/node": "^24.19.1",
     "@types/path-browserify": "^1.0.3",
     "@types/webextension-polyfill": "^0.12.6",
+    "@types/ws": "^8.18.2",
     "cm-lint-6-9-5": "npm:@codemirror/lint@6.9.5",
     "cm-view-6-38": "npm:@codemirror/view@6.38.6",
     "esbuild": "^0.28.2",
@@ -42,7 +44,8 @@
     "monaco-editor": "^0.57.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.1",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "ws": "^8.22.0"
   },
   "dependencies": {
     "hotkeys-js": "^3.13.15",

@@ -51,6 +51,9 @@ importers:
       '@types/webextension-polyfill':
         specifier: ^0.12.6
         version: 0.12.6
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
       cm-lint-6-9-5:
         specifier: npm:@codemirror/lint@6.9.5
         version: '@codemirror/lint@6.9.5'
@@ -93,6 +96,9 @@ importers:
       vitest:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@24.19.1)(happy-dom@20.14.5)(vite@8.3.3(@types/node@24.19.1)(esbuild@0.28.2)(yaml@2.9.1))
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0
 
 packages:
 
