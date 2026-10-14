@@ -722,3 +722,23 @@ rules:
       - pattern: $OTHER.$RANK() > self.$RANK()
       - pattern-inside: |
           fn $F(self, $OTHER: Self) -> Self { ... }
+
+  - id: bench-figures-through-probe
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      Heap figures and scale.jsonl lines come from web/test/bench/probe.ts (`heapMB`, `record`):
+      forced collections before reading, and one place that knows where the figures are kept
+      (not test-results/, which Playwright empties every run). realPathMemory and realPathScale
+      each carried their own. Matched 3 sites on the pre-refactor revision.
+    paths:
+      exclude:
+        - "**/web/test/bench/probe.ts"
+    pattern-either:
+      - pattern: $CDP.send('Runtime.getHeapUsage')
+      - patterns:
+          - pattern: appendFileSync($FILE, ...)
+          - metavariable-regex:
+              metavariable: $FILE
+              # Anchored at the start of the value, quotes included.
+              regex: .*scale\.jsonl

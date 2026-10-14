@@ -12,7 +12,9 @@ import { EXTENSION_ROOT, RUST_CORE, WEB } from './globalSetup';
 
 export const BASE = 'http://127.0.0.1:4180';
 export const EXTENSION = path.join(WEB, 'dist-test');
-export const HOST_BINARY = path.join(RUST_CORE, 'target/debug/language-check-native-host');
+/** The core's build the tests drive: debug, as the Rust tests use it, or release for the benchmarks (LC_CORE_BUILD=release). */
+export const CORE_BUILD = process.env.LC_CORE_BUILD === 'release' ? 'release' : 'debug';
+export const HOST_BINARY = path.join(RUST_CORE, 'target', CORE_BUILD, 'language-check-native-host');
 
 export type Site = 'overleaf' | 'typst';
 export type Cm = 'current' | '6.38';
@@ -36,23 +38,30 @@ interface Fixtures {
     dataHome: string;
     /** Registers the native host with this profile (on by default). */
     hostInstalled: boolean;
+    /** Opens the browser's DevTools port, for what Playwright cannot reach (the service worker's heap). Off by default. */
+    devtools: boolean;
+    /** That port, or 0 when `devtools` is off. */
+    devtoolsPort: number;
 }
 
 const extensionIds = new WeakMap<BrowserContext, string>();
+const devtoolsPorts = new WeakMap<BrowserContext, number>();
 
 export const test = base.extend<Fixtures>({
     hostInstalled: [true, { option: true }],
+    devtools: [false, { option: true }],
     dataHome: async ({}, use) => {
         const dir = mkdtempSync(path.join(tmpdir(), 'lc-e2e-data-'));
         await use(dir);
         rmSync(dir, { recursive: true, force: true });
     },
-    context: async ({ dataHome, hostInstalled }, use) => {
+    context: async ({ dataHome, hostInstalled, devtools }, use) => {
         const profile = mkdtempSync(path.join(tmpdir(), 'lc-e2e-profile-'));
         const context = await chromium.launchPersistentContext(profile, {
             // The full Chromium build: the headless shell cannot load extensions.
             channel: 'chromium',
-            args: [`--disable-extensions-except=${EXTENSION}`, `--load-extension=${EXTENSION}`],
+            // Port 0: the browser picks one and writes it to DevToolsActivePort in the profile.
+            args: [`--disable-extensions-except=${EXTENSION}`, `--load-extension=${EXTENSION}`, ...(devtools ? ['--remote-debugging-port=0'] : [])],
             env: { ...process.env, XDG_DATA_HOME: dataHome, RUST_LOG: 'warn' },
         });
         const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
@@ -70,12 +79,16 @@ export const test = base.extend<Fixtures>({
             panelErrors.set(opened, errors);
         });
         extensionIds.set(context, extensionId);
+        if (devtools) devtoolsPorts.set(context, Number(readFileSync(path.join(profile, 'DevToolsActivePort'), 'utf8').split('\n', 1)[0]));
         await use(context);
         await context.close();
         rmSync(profile, { recursive: true, force: true });
     },
     extensionId: async ({ context }, use) => {
         await use(extensionIds.get(context) ?? '');
+    },
+    devtoolsPort: async ({ context }, use) => {
+        await use(devtoolsPorts.get(context) ?? 0);
     },
     page: async ({ context }, use) => {
         const page = await context.newPage();

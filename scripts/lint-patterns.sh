@@ -125,7 +125,10 @@ if [ "$#" -gt 0 ]; then
 fi
 
 echo "▶ local rules (.semgrep/)"
-run_semgrep "local" .semgrep/ "${RUST_TARGETS[@]}" "${TS_TARGETS[@]}"
+# Test code, by file: semgrep skips a directory named test/ when it walks one, and some local
+# rules (bench-figures-through-probe) are about test code.
+mapfile -t TS_TEST_FILES < <(git ls-files 'web/test/*.ts' 'web/test/**/*.ts')
+run_semgrep "local" .semgrep/ "${RUST_TARGETS[@]}" "${TS_TARGETS[@]}" "${TS_TEST_FILES[@]}"
 
 # Upstream packs from semgrep/semgrep-rules, referenced by registry id rather than vendored — they
 # stay current, and there is no license question about carrying someone else's rules in-tree.

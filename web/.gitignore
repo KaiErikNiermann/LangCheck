@@ -4,3 +4,4 @@ dist-test/
 test-results/
 playwright-report/
 .e2e/
+.bench/

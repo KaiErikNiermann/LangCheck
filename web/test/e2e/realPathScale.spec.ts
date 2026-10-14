@@ -1,10 +1,10 @@
 // Long documents and memory, through the whole path. The figures each test
-// measures are appended to test-results/scale.jsonl, so a run can be
+// measures are appended to .bench/scale.jsonl, so a run can be
 // compared with the last; the ceilings asserted are several times what
 // was measured when they were set (see each), so they catch a regression
 // in kind (a leak, a quadratic step), not noise.
-import { appendFileSync, mkdirSync } from 'node:fs';
 import type { Page } from '@playwright/test';
+import { record } from '../bench/probe';
 import { docText, expect, host, longProse, marks, pageUrl, status, test } from './fixtures';
 
 type Stats = { checks: number; findings: number };
@@ -19,11 +19,6 @@ async function openWith(page: Page, text: string): Promise<void> {
     await page.goto(pageUrl('overleaf', 'current', 'Start.'));
     await expect.poll(() => status(page)).toMatchObject({ state: 'attached' });
     await host(page, 'switchFile', 'doc-long', 'long.tex', text);
-}
-
-function record(name: string, figures: Record<string, number>): void {
-    mkdirSync('test-results', { recursive: true });
-    appendFileSync('test-results/scale.jsonl', `${JSON.stringify({ at: new Date().toISOString(), name, ...figures })}\n`);
 }
 
 test('a long document is checked whole: findings off screen are held, and drawn when scrolled to', async ({ page }) => {

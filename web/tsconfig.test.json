@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "types": ["node"], "allowJs": true, "checkJs": false },
-  "include": ["src", "test", "playwright.config.ts", "vitest.config.mts", "esbuild.mjs", "eslint.config.mjs"]
+  "include": ["src", "test", "playwright.config.ts", "playwright.bench.config.ts", "vitest.config.mts", "esbuild.mjs", "eslint.config.mjs"]
 }

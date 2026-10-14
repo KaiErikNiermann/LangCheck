@@ -2,30 +2,10 @@
 // should leave nothing behind (re-checks, panels opened and closed, file
 // switches), and the background lets go of what closed tabs made. Heap
 // sizes are read after forced collections, through the DevTools protocol.
-// Figures go to test-results/scale.jsonl with the scale tests'.
-import { appendFileSync, mkdirSync } from 'node:fs';
+// Figures go to .bench/scale.jsonl with the scale tests'.
 import type { BrowserContext, Page } from '@playwright/test';
+import { heapMB, record } from '../bench/probe';
 import { expect, host, longProse, marks, openPanel, pageUrl, setChecking, status, test } from './fixtures';
-
-const MB = 1024 * 1024;
-
-async function heapMB(page: Page): Promise<number> {
-    const cdp = await page.context().newCDPSession(page);
-    try {
-        // Twice: the first collection can leave what only it made unreachable.
-        await cdp.send('HeapProfiler.collectGarbage');
-        await cdp.send('HeapProfiler.collectGarbage');
-        const { usedSize } = await cdp.send('Runtime.getHeapUsage');
-        return usedSize / MB;
-    } finally {
-        await cdp.detach();
-    }
-}
-
-function record(name: string, figures: Record<string, number | string[]>): void {
-    mkdirSync('test-results', { recursive: true });
-    appendFileSync('test-results/scale.jsonl', `${JSON.stringify({ at: new Date().toISOString(), name, ...figures })}\n`);
-}
 
 /**
  * Live objects, by their heap id (stable for an object's life) and kind
