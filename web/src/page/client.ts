@@ -24,7 +24,7 @@ import type { CoreClient } from '../messaging/pageClient';
 import { DEFAULT_CHECK_SETTINGS, type ForeignMode, type InlayHintsMode } from '../messaging/protocol';
 import { WEBVIEW_TYPE } from '../messaging/webview';
 import { host } from '../shim/vscode';
-import type { SiteDictionarySource } from '../sites/site';
+import type { SiteDictionarySource, SiteFiles } from '../sites/site';
 import { syncSiteDictionary, type SiteDictionarySync } from './siteDictionary';
 import { followHintKeys, hintsVisible } from './hintVisibility';
 import { WebCore } from './transport';
@@ -44,6 +44,7 @@ export const WEB_COMMANDS: ReadonlySet<string> = new Set([
     COMMANDS.openSpeedFix,
     COMMANDS.openInspector,
     COMMANDS.editConfig,
+    COMMANDS.excludeCurrentFile,
 ]);
 
 const SELECTOR = ['latex', 'typst', 'bibtex', 'markdown', 'plaintext'].map((language) => ({ language }));
@@ -98,8 +99,30 @@ function webEnvironment(results: CheckResults): InspectorEnvironment {
     };
 }
 
-/** `siteDictionary`: the site's own dictionary, for a site that keeps one. */
-export function startClient(context: vscode.ExtensionContext, connection: CoreClient, siteDictionary?: SiteDictionarySource): () => ClientStats {
+/** The page's documents as workspace files (SiteFiles), as the client asks for them. */
+export interface PageFiles {
+    /** The site's name, for what the Inspector and the commands say. */
+    readonly siteName: string;
+    /** The site's documents as files; undefined on a site that has none (Gmail). */
+    readonly site: SiteFiles | undefined;
+    /** Where the document at `fsPath` (its URI's path) is in the project now; without one, the open document's. */
+    documentPath(fsPath?: string): string | undefined;
+}
+
+/** What the Inspector's Config tab says of the files on each kind of site. */
+function scopeNote(files: PageFiles, listed: readonly string[] | undefined): { readonly note?: string; readonly filesless?: boolean } {
+    if (files.site === undefined) {
+        return { filesless: true, note: vscode.l10n.t('{0} has no files: whatever is written in it is checked, and include, exclude and file_types do not apply.', files.siteName) };
+    }
+    const note = files.site.note ?? (listed === undefined ? vscode.l10n.t("{0}'s file list could not be read, so only the open document is listed.", files.siteName) : undefined);
+    return note === undefined ? {} : { note };
+}
+
+/**
+ * `siteDictionary`: the site's own dictionary, for a site that keeps one;
+ * `files`: how the site's documents are named as files.
+ */
+export function startClient(context: vscode.ExtensionContext, connection: CoreClient, files: PageFiles, siteDictionary?: SiteDictionarySource): () => ClientStats {
     let completed = 0;
     let reportedUnavailable = false;
     const store = new DiagnosticStore();
@@ -148,6 +171,7 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
             siteSync?.refresh();
             return failure;
         },
+        documentPath: (fsPath) => files.documentPath(fsPath),
     });
 
     const speedFix: SpeedFixPanel = new SpeedFixPanel({
@@ -166,11 +190,15 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         fixTarget,
         inspectorLog,
         check: (document) => checker.check(document),
-        // By file name (the host scrubs paths), without the files it selects:
-        // in the browser those are the native host's own (background.ts forPage).
+        // By file name (the host scrubs paths), sorting the site's documents:
+        // the host never lists its own files to a page. The open document is
+        // always among them, read or not.
         listConfigFiles: async () => {
-            const answer = await core.client.sendRequest({ listConfigFiles: {} });
-            return answer.listConfigFiles ?? null;
+            const listed = await files.site?.list();
+            const open = files.documentPath();
+            const paths = [...new Set([...(listed ?? []), ...(open === undefined ? [] : [open])])];
+            const answer = await core.client.sendRequest({ listConfigFiles: files.site === undefined ? {} : { documents: { paths } } });
+            return answer.listConfigFiles ? { listing: answer.listConfigFiles, ...scopeNote(files, listed) } : null;
         },
         environment: webEnvironment(results),
     });
@@ -227,6 +255,30 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         [COMMANDS.editConfig]: () => {
             connection.post({ type: WEBVIEW_TYPE, op: 'openConfig' });
         },
+        // VS Code's, for a site's document: its path goes into the config's
+        // exclude, which the background writes (excludeDocument.ts); the
+        // reload that follows checks again under it.
+        [COMMANDS.excludeCurrentFile]: async () => {
+            if (files.site === undefined) {
+                void vscode.window.showInformationMessage(vscode.l10n.t('{0} has no files to exclude: whatever is written in it is checked.', files.siteName));
+                return;
+            }
+            const path = files.documentPath();
+            if (path === undefined) {
+                void vscode.window.showWarningMessage(vscode.l10n.t('Open a file to exclude it from checking.'));
+                return;
+            }
+            const answer = await connection.request({ excludeDocument: { path } });
+            if (!answer.ok) {
+                void vscode.window.showErrorMessage(vscode.l10n.t('Nothing was excluded: {0}', answer.error));
+                return;
+            }
+            const excluded = answer.response.excluded as { pattern?: unknown; already?: unknown } | undefined;
+            const pattern = typeof excluded?.pattern === 'string' ? excluded.pattern : path;
+            void vscode.window.showInformationMessage(
+                excluded?.already === true ? vscode.l10n.t('"{0}" is already excluded.', pattern) : vscode.l10n.t('Excluded "{0}". Reloading...', pattern),
+            );
+        },
     };
     // The options page's checking settings, as the client's own
     // `languageCheck.check.*` (the content script sends them).
@@ -280,6 +332,8 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
         vscode.workspace.onDidOpenTextDocument((doc) => {
             joinForeign(doc);
             check(doc);
+            // Another document open: another in the Config tab's lists.
+            void inspector.refreshConfigScope();
         }),
         vscode.workspace.onDidChangeTextDocument((event) => {
             const doc = event.document;

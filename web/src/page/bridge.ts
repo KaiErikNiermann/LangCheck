@@ -17,6 +17,7 @@ export type BridgeStatus =
     | { readonly state: 'stopped' };
 
 interface Attachment {
+    readonly handle: EditorHandle;
     readonly identity: object;
     readonly document: TextDocument;
     readonly editor: AttachedEditor;
@@ -38,6 +39,17 @@ export class Bridge {
 
     getStatus(): BridgeStatus {
         return this.status;
+    }
+
+    /**
+     * Where the document at `fsPath` is in the site's project now
+     * (EditorHandle.path), when it is the one attached and the site names
+     * one; without an argument, the attached document's.
+     */
+    documentPath(fsPath?: string): string | undefined {
+        const current = this.attachment;
+        if (current === undefined || (fsPath !== undefined && current.document.uri.fsPath !== fsPath)) return undefined;
+        return current.handle.path?.();
     }
 
     stop(): void {
@@ -96,7 +108,7 @@ export class Bridge {
             return;
         }
         const document = host.open(result.editor.adapter);
-        this.attachment = { identity: handle.identity, document, editor: result.editor };
+        this.attachment = { handle, identity: handle.identity, document, editor: result.editor };
         this.status = { state: 'attached', uri, languageId: handle.languageId };
         this.lastReason = '';
         console.info(`[language-check] attached to ${uri} (${handle.languageId})`);

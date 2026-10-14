@@ -41,7 +41,36 @@ frame.className = 'notion-frame';
 const peek = document.createElement('div');
 peek.className = 'notion-peek-renderer';
 document.body.className = 'notion-body dark notion-dark-theme';
-document.body.append(frame, peek);
+/**
+ * The topbar's breadcrumb, as live (seen 2026-10-14): each ancestor a link,
+ * `/` separators hidden, the page a span holding a button, then a badge
+ * saying who sees the page. Every stand-in page sits under "Courses".
+ */
+const topbar = document.createElement('div');
+topbar.className = 'notion-topbar';
+function drawBreadcrumb(pageId: string): void {
+    const crumbs = document.createElement('div');
+    crumbs.className = 'shadow-cursor-breadcrumb';
+    const parentLink = document.createElement('a');
+    parentLink.href = '/p/test-workspace/courses';
+    parentLink.textContent = 'Courses';
+    const separator = document.createElement('span');
+    separator.setAttribute('aria-hidden', 'true');
+    separator.textContent = '/';
+    const here = document.createElement('span');
+    const button = document.createElement('div');
+    button.setAttribute('role', 'button');
+    button.textContent = PAGES[pageId]?.[0]?.html ?? 'Untitled';
+    here.append(button);
+    const badge = document.createElement('div');
+    const badgeButton = document.createElement('div');
+    badgeButton.setAttribute('role', 'button');
+    badgeButton.textContent = 'Private';
+    badge.append(badgeButton);
+    crumbs.append(parentLink, separator, here, badge);
+    topbar.replaceChildren(crumbs);
+}
+document.body.append(topbar, frame, peek);
 
 /** The saved text of each leaf, by block id (`<page>-<n>`), for every page drawn. */
 const model = new Map<string, string>();
@@ -79,6 +108,7 @@ function render(pageId: string, into: HTMLElement = frame): void {
             leaf.spellcheck = block.kind !== 'code';
             leaf.setAttribute('spellcheck', String(block.kind !== 'code'));
             leaf.style.whiteSpace = 'break-spaces';
+            if (block.kind === 'title') leaf.setAttribute('aria-roledescription', 'page title');
             // Fixed test fixtures, never page input.
             leaf.innerHTML = block.html;
             element.append(leaf);
@@ -90,6 +120,7 @@ function render(pageId: string, into: HTMLElement = frame): void {
 
 let current = '3f2b8b37e541802f96a1c557a6b01a44';
 render(current);
+drawBreadcrumb(current);
 
 Object.assign(globalThis, {
     __notion: {
@@ -125,6 +156,7 @@ Object.assign(globalThis, {
             current = pageId;
             history.pushState({}, '', `/p/${workspace}/page-${pageId}`);
             render(current);
+            drawBreadcrumb(current);
         },
     },
 });

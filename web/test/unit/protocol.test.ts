@@ -4,10 +4,35 @@ import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
 import { parseBackgroundRequest } from '../../src/messaging/background';
 import { readFileSync } from 'node:fs';
-import { DEFAULT_CHECK_SETTINGS, EXTRAS_BUDGET_BYTES, MAX_CHECK_TEXT_BYTES, MAX_CHECK_TEXT_CHARS, MAX_FOREIGN_FINDINGS, MAX_WORD_CHARS, parseCheckSettings, parsePageRequest, parsePageResponse, withinCheckLimits } from '../../src/messaging/protocol';
+import { DEFAULT_CHECK_SETTINGS, EXTRAS_BUDGET_BYTES, MAX_DOCUMENT_PATH_BYTES, MAX_LISTED_DOCUMENTS, isDocumentPath, MAX_CHECK_TEXT_BYTES, MAX_CHECK_TEXT_CHARS, MAX_FOREIGN_FINDINGS, MAX_WORD_CHARS, parseCheckSettings, parsePageRequest, parsePageResponse, withinCheckLimits } from '../../src/messaging/protocol';
 
 describe('parsePageRequest', () => {
     const req = (request: unknown) => ({ id: 1, request });
+    test("a document's place in its project rides with a check and a listing, and nothing that could leave it", () => {
+        expect(parsePageRequest(req({ checkProse: { text: 'teh', languageId: 'latex', documentPath: 'chapters/intro.tex' } }))?.request).toEqual({ checkProse: { text: 'teh', languageId: 'latex', documentPath: 'chapters/intro.tex' } });
+        // A check naming a path outside the workspace is no check at all.
+        expect(parsePageRequest(req({ checkProse: { text: 'teh', languageId: 'latex', documentPath: '../../.ssh/config' } }))).toBeUndefined();
+        expect(parsePageRequest(req({ listConfigFiles: { documents: { paths: ['main.tex', '/etc/passwd', 'a/../b.tex', 7, 'Week 1: Logic.md'] } } }))?.request).toEqual({ listConfigFiles: { documents: { paths: ['main.tex', 'Week 1: Logic.md'] } } });
+        expect(parsePageRequest(req({ listConfigFiles: { documents: { paths: Array.from({ length: MAX_LISTED_DOCUMENTS + 5 }, (_, i) => `f${String(i)}.md`) } } }))?.request).toMatchObject({ listConfigFiles: { documents: { paths: expect.any(Array) as unknown } } });
+        expect(parsePageRequest(req({ excludeDocument: { path: 'Journal/Monday.md' } }))?.request).toEqual({ excludeDocument: { path: 'Journal/Monday.md' } });
+        expect(parsePageRequest(req({ excludeDocument: { path: '/abs.md' } }))).toBeUndefined();
+    });
+
+    test('a listing carries at most its cap of documents, within the budget', () => {
+        const many = Array.from({ length: MAX_LISTED_DOCUMENTS + 5 }, (_, i) => `f${String(i)}.md`);
+        const paths = (parsePageRequest(req({ listConfigFiles: { documents: { paths: many } } }))?.request as { listConfigFiles: { documents: { paths: string[] } } }).listConfigFiles.documents.paths;
+        expect(paths.length).toBeLessThanOrEqual(MAX_LISTED_DOCUMENTS);
+        expect(paths.reduce((sum, path) => sum + 4 + path.length, 0)).toBeLessThanOrEqual(EXTRAS_BUDGET_BYTES);
+    });
+
+    test.each(['', '/a.md', 'a//b.md', 'a/', './a.md', 'a/../b.md', '..', String.raw`a\b.md`, 'a\nb.md', 'C:notes.md', 'dir/c:x.md', 'x'.repeat(MAX_DOCUMENT_PATH_BYTES + 1)])('%j is no document path', (path) => {
+        expect(isDocumentPath(path)).toBe(false);
+    });
+
+    test.each(['main.tex', 'chapters/intro.typ', 'University Courses/Week 1: Logic.md', '...', 'a.b/c', 'Re: notes.md'])('%j is a document path', (path) => {
+        expect(isDocumentPath(path)).toBe(true);
+    });
+
     test('accepts the five requests a page may make, rebuilt from their allowed fields', () => {
         expect(parsePageRequest(req({ checkProse: { text: 'teh', languageId: 'latex', filePath: '/etc/hosts', settings: { x: 1 } } }))).toEqual(req({ checkProse: { text: 'teh', languageId: 'latex' } }));
         expect(parsePageRequest(req({ addDictionaryWord: { word: "O'Neill-style" } }))?.request).toEqual({ addDictionaryWord: { word: "O'Neill-style" } });

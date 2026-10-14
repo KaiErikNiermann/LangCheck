@@ -4,7 +4,8 @@
 // the site's own scripts, and trusts nothing it reads from the page beyond
 // what it needs to draw.
 import * as vscode from 'vscode';
-import { startClient, type ClientStats } from './client';
+import { startClient, type ClientStats, type PageFiles } from './client';
+import { SITES } from '../sites/catalog';
 import { connectCore } from '../messaging/pageClient';
 import type { SitePage, SiteWorkspace } from '../sites/site';
 import { Bridge } from './bridge';
@@ -69,13 +70,18 @@ function start(site: SitePage, project: string): void {
     host.webviews = webviews.open;
     host.focusPage = webviews.focusPage;
     const bridge = new Bridge(site, project);
+    const files: PageFiles = {
+        siteName: SITES.find((entry) => entry.id === site.id)?.name ?? site.id,
+        site: site.files?.(),
+        documentPath: (fsPath) => bridge.documentPath(fsPath),
+    };
     let clientStats = notStarted;
     let stopped = false;
     // Started once the content script has answered, with the checking
     // settings, so the first check is planned under them (or once it never
     // will, so the client can say the checker cannot be reached).
     void core.ready.then(() => {
-        if (!stopped) clientStats = startClient(context, core, site.dictionary?.());
+        if (!stopped) clientStats = startClient(context, core, files, site.dictionary?.());
     });
     // Palette commands run like VS Code's: through the command registry.
     core.onCommand((id) => {

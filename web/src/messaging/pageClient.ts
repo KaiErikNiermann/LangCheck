@@ -20,7 +20,7 @@ import {
     PAGE_READY_TYPE,
     PROTOCOL_VERSION,
     parsePageResponse,
-    type CoreRequest,
+    type PageAsk,
     type ErrorCode,
     type PageRequest,
     type PageResponse,
@@ -58,8 +58,8 @@ interface Pending {
 }
 
 export interface CoreClient {
-    /** One request to the core; a failure is a response too (`ok: false`), never a throw. */
-    request(core: CoreRequest): Promise<PageResponse>;
+    /** One request to the core (or the background); a failure is a response too (`ok: false`), never a throw. */
+    request(core: PageAsk): Promise<PageResponse>;
     /** Commands chosen in the palette, for the page to run. */
     onCommand(listener: (id: PaletteCommandId) => void): void;
     /** Sends a panel message (no answer is awaited). */
@@ -183,7 +183,7 @@ export function connectCore(target: Window = window): CoreClient {
         p.postMessage({ type: PING_TYPE });
     };
 
-    const send = async (core: CoreRequest): Promise<PageResponse> => {
+    const send = async (core: PageAsk): Promise<PageResponse> => {
         const id = nextId++;
         if (disposed) return { id, ok: false, code: 'failed', error: 'client disposed' };
         if (gone) return { id, ok: false, code: 'unavailable', error: EXTENSION_GONE };

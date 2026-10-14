@@ -83,6 +83,8 @@ export type CoreRequest =
               readonly languageId: LanguageId;
               readonly window?: { readonly startByte: number; readonly endByte: number };
               readonly foreign?: ForeignFindingWire[];
+              /** The document's place in the site's project, which the config's include and exclude match (isDocumentPath). */
+              readonly documentPath?: string;
           };
       }
     | { readonly addDictionaryWord: { readonly word: string } }
@@ -98,12 +100,71 @@ export type CoreRequest =
           };
       }
     | { readonly getMetadata: Record<string, never> }
-    /** Which config is in force (by file name: the host scrubs paths) and what it includes, for the Inspector's Config tab. */
-    | { readonly listConfigFiles: Record<string, never> };
+    /**
+     * Which config is in force (by file name: the host scrubs paths), what it
+     * includes, and how it sorts the site's documents, for the Inspector's
+     * Config tab. Without documents, it sorts none.
+     */
+    | { readonly listConfigFiles: { readonly documents?: { readonly paths: string[] } } };
+
+/**
+ * Asks of the background rather than the core: add the document at `path`
+ * to the workspace config's `exclude`, as VS Code's "Exclude Current File"
+ * does (the config is the background's to write, never a page's).
+ */
+export interface ExcludeDocumentRequest {
+    readonly excludeDocument: { readonly path: string };
+}
+
+/** What a page may ask: of the core, or of the background. */
+export type PageAsk = CoreRequest | ExcludeDocumentRequest;
 
 export interface PageRequest {
     readonly id: number;
-    readonly request: CoreRequest;
+    readonly request: PageAsk;
+}
+
+/** Longest document path, in UTF-8 bytes (`MAX_DOCUMENT_PATH_BYTES` in rust-core/src/selection.rs). */
+export const MAX_DOCUMENT_PATH_BYTES = 1024;
+/** The most documents a listing carries (`MAX_LISTED_DOCUMENTS` in rust-core/src/native_host.rs). */
+export const MAX_LISTED_DOCUMENTS = 10_000;
+
+// eslint-disable-next-line no-control-regex, security/detect-unsafe-regex -- refusing control characters is the point; one character class: linear
+const CONTROL = /[\u{0}-\u{1F}\u{7F}-\u{9F}]/u;
+
+/** A segment Windows reads as a drive (`C:`, `C:notes`), and so as a path of its own. */
+const DRIVE_SEGMENT = /^[A-Za-z]:/u;
+
+/**
+ * Whether `value` names a place inside a workspace, as the core takes one
+ * (`selection::document_path`): relative, `/`-separated, every segment a
+ * plain name (no `.`, `..`, empty or drive-like one), no backslash or
+ * control character.
+ */
+export function isDocumentPath(value: unknown): value is string {
+    return (
+        typeof value === 'string' &&
+        value.length > 0 &&
+        utf8Length(value) <= MAX_DOCUMENT_PATH_BYTES &&
+        value.isWellFormed() &&
+        !value.includes('\\') &&
+        !CONTROL.test(value) &&
+        value.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..' && !DRIVE_SEGMENT.test(segment))
+    );
+}
+
+/** The sound paths of `value`, as many as fit MAX_LISTED_DOCUMENTS and EXTRAS_BUDGET_BYTES; the rest dropped. */
+function parseDocumentPaths(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    const kept: string[] = [];
+    let spent = 0;
+    for (const path of value.slice(0, MAX_LISTED_DOCUMENTS) as unknown[]) {
+        if (!isDocumentPath(path)) continue;
+        spent += 4 + utf8Length(path);
+        if (spent > EXTRAS_BUDGET_BYTES) break;
+        kept.push(path);
+    }
+    return kept;
 }
 
 /**
@@ -194,7 +255,8 @@ const CONTROL_OR_SPACE = /[\u{0}-\u{20}\u{7F}-\u{A0}\u{1680}\u{2000}-\u{200F}\u{
  * Parses a message from the page into a request, or `undefined` when it is
  * not one. Strict: exactly one known payload, rebuilt from the fields it may
  * carry (so `filePath` and `settings`, which the client's Checker sends, are
- * dropped: a web page names no file), oversized text refused, and words with
+ * dropped: a web page names no file, only a document's place in its
+ * project), oversized text refused, and words with
  * whitespace, control or bidi characters refused.
  */
 export function parsePageRequest(value: unknown, site?: string): PageRequest | undefined {
@@ -217,14 +279,17 @@ function parseCheckProse(body: Bag): CoreRequest | undefined {
     const foreign = parseForeign(body.foreign);
     const withForeign = foreign.length > 0 ? { foreign } : {};
     // A window of the text, when the page checks it a window at a time: two byte offsets, in order.
-    const { window } = body;
+    const { window, documentPath } = body;
+    // Where the document sits in the site's project: a path, or nothing.
+    if (documentPath !== undefined && documentPath !== null && !isDocumentPath(documentPath)) return undefined;
+    const withPath = isDocumentPath(documentPath) ? { documentPath } : {};
     const text = wellFormed(body.text);
-    if (window === undefined || window === null) return { checkProse: { text, languageId: body.languageId, ...withForeign } };
+    if (window === undefined || window === null) return { checkProse: { text, languageId: body.languageId, ...withForeign, ...withPath } };
     if (!isBag(window) || !isByte(window.startByte) || !isByte(window.endByte) || window.startByte > window.endByte) return undefined;
-    return { checkProse: { text, languageId: body.languageId, window: { startByte: window.startByte, endByte: window.endByte }, ...withForeign } };
+    return { checkProse: { text, languageId: body.languageId, window: { startByte: window.startByte, endByte: window.endByte }, ...withForeign, ...withPath } };
 }
 
-function parseCoreRequest(kind: string | undefined, body: unknown): CoreRequest | undefined {
+function parseCoreRequest(kind: string | undefined, body: unknown): PageAsk | undefined {
     if (!isBag(body)) return undefined;
     switch (kind) {
         case 'checkProse':
@@ -247,8 +312,12 @@ function parseCoreRequest(kind: string | undefined, body: unknown): CoreRequest 
         }
         case 'getMetadata':
             return { getMetadata: {} };
-        case 'listConfigFiles':
-            return { listConfigFiles: {} };
+        case 'listConfigFiles': {
+            const { documents } = body;
+            return { listConfigFiles: isBag(documents) ? { documents: { paths: parseDocumentPaths(documents.paths) } } : {} };
+        }
+        case 'excludeDocument':
+            return isDocumentPath(body.path) ? { excludeDocument: { path: body.path } } : undefined;
         default:
             return undefined;
     }

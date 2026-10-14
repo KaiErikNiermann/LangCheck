@@ -49,8 +49,18 @@ http.createServer((req, res) => void serve(req, res)).listen(port, '127.0.0.2');
 // And Gmail's on a third.
 http.createServer((req, res) => void serve(req, res)).listen(port, '127.0.0.3');
 
+/**
+ * Each project's files, as Overleaf's `/project/<id>/entities` lists them:
+ * seeded by `?files=` (else the open `?name=`) on a page's first load.
+ * @type {Map<string, string[]>}
+ */
+const entities = new Map();
+
 /** The editor page, with the project's learned words in it. @param {URL} url @param {http.ServerResponse} res */
 function projectPage(url, res) {
+    const files = (url.searchParams.get('files') ?? url.searchParams.get('name') ?? 'main.tex').split(',').filter((f) => f !== '');
+    const id = url.pathname.split('/', 3)[2] ?? '';
+    if (!entities.has(id)) entities.set(id, files);
     const cm = url.searchParams.get('cm') === '6.38' ? '6-38' : 'current';
     const project = url.pathname.split('/', 3)[2] ?? '';
     const seed = url.searchParams.get('learned');
@@ -85,6 +95,12 @@ async function serve(req, res) {
     // /home is Notion's start page: a page of the app that names no workspace.
     if (url.pathname.startsWith('/p/') || url.pathname === '/home') {
         res.writeHead(200, { 'content-type': 'text/html' }).end(notionPage);
+        return;
+    }
+    const listed = /^\/project\/([^/]+)\/entities$/u.exec(url.pathname);
+    if (listed !== null) {
+        const paths = entities.get(listed[1] ?? '') ?? [];
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ project_id: listed[1], entities: paths.map((p) => ({ path: `/${p}`, type: 'doc' })) }));
         return;
     }
     if (url.pathname.startsWith('/project/')) {

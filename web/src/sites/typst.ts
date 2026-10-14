@@ -5,7 +5,7 @@
 // when CodeMirror reports another (a .bib file, say).
 import { lintPayloadLanguage, type ForeignCheckerSpec } from '../editor/foreign';
 import { cm6Editor } from '../editor/handle';
-import { languageFromEditor, projectFromProjectPath, stringsIn, viewInDocument, watchRequests, type SiteDictionarySource, type SiteModule, type SitePage, type SiteWorkspace } from './site';
+import { fileListCache, languageFromEditor, projectFromProjectPath, stringsIn, viewInDocument, watchRequests, type SiteDictionarySource, type SiteModule, type SitePage, type SiteWorkspace } from './site';
 
 /**
  * Typst's own spellchecker: @codemirror/lint diagnostics at hint severity
@@ -56,6 +56,40 @@ export function personalDictionaryIn(body: unknown): readonly string[] | undefin
     return stringsIn(settingsIn(body)?.personalDictionary);
 }
 
+/** Typst's API as this extension asks it, telling its own requests from the app's. */
+export interface TypstApi {
+    /** Posts `body` to the API with the page's session: the answer's JSON, or undefined. */
+    ask(body: unknown): Promise<unknown>;
+    /** Whether a request the page made was one of `ask`'s (by when it started). */
+    isOurs(entry: PerformanceEntry): boolean;
+}
+
+export function typstApi(): TypstApi {
+    /** When this extension's requests were in flight, so their timing entries are not taken for the app's. */
+    const ours: { start: number; end: number }[] = [];
+    return {
+        async ask(body) {
+            const span = { start: performance.now(), end: Infinity };
+            ours.push(span);
+            try {
+                const response = await fetch(TYPST_GRAPHQL, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify(body),
+                    // A stalled request must not hold the sync (or an add) forever.
+                    signal: AbortSignal.timeout(SITE_REQUEST_TIMEOUT_MS),
+                });
+                return response.ok ? ((await response.json()) as unknown) : undefined;
+            } finally {
+                span.end = performance.now();
+                if (ours.length > 20) ours.splice(0, ours.length - 20);
+            }
+        },
+        isOurs: (entry) => ours.some((span) => entry.startTime >= span.start && entry.startTime <= span.end),
+    };
+}
+
 /**
  * Typst's personal dictionary: per user, `personalDictionary` in the user's
  * editor settings, which the app reads with `{ user { settings } }` and
@@ -69,27 +103,8 @@ export function personalDictionaryIn(body: unknown): readonly string[] | undefin
  * them on its next settings change: a word added here before that tab reloads
  * can be written away again by it.
  */
-export function typstDictionary(): SiteDictionarySource {
-    /** When this reader's requests were in flight, so their timing entries are not taken for the app's. */
-    const ours: { start: number; end: number }[] = [];
-    const ask = async (body: unknown): Promise<unknown> => {
-        const span = { start: performance.now(), end: Infinity };
-        ours.push(span);
-        try {
-            const response = await fetch(TYPST_GRAPHQL, {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify(body),
-                // A stalled request must not hold the sync (or an add) forever.
-                signal: AbortSignal.timeout(SITE_REQUEST_TIMEOUT_MS),
-            });
-            return response.ok ? ((await response.json()) as unknown) : undefined;
-        } finally {
-            span.end = performance.now();
-            if (ours.length > 20) ours.splice(0, ours.length - 20);
-        }
-    };
+export function typstDictionary(api: TypstApi = typstApi()): SiteDictionarySource {
+    const ask = (body: unknown): Promise<unknown> => api.ask(body);
     const readSettings = async (): Promise<Settings | undefined> => settingsIn(await ask({ query: '{ user { settings } }' }));
     return {
         source: 'typst',
@@ -114,7 +129,7 @@ export function typstDictionary(): SiteDictionarySource {
             const stop = watchRequests(
                 (url) => url.href === TYPST_GRAPHQL,
                 (entry) => {
-                    if (ours.every((span) => entry.startTime < span.start || entry.startTime > span.end)) changed();
+                    if (!api.isOurs(entry)) changed();
                 },
             );
             const visible = (): void => {
@@ -131,13 +146,64 @@ export function typstDictionary(): SiteDictionarySource {
 
 export const typstWorkspace: SiteWorkspace = { id: 'typst', projectFromPath: projectFromProjectPath };
 
-export const typstPage: SitePage = {
-    id: 'typst',
-    dictionary: typstDictionary,
-    findEditor() {
-        const view = viewInDocument();
-        return view === undefined ? undefined : cm6Editor(view, 'document', languageFromEditor(view) ?? 'typst', [TYPST_SPELLING]);
-    },
-};
+/** A project's file paths from `{ project { files { name } } }`: a file's name is its path (`chapters/intro.typ`). */
+export function projectFilesIn(body: unknown): readonly string[] | undefined {
+    const files = (body as { data?: { project?: { files?: unknown } | null } } | null)?.data?.project?.files;
+    return Array.isArray(files) ? files.flatMap((file: unknown) => {
+        const name = (file as { name?: unknown } | null)?.name;
+        return typeof name === 'string' ? name : [];
+    }) : undefined;
+}
 
-export const site: SiteModule = { workspace: typstWorkspace, createPage: () => typstPage };
+/**
+ * The names in the editor's header: owner, project, then the open file's
+ * folders and the file itself (`… / test / chapters / intro.typ`).
+ */
+export function headerTrail(root: Document): readonly string[] {
+    const heading = root.querySelector(':scope header [role="heading"]');
+    return heading === null ? [] : [...heading.children].map((crumb) => crumb.textContent.trim()).filter((name) => name !== '');
+}
+
+/** The project's file paths, or undefined when Typst does not say (signed out, offline, changed shape). */
+async function readProjectFiles(api: TypstApi, project: string): Promise<readonly string[] | undefined> {
+    try {
+        // The id is a URL-safe token (projectFromProjectPath): nothing to escape.
+        return projectFilesIn(await api.ask({ query: `{ project(id: "${project}") { files { name } } }` }));
+    } catch {
+        return;
+    }
+}
+
+/** Crumbs before the file's folders: the owner and the project. */
+const PROJECT_CRUMBS = 2;
+
+/**
+ * Typst's project as files: the names of `{ project { files { name } } }`
+ * on the API the app itself reads. The open file's path is the header's
+ * crumbs matched against the last list read; before one is read, the
+ * crumbs past the owner and project.
+ */
+function createTypstPage(): SitePage {
+    // One for both: the dictionary's watch must not take the file list's requests for the app's.
+    const api = typstApi();
+    const files = fileListCache(async () => {
+        const project = projectFromProjectPath(location.pathname);
+        return project === undefined ? undefined : readProjectFiles(api, project);
+    });
+    const path = (): string | undefined => {
+        const trail = headerTrail(document);
+        const own = trail.slice(PROJECT_CRUMBS);
+        return files.resolve(trail, own.length > 0 ? own.join('/') : undefined);
+    };
+    return {
+        id: 'typst',
+        dictionary: () => typstDictionary(api),
+        files: () => ({ list: files.list }),
+        findEditor() {
+            const view = viewInDocument();
+            return view === undefined ? undefined : cm6Editor(view, 'document', languageFromEditor(view) ?? 'typst', [TYPST_SPELLING], path);
+        },
+    };
+}
+
+export const site: SiteModule = { workspace: typstWorkspace, createPage: createTypstPage };

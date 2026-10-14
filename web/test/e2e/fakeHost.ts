@@ -98,13 +98,69 @@ const setItem = (key: string, value: unknown): void => {
     items.set(key, { value });
 };
 
+/**
+ * The project's files (`?files=a.tex,chapters/b.tex`), and the open one's
+ * path (`?name=`, which may have folders): drawn as each site draws them,
+ * Overleaf as a file tree whose folders' contents follow the folder's item
+ * (seen live 2026-10-14), Typst as the header's crumbs, owner and project
+ * first. The stand-in server answers Overleaf's entities from the same list.
+ */
+const openPath = params.get('name') ?? 'main.tex';
+const projectFiles = (params.get('files') ?? openPath).split(',').filter((f) => f !== '');
+
+function overleafTree(files: readonly string[], open: string): HTMLElement {
+    const list = (prefix: string): HTMLElement => {
+        const ul = document.createElement('ul');
+        ul.setAttribute('role', 'tree');
+        const inner = document.createElement('div');
+        const here = files.filter((f) => f.startsWith(prefix)).map((f) => f.slice(prefix.length));
+        const folders = new Set(here.filter((f) => f.includes('/')).map((f) => f.split('/', 1)[0] ?? ''));
+        for (const folder of folders) {
+            const item = document.createElement('li');
+            item.setAttribute('role', 'treeitem');
+            item.setAttribute('aria-label', folder);
+            item.setAttribute('aria-expanded', 'true');
+            item.setAttribute('aria-selected', 'false');
+            inner.append(item, list(`${prefix}${folder}/`));
+        }
+        for (const file of here) {
+            if (file.includes('/')) continue;
+            const item = document.createElement('li');
+            item.setAttribute('role', 'treeitem');
+            item.setAttribute('aria-label', file);
+            item.setAttribute('aria-selected', String(`${prefix}${file}` === open));
+            inner.append(item);
+        }
+        ul.append(inner);
+        return ul;
+    };
+    return list('');
+}
+
+function typstHeader(open: string): HTMLElement {
+    const header = document.createElement('header');
+    const heading = document.createElement('div');
+    heading.setAttribute('role', 'heading');
+    for (const name of ['Stand-in Owner', 'test', ...open.split('/')]) {
+        const crumb = document.createElement('span');
+        const label = document.createElement('span');
+        label.textContent = ` ${name}`;
+        crumb.append(label);
+        heading.append(crumb);
+    }
+    header.append(heading);
+    return header;
+}
+
+document.body.prepend(overleaf ? overleafTree(projectFiles, openPath) : typstHeader(openPath));
+
 const parent = document.querySelector('#editor') ?? document.body;
 let view = new EditorView({ state: EditorState.create({ doc: initial, extensions: hostExtensions() }), parent });
 if (flagged.size > 0) scheduleAnswer(view);
 if (overleaf) {
     setItem('editor.view', view);
     setItem('editor.open_doc_id', 'doc-main');
-    setItem('editor.open_doc_name', params.get('name') ?? 'main.tex');
+    setItem('editor.open_doc_name', openPath.split('/').pop() ?? openPath);
     Object.assign(globalThis, { overleaf: { unstable: { store: { items: { get: (key: string) => items.get(key) } } } } });
 }
 

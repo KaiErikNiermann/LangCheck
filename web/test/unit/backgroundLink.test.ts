@@ -5,7 +5,7 @@ import { expect, test, vi } from 'vitest';
 
 vi.mock('webextension-polyfill', () => ({ default: {} }));
 
-const { BackgroundLink, PONG_EVERY_MS, servePort } = await import('../../src/content/content');
+const { ASKED_WITHIN_MS, BackgroundLink, PONG_EVERY_MS, servePort, UserAsked } = await import('../../src/content/content');
 
 const request = { id: 7, request: { getMetadata: {} } } as const;
 
@@ -112,7 +112,7 @@ test('pings are answered at most once a second per port', async () => {
     const channel = new MessageChannel();
     let now = 0;
     const link = new BackgroundLink(() => {}, () => {}, () => fakePort() as never, () => 'p1');
-    servePort(channel.port1, 1, link, new Set(), { count: 0 }, () => {}, 'overleaf', () => now);
+    servePort(channel.port1, 1, link, new Set(), { count: 0 }, () => {}, 'overleaf', new UserAsked(), () => now);
     let pongs = 0;
     channel.port2.addEventListener('message', (event: MessageEvent) => {
         if ((event.data as { type?: string }).type === 'pong') pongs++;
@@ -127,6 +127,42 @@ test('pings are answered at most once a second per port', async () => {
     now += PONG_EVERY_MS;
     await flood();
     expect(pongs).toBe(2);
+    channel.port1.close();
+    channel.port2.close();
+});
+
+// A page's exclude edits the workspace config: it is passed on only after
+// the user chose the command in the palette, once, and soon after.
+test('UserAsked lets one exclude through per palette choice, within its window', () => {
+    let now = 0;
+    const asked = new UserAsked(() => now);
+    expect(asked.take()).toBe(false);
+    asked.arm();
+    expect(asked.take()).toBe(true);
+    expect(asked.take()).toBe(false);
+    asked.arm();
+    now += ASKED_WITHIN_MS + 1;
+    expect(asked.take()).toBe(false);
+});
+
+test("a page's exclude the user did not ask for is refused before the background", async () => {
+    const channel = new MessageChannel();
+    const sent: unknown[] = [];
+    const link = new BackgroundLink(() => {}, () => {}, () => fakePort() as never, () => 'p1');
+    link.send = (request) => {
+        sent.push(request);
+        return Promise.resolve({ id: request.id, ok: true, response: {} });
+    };
+    servePort(channel.port1, 1, link, new Set(), { count: 0 }, () => {}, 'overleaf', new UserAsked());
+    const replies: unknown[] = [];
+    channel.port2.addEventListener('message', (event: MessageEvent) => {
+        replies.push(event.data);
+    });
+    channel.port2.start();
+    channel.port2.postMessage({ id: 4, request: { excludeDocument: { path: 'main.tex' } } });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(sent).toEqual([]);
+    expect(replies).toMatchObject([{ id: 4, ok: false, code: 'refused' }]);
     channel.port1.close();
     channel.port2.close();
 });

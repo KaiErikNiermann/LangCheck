@@ -21,9 +21,16 @@ export type AttachResult = { readonly ok: true; readonly editor: AttachedEditor 
 export interface EditorHandle {
     /** Compared with `===`: a different object means a different editor. */
     readonly identity: object;
-    /** The open document's name within the project. */
+    /** The open document's name within the project: what tells it apart, which stays put while it is open. */
     readonly name: string;
     readonly languageId: LanguageId;
+    /**
+     * Where the document is in its site's project now, workspace-relative
+     * (SiteFiles), for the config's file lists; asked at each check, since a
+     * document can be renamed or moved while open. Absent on a site with no
+     * files, undefined while it cannot be told.
+     */
+    readonly path?: () => string | undefined;
     attach(uri: string): AttachResult;
 }
 
@@ -31,11 +38,12 @@ export interface EditorHandle {
  * A CodeMirror 6 view, joined through the page's own CodeMirror (Overleaf,
  * Typst), with the site's own spellcheckers in it, if it has any.
  */
-export function cm6Editor(view: EditorView, name: string, languageId: LanguageId, foreign: readonly ForeignCheckerSpec[] = []): EditorHandle {
+export function cm6Editor(view: EditorView, name: string, languageId: LanguageId, foreign: readonly ForeignCheckerSpec[] = [], path?: () => string | undefined): EditorHandle {
     return {
         identity: view,
         name,
         languageId,
+        ...(path !== undefined && { path }),
         attach(uri) {
             const discovery = discoverCm6Kit(view);
             if (!discovery.ok) return { ok: false, reason: `CodeMirror classes not found: ${discovery.missing.join(', ')}` };
@@ -53,11 +61,12 @@ export function cm6Editor(view: EditorView, name: string, languageId: LanguageId
 }
 
 /** A block editor of contenteditable leaves (Notion), painted with CSS highlights. */
-export function domEditor(root: Element, identity: object, name: string, languageId: LanguageId, rules: DomEditorRules): EditorHandle {
+export function domEditor(root: Element, identity: object, name: string, languageId: LanguageId, rules: DomEditorRules, path?: () => string | undefined): EditorHandle {
     return {
         identity,
         name,
         languageId,
+        ...(path !== undefined && { path }),
         attach(uri) {
             if (!highlightsSupported()) return { ok: false, reason: 'this browser has no CSS Custom Highlight API (Firefox 140+, Chrome 105+)' };
             return { ok: true, editor: createDomAdapter(root, rules, uri, languageId) };

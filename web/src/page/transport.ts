@@ -9,7 +9,7 @@
 import type { CoreHandle, CoreTransport } from '../../../extension/src/core/transport';
 import type { languagecheck } from '../../../extension/src/proto/checker';
 import type { CoreClient } from '../messaging/pageClient';
-import { MAX_CHECK_TEXT_BYTES, withinCheckLimits, type CoreRequest } from '../messaging/protocol';
+import { isDocumentPath, MAX_CHECK_TEXT_BYTES, withinCheckLimits, type CoreRequest } from '../messaging/protocol';
 
 const PROBE_FIRST_MS = 2000;
 const PROBE_MAX_MS = 60_000;
@@ -26,6 +26,12 @@ export interface AvailabilityEvents {
      * dictionary" with a site write); undefined once done, else why not.
      */
     writeToSite(source: string, word: string): Promise<string | undefined>;
+    /**
+     * Where the document the Checker names by `fsPath` (its URI's path) is
+     * in the site's project, for the config's file lists; undefined on a
+     * site with no files.
+     */
+    documentPath(fsPath: string): string | undefined;
 }
 
 class WebTransport implements CoreTransport {
@@ -40,6 +46,20 @@ class WebTransport implements CoreTransport {
         private readonly core: CoreClient,
         private readonly events: AvailabilityEvents,
     ) {}
+
+    /**
+     * A check with its document's place in the site's project: a site's
+     * document has no file, so the core matches the config's file lists
+     * against this as it matches a file's path. One the core would refuse
+     * (a site's file named `C:x.tex`) is left out: the document is checked
+     * as one with no path, not refused.
+     */
+    private withDocumentPath(request: languagecheck.Request.$Properties): languagecheck.Request.$Properties {
+        const check = request.checkProse;
+        if (typeof check?.filePath !== 'string') return request;
+        const documentPath = this.events.documentPath(check.filePath);
+        return isDocumentPath(documentPath) ? { ...request, checkProse: { ...check, documentPath } } : request;
+    }
 
     async sendRequest(request: languagecheck.Request.$Properties): Promise<languagecheck.Response> {
         // Refused here, with a reason a user can act on, rather than sent to
@@ -56,7 +76,7 @@ class WebTransport implements CoreTransport {
         }
         // The content script parses this against the requests a page may make
         // and rebuilds it from the allowed fields (dropping filePath, settings).
-        const response = await this.core.request(request as unknown as CoreRequest);
+        const response = await this.core.request(this.withDocumentPath(request) as unknown as CoreRequest);
         if (response.ok) {
             const answer = response.response as unknown as languagecheck.Response;
             // Only the page can reach the site: the write happens here, and the

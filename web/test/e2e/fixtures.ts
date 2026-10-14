@@ -8,6 +8,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium, expect, test as base, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import type { SiteId } from '../../src/sites/catalog';
 import { EXTENSION_ROOT, RUST_CORE, WEB } from './globalSetup';
 
 export const BASE = 'http://127.0.0.1:4180';
@@ -228,7 +229,7 @@ export async function openPanel(page: Page, title: string, viewType: string): Pr
 export const panelErrors = new WeakMap<Page, string[]>();
 
 /** The native host's directory for a site's project (where its config and dictionary live). */
-export function workspaceDir(dataHome: string, site: Site, project = 'p1'): string {
+export function workspaceDir(dataHome: string, site: SiteId, project = 'p1'): string {
     return path.join(dataHome, 'language-check', 'web', `${site}-${project}`);
 }
 

@@ -7,6 +7,7 @@ import browser, { type Runtime } from 'webextension-polyfill';
 import { BACKGROUND_PORT_NAME, parseBackgroundRequest, type BackgroundResponse } from '../messaging/background';
 import { forPage } from './forPage';
 import { CONFIG_PORT_NAME, parseConfigPageRequest } from '../messaging/config';
+import { excludeDocument, perWorkspace } from './excludeDocument';
 import { isKeepalive } from '../messaging/keepalive';
 import { PANEL_PORT_NAME, parsePageToPanel, WEBVIEW_TYPE } from '../messaging/webview';
 import { workspaceForUrl } from '../sites/registry';
@@ -81,6 +82,9 @@ browser.tabs.onRemoved.addListener((tabId) => {
     panels.tabRemoved(tabId);
     configTabs.tabRemoved(tabId);
 });
+
+/** Each workspace's excludes, in turn (excludeDocument.ts). */
+const oneAtATime = perWorkspace();
 
 /** Each workspace's open pages, to tell them its config changed. */
 const pagesOf = new WorkspacePages<Runtime.Port>();
@@ -214,7 +218,20 @@ function serveContent(port: Runtime.Port, tabId: number, windowId: number | unde
     }
     const parsed = parseBackgroundRequest(message);
     if (parsed === undefined) return;
-    void cores.request(key, parsed.request).then((response) => {
+    const { request } = parsed.request;
+    const answer =
+        'excludeDocument' in request
+            ? oneAtATime(key, () =>
+                  excludeDocument(
+                      parsed.request.id,
+                      request.excludeDocument.path,
+                      // Without the core's own words: those can quote the config.
+                      (config) => cores.request(key, { id: parsed.request.id, request: config }),
+                      () => configChanged(key),
+                  ),
+              )
+            : cores.request(key, { id: parsed.request.id, request });
+    void answer.then((response) => {
         const reply: BackgroundResponse = { id: parsed.id, response: forPage(response) };
         try {
             port.postMessage(reply);

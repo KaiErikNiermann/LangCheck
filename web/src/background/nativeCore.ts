@@ -12,7 +12,7 @@
 // - idle connections close, and at most MAX_CONNECTIONS stay open.
 import { languagecheck } from '../../../extension/src/proto/checker';
 import type { ConfigPageRequest } from '../messaging/config';
-import type { ErrorCode, PageRequest, PageResponse } from '../messaging/protocol';
+import type { CoreRequest, ErrorCode, PageResponse } from '../messaging/protocol';
 import { base64ToBytes, bytesToBase64 } from './base64';
 import { explainHostFailure } from './hostFailure';
 
@@ -348,7 +348,7 @@ function failed(id: number, f: CoreFailure, detailed = false): PageResponse {
 }
 
 /** A page's request or the config page's, both already in the core's Request shape (parsed and limited on the way in). */
-type CoreRequestOf = PageRequest | ConfigPageRequest;
+export type CoreRequestOf = ConfigPageRequest | { readonly id: number; readonly request: CoreRequest };
 
 function toProto(request: CoreRequestOf): languagecheck.Request.$Properties {
     return request.request;

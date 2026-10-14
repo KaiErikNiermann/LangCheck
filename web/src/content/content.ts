@@ -29,6 +29,7 @@ import {
 } from '../messaging/protocol';
 import { BACKGROUND_PORT_NAME, type BackgroundRequest, type BackgroundResponse } from '../messaging/background';
 import { WEBVIEW_TYPE, isPanelId, parsePageToPanel, parsePanelToPage, type PageToPanel, type PanelToPage } from '../messaging/webview';
+import { commands } from '../../../extension/src/generated/meta';
 import { startPalette } from '../palette/overlay';
 import type { SiteWorkspace } from '../sites/site';
 
@@ -72,7 +73,9 @@ export function startContent(site: SiteWorkspace): void {
             for (const port of pagePorts.values()) port.postMessage({ type: RELOAD_TYPE });
         },
     );
+    const excludeAsked = new UserAsked();
     startPalette((id) => {
+        if (id === commands.excludeCurrentFile) excludeAsked.arm();
         for (const port of pagePorts.values()) port.postMessage({ type: COMMAND_TYPE, command: id });
     });
     let ports = 0;
@@ -127,6 +130,7 @@ export function startContent(site: SiteWorkspace): void {
                     channel.port1.close();
                 },
                 site.id,
+                excludeAsked,
             );
             pagePorts.set(index, channel.port1);
             window.postMessage({ type: HANDSHAKE_TYPE, version: PROTOCOL_VERSION, settings }, location.origin, [channel.port2]);
@@ -159,7 +163,32 @@ function relayPanelMessage(data: unknown, index: number, background: BackgroundL
     background.postWebview(panelMessage);
 }
 
-/** `siteId`: the site this content script runs for; a page may send only its dictionary. */
+/** How long after the user chose a command in the palette the page may ask for what only that command does. */
+export const ASKED_WITHIN_MS = 10_000;
+
+/**
+ * A command the user chose in the palette, which the page may then act on
+ * once. The palette is the extension's own frame; the page is not: site
+ * scripts share its realm and could otherwise send "exclude this document"
+ * themselves, changing the config with no one asking.
+ */
+export class UserAsked {
+    private until = -Infinity;
+
+    constructor(private readonly now: () => number = () => performance.now()) {}
+
+    arm(): void {
+        this.until = this.now() + ASKED_WITHIN_MS;
+    }
+
+    /** Whether the user asked within ASKED_WITHIN_MS; spent either way. */
+    take(): boolean {
+        const asked = this.now() <= this.until;
+        this.until = -Infinity;
+        return asked;
+    }
+}
+
 /**
  * At most one PONG per port this often: the page world can post pings as
  * fast as it likes, and the page client asks once in PONG_WITHIN_MS (any
@@ -168,7 +197,12 @@ function relayPanelMessage(data: unknown, index: number, background: BackgroundL
  */
 export const PONG_EVERY_MS = 1000;
 
-export function servePort(port: MessagePort, index: number, background: BackgroundLink, panels: Set<string>, inFlight: { count: number }, bye: () => void, siteId: string, now: () => number = () => performance.now()): void {
+/**
+ * `siteId`: the site this content script runs for; a page may send only its
+ * dictionary. `excludeAsked`: whether the user chose Exclude Current File,
+ * without which a page's exclude is refused.
+ */
+export function servePort(port: MessagePort, index: number, background: BackgroundLink, panels: Set<string>, inFlight: { count: number }, bye: () => void, siteId: string, excludeAsked: UserAsked, now: () => number = () => performance.now()): void {
     const reply = (response: PageResponse): void => { port.postMessage(response); };
     let lastPong = -Infinity;
     const fail = (id: number, code: ErrorCode, error: string): void => { reply({ id, ok: false, code, error }); };
@@ -193,6 +227,10 @@ export function servePort(port: MessagePort, index: number, background: Backgrou
         if (request === undefined) {
             const id = (event.data as { id?: unknown } | null)?.id;
             if (Number.isSafeInteger(id) && (id as number) > 0) fail(id as number, 'refused', 'malformed request');
+            return;
+        }
+        if ('excludeDocument' in request.request && !excludeAsked.take()) {
+            fail(request.id, 'refused', 'a document is excluded only by choosing Exclude Current File in the palette');
             return;
         }
         if (inFlight.count >= MAX_IN_FLIGHT_PER_PAGE) {
