@@ -20,7 +20,10 @@ const INVISIBLE = `[${INVISIBLE_RANGES.map((r) => classRange(/** @type {[number,
 const ESCAPE_MESSAGE = String.raw`Write invisible or formatting characters as \u escapes.`;
 
 export default defineConfig(
-    { ignores: ['dist/', 'dist-test/', 'test-results/', 'playwright-report/', '.e2e/'] },
+    // test/bench/live/{compare,load}.js are function bodies for the
+    // browser-viewer MCP's evaluate, run in Firefox's content-script world (a
+    // top-level return, Xray globals): not modules these rules can read.
+    { ignores: ['dist/', 'dist-test/', 'test-results/', 'playwright-report/', '.e2e/', '.bench/', 'test/bench/live/compare.js', 'test/bench/live/load.js'] },
     eslint.configs.recommended,
     ...tseslint.configs.strictTypeChecked,
     sonarjs.configs.recommended,
