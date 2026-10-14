@@ -139,6 +139,14 @@ test('a content script that stopped answering is noticed, and the user told to r
     await expect(page.locator('.lc-toast')).toContainText('reload the page', { timeout: 15_000 });
 });
 
+test('a check the core failed is said on the page, not only in the extension console', async ({ page }) => {
+    await page.goto(pageUrl('overleaf', 'current', 'teh'));
+    await page.addScriptTag({ url: `${BASE}/stub-content.js` });
+    await stub(page, "__stub.failed = 'the checker reported an error (details in the extension console)'");
+    await page.addScriptTag({ url: `${BASE}/extension/page-overleaf.js` });
+    await expect(page.locator('.lc-toast')).toContainText('the checker reported an error');
+});
+
 test('an unavailable core is reported once and not asked again on every edit, then recovers', async ({ page }) => {
     await page.goto(pageUrl('overleaf', 'current', 'teh'));
     await page.addScriptTag({ url: `${BASE}/stub-content.js` });

@@ -2,7 +2,8 @@
 // answers the page's announcement with a port and serves requests from a
 // small deterministic "core". Tests steer it through `__stub` to hold a
 // check (so the window between an edit and its recheck can be observed),
-// or to fail requests the way an absent host does. Foreign findings (a
+// to fail requests the way an absent host does (`unavailable`), or to fail
+// checks the way a core that errored does (`failed`: the message). Foreign findings (a
 // site's own spellchecker) join its answer as the core's merge does: one
 // per span, the stub's own first, a learned word left out.
 import { HANDSHAKE_TYPE, PAGE_READY_TYPE, PING_TYPE, PONG_TYPE, PROTOCOL_VERSION, parsePageRequest, type ForeignFindingWire, type PageResponse } from '../../src/messaging/protocol';
@@ -16,7 +17,7 @@ const learned = new Set<string>();
 const held: (() => void)[] = [];
 // `gone`: answers nothing at all, not even a ping, as a content script whose
 // extension was turned off under the page.
-const stub = { hold: false, unavailable: false, gone: false, checks: 0, foreign: [] as readonly ForeignFindingWire[] };
+const stub = { hold: false, unavailable: false, failed: '', gone: false, checks: 0, foreign: [] as readonly ForeignFindingWire[] };
 
 /** A diagnostic as Response.toObject gives it, as far as the stub answers. */
 interface StubDiagnostic {
@@ -72,6 +73,7 @@ function answer(raw: unknown): PageResponse | undefined {
     const { id, request } = parsed;
     if ('checkProse' in request) stub.checks++;
     if (stub.unavailable) return { id, ok: false, code: 'unavailable', error: 'the LangCheck native host is not installed or did not start' };
+    if (stub.failed !== '' && 'checkProse' in request) return { id, ok: false, code: 'failed', error: stub.failed };
     if ('checkProse' in request) {
         stub.foreign = request.checkProse.foreign ?? [];
         return { id, ok: true, response: checkResponse(request.checkProse.text, request.checkProse.languageId, stub.foreign) };
