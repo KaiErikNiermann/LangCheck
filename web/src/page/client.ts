@@ -121,7 +121,7 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
             if (reportedUnavailable) return;
             reportedUnavailable = true;
             void vscode.window.showErrorMessage(
-                vscode.l10n.t('LangCheck cannot reach its checker: {0}. Install the native host with "language-check-native-host install --browser <firefox|chrome>".', reason),
+                vscode.l10n.t('LangCheck cannot reach its checker: {0}.', reason),
             );
         },
         tooLong: (limitBytes) => {

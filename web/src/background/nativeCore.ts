@@ -14,6 +14,7 @@ import { languagecheck } from '../../../extension/src/proto/checker';
 import type { ConfigPageRequest } from '../messaging/config';
 import type { ErrorCode, PageRequest, PageResponse } from '../messaging/protocol';
 import { base64ToBytes, bytesToBase64 } from './base64';
+import { explainHostFailure } from './hostFailure';
 
 /** The name the host manifest registers (`HOST_NAME` in the core). */
 export const HOST_NAME = 'language_check';
@@ -68,6 +69,8 @@ interface Pending {
 interface CoreFailure {
     readonly failure: ErrorCode;
     readonly message: string;
+    /** A fixed sentence a web page may see in place of PAGE_MESSAGE's (hostFailure.ts). */
+    readonly page?: string | undefined;
 }
 
 const isFailure = (r: languagecheck.Response.$Properties | CoreFailure): r is CoreFailure => 'failure' in r;
@@ -84,6 +87,8 @@ export class CoreConnection {
     private failures = 0;
     private retryAt = 0;
     private lastError = '';
+    /** lastError as a web page may see it, when it is a host that would not start. */
+    private lastPage: string | undefined;
     private answeredSinceConnect = false;
     /** Timeouts since the last answer (see MAX_TIMEOUTS_IN_A_ROW). */
     private timeoutsInARow = 0;
@@ -136,20 +141,30 @@ export class CoreConnection {
     private ensureConnected(): CoreFailure | undefined {
         if (this.port !== undefined) return undefined;
         if (this.clock.now() < this.retryAt) {
-            return { failure: 'unavailable', message: this.lastError };
+            return { failure: 'unavailable', message: this.lastError, page: this.lastPage };
         }
         let port: NativePort;
         try {
             port = this.connectNative(HOST_NAME);
         } catch (error) {
-            this.recordFailure(`cannot start the native host: ${String(error)}`);
-            return { failure: 'unavailable', message: this.lastError };
+            const why = explainHostFailure(error instanceof Error ? error.message : String(error));
+            this.recordFailure(why.detail, why.page);
+            return { failure: 'unavailable', message: this.lastError, page: this.lastPage };
         }
         this.port = port;
         this.answeredSinceConnect = false;
         port.onMessage.addListener((message) => { this.onFrame(port, message); });
         port.onDisconnect.addListener((p) => {
-            if (this.port === port) this.onDisconnected(p.error?.message ?? port.error?.message ?? 'the native host exited');
+            if (this.port !== port) return;
+            const raw = p.error?.message ?? port.error?.message;
+            if (this.answeredSinceConnect) {
+                this.onDisconnected(raw ?? 'the native host exited');
+                return;
+            }
+            // Gone before answering anything: the host did not start, and
+            // the browser's words for that rarely say why.
+            const why = explainHostFailure(raw);
+            this.onDisconnected(why.detail, why.page);
         });
         this.initialized = this.initialize(port);
         return undefined;
@@ -175,7 +190,7 @@ export class CoreConnection {
 
     private call(payload: languagecheck.Request.$Properties): Promise<languagecheck.Response.$Properties | CoreFailure> {
         const port = this.port;
-        if (port === undefined) return Promise.resolve({ failure: 'unavailable', message: this.lastError || 'not connected' });
+        if (port === undefined) return Promise.resolve({ failure: 'unavailable', message: this.lastError || 'not connected', page: this.lastPage });
         if (this.pending.size >= MAX_PENDING) return Promise.resolve({ failure: 'busy', message: 'too many requests waiting on the core' });
         const id = this.nextId++;
         const bytes = languagecheck.Request.encode(languagecheck.Request.create({ ...payload, id })).finish();
@@ -238,23 +253,24 @@ export class CoreConnection {
         port.disconnect();
     }
 
-    private onDisconnected(reason: string): void {
+    private onDisconnected(reason: string, page?: string): void {
         this.port = undefined;
         this.timeoutsInARow = 0;
         this.initialized = undefined;
         this.frames = [];
         this.frameChars = 0;
-        if (reason !== 'closed' && !this.answeredSinceConnect) this.recordFailure(reason);
+        if (reason !== 'closed' && !this.answeredSinceConnect) this.recordFailure(reason, page);
         for (const [, entry] of this.pending) {
             this.clock.clearTimeout(entry.timer);
-            entry.resolve({ failure: 'unavailable', message: reason });
+            entry.resolve({ failure: 'unavailable', message: reason, page });
         }
         this.pending.clear();
     }
 
-    private recordFailure(reason: string): void {
+    private recordFailure(reason: string, page?: string): void {
         this.failures++;
         this.lastError = reason;
+        this.lastPage = page;
         this.retryAt = this.clock.now() + Math.min(BACKOFF_FIRST_MS * 2 ** (this.failures - 1), BACKOFF_MAX_MS);
     }
 }
@@ -318,7 +334,7 @@ export class CoreManager {
  * read it and the site cannot.
  */
 const PAGE_MESSAGE: Readonly<Record<ErrorCode, string>> = {
-    unavailable: 'the LangCheck native host is not installed or did not start',
+    unavailable: 'the LangCheck native host is not installed or did not start; run "language-check-native-host doctor" to see why',
     interrupted: 'the request was cut off on the way',
     refused: 'the request was refused',
     busy: 'too many checks are waiting; try again shortly',
@@ -328,7 +344,7 @@ const PAGE_MESSAGE: Readonly<Record<ErrorCode, string>> = {
 
 function failed(id: number, f: CoreFailure, detailed = false): PageResponse {
     console.warn(`[language-check] request ${String(id)} failed (${f.failure}): ${f.message}`);
-    return { id, ok: false, code: f.failure, error: detailed ? f.message : PAGE_MESSAGE[f.failure] };
+    return { id, ok: false, code: f.failure, error: detailed ? f.message : (f.page ?? PAGE_MESSAGE[f.failure]) };
 }
 
 /** A page's request or the config page's, both already in the core's Request shape (parsed and limited on the way in). */

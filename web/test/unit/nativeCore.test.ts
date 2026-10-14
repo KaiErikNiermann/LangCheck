@@ -216,6 +216,39 @@ describe('what reaches the page', () => {
         expect(JSON.stringify(response)).not.toContain('someone');
     });
 
+    // A host that never started is described by what the browser said, which
+    // is rarely why: Firefox says "An unexpected error occurred" for a
+    // manifest whose binary is gone. Each wording gets a sentence naming the fix.
+    test.each([
+        ['An unexpected error occurred', 'language-check-native-host doctor'],
+        ['No such native application language_check', 'language-check-native-host install --browser firefox'],
+        ['Specified native messaging host not found.', 'language-check-native-host install --browser firefox'],
+        ['Access to the specified native messaging host is forbidden.', 'does not allow this extension'],
+    ])('a host that would not start ("%s") is explained, with the fix', async (said, fix) => {
+        const { hosts, connection } = setup('silent');
+        const forPage = connection.request(check);
+        await Promise.resolve();
+        hosts[0]!.crash(said);
+        const page = await forPage;
+        expect(page).toMatchObject({ ok: false, code: 'unavailable' });
+        expect(page.ok ? '' : page.error).toContain(fix);
+        expect(page.ok ? '' : page.error).not.toContain(said);
+        // The extension's own pages also get the browser's words, and so does
+        // a request made while the connection backs off.
+        const detailed = await connection.request(check, true);
+        expect(detailed.ok ? '' : detailed.error).toContain(fix);
+        expect(detailed.ok ? '' : detailed.error).toContain(said);
+    });
+
+    test('a host that answered and then died is not taken for one that never started', async () => {
+        const { hosts, connection } = setup('answer');
+        expect(await connection.request(check)).toMatchObject({ ok: true });
+        const pending = connection.request({ ...check, id: 9 });
+        hosts[0]!.crash('An unexpected error occurred');
+        const response = await pending;
+        expect(response.ok ? '' : response.error).not.toContain('could not start');
+    });
+
     /** The page's answer when the core fails every request after initialize with `error`. */
     async function failingWith(error: { message: string; forPage?: boolean }) {
         const connect = (): NativePort => {
