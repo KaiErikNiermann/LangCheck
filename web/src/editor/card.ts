@@ -64,6 +64,11 @@ export class CardController {
     private disposed = false;
 
     constructor(private readonly host: CardHost) {
+        // Reaching the card calls off a close the way there scheduled: a
+        // pointer that crossed other text on its way had asked for one.
+        host.popover.onEnter(() => {
+            this.pointerOnCard();
+        });
         host.popover.onLeave(() => {
             clearTimeout(this.hoverTimer);
             this.hoverTimer = setTimeout(() => {

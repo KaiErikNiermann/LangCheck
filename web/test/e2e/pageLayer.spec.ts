@@ -44,6 +44,29 @@ test('squiggles, hints and the card, on the host page’s own CodeMirror (6.38 a
     }
 });
 
+// The card is mounted beside the editor's content, where the editor's own
+// pointer events do not reach. A pointer that crossed other text on its way
+// from the finding to the card scheduled a close, and nothing on the card
+// called it off: the card vanished under a pointer resting on it.
+test('the card stays open under a pointer that crossed other text to reach it', async ({ page }) => {
+    for (const cm of ['6.38', 'current'] as const) {
+        // Lines enough below the finding that the card lies over text, inside the editor.
+        await open(page, 'overleaf', `teh is the first word of a line that goes on with plenty of ordinary words after it.${'\nAnother line of ordinary words, long enough to run under the card.'.repeat(12)}`, cm);
+        await expect(marks(page)).toHaveText(['teh']);
+        const c = await hover(page, 'teh');
+        const word = await marks(page).first().boundingBox();
+        const box = await c.boundingBox();
+        if (word === null || box === null) throw new Error('no layout');
+        // Other text on the finding's own line, past the card's right edge.
+        await page.mouse.move(Math.max(box.x + box.width, word.x + word.width) + 40, word.y + word.height / 2);
+        // Into the card well inside the close delay, and resting there.
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        // eslint-disable-next-line sonarjs/no-fixed-wait-in-tests -- the card closing is the event that must not happen: past twice its delay
+        await page.waitForTimeout(700);
+        await expect(card(page)).toBeVisible();
+    }
+});
+
 // Overleaf hangs wrapped lines with a negative text-indent; the hint, an
 // inline-block, took it as its own: Firefox shrank its box to the padding and
 // drew the text over the next word, Chromium drew it over the word itself.

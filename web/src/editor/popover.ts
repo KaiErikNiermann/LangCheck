@@ -54,6 +54,7 @@ const TOAST_MS = 4000;
 export class Popover {
     private readonly dom: HTMLDivElement;
     private leaveListener: (() => void) | undefined;
+    private enterListener: (() => void) | undefined;
     private toastTimer: ReturnType<typeof setTimeout> | undefined;
     private toastDom: HTMLDivElement | undefined;
     private anchor: { readonly at: number; readonly onDismiss: () => void } | undefined;
@@ -64,6 +65,9 @@ export class Popover {
         this.dom.setAttribute('role', 'dialog');
         this.dom.hidden = true;
         this.dom.addEventListener('mouseleave', () => this.leaveListener?.());
+        // The editor's own pointer events stop at its content: the card is
+        // beside it, so only the card can say the pointer reached it.
+        this.dom.addEventListener('mouseenter', () => this.enterListener?.());
         // Keep the editor from treating clicks in the card as editor clicks
         // (which would move the cursor and steal focus mid-action).
         this.dom.addEventListener('mousedown', (e) => {
@@ -89,6 +93,10 @@ export class Popover {
 
     onLeave(listener: () => void): void {
         this.leaveListener = listener;
+    }
+
+    onEnter(listener: () => void): void {
+        this.enterListener = listener;
     }
 
     /**
