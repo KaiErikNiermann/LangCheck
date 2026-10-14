@@ -8,20 +8,10 @@ import { supportedLanguageSelector } from '../checking/languages';
 import { COMMANDS, commandLink } from '../commands/ids';
 import type { WorkspaceConfigState } from '../config/state';
 import type { DiagnosticStore } from '../diagnostics/store';
-import { formatSuggestionLabel } from '../shared/inlayLabels';
 import type { Logger } from '../shared/logger';
 import { BUILTIN_SKIP_COMMANDS, BUILTIN_SKIP_ENVS, PROSE_COMMANDS, PROSE_ENVS } from './latexLists';
 import { uriKey } from '../shared/documents';
-
-/**
- * How sure an engine has to be before its suggestion is shown inline.
- *
- * Harper and LanguageTool report 0.8, Vale 0.75, proselint 0.7 and Hunspell
- * 0.6, so at this floor the first two reach the hint and the rest stay in the
- * quick fix menu. A hint is applied with one keystroke and sits in the text,
- * which is a different bar from a menu entry someone chose to open.
- */
-const HINT_CONFIDENCE_FLOOR = 0.8;
+import { sureEnough, suggestionHints } from './suggestionHints';
 
 /** Whether the hints are shown at all, flipped by the toggle command. */
 export class InlayHintSwitch {
@@ -40,16 +30,6 @@ export interface InlayHintDeps {
 export function registerInlayHints(subscriptions: vscode.Disposable[], deps: InlayHintDeps): void {
     const { store, configState, log, emitter, hintSwitch } = deps;
 
-    /** Format an inlay hint label and apply-value for a diagnostic suggestion. */
-    function formatInlayLabel(
-        d: { suggestions?: string[]; range: vscode.Range },
-        document: vscode.TextDocument
-    ): { label: string; applyValue: string } | null {
-        const suggestion = d.suggestions?.[0];
-        if (suggestion === undefined) return null;
-        return formatSuggestionLabel(document.getText(d.range), suggestion);
-    }
-
     // Register Inlay Hints Provider with invalidation support
     subscriptions.push(vscode.languages.registerInlayHintsProvider(
         supportedLanguageSelector(),
@@ -59,54 +39,7 @@ export function registerInlayHints(subscriptions: vscode.Disposable[], deps: Inl
                 if (!hintSwitch.enabled) return [];
                 const diagnostics = store.get(uriKey(document.uri));
                 if (!diagnostics) return [];
-
-                // Group diagnostics by position to avoid stacking hints
-                const byPosition = new Map<string, { diag: typeof diagnostics[number]; idx: number; fmt: { label: string; applyValue: string } }[]>();
-                for (let i = 0; i < diagnostics.length; i++) {
-                    const d = diagnostics[i]!;
-                    if (d.confidence !== undefined && d.confidence >= HINT_CONFIDENCE_FLOOR
-                        && d.suggestions && d.suggestions.length > 0) {
-                        const fmt = formatInlayLabel(d, document);
-                        if (!fmt) continue;
-                        const key = `${d.range.end.line}:${d.range.end.character}`;
-                        const group = byPosition.get(key);
-                        const entry = { diag: d, idx: i, fmt };
-                        if (group) {
-                            group.push(entry);
-                        } else {
-                            byPosition.set(key, [entry]);
-                        }
-                    }
-                }
-
-                const hints: vscode.InlayHint[] = [];
-                for (const group of byPosition.values()) {
-                    if (group.length === 0) continue;
-                    const first = group[0]!;
-                    let label: string;
-                    let tooltip: string;
-                    if (group.length === 1) {
-                        label = first.fmt.label;
-                        tooltip = `Accept suggestion: ${first.fmt.applyValue || '(remove)'}`;
-                    } else {
-                        label = `${first.fmt.label} (+${group.length - 1} more)`;
-                        tooltip = group
-                            .map((e, i) => `${i + 1}. ${e.diag.message}: ${e.fmt.applyValue || '(remove)'}`)
-                            .join('\n');
-                    }
-                    const hint = new vscode.InlayHint(
-                        first.diag.range.end,
-                        [
-                            {
-                                value: label,
-                                command: commandLink(COMMANDS.applyFix, 'Apply Fix', store.idOf(uriKey(document.uri), first.idx), first.fmt.applyValue)
-                            }
-                        ],
-                        vscode.InlayHintKind.Type
-                    );
-                    hint.tooltip = tooltip;
-                    hints.push(hint);
-                }
+                const hints = suggestionHints(document, diagnostics, (i) => store.idOf(uriKey(document.uri), i));
                 // Whether a hint appears depends on four things that are
                 // invisible from the editor: the provider firing at all, the
                 // document having diagnostics, those diagnostics clearing the
@@ -115,9 +48,7 @@ export function registerInlayHints(subscriptions: vscode.Disposable[], deps: Inl
                 log.debug('provideInlayHints', {
                     language: document.languageId,
                     diagnostics: diagnostics.length,
-                    aboveConfidenceFloor: diagnostics.filter(
-                        d => d.confidence !== undefined && d.confidence >= HINT_CONFIDENCE_FLOOR
-                    ).length,
+                    aboveConfidenceFloor: diagnostics.filter(sureEnough).length,
                     hints: hints.length,
                 });
                 return hints;
