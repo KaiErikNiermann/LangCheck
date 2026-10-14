@@ -1,5 +1,7 @@
 /**
- * Timing, summarising and recording for the end-to-end benchmarks.
+ * Timing, summarising and recording for the end-to-end benchmarks: VS
+ * Code's (this directory) and the browser extension's (web/test/bench),
+ * which share this file and the corpus.
  *
  * These are sanity benchmarks, not a regression gate: a check's wall time
  * depends on the machine, what else it is doing and the VS Code build, so a
@@ -16,22 +18,22 @@ import * as path from 'node:path';
 export const REPS = Number(process.env.BENCH_REPS ?? 5);
 
 export interface Summary {
-    readonly medianMs: number;
-    readonly minMs: number;
-    readonly maxMs: number;
+    readonly median: number;
+    readonly min: number;
+    readonly max: number;
     /** $\frac{\max - \min}{\text{median}}$: how far one run can be from another. */
     readonly spread: number;
 }
 
-export function summarize(samplesMs: readonly number[]): Summary {
-    const sorted = [...samplesMs].sort((a, b) => a - b);
+export function summarize(samples: readonly number[]): Summary {
+    const sorted = [...samples].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
-    const medianMs = sorted.length % 2 === 1
+    const median = sorted.length % 2 === 1
         ? sorted[mid] as number
         : ((sorted[mid - 1] as number) + (sorted[mid] as number)) / 2;
-    const minMs = sorted[0] as number;
-    const maxMs = sorted[sorted.length - 1] as number;
-    return { medianMs, minMs, maxMs, spread: medianMs > 0 ? (maxMs - minMs) / medianMs : 0 };
+    const min = sorted[0] as number;
+    const max = sorted[sorted.length - 1] as number;
+    return { median, min, max, spread: median > 0 ? (max - min) / median : 0 };
 }
 
 /** Wall time of `run`, in milliseconds, with what it returned. */
@@ -41,14 +43,19 @@ export async function timed<T>(run: () => Promise<T>): Promise<{ ms: number; val
     return { ms: performance.now() - start, value };
 }
 
+/** What a metric's samples count: wall time, memory held, or a number of things (listeners, open files). */
+export type Unit = 'ms' | 'MiB' | 'count';
+
 export interface Metric {
     /** The document or workspace shape, e.g. "large-1mb". */
     readonly subject: string;
-    /** What was timed, e.g. "cold check". */
+    /** What was measured, e.g. "cold check". */
     readonly metric: string;
-    readonly samplesMs: readonly number[];
-    /** The median past which something is broken rather than slow. */
-    readonly ceilingMs: number;
+    /** Milliseconds unless `unit` says otherwise. */
+    readonly unit?: Unit;
+    readonly samples: readonly number[];
+    /** The median past which something is broken rather than slow, in the metric's unit. */
+    readonly ceiling: number;
     /** What the subject was, for reading the numbers: a size, a file count. */
     readonly detail?: string;
 }
@@ -73,13 +80,14 @@ export class Recorder {
     }
 
     record(metric: Metric): Summary {
-        const summary = summarize(metric.samplesMs);
+        const summary = summarize(metric.samples);
         this.rows.push({ ...metric, ...summary });
         fs.appendFileSync(this.file, `${JSON.stringify({
             at: new Date().toISOString(),
             commit: process.env.BENCH_COMMIT ?? '',
             host: { cpu: os.cpus()[0]?.model ?? '', cores: os.cpus().length, memGb: Math.round(os.totalmem() / 2 ** 30) },
             suite: this.suite,
+            unit: 'ms',
             ...metric,
             ...summary,
         })}\n`);
@@ -89,10 +97,10 @@ export class Recorder {
     /** Fail a metric whose median passed its ceiling, unless BENCH_GATE=off. */
     gate(): void {
         if (process.env.BENCH_GATE === 'off') return;
-        const broken = this.rows.filter(row => row.medianMs > row.ceilingMs);
+        const broken = this.rows.filter(row => row.median > row.ceiling);
         if (broken.length > 0) {
             throw new Error(`past the ceiling: ${broken
-                .map(row => `${row.subject} ${row.metric} ${row.medianMs.toFixed(0)}ms > ${row.ceilingMs}ms`)
+                .map(row => `${row.subject} ${row.metric} ${show(row.median, row.unit)} > ${show(row.ceiling, row.unit)}`)
                 .join('; ')}`);
         }
     }
@@ -101,9 +109,9 @@ export class Recorder {
     table(): string {
         const header = ['subject', 'metric', 'n', 'median', 'min', 'max', 'spread', 'ceiling', 'detail'];
         const body = this.rows.map(row => [
-            row.subject, row.metric, String(row.samplesMs.length),
-            ms(row.medianMs), ms(row.minMs), ms(row.maxMs), `${(row.spread * 100).toFixed(0)}%`,
-            ms(row.ceilingMs), row.detail ?? '',
+            row.subject, row.metric, String(row.samples.length),
+            show(row.median, row.unit), show(row.min, row.unit), show(row.max, row.unit), `${(row.spread * 100).toFixed(0)}%`,
+            show(row.ceiling, row.unit), row.detail ?? '',
         ]);
         const widths = header.map((_, i) => Math.max(...[header, ...body].map(cells => (cells[i] ?? '').length)));
         const line = (cells: readonly string[]) => cells.map((cell, i) => cell.padEnd(widths[i] ?? 0)).join('  ');
@@ -111,6 +119,8 @@ export class Recorder {
     }
 }
 
-function ms(value: number): string {
+function show(value: number, unit: Unit = 'ms'): string {
+    if (unit === 'MiB') return `${value.toFixed(1)}MiB`;
+    if (unit === 'count') return value.toFixed(0);
     return value >= 10_000 ? `${(value / 1000).toFixed(1)}s` : `${value.toFixed(0)}ms`;
 }

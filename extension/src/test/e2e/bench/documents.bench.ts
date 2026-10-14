@@ -10,9 +10,9 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 
 import {
-    longLine, malformedHtml, malformedLatex, malformedMarkdown, markdown, mixedLanguages, oddCharacters, paragraph, rng,
+    longLine, malformedHtml, malformedLatex, malformedMarkdown, markdown, mixedLanguages, oddCharacters, paragraph, rng, seedFor,
 } from './corpus';
-import { activate, checkActive, closeEditors, diagnosticsWhere, openAndCheck, seedFor, writeDocument } from './editor';
+import { activate, checkActive, closeEditors, diagnosticsWhere, openAndCheck, writeDocument } from './editor';
 import { REPS, Recorder, timed } from './measure';
 
 interface DocumentCase {
@@ -82,8 +82,8 @@ suite('bench: documents', () => {
                 cached.push(again.ms);
                 await closeEditors();
             }
-            recorder.record({ subject: c.subject, metric: 'open + cold check', samplesMs: cold, ceilingMs: c.coldCeilingMs, detail: size });
-            recorder.record({ subject: c.subject, metric: 'cached re-check', samplesMs: cached, ceilingMs: c.cachedCeilingMs, detail: size });
+            recorder.record({ subject: c.subject, metric: 'open + cold check', samples: cold, ceiling: c.coldCeilingMs, detail: size });
+            recorder.record({ subject: c.subject, metric: 'cached re-check', samples: cached, ceiling: c.cachedCeilingMs, detail: size });
         });
     }
 
@@ -110,7 +110,7 @@ suite('bench: documents', () => {
         }
         await closeEditors();
         // 50 ms.
-        recorder.record({ subject: 'edit 4 KB', metric: 'save to diagnostics', samplesMs: samples, ceilingMs: 2_000 });
+        recorder.record({ subject: 'edit 4 KB', metric: 'save to diagnostics', samples: samples, ceiling: 2_000 });
     });
 
     test('every median is within its ceiling', () => {

@@ -12,8 +12,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 
-import { markdown } from './corpus';
-import { activate, checkActive, closeEditors, openAndCheck, seedFor, writeDocument } from './editor';
+import { markdown, seedFor } from './corpus';
+import { activate, checkActive, closeEditors, openAndCheck, writeDocument } from './editor';
 import { fixture, fixtureRoot } from '../helpers';
 import { REPS, Recorder, timed } from './measure';
 
@@ -63,7 +63,7 @@ suite('bench: workspace', () => {
             await closeEditors();
         }
         // 343-350 ms measured, over 5,000 and 2,000 files.
-        recorder.record({ subject: name, metric: 'restart to first check', samplesMs: samples, ceilingMs: 10_000, detail });
+        recorder.record({ subject: name, metric: 'restart to first check', samples: samples, ceiling: 10_000, detail });
     });
 
     test('a cold check while the index is being built', async () => {
@@ -78,7 +78,7 @@ suite('bench: workspace', () => {
             await closeEditors();
         }
         // 50 ms measured.
-        recorder.record({ subject: name, metric: 'cold check, indexing', samplesMs: samples, ceilingMs: 2_000, detail });
+        recorder.record({ subject: name, metric: 'cold check, indexing', samples: samples, ceiling: 2_000, detail });
     });
 
     test('listing the files the config selects', () => {
@@ -95,7 +95,7 @@ suite('bench: workspace', () => {
             assert.strictEqual(listing.status, 0, listing.stderr);
             listed = listing.stdout.split('\n').filter(Boolean).length;
         }
-        recorder.record({ subject: name, metric: 'config files listing', samplesMs: samples, ceilingMs: 3_000, detail: `${listed} listed` });
+        recorder.record({ subject: name, metric: 'config files listing', samples: samples, ceiling: 3_000, detail: `${listed} listed` });
     });
 
     test('every median is within its ceiling', () => {

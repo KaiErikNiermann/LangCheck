@@ -28,6 +28,16 @@ export function rng(seed: number): () => number {
 
 type Next = () => number;
 
+/**
+ * A seed no earlier run used for this subject and repetition, so the core
+ * has never seen the text it generates. BENCH_SALT differs per run.
+ */
+export function seedFor(subject: string, rep: number): number {
+    let hash = Number(process.env.BENCH_SALT ?? 0);
+    for (const char of subject) hash = (Math.imul(hash, 31) + char.charCodeAt(0)) >>> 0;
+    return (hash + rep * 7_919) >>> 0;
+}
+
 const WORDS: Record<Lang, readonly string[]> = {
     en: ['the', 'checker', 'reads', 'every', 'paragraph', 'and', 'reports', 'what', 'it', 'finds', 'in', 'a',
         'document', 'with', 'several', 'long', 'sentences', 'about', 'nothing', 'much', 'while', 'engines',
@@ -75,6 +85,54 @@ export function markdown(seed: number, bytes: number): string {
         size += part.length + 2;
     }
     return `${parts.join('\n\n')}\n`;
+}
+
+/** An ordinary LaTeX article (what Overleaf holds): sections, paragraphs, lists, math, until `bytes` long. */
+export function latex(seed: number, bytes: number): string {
+    const next = rng(seed);
+    const parts: string[] = ['\\documentclass{article}', '\\begin{document}', `\\title{Document ${seed}}`];
+    let size = 0;
+    for (let i = 0; size < bytes; i++) {
+        let part: string;
+        if (i % 12 === 11) part = `\\section{Section ${i}}\\label{sec:${i}}`;
+        else if (i % 7 === 6) part = `\\begin{itemize}\n${Array.from({ length: 4 }, () => `  \\item ${sentence(next, 'en', 6)}`).join('\n')}\n\\end{itemize}`;
+        else if (i % 9 === 8) part = `\\begin{equation}\n  E_{${i}} = \\sum_{k=0}^{n} \\frac{x^k}{k!}\n\\end{equation}`;
+        else part = `${paragraph(next, 'en')} See \\cite{ref${i}} and \\emph{${sentence(next, 'en', 3)}} in Section~\\ref{sec:${i}}.`;
+        parts.push(part);
+        size += part.length + 2;
+    }
+    return `${parts.join('\n\n')}\n\n\\end{document}\n`;
+}
+
+/** An ordinary Typst document (what typst.app holds): headings, paragraphs, lists, code, math, until `bytes` long. */
+export function typst(seed: number, bytes: number): string {
+    const next = rng(seed);
+    const parts: string[] = ['#set text(lang: "en")', `= Document ${seed}`];
+    let size = 0;
+    for (let i = 0; size < bytes; i++) {
+        let part: string;
+        if (i % 12 === 11) part = `== Section ${i} <sec-${i}>`;
+        else if (i % 7 === 6) part = Array.from({ length: 4 }, () => `- ${sentence(next, 'en', 6)}`).join('\n');
+        else if (i % 9 === 8) part = `$ E_${i} = sum_(k=0)^n x^k / k! $`;
+        // A link, not a reference: `@sec-N` to a label never defined is a compile error.
+        else part = `${paragraph(next, 'en')} See #link("https://example.com/${i}")[the guide] and #emph[${sentence(next, 'en', 3)}] with \`raw_${i}\`.`;
+        parts.push(part);
+        size += part.length + 2;
+    }
+    return `${parts.join('\n\n')}\n`;
+}
+
+/** Nothing but misspellings, ten to a line, `bytes` long: the most findings a document can carry. */
+export function typosOnly(seed: number, bytes: number): string {
+    const next = rng(seed);
+    const lines: string[] = [];
+    let size = 0;
+    while (size < bytes) {
+        const line = Array.from({ length: 10 }, () => pick(next, TYPOS)).join(' ');
+        lines.push(line);
+        size += line.length + 1;
+    }
+    return `${lines.join('\n')}\n`;
 }
 
 /** One line of prose and no newline at all, `bytes` long. */

@@ -15,16 +15,6 @@ export async function activate(): Promise<void> {
     await extension.activate();
 }
 
-/**
- * A seed no earlier run used for this subject and repetition, so the core
- * has never seen the text it generates. BENCH_SALT differs per run.
- */
-export function seedFor(subject: string, rep: number): number {
-    let hash = Number(process.env.BENCH_SALT ?? 0);
-    for (const char of subject) hash = (Math.imul(hash, 31) + char.charCodeAt(0)) >>> 0;
-    return (hash + rep * 7_919) >>> 0;
-}
-
 /** Write a generated document into the workspace. */
 export function writeDocument(name: string, text: string): vscode.Uri {
     const file = path.join(fixtureRoot(), name);
