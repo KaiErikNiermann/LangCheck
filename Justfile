@@ -63,6 +63,11 @@ install-ts:
 build-ts: install-ts
     cd extension && pnpm run build
 
+# Build the browser extension into web/dist (its prepare step generates the
+# client's protobuf bindings, so the client's dependencies come first)
+build-web: install-ts
+    cd web && pnpm install --frozen-lockfile && pnpm run build
+
 # Type check extension
 typecheck-ts: install-ts
     cd extension && pnpm run typecheck
@@ -139,12 +144,17 @@ docs-lang lang: docs-venv
 
 # --- Local install ---
 
+# Build the latest local core and both clients, and install them for live
+# testing: the VS Code extension (install-local-vscode) and the browser
+# extension with its native host (install-local-web).
+install-local: install-local-vscode install-local-web
+
 # Build the latest local core + extension and install into VS Code (or VSCodium,
 # whichever CLI is on PATH — override with EDITOR_CLI=codium) for live testing.
 # Unlike dev-mode (F5), this installs a real production extension, so it must be
 # pointed at the locally-built core via `languageCheck.core.binaryPath`
 # — otherwise it downloads the latest *released* binary instead of your build.
-install-local: build-rust-release build-ts
+install-local-vscode: build-rust-release build-ts
     #!/usr/bin/env bash
     set -euo pipefail
     bin="$(pwd)/rust-core/target/release/language-check-server"
@@ -175,6 +185,29 @@ install-local: build-rust-release build-ts
     echo "│"
     echo "│ Then run 'Developer: Reload Window'. Re-run 'just install-local'"
     echo "│ after any frontend or backend change to refresh the live build."
+    echo "└─────────────────────────────────────────────────────────────────────"
+
+# Build the browser extension (web/dist) against the latest local core, and
+# register the release native host with Firefox (and Chrome when
+# CHROME_EXTENSION_ID is set). A browser cannot install a temporary add-on
+# from the command line: reload it from about:debugging (or
+# chrome://extensions) afterwards.
+install-local-web: build-rust-release build-web
+    #!/usr/bin/env bash
+    set -euo pipefail
+    host="$(pwd)/rust-core/target/release/language-check-native-host"
+    "$host" install --browser firefox
+    if [ -n "${CHROME_EXTENSION_ID:-}" ]; then
+      "$host" install --browser chrome --chrome-extension-id "$CHROME_EXTENSION_ID"
+    fi
+    "$host" doctor || true
+    echo
+    echo "┌─ Browser extension ─────────────────────────────────────────────────"
+    echo "│ Built $(pwd)/web/dist"
+    echo "│ Firefox: about:debugging → This Firefox → Reload (first time: Load"
+    echo "│   Temporary Add-on → web/dist/manifest.json)."
+    echo "│ Chrome: chrome://extensions → reload (first time: Load unpacked →"
+    echo "│   web/dist), then re-run with CHROME_EXTENSION_ID=<its id>."
     echo "└─────────────────────────────────────────────────────────────────────"
 
 # --- Lua ---
