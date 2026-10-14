@@ -159,7 +159,7 @@ export const PALETTE_FRAME = 'iframe[title="Language Check commands"]';
 
 /** Runs a client command from the palette, as a user would: the binding, its title, Enter. */
 export async function runPaletteCommand(page: Page, title: string): Promise<void> {
-    await page.keyboard.press('Control+KeyP');
+    await page.keyboard.press('Alt+Shift+KeyP');
     const palette = page.frameLocator(PALETTE_FRAME);
     await expect(palette.locator('ninja-action').first()).toBeVisible();
     await page.keyboard.type(title);

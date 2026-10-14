@@ -44,8 +44,12 @@ const MODIFIERS: ReadonlyMap<string, Flag> = new Map([
 /** One alternative of a binding: modifiers and one key, in hotkeys-js notation. */
 const ALTERNATIVE = /^(?:(?:ctrl|control|shift|alt|option|cmd|command|meta)\+)*(?:[a-z0-9]|f(?:[1-9]|1[0-2])|[.,/;'=`[\]\\-])$/u;
 const FUNCTION_KEY = /^f\d+$/u;
-/** Keys whose Ctrl/Cmd shortcut a user relies on in any editor: a binding must not take them over. */
-const RESERVED_WITH_COMMAND = new Set(['a', 'c', 'v', 'x', 'y', 'z', 's', 'f', 'w', 't', 'n', 'q']);
+/**
+ * Keys whose Ctrl/Cmd shortcut a user relies on in any editor or browser
+ * (print, reload and the address bar among them): a binding must not take
+ * them over.
+ */
+const RESERVED_WITH_COMMAND = new Set(['a', 'c', 'v', 'x', 'y', 'z', 's', 'f', 'w', 't', 'n', 'q', 'p', 'r', 'l']);
 
 /**
  * `value` as a palette binding, or `undefined` when it is not one this
@@ -77,7 +81,7 @@ function physicalCode(key: string): string | undefined {
     return undefined;
 }
 
-/** Whether `event` is `binding`, in hotkeys-js notation (`ctrl+p`, `ctrl+shift+l`, alternatives separated by `,`). */
+/** Whether `event` is `binding`, in hotkeys-js notation (`alt+shift+p`, `ctrl+shift+l`, alternatives separated by `,`). */
 export function isBinding(binding: string, event: KeyFields): boolean {
     return binding.split(',').some((alternative) => {
         const parts = alternative.trim().toLowerCase().split('+');

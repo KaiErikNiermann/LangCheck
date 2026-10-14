@@ -15,8 +15,13 @@ export interface ContentToPalette {
     readonly submit: boolean;
 }
 
-/** The default binding, in hotkeys-js notation; users can change it on the options page. */
-export const DEFAULT_PALETTE_HOTKEY = 'ctrl+p';
+/**
+ * The default binding, in hotkeys-js notation; users can change it on the
+ * options page. Alt+Shift+P is free in Firefox, Chrome and the supported
+ * sites' editors; Ctrl+P was print, which a page cannot reliably take over,
+ * and Ctrl+Shift+P is Firefox's private window, which it cannot take at all.
+ */
+export const DEFAULT_PALETTE_HOTKEY = 'alt+shift+p';
 
 /** Where the binding is stored (browser.storage.local). */
 export const PALETTE_HOTKEY_KEY = 'paletteHotkey';

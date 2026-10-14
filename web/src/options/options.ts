@@ -20,7 +20,7 @@ if (form !== null && input !== null && status !== null) {
         // Empty: back to the default.
         const value = typed === '' ? '' : parseBinding(typed);
         if (value === undefined) {
-            status.textContent = `"${typed}" cannot be the shortcut: it needs Ctrl, Alt or Cmd (or a function key), and must not be one an editor uses, such as Ctrl+C or Ctrl+S.`;
+            status.textContent = `"${typed}" cannot be the shortcut: it needs Ctrl, Alt or Cmd (or a function key), and must not be one an editor uses, such as Ctrl+C or Ctrl+S, or a browser one, such as Ctrl+P.`;
             return;
         }
         void browser.storage.local.set({ [PALETTE_HOTKEY_KEY]: value }).then(() => {

@@ -54,7 +54,7 @@ window.addEventListener('message', (event: MessageEvent) => {
 function show(port: MessagePort, entries: typeof PALETTE): void {
     const ninja = document.createElement('ninja-keys');
     // The same binding that opened it closes it, and inside the iframe it
-    // cannot fall through to the browser's own use of it (print, for Ctrl+P).
+    // cannot fall through to whatever the browser would make of it.
     ninja.openHotkey = hotkey;
     ninja.placeholder = 'Run a Language Check command';
     ninja.data = entries.map((entry) => ({

@@ -122,7 +122,7 @@ describe('holdKeys', () => {
 
 describe('parseBinding', () => {
     test.each([
-        ['ctrl+p', 'ctrl+p'],
+        ['alt+shift+p', 'alt+shift+p'],
         [' Ctrl+Shift+L ', 'ctrl+shift+l'],
         ['alt+k', 'alt+k'],
         ['meta+k', 'meta+k'],
@@ -140,6 +140,8 @@ describe('parseBinding', () => {
         ['paste on a Mac', 'cmd+v'],
         ['undo', 'ctrl+z'],
         ['save', 'meta+s'],
+        ['print', 'ctrl+p'],
+        ['reload', 'ctrl+r'],
         ['one bad alternative of two', 'ctrl+k,ctrl+v'],
         ['an unknown modifier', 'hyper+k'],
         ['two keys', 'ctrl+a+b'],
