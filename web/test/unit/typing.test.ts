@@ -128,7 +128,7 @@ describe('parseBinding', () => {
         ['meta+k', 'meta+k'],
         ['cmd+k, ctrl+k', 'cmd+k,ctrl+k'],
         ['f2', 'f2'],
-        ['ctrl+shift+c (Shift makes it another shortcut)', 'ctrl+shift+c'],
+        ['ctrl+shift+s (Shift makes it another shortcut)', 'ctrl+shift+s'],
     ])('%s is taken', (value, expected) => {
         expect(parseBinding(value.replace(/ \(.*\)$/u, ''))).toBe(expected);
     });
@@ -142,6 +142,10 @@ describe('parseBinding', () => {
         ['save', 'meta+s'],
         ['print', 'ctrl+p'],
         ['reload', 'ctrl+r'],
+        ["Firefox's private window", 'ctrl+shift+p'],
+        ["Chrome's incognito window", 'ctrl+shift+n'],
+        ['the developer tools', 'ctrl+shift+i'],
+        ['the element picker', 'cmd+shift+c'],
         ['one bad alternative of two', 'ctrl+k,ctrl+v'],
         ['an unknown modifier', 'hyper+k'],
         ['two keys', 'ctrl+a+b'],

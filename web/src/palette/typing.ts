@@ -50,6 +50,13 @@ const FUNCTION_KEY = /^f\d+$/u;
  * them over.
  */
 const RESERVED_WITH_COMMAND = new Set(['a', 'c', 'v', 'x', 'y', 'z', 's', 'f', 'w', 't', 'n', 'q', 'p', 'r', 'l']);
+/**
+ * Keys whose Ctrl/Cmd+Shift shortcut a browser keeps for itself: a private
+ * or incognito window (P in Firefox, N in Chrome), reopening a closed tab or
+ * window (T, N), closing the window (W), the developer tools (I, J, C, K, E,
+ * M), bookmarks (B, O).
+ */
+const RESERVED_WITH_COMMAND_SHIFT = new Set(['p', 'n', 't', 'w', 'i', 'j', 'c', 'k', 'e', 'm', 'b', 'o']);
 
 /**
  * `value` as a palette binding, or `undefined` when it is not one this
@@ -69,7 +76,8 @@ export function parseBinding(value: unknown): string | undefined {
         const flags = new Set(parts.map((part) => MODIFIERS.get(part)));
         const command = flags.has('ctrlKey') || flags.has('metaKey');
         if (!command && !flags.has('altKey') && !FUNCTION_KEY.test(key)) return false;
-        return !(command && !flags.has('altKey') && !flags.has('shiftKey') && RESERVED_WITH_COMMAND.has(key));
+        if (!command || flags.has('altKey')) return true;
+        return !(flags.has('shiftKey') ? RESERVED_WITH_COMMAND_SHIFT : RESERVED_WITH_COMMAND).has(key);
     });
     return ok ? alternatives.join(',') : undefined;
 }
