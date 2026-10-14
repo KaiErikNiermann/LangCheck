@@ -91,6 +91,16 @@ test('markup is not prose: LaTeX commands and Typst code are not squiggled', asy
     await expect(marks(typst)).toHaveText(['Recieve', 'recieve']);
 });
 
+test('a lone surrogate in the text does not cost the document its check', async ({ page }) => {
+    // Pasted halves of an emoji, or a site's own bug: JavaScript strings may
+    // hold them, the core's UTF-8 cannot, and the whole check used to fail.
+    const lone = String.fromCharCode(0xD8_00);
+    await page.goto(pageUrl('overleaf', 'current', 'Start.'));
+    await expect.poll(() => status(page)).toMatchObject({ state: 'attached' });
+    await host(page, 'switchFile', 'odd', 'main.tex', `Teh first line ${lone} has recieve in it.`);
+    await expect(marks(page)).toHaveText(['Teh', 'recieve']);
+});
+
 test('an edit closes the open card instead of leaving its fix pointing at moved text', async ({ page }) => {
     await page.goto(pageUrl('overleaf', 'current', 'I will recieve it.'));
     await hoverMark(page, 'recieve');

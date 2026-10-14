@@ -37,6 +37,7 @@ describe('parsePageRequest', () => {
         ['a word with a newline', req({ addDictionaryWord: { word: 'a\nb' } })],
         ['a word with a bidi override', req({ addDictionaryWord: { word: `ab${String.fromCodePoint(0x20_2E)}cd` } })],
         ['a word with a zero-width space', req({ addDictionaryWord: { word: `ab${String.fromCodePoint(0x20_0B)}cd` } })],
+        ['a word with a lone surrogate', req({ addDictionaryWord: { word: `ab${String.fromCharCode(0xD8_00)}cd` } })],
         ['ignore with reversed bytes', req({ ignore: { message: '', context: '', text: '', startByte: 4, endByte: 2 } })],
         ['ignore with a negative byte', req({ ignore: { message: '', context: '', text: '', startByte: -1, endByte: 2 } })],
         ['a payload that is not an object', req({ checkProse: 'teh' })],
@@ -48,6 +49,17 @@ describe('parsePageRequest', () => {
 
     test('words are stored in NFC, so one word is one dictionary entry', () => {
         expect(parsePageRequest(req({ addDictionaryWord: { word: 'cafe\u{301}' } }))?.request).toEqual({ addDictionaryWord: { word: 'caf\u{E9}' } });
+    });
+
+    test('text with a lone surrogate is sent with U+FFFD in its place, one unit for one, so its offsets hold', () => {
+        const lone = String.fromCharCode(0xD8_00);
+        const text = `Teh ${lone} end ${String.fromCharCode(0xDF_FF)}.`;
+        const check = parsePageRequest(req({ checkProse: { text, languageId: 'latex' } }))?.request as { checkProse: { text: string } };
+        expect(check.checkProse.text).toBe('Teh \u{FFFD} end \u{FFFD}.');
+        expect(check.checkProse.text).toHaveLength(text.length);
+        expect(new TextEncoder().encode(check.checkProse.text)).toHaveLength(new TextEncoder().encode(text).length);
+        const ignore = parsePageRequest(req({ ignore: { message: lone, context: lone, text: lone, startByte: 0, endByte: 3 } }))?.request;
+        expect(ignore).toEqual({ ignore: { message: '\u{FFFD}', context: '\u{FFFD}', text: '\u{FFFD}', startByte: 0, endByte: 3 } });
     });
 
     test('never throws, whatever arrives', () => {

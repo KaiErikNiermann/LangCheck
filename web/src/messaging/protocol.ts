@@ -130,6 +130,16 @@ const isBag = (v: unknown): v is Bag => typeof v === 'object' && v !== null && !
 const isId = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) > 0;
 const isByte = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= 0xFF_FF_FF_FF;
 const isText = (v: unknown, max: number): v is string => typeof v === 'string' && v.length <= max;
+/**
+ * `text` with each lone surrogate made U+FFFD. The core's protocol carries
+ * UTF-8, which a lone surrogate has no encoding in: protobuf.js writes it as
+ * invalid bytes, and the core refuses the whole request. U+FFFD is one UTF-16
+ * unit and three UTF-8 bytes, as the client's own TextEncoder already counts
+ * a lone surrogate, so every offset into the text still holds.
+ */
+const wellFormed = (text: string): string => text.toWellFormed();
+/** A word to keep: a lone surrogate makes it no word at all, so it is refused rather than mended. */
+const isWord = (v: unknown, max: number): v is string => isText(v, max) && v.isWellFormed();
 const isLanguage = (v: unknown): v is LanguageId => (LANGUAGE_IDS as readonly unknown[]).includes(v);
 /** A checker's or rule's name: what the core accepts in a rule id. */
 const FOREIGN_NAME = /^[a-z0-9_-]{1,32}$/u;
@@ -154,7 +164,7 @@ function parseForeign(value: unknown): ForeignFindingWire[] {
             isText(message ?? '', 1000) &&
             isText(language ?? '', 35);
         if (!sound) continue;
-        const finding = { checker, rule, category, startByte, endByte, message: ((message as string | undefined) ?? '').slice(0, MAX_FOREIGN_MESSAGE_CHARS), language: (language as string | undefined) ?? '' };
+        const finding = { checker, rule, category, startByte, endByte, message: wellFormed(((message as string | undefined) ?? '').slice(0, MAX_FOREIGN_MESSAGE_CHARS)), language: wellFormed((language as string | undefined) ?? '') };
         spent += FINDING_OVERHEAD_BYTES + utf8Length(finding.checker + finding.rule + finding.message + finding.language);
         if (spent > EXTRAS_BUDGET_BYTES) break;
         kept.push(finding);
@@ -167,7 +177,7 @@ function parseSiteWords(words: readonly unknown[]): string[] {
     const kept: string[] = [];
     let spent = 0;
     for (const word of words.slice(0, MAX_SITE_DICTIONARY_WORDS)) {
-        if (!isText(word, MAX_SITE_DICTIONARY_ENTRY)) continue;
+        if (!isWord(word, MAX_SITE_DICTIONARY_ENTRY)) continue;
         spent += 4 + utf8Length(word);
         if (spent > EXTRAS_BUDGET_BYTES) break;
         kept.push(word);
@@ -208,9 +218,10 @@ function parseCheckProse(body: Bag): CoreRequest | undefined {
     const withForeign = foreign.length > 0 ? { foreign } : {};
     // A window of the text, when the page checks it a window at a time: two byte offsets, in order.
     const { window } = body;
-    if (window === undefined || window === null) return { checkProse: { text: body.text, languageId: body.languageId, ...withForeign } };
+    const text = wellFormed(body.text);
+    if (window === undefined || window === null) return { checkProse: { text, languageId: body.languageId, ...withForeign } };
     if (!isBag(window) || !isByte(window.startByte) || !isByte(window.endByte) || window.startByte > window.endByte) return undefined;
-    return { checkProse: { text: body.text, languageId: body.languageId, window: { startByte: window.startByte, endByte: window.endByte }, ...withForeign } };
+    return { checkProse: { text, languageId: body.languageId, window: { startByte: window.startByte, endByte: window.endByte }, ...withForeign } };
 }
 
 function parseCoreRequest(kind: string | undefined, body: unknown): CoreRequest | undefined {
@@ -225,13 +236,13 @@ function parseCoreRequest(kind: string | undefined, body: unknown): CoreRequest 
             return { siteDictionary: { source, words: parseSiteWords(words) } };
         }
         case 'addDictionaryWord':
-            return isText(body.word, MAX_WORD_CHARS) && body.word.length > 0 && !CONTROL_OR_SPACE.test(body.word)
+            return isWord(body.word, MAX_WORD_CHARS) && body.word.length > 0 && !CONTROL_OR_SPACE.test(body.word)
                 ? { addDictionaryWord: { word: body.word.normalize('NFC') } }
                 : undefined;
         case 'ignore': {
             const { message, context, text, startByte, endByte } = body;
             return typeof text === 'string' && isByte(startByte) && isByte(endByte) && startByte <= endByte && isText(message, 10_000) && isText(context, 10_000) && withinCheckLimits(text)
-                ? { ignore: { message, context, text, startByte, endByte } }
+                ? { ignore: { message: wellFormed(message), context: wellFormed(context), text: wellFormed(text), startByte, endByte } }
                 : undefined;
         }
         case 'getMetadata':
