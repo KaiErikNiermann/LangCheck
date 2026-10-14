@@ -20,6 +20,14 @@
   <p id="hint">In hotkeys-js notation, for example <code>alt+shift+p</code>, <code>ctrl+shift+l</code> or <code>alt+k</code>. Leave it empty for the default, <code>alt+shift+p</code>. A browser shortcut such as <code>ctrl+p</code> (print) cannot be taken.</p>
   <p id="status" role="status"></p>
 </form>
+<form id="theme">
+  <h2>Command palette theme</h2>
+  <label><input type="radio" name="palette-theme" value="system"> The system's (light or dark)</label>
+  <label><input type="radio" name="palette-theme" value="light"> Light</label>
+  <label><input type="radio" name="palette-theme" value="dark"> Dark</label>
+  <p>Also in the palette itself, under "Palette Theme…".</p>
+  <p id="theme-status" role="status"></p>
+</form>
 <form id="checking">
   <h2>Long documents</h2>
   <label><input type="checkbox" id="progressive"> Check a long document the first time a window at a time, the part in view first</label>

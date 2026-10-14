@@ -96,6 +96,16 @@ await mkdir(outdir, { recursive: true });
 await writeFile(`${outdir}/manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
 await copyFile('icon-128.png', `${outdir}/icon.png`);
 for (const page of ['palette.html', 'options.html', 'config.html']) await copyFile(page, `${outdir}/${page}`);
+await copyFile('palette.css', `${outdir}/palette.css`);
+// The palette's typefaces (OFL-1.1), shipped with the extension: a page of
+// ours never fetches fonts from the network.
+await mkdir(`${outdir}/fonts`, { recursive: true });
+for (const family of ['ibm-plex-sans', 'ibm-plex-mono']) {
+    for (const weight of [400, 500]) {
+        const file = `${family}-latin-${String(weight)}-normal.woff2`;
+        await copyFile(`node_modules/@fontsource/${family}/files/${file}`, `${outdir}/fonts/${file}`);
+    }
+}
 // The gutter icons ConfigStatusView draws, from the extension's media.
 await cp('../extension/media/gutter', `${outdir}/config/media/gutter`, { recursive: true });
 

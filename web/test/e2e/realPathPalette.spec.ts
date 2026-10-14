@@ -16,14 +16,68 @@ async function ready(page: Page): Promise<void> {
 test('Alt+Shift+P opens the palette over the editor, listing the client commands with their VS Code titles', async ({ page }) => {
     await ready(page);
     await page.keyboard.press('Alt+Shift+KeyP');
-    await expect(palette(page).locator('ninja-action')).toHaveText([/Check Current Document/u, /Open SpeedFix/u, /Open Inspector/u, /Edit Config/u]);
+    await expect(palette(page).locator('ninja-action')).toHaveText([/Check Current Document/u, /Open SpeedFix/u, /Open Inspector/u, /Edit Config/u, /Palette Theme/u]);
+});
+
+/** The palette's background, as drawn. */
+const paletteBackground = (page: Page) =>
+    palette(page).locator('ninja-keys').evaluate((element) => getComputedStyle(element.shadowRoot!.querySelector('.modal-content')!).backgroundColor);
+const LIGHT = 'rgb(248, 248, 248)';
+const DARK = 'rgb(37, 37, 38)';
+
+test('the palette is set in its own typefaces, shipped with the extension', async ({ page }) => {
+    const requested: string[] = [];
+    page.on('request', (request) => {
+        requested.push(request.url());
+    });
+    await ready(page);
+    await page.keyboard.press('Alt+Shift+KeyP');
+    await expect(palette(page).locator('ninja-action')).toHaveCount(5);
+    const fonts = await palette(page).locator('ninja-keys').evaluate(async () => {
+        const [sans, mono] = await Promise.all([document.fonts.load('15px "IBM Plex Sans"'), document.fonts.load('15px "IBM Plex Mono"')]);
+        return [sans.length, mono.length];
+    });
+    expect(fonts).toEqual([1, 1]);
+    // ninja-keys fetches Material Icons from Google unless told not to.
+    expect(requested.filter((url) => url.includes('googleapis'))).toEqual([]);
+});
+
+test('the palette follows the system theme until one is picked, there or on the options page, and keeps it', async ({ page, context, extensionId }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await ready(page);
+    await page.keyboard.press('Alt+Shift+KeyP');
+    await expect.poll(() => paletteBackground(page)).toBe(DARK);
+    // Picked in the palette: it changes at once, and the palette stays open.
+    await page.keyboard.type('theme');
+    await page.keyboard.press('Enter');
+    await expect(palette(page).locator('ninja-action')).toHaveText([/System/u, /Light/u, /Dark/u]);
+    await page.keyboard.type('light');
+    await page.keyboard.press('Enter');
+    await expect.poll(() => paletteBackground(page)).toBe(LIGHT);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('iframe[title="Language Check commands"]')).toHaveCount(0);
+    // Kept for the next palette, against the system's dark.
+    await page.keyboard.press('Alt+Shift+KeyP');
+    await expect.poll(() => paletteBackground(page)).toBe(LIGHT);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('iframe[title="Language Check commands"]')).toHaveCount(0);
+
+    const options = await context.newPage();
+    await options.goto(`chrome-extension://${extensionId}/options.html`);
+    await expect(options.getByLabel('Light', { exact: true })).toBeChecked();
+    await options.getByLabel("The system's (light or dark)").check();
+    await expect(options.locator('#theme-status')).toContainText('Saved');
+    await page.bringToFront();
+    await page.locator('.cm-content').click();
+    await page.keyboard.press('Alt+Shift+KeyP');
+    await expect.poll(() => paletteBackground(page)).toBe(DARK);
 });
 
 test('choosing a command runs it, closes the palette and returns focus to the text', async ({ page }) => {
     await ready(page);
     const before = await checks(page);
     await page.keyboard.press('Alt+Shift+KeyP');
-    await expect(palette(page).locator('ninja-action')).toHaveCount(4);
+    await expect(palette(page).locator('ninja-action')).toHaveCount(5);
     await page.keyboard.type('check');
     await page.keyboard.press('Enter');
     await expect(page.locator('iframe[title="Language Check commands"]')).toHaveCount(0);
@@ -35,12 +89,12 @@ test('Escape, or the binding again, closes it without running anything', async (
     await ready(page);
     const before = await checks(page);
     await page.keyboard.press('Alt+Shift+KeyP');
-    await expect(palette(page).locator('ninja-action')).toHaveCount(4);
+    await expect(palette(page).locator('ninja-action')).toHaveCount(5);
     await page.keyboard.press('Escape');
     await expect(page.locator('iframe[title="Language Check commands"]')).toHaveCount(0);
     await expect(page.locator('.cm-content')).toBeFocused();
     await page.keyboard.press('Alt+Shift+KeyP');
-    await expect(palette(page).locator('ninja-action')).toHaveCount(4);
+    await expect(palette(page).locator('ninja-action')).toHaveCount(5);
     await page.keyboard.press('Alt+Shift+KeyP');
     await expect(page.locator('iframe[title="Language Check commands"]')).toHaveCount(0);
     expect(await checks(page)).toBe(before);
@@ -64,7 +118,7 @@ test('the binding can be changed on the options page', async ({ page, context, e
     await page.keyboard.press('Alt+Shift+KeyP');
     await expect(page.locator('iframe[title="Language Check commands"]')).toHaveCount(0);
     await page.keyboard.press('Control+Shift+KeyL');
-    await expect(palette(page).locator('ninja-action')).toHaveCount(4);
+    await expect(palette(page).locator('ninja-action')).toHaveCount(5);
 });
 
 test('a key event the page makes up does not open the palette', async ({ page }) => {
@@ -79,7 +133,7 @@ test('a key event the page makes up does not open the palette', async ({ page })
     await expect(page.locator('iframe[title="Language Check commands"]')).toHaveCount(0);
     // The user's own key still does.
     await page.keyboard.press('Alt+Shift+KeyP');
-    await expect(palette(page).locator('ninja-action')).toHaveCount(4);
+    await expect(palette(page).locator('ninja-action')).toHaveCount(5);
 });
 
 test('a command typed and entered straight after the binding runs, and no key reaches the document', async ({ page, context }) => {

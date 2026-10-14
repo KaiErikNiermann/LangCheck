@@ -1,0 +1,118 @@
+/*
+ * The command palette's look. Token table: every literal is bound here once,
+ * as a light-dark() pair; the palette (ninja-keys) only consumes them through
+ * its --ninja-* properties. The colours follow VS Code's quick-input list in
+ * Light+ and Dark+, as the fix card does.
+ *
+ * The theme is the palette's color-scheme: the system's by default, or the
+ * one the user picked (data-theme on the root, set by src/palette/theme.ts).
+ * It is set on the palette, not the root: an iframe whose root scheme
+ * differs from its embedder's gets an opaque backdrop, and this one lies
+ * over the site.
+ */
+@layer tokens, base, components;
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url("fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url("fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+}
+
+@layer tokens {
+  :root {
+    --pal-font: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    --pal-font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --pal-font-size: 15px;
+    --pal-width: 600px;
+    --pal-top: 15%;
+    --pal-key-radius: 3px;
+    --pal-list-height: 320px;
+
+    --pal-backdrop: light-dark(rgb(0 0 0 / 12%), rgb(0 0 0 / 45%));
+    --pal-bg: light-dark(#f8f8f8, #252526);
+    --pal-fg: light-dark(#3b3b3b, #cccccc);
+    --pal-muted: light-dark(#717171, #9d9d9d);
+    --pal-placeholder: light-dark(#8e8e8e, #8b8b8b);
+    --pal-accent: light-dark(#005fb8, #0078d4);
+    --pal-selected-bg: light-dark(#e4e6f1, #04395e);
+    --pal-selected-fg: light-dark(#000000, #ffffff);
+    --pal-chip-bg: light-dark(#e8e8e8, #3c3c3c);
+    --pal-border: 1px solid light-dark(#e5e5e5, #3c3c3c);
+    --pal-footer-bg: light-dark(#f0f0f0, #1e1e1e);
+    --pal-shadow: 0 8px 32px light-dark(rgb(0 0 0 / 18%), rgb(0 0 0 / 55%));
+  }
+}
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    background: transparent;
+  }
+}
+
+@layer components {
+  ninja-keys {
+    color-scheme: light dark;
+    --ninja-font-family: var(--pal-font);
+    --ninja-font-size: var(--pal-font-size);
+    --ninja-width: var(--pal-width);
+    --ninja-top: var(--pal-top);
+    --ninja-key-border-radius: var(--pal-key-radius);
+    --ninja-actions-height: var(--pal-list-height);
+    --ninja-overflow-background: var(--pal-backdrop);
+    --ninja-modal-background: var(--pal-bg);
+    --ninja-modal-shadow: var(--pal-shadow);
+    --ninja-text-color: var(--pal-fg);
+    --ninja-keys-text-color: var(--pal-fg);
+    --ninja-group-text-color: var(--pal-muted);
+    --ninja-placeholder-color: var(--pal-placeholder);
+    --ninja-accent-color: var(--pal-accent);
+    --ninja-selected-background: var(--pal-selected-bg);
+    --ninja-selected-text-color: var(--pal-selected-fg);
+    --ninja-secondary-background-color: var(--pal-chip-bg);
+    --ninja-secondary-text-color: var(--pal-muted);
+    --ninja-icon-color: var(--pal-muted);
+    --ninja-separate-border: var(--pal-border);
+    --ninja-footer-background: var(--pal-footer-bg);
+  }
+
+  /* What is typed is a query, as in an editor's own palette. */
+  ninja-keys::part(ninja-input) {
+    font-family: var(--pal-font-mono);
+  }
+
+  [data-theme="light"] ninja-keys {
+    color-scheme: light;
+  }
+
+  [data-theme="dark"] ninja-keys {
+    color-scheme: dark;
+  }
+}

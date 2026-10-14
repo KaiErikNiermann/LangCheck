@@ -7,9 +7,50 @@
 // page answers with { type: 'run', id } or { type: 'close' }. Which command
 // to run is checked again on the other side; this page holds no authority.
 import 'ninja-keys';
+import browser from 'webextension-polyfill';
 import { PALETTE_INIT_TYPE, type ContentToPalette, type PaletteToContent } from './protocol';
 import { holdKeys, MAX_TYPED_CHARS, parseBinding } from './typing';
 import { PALETTE, isPaletteCommand } from './commands';
+import { applyTheme, PALETTE_THEME_KEY, PALETTE_THEME_TITLES, PALETTE_THEMES, parseTheme, type PaletteTheme } from './theme';
+
+// The theme the user picked, applied as soon as it is read, and again when
+// it changes (here, or on the options page).
+const useTheme = (value: unknown): void => {
+    applyTheme(document.documentElement, parseTheme(value));
+};
+void browser.storage.local.get(PALETTE_THEME_KEY).then(
+    (stored) => {
+        useTheme(stored[PALETTE_THEME_KEY]);
+    },
+    (error: unknown) => {
+        console.warn('[language-check] the palette theme could not be read; following the system:', error);
+    },
+);
+browser.storage.onChanged.addListener((changes, area) => {
+    const change = changes[PALETTE_THEME_KEY];
+    if (area === 'local' && change !== undefined) useTheme(change.newValue);
+});
+
+/** The palette's own entry, beside the client's commands: its theme, one child per choice. */
+const THEME_ENTRY = 'palette-theme';
+const pickTheme = (theme: PaletteTheme): { keepOpen: boolean } => {
+    applyTheme(document.documentElement, theme);
+    void browser.storage.local.set({ [PALETTE_THEME_KEY]: theme }).catch((error: unknown) => {
+        console.warn('[language-check] the palette theme was not saved:', error);
+    });
+    // Open still, so the choices can be compared.
+    return { keepOpen: true };
+};
+const themeEntries = [
+    { id: THEME_ENTRY, title: 'Palette Theme…', section: 'Palette', keywords: 'dark light colour color', children: PALETTE_THEMES.map((theme) => `${THEME_ENTRY}-${theme}`) },
+    ...PALETTE_THEMES.map((theme) => ({
+        id: `${THEME_ENTRY}-${theme}`,
+        title: PALETTE_THEME_TITLES[theme],
+        parent: THEME_ENTRY,
+        keywords: 'theme',
+        handler: () => pickTheme(theme),
+    })),
+];
 
 // This page holds the keyboard from the moment its script runs, which is
 // while the page is still loading, before the content script can focus the
@@ -53,18 +94,23 @@ window.addEventListener('message', (event: MessageEvent) => {
 
 function show(port: MessagePort, entries: typeof PALETTE): void {
     const ninja = document.createElement('ninja-keys');
+    // Its default fetches Material Icons from Google on every open; no entry has an icon.
+    ninja.noAutoLoadMdIcons = true;
     // The same binding that opened it closes it, and inside the iframe it
     // cannot fall through to whatever the browser would make of it.
     ninja.openHotkey = hotkey;
     ninja.placeholder = 'Run a Language Check command';
-    ninja.data = entries.map((entry) => ({
-        id: entry.id,
-        title: entry.title,
-        section: 'Language Check',
-        handler: () => {
-            send({ type: 'run', id: entry.id });
-        },
-    }));
+    ninja.data = [
+        ...entries.map((entry) => ({
+            id: entry.id,
+            title: entry.title,
+            section: 'Language Check',
+            handler: () => {
+                send({ type: 'run', id: entry.id });
+            },
+        })),
+        ...themeEntries,
+    ];
     ninja.addEventListener('close', () => {
         send({ type: 'close' });
     });

@@ -1,8 +1,9 @@
-// The options page: the palette's shortcut, how long documents are checked,
-// and what becomes of a site's own spellchecker.
+// The options page: the palette's shortcut and theme, how long documents
+// are checked, and what becomes of a site's own spellchecker.
 import browser from 'webextension-polyfill';
 import { CHECK_SETTINGS_KEY, parseCheckSettings, WINDOW_BYTES_RANGE } from '../messaging/protocol';
 import { DEFAULT_PALETTE_HOTKEY, PALETTE_HOTKEY_KEY } from '../palette/protocol';
+import { PALETTE_THEME_KEY, parseTheme } from '../palette/theme';
 import { parseBinding } from '../palette/typing';
 
 /** What a failed read or write of the extension's storage tells the user. */
@@ -40,6 +41,38 @@ if (form !== null && input !== null && status !== null) {
             },
             (error: unknown) => {
                 status.textContent = storageFailed('save the shortcut', error);
+            },
+        );
+    });
+}
+
+const theme = document.querySelector<HTMLFormElement>('#theme');
+const themeStatus = document.querySelector<HTMLElement>('#theme-status');
+
+if (theme !== null && themeStatus !== null) {
+    const radios = [...theme.querySelectorAll<HTMLInputElement>('input[name="palette-theme"]')];
+    const show = (value: unknown): void => {
+        const chosen = parseTheme(value);
+        for (const radio of radios) radio.checked = radio.value === chosen;
+    };
+    show(undefined);
+    void browser.storage.local.get(PALETTE_THEME_KEY).then(
+        (stored) => {
+            show(stored[PALETTE_THEME_KEY]);
+        },
+        (error: unknown) => {
+            themeStatus.textContent = storageFailed('read the saved palette theme', error);
+        },
+    );
+    // Saved on the choice: a theme has nothing to get wrong.
+    theme.addEventListener('change', () => {
+        const chosen = parseTheme(radios.find((radio) => radio.checked)?.value);
+        void browser.storage.local.set({ [PALETTE_THEME_KEY]: chosen }).then(
+            () => {
+                themeStatus.textContent = `Saved. The palette is ${chosen === 'system' ? "the system's" : chosen}.`;
+            },
+            (error: unknown) => {
+                themeStatus.textContent = storageFailed('save the palette theme', error);
             },
         );
     });

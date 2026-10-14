@@ -58,6 +58,15 @@ To regenerate this file from live dependency metadata, run:
 | [vite](https://www.npmjs.com/package/vite) | MIT | Frontend build tool |
 | [vitest](https://www.npmjs.com/package/vitest) | MIT | Test framework |
 
+## Browser Extension Fonts
+
+Shipped in the browser extension's package (`web/dist/fonts`) for its command palette.
+
+| Package | License | Description |
+|---------|---------|-------------|
+| [@fontsource/ibm-plex-sans](https://www.npmjs.com/package/@fontsource/ibm-plex-sans) | OFL-1.1 | IBM Plex Sans, latin subset |
+| [@fontsource/ibm-plex-mono](https://www.npmjs.com/package/@fontsource/ibm-plex-mono) | OFL-1.1 | IBM Plex Mono, latin subset |
+
 ## Documentation Dependencies
 
 Bundled into `docs/_static/vendor/ninja-keys.bundled.js` and served with the docs site. Rebuild it with `just docs-palette-bundle`.
