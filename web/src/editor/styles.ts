@@ -61,8 +61,8 @@ const TOKENS: Declarations = {
 
 const DARK_TOKENS: Declarations = {
     '--lc-card-bg': '#252526',
-    '--lc-card-fg': '#ddd',
-    '--lc-card-muted': '#9d9d9d',
+    '--lc-card-fg': '#f3f3f3',
+    '--lc-card-muted': '#c4c4c4',
     '--lc-row-hover': '#04395e',
     '--lc-row-focus': '#007fd4',
     '--lc-kind-fix': '#89d185',
