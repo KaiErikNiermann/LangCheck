@@ -136,10 +136,7 @@ export class Popover {
                 button.type = 'button';
                 button.className = 'lc-action';
                 button.dataset['kind'] = action.kind;
-                const glyph = document.createElement('span');
-                glyph.className = 'lc-glyph';
-                glyph.setAttribute('aria-hidden', 'true');
-                button.append(glyph, action.title);
+                button.textContent = action.title;
                 button.addEventListener('click', () => {
                     action.run();
                 });

@@ -30,7 +30,7 @@ test('Escape dismisses only the card that is showing, however often it was shown
     for (const dismiss of earlier) expect(dismiss).not.toHaveBeenCalled();
 });
 
-test('actions are rows tagged with their kind, the glyph kept out of their names', () => {
+test('actions are rows tagged with their kind, named by their title alone', () => {
     document.body.replaceChildren();
     const popover = new Popover(fakeSurface());
     const actions = [
@@ -45,5 +45,5 @@ test('actions are rows tagged with their kind, the glyph kept out of their names
         ['preferred', 'Fix: "the"'],
         ['ignore', 'Ignore this issue'],
     ]);
-    for (const b of rows) expect(b.querySelector('.lc-glyph')?.getAttribute('aria-hidden')).toBe('true');
+    for (const b of rows) expect(b.children).toHaveLength(0);
 });
