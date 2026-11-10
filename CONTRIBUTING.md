@@ -57,6 +57,8 @@ pnpm test
 
 Lefthook pre-push hooks will also run these checks automatically.
 
+The end-to-end suites (`pnpm run test:e2e`, `pnpm run test:ui`, `pnpm run bench:e2e`) launch real VS Code windows. On Linux they run on a virtual X display through `xvfb-run`, so nothing opens on your desktop; install Xvfb (`xorg-server-xvfb` on Arch, `xvfb` on Debian/Ubuntu) first. Set `LANGCHECK_E2E_HEADED=1` to watch the windows instead.
+
 ### Commit Messages
 
 Use [Conventional Commits](https://www.conventionalcommits.org/):
