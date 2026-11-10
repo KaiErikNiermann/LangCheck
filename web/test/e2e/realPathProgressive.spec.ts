@@ -15,29 +15,47 @@ async function recordChecks(context: BrowserContext): Promise<void> {
         // eslint-disable-next-line @typescript-eslint/unbound-method -- called with its port below
         const post = MessagePort.prototype.postMessage;
         MessagePort.prototype.postMessage = function (this: MessagePort, ...args: Parameters<MessagePort['postMessage']>) {
-            const check = (args[0] as { request?: { checkProse?: { window?: { startByte: number; endByte: number } } } } | null)?.request?.checkProse;
+            const request = (args[0] as { request?: { checkProse?: { window?: { startByte: number; endByte: number } }; siteDictionary?: unknown } } | null)?.request;
+            const check = request?.checkProse;
             if (check !== undefined) sent.push(check.window === undefined ? 'whole' : [check.window.startByte, check.window.endByte]);
+            if (request?.siteDictionary !== undefined) sent.push('site');
             post.apply(this, args);
         } as MessagePort['postMessage'];
     });
 }
 
 type Sent = 'whole' | [number, number];
+/** What the page has sent, in order: each check, and `site` for its site dictionary. */
+const wire = (page: Page): Promise<(Sent | 'site')[]> => page.evaluate(() => [...(globalThis as any).__checksSent]);
 /** The checks the page has sent, from the `from`-th on. */
 const checksSent = async (page: Page, from = 0): Promise<Sent[]> => {
-    const all: Sent[] = await page.evaluate(() => [...(globalThis as any).__checksSent]);
-    return all.slice(from);
+    const sent = await wire(page);
+    return sent.filter((entry): entry is Sent => entry !== 'site').slice(from);
+};
+/** Whether a check went out after the site's dictionary did: the recheck its arrival starts. */
+const recheckedAfterSite = async (page: Page): Promise<boolean> => {
+    const sent = await wire(page);
+    const site = sent.indexOf('site');
+    return site !== -1 && sent.slice(site + 1).some((entry) => entry !== 'site');
 };
 const findings = (page: Page): Promise<number> => page.evaluate(() => (globalThis as any).__languageCheck.stats().findings as number);
 
-/** The Overleaf stand-in with `text` open in it, as a file switch (too long for the URL). */
+/**
+ * The Overleaf stand-in with `text` open in it, as a file switch (too long
+ * for the URL). Returns how many checks were sent before the switch.
+ *
+ * The first file is checked whole (it is short), and once more when the
+ * site's dictionary reaches the core, since that first check started before
+ * the words did. The switch waits for that second check to have gone out, so
+ * no check of the first file is sent after it.
+ */
 async function openLong(page: Page, text: string): Promise<number> {
     await page.goto(pageUrl('overleaf', 'current', 'Start.'));
     await expect.poll(() => status(page)).toMatchObject({ state: 'attached' });
-    // The first file's check, whole (it is short), done.
-    await expect.poll(() => page.evaluate(() => (globalThis as any).__languageCheck.stats().checks as number)).toBe(1);
+    await expect.poll(() => recheckedAfterSite(page)).toBe(true);
+    const before = await checksSent(page);
     await host(page, 'switchFile', 'doc-long', 'long.tex', text);
-    return 1;
+    return before.length;
 }
 
 test('a long document is first checked a window at a time, finding what a whole check finds; then checked whole', async ({ page, context, extensionId }) => {
@@ -98,6 +116,7 @@ test('maxBytes bounds the check: what starts past it is not checked', async ({ p
 });
 
 test('typing while the windows are on their way leaves the findings of the text as it is', async ({ page, context, extensionId }) => {
+    await recordChecks(context);
     await setChecking(context, extensionId, { progressive: true, windowKib: 1, maxKib: 0 });
     const { text, misspellings } = longProse(400, 40, '\n\n');
     await openLong(page, text);
