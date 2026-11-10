@@ -69,6 +69,7 @@ fs4 = "1.1.0"
 sha2 = "0.11.0"
 schemars = "1"
 tempfile = "3.27.0"
+arc-swap = "1.9.5"
 
 [dev-dependencies]
 insta = { version = "1.47", features = ["yaml"] }

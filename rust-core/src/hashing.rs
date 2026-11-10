@@ -101,6 +101,7 @@ struct IgnoreStoreData {
     fingerprints: Vec<u64>,
 }
 
+#[derive(Clone)]
 pub struct IgnoreStore {
     ignored_fingerprints: HashSet<u64>,
     persist_path: Option<PathBuf>,

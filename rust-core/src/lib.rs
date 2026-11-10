@@ -38,3 +38,4 @@ pub mod style_rules;
 pub mod suppression;
 pub mod text_util;
 pub mod workspace;
+pub mod workspace_state;
