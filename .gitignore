@@ -57,3 +57,8 @@ spellcheck_wordlists.json
 # ignore store, which is per-checkout state.
 .vale/styles/
 .languagecheck/
+
+# Local working state: the session log and scratch space (worktrees, repro
+# crates, captured logs). Never part of the repository.
+LOG.md
+.scratch/
