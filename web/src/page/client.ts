@@ -232,7 +232,18 @@ export function startClient(context: vscode.ExtensionContext, connection: CoreCl
     const check = (doc: vscode.TextDocument): void => {
         void checker.check(doc);
     };
+    /**
+     * Checks every open document again, after something that changes the
+     * answer without changing the text: the config, the site's dictionary,
+     * the foreign-checker mode, a restarted core.
+     *
+     * Running checks are forgotten first. A check joins one already running
+     * over the same text, and that one was sent before the change: the site's
+     * words sent with the page's first check arrived just after it, the
+     * recheck joined it, and the word the site had learned stayed marked.
+     */
     const checkAll = (): void => {
+        checker.invalidate();
         for (const doc of vscode.workspace.textDocuments) check(doc);
     };
     /** Hide the site's checker as the mode says; while merging, check again when it answers. */
