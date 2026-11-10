@@ -16,7 +16,11 @@
 import { spawn, spawnSync } from 'node:child_process';
 import process from 'node:process';
 
-const [command, ...args] = process.argv.slice(2);
+const [command, ...given] = process.argv.slice(2);
+// `pnpm run test:e2e -- --label scope` hands the `--` on as an argument, and
+// vscode-test then ignores `--label` and runs every suite. Directly after the
+// command it is only ever pnpm's separator.
+const args = given[0] === '--' ? given.slice(1) : given;
 if (!command) {
     console.error('usage: virtual-display.mjs <command> [args...]');
     process.exit(2);
