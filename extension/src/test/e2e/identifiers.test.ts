@@ -21,8 +21,12 @@ const BUDGET_MS = 45_000;
 const INSIDE_IDENTIFIERS = ['json', 'fooBarBaz', 'getElementById', 'XmlHttpRequest'];
 /** An ordinary misspelling, reported under every configuration. */
 const CONTROL = 'recieve';
-/** A shift-key slip: camel-shaped, but Harper names the word it should be. */
-const CASING_SLIP = 'tHe';
+/**
+ * A casing slip: camel-shaped, but Harper names the word it should be
+ * (`GitHub`). Harper 3 no longer reports a slip whose right spelling is
+ * lowercase, so the `tHe` this used to be stopped being a finding at all.
+ */
+const CASING_SLIP = 'gitHub';
 
 /** The text under every diagnostic of ours on the document, of any category. */
 function squiggled(document: vscode.TextDocument): Set<string> {
