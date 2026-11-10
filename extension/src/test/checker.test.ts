@@ -120,4 +120,38 @@ describe('Checker', () => {
         expect(published).toContainEqual(['d2']);
         expect(published).toHaveLength(4);
     });
+
+    it('does not join a check started under a config that has since changed', async () => {
+        const { checker, pending, published } = harness();
+        const doc = editableDocument('teh');
+
+        const stale = checker.check(doc as unknown as vscode.TextDocument);
+        await settle();
+        checker.invalidate();
+        // Same text, new config: joining the running check would hand back the
+        // old config's answer, and nothing would ever check the file again.
+        const fresh = checker.check(doc as unknown as vscode.TextDocument);
+        await settle();
+        expect(pending).toHaveLength(2);
+
+        pending[1]!(answer('new config'));
+        await fresh;
+        pending[0]!(answer('old config'));
+        await stale;
+
+        expect(published).toEqual([['new config']]);
+    });
+
+    it('drops the answer of a check the config changed under, even with no newer check', async () => {
+        const { checker, pending, published } = harness();
+        const doc = editableDocument('teh');
+
+        const stale = checker.check(doc as unknown as vscode.TextDocument);
+        await settle();
+        checker.invalidate();
+        pending[0]!(answer('old config'));
+        await stale;
+
+        expect(published).toEqual([]);
+    });
 });

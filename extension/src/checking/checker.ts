@@ -75,6 +75,20 @@ export class Checker {
     constructor(private readonly deps: CheckerDeps) {}
 
     /**
+     * Forget every running check, for a config change.
+     *
+     * A check is joined by its text alone, and the text does not change when the
+     * config does: without this, the recheck after a reload joins a check sent
+     * under the old config, publishes that answer, and the file then counts as
+     * checked. Clearing {@link latest} also makes the old checks drop their
+     * answers instead of publishing them into the cleared store.
+     */
+    invalidate(): void {
+        this.inFlight.clear();
+        this.latest.clear();
+    }
+
+    /**
      * Check a document, joining a check already running over the exact same text
      * instead of starting a second one. Returns the number of issues found, or -1
      * on error.
