@@ -32,6 +32,13 @@ const launchArgs = ['--disable-extensions'];
 // nothing rather than by the refusal being honoured.
 const declineUserDataDir = path.join(here, '.vscode-test', 'user-data-decline');
 
+/**
+ * The core's own log, at debug unless the run says otherwise. It reaches the
+ * "Language Check" output channel, which VS Code keeps under the user data
+ * directory's `logs/`: a failed run then has both sides of every request.
+ */
+const env = { RUST_LOG: process.env.RUST_LOG ?? 'debug' };
+
 export default defineConfig([
     {
         label: 'startup',
@@ -258,4 +265,4 @@ export default defineConfig([
         launchArgs: [...launchArgs, '--user-data-dir', declineUserDataDir],
         mocha: { ui: 'tdd', timeout: 90_000 },
     },
-]);
+].map(config => ({ env, ...config })));

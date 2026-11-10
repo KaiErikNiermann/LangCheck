@@ -76,6 +76,16 @@ jobs:
         run: xvfb-run -a pnpm exec playwright test
         working-directory: extension
 
+      # The extension's output channel, with the core's debug log in it, for
+      # each suite's window: the only record of what the core did in a hang.
+      - name: Upload VS Code logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: vscode-e2e-logs
+          path: extension/.vscode-test/user-data*/logs
+          retention-days: 7
+
       - name: Upload UI test traces
         if: failure()
         uses: actions/upload-artifact@v7
