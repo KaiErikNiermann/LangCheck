@@ -218,6 +218,17 @@ async fn main() -> Result<()> {
     let dictionary_arc: Arc<Mutex<Dictionary>> = Arc::new(Mutex::new(Dictionary::new()));
     let morphology_arc: Arc<Mutex<Option<AffixAnalyzer>>> = Arc::new(Mutex::new(None));
     let name_filter_arc: Arc<Mutex<Option<NameFilter>>> = Arc::new(Mutex::new(None));
+    // Lock order. A handler that holds more than one of these takes them in
+    // this order, and never takes an earlier one while holding a later one:
+    //
+    //   schema_registry -> config -> workspace_root -> dictionary
+    //     -> ignore_store -> morphology -> name_filter
+    //
+    // Two checks taking the same pair the opposite way round each waited for
+    // the other's, and every request needing either then waited behind them:
+    // the core stopped answering with no error and no busy thread. The
+    // orchestrator and the index are never held together with another of
+    // these.
     let schema_registry_arc: Arc<Mutex<SchemaRegistry>> =
         Arc::new(Mutex::new(SchemaRegistry::new()));
     let workspace_index_arc: Arc<Mutex<Option<WorkspaceIndex>>> = Arc::new(Mutex::new(None));
@@ -694,6 +705,9 @@ async fn main() -> Result<()> {
                             // What this check depends on, computed once and used
                             // both to look the answer up and to store it.
                             let fingerprint = {
+                                // The schemas first, on their own: they come
+                                // before the config in the lock order.
+                                let schemas = schema_registry_arc.lock().await.fingerprint();
                                 let cfg = config_arc.lock().await;
                                 let dict = dictionary_arc.lock().await;
                                 let ignores = ignore_store_arc.lock().await;
@@ -703,7 +717,7 @@ async fn main() -> Result<()> {
                                     &dict,
                                     &ignores,
                                     name_filter_arc.lock().await.is_some(),
-                                    schema_registry_arc.lock().await.fingerprint(),
+                                    schemas,
                                 )
                             };
 
@@ -822,8 +836,8 @@ async fn main() -> Result<()> {
                             // check and not to a reused one.
                             {
                                 let directives = InlineDirectives::parse(&req.text);
-                                let ignore_store = ignore_store_arc.lock().await;
                                 let dict = dictionary_arc.lock().await;
+                                let ignore_store = ignore_store_arc.lock().await;
                                 let morphology = morphology_arc.lock().await;
                                 let name_filter = name_filter_arc.lock().await;
                                 let mut ctx = SuppressionContext::new()
@@ -864,8 +878,8 @@ async fn main() -> Result<()> {
                     }
                 }
                 Some(checker::request::Payload::GetMetadata(_)) => {
-                    let cfg = config_arc.lock().await;
                     let schema_extensions = schema_registry_arc.lock().await.fallback_extensions();
+                    let cfg = config_arc.lock().await;
                     Some(response::Payload::GetMetadata(MetadataResponse {
                         schema_extensions,
                         name: "Rust Core".to_string(),
