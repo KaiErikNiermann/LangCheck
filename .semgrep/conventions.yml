@@ -106,6 +106,22 @@ rules:
       - pattern: Config::load(...).unwrap_or(Config::default())
       - pattern: Config::load(...).ok()
 
+  - id: workspace-state-behind-one-snapshot
+    languages: [rust]
+    severity: ERROR
+    message: >-
+      The config, dictionary, ignore store, morphology, name filter and schema registry live in
+      one `workspace_state::WorkspaceState`, read with `SharedState::snapshot()` and changed with
+      `SharedState::update` or `writer()`/`publish`. Do not give one of them its own `Mutex` or
+      `RwLock` again. When they had one each (18 matches before the change: 12 in
+      `language-check-server.rs`, 6 in `lsp.rs`), two checks took the schema registry and the
+      config in opposite orders and deadlocked the server, and the background indexer took the
+      ignore store before the dictionary while the checks took them the other way round.
+    paths:
+      exclude:
+        - "**/rust-core/src/workspace_state.rs"
+    pattern-regex: '\b(?:Mutex|RwLock)<\s*(?:Option<\s*)?(?:Config|Dictionary|IgnoreStore|AffixAnalyzer|NameFilter|SchemaRegistry)\b'
+
   # DELIBERATELY ABSENT: a rule banning `.unwrap()` outside tests.
   #
   # The obvious convention rule, and it does not earn its place here. Non-test `.unwrap()` scores 6,

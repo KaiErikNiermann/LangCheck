@@ -6,7 +6,7 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 use dashmap::DashMap;
@@ -33,8 +33,9 @@ use crate::names::NameFilter;
 use crate::orchestrator::Orchestrator;
 use crate::prose;
 use crate::sls::SchemaRegistry;
-use crate::suppression::{InlineDirectives, SuppressionContext, retain_visible};
+use crate::suppression::{InlineDirectives, retain_visible};
 use crate::text_util::{safe_prefix, safe_slice};
+use crate::workspace_state::SharedState;
 
 // ── LSP settings ────────────────────────────────────────────────────────────
 
@@ -100,14 +101,10 @@ type DocumentStore = DashMap<String, (String, String)>;
 pub struct Backend {
     client: Client,
     orchestrator: Arc<Mutex<Orchestrator>>,
-    config: Arc<Mutex<Config>>,
-    dictionary: Arc<Mutex<Dictionary>>,
-    morphology: Arc<Mutex<Option<AffixAnalyzer>>>,
-    name_filter: Arc<Mutex<Option<NameFilter>>>,
-    ignore_store: Arc<Mutex<IgnoreStore>>,
-    schema_registry: Arc<Mutex<SchemaRegistry>>,
+    /// The config, dictionary, ignores, morphology, names, schemas and root,
+    /// as one value (see [`crate::workspace_state`]).
+    state: SharedState,
     documents: DocumentStore,
-    workspace_root: Mutex<Option<PathBuf>>,
 }
 
 impl Backend {
@@ -115,19 +112,18 @@ impl Backend {
         Self {
             client,
             orchestrator: Arc::new(Mutex::new(Orchestrator::new(Config::default()))),
-            config: Arc::new(Mutex::new(Config::default())),
-            dictionary: Arc::new(Mutex::new(Dictionary::new())),
-            morphology: Arc::new(Mutex::new(None)),
-            name_filter: Arc::new(Mutex::new(None)),
-            ignore_store: Arc::new(Mutex::new(IgnoreStore::new())),
-            schema_registry: Arc::new(Mutex::new(SchemaRegistry::new())),
+            state: SharedState::default(),
             documents: DashMap::new(),
-            workspace_root: Mutex::new(None),
         }
     }
 
     /// Initialise all state from the workspace root (config, dictionary, …).
     async fn init_workspace(&self, root: &Path) {
+        // Built off to the side and published whole: a document diagnosed
+        // meanwhile sees the previous state, all of it. A part that fails to
+        // load keeps its previous value.
+        let writing = self.state.writer().await;
+        let mut next = (*writing.current()).clone();
         let config = Config::load_or_warn(root);
         info!(
             harper = config.engines.harper.enabled,
@@ -137,61 +133,46 @@ impl Backend {
             "LSP: engines configured"
         );
 
-        self.orchestrator.lock().await.update_config(config.clone());
-        *self.config.lock().await = config.clone();
-
-        self.reload_dictionary(root, &config).await;
-
-        *self.morphology.lock().await = config
+        if let Some(dictionary) = load_dictionary(root, &config) {
+            next.dictionary = Arc::new(dictionary);
+        }
+        next.morphology = config
             .morphology
             .enabled
-            .then(|| AffixAnalyzer::new(&config.engines.spell_language));
-
-        *self.name_filter.lock().await = config.names.enabled.then(|| {
+            .then(|| Arc::new(AffixAnalyzer::new(&config.engines.spell_language)));
+        next.names = config.names.enabled.then(|| {
             info!(
                 aggressiveness = ?config.names.aggressiveness,
                 "LSP: name detection enabled"
             );
-            NameFilter::new(config.names.aggressiveness, &config.engines.spell_language)
+            Arc::new(NameFilter::new(
+                config.names.aggressiveness,
+                &config.engines.spell_language,
+            ))
         });
-
         if let Ok(store) = IgnoreStore::load(root) {
-            *self.ignore_store.lock().await = store;
+            next.ignores = Arc::new(store);
         }
         if let Ok(reg) = SchemaRegistry::from_workspace(root) {
-            *self.schema_registry.lock().await = reg;
+            next.schemas = Arc::new(reg);
         }
+        next.root = Some(root.to_path_buf());
 
-        *self.workspace_root.lock().await = Some(root.to_path_buf());
+        self.orchestrator.lock().await.update_config(config.clone());
+        next.config = Arc::new(config);
+        writing.publish(next);
     }
 
     /// Apply LSP settings on top of the workspace config.
-    /// Rebuild the dictionary from `config`, replacing whatever was loaded before.
-    ///
-    /// Shared by workspace init and `didChangeConfiguration` so a toggled set
-    /// takes effect without an editor restart, and so the two paths cannot drift.
-    async fn reload_dictionary(&self, root: &Path, config: &Config) {
-        match Dictionary::load(root) {
-            Ok(mut dict) => {
-                if config.dictionaries.bundled {
-                    dict.load_bundled_except(&config.dictionaries.disabled);
-                }
-                for p in &config.dictionaries.paths {
-                    if let Err(e) = dict.load_wordlist_file(Path::new(p), root) {
-                        warn!(path = p, "Could not load wordlist: {e}");
-                    }
-                }
-                if config.morphology.inflections {
-                    dict.derive_inflections();
-                }
-                *self.dictionary.lock().await = dict;
-            }
-            Err(e) => warn!("Could not load dictionary: {e}"),
-        }
-    }
-
+    // `writing` is held to the `publish` at the end on purpose: let go any
+    // earlier and another writer could start from the state this one is about
+    // to replace, and one of the two changes would be lost. The nursery lint
+    // misreads its last use.
+    #[allow(clippy::significant_drop_tightening)]
     async fn apply_settings(&self, settings: &LangCheckSettings) {
-        let mut config = self.config.lock().await;
+        let writing = self.state.writer().await;
+        let mut next = (*writing.current()).clone();
+        let mut config = (*next.config).clone();
         if let Some(ref eng) = settings.engines {
             if let Some(v) = eng.harper {
                 config.engines.harper.enabled = v;
@@ -242,24 +223,25 @@ impl Backend {
                 config.performance.max_file_size = v;
             }
         }
-        let updated = config.clone();
-        drop(config);
-        *self.morphology.lock().await = updated
+        next.morphology = config
             .morphology
             .enabled
-            .then(|| AffixAnalyzer::new(&updated.engines.spell_language));
-        *self.name_filter.lock().await = updated.names.enabled.then(|| {
-            NameFilter::new(
-                updated.names.aggressiveness,
-                &updated.engines.spell_language,
-            )
+            .then(|| Arc::new(AffixAnalyzer::new(&config.engines.spell_language)));
+        next.names = config.names.enabled.then(|| {
+            Arc::new(NameFilter::new(
+                config.names.aggressiveness,
+                &config.engines.spell_language,
+            ))
         });
         if settings.dictionaries.is_some()
-            && let Some(root) = self.workspace_root.lock().await.clone()
+            && let Some(root) = next.root.clone()
+            && let Some(dictionary) = load_dictionary(&root, &config)
         {
-            self.reload_dictionary(&root, &updated).await;
+            next.dictionary = Arc::new(dictionary);
         }
-        self.orchestrator.lock().await.update_config(updated);
+        self.orchestrator.lock().await.update_config(config.clone());
+        next.config = Arc::new(config);
+        writing.publish(next);
         info!("LSP: config updated via didChangeConfiguration");
     }
 
@@ -281,33 +263,19 @@ impl Backend {
     }
 
     /// Run diagnostics on a document and publish them.
-    // The three suppression-source guards are borrowed by `SuppressionContext`, so they
-    // genuinely have to outlive the `retain_visible` call; clippy's nursery lint reads
-    // the last direct mention of each guard as its last use and asks for an earlier drop
-    // that would not compile. The server binary allows this lint file-wide for the same
-    // pattern.
-    #[allow(clippy::significant_drop_tightening)]
     async fn diagnose(&self, uri: &Url, text: &str, lang_id: &str) {
         let canonical = crate::languages::resolve_language_id(lang_id);
+        // One state for the whole document: extraction and filters describe
+        // the same config.
+        let state = self.state.snapshot();
 
-        let extraction = {
-            let schema_reg = self.schema_registry.lock().await;
-            let cfg = self.config.lock().await;
-            let latex_extras = prose::latex::LatexExtras {
-                skip_envs: &cfg.languages.latex.skip_environments,
-                skip_commands: &cfg.languages.latex.skip_commands,
-            };
-            let result = prose::extract_with_fallback(
-                text,
-                canonical,
-                None,
-                Some(&schema_reg),
-                &latex_extras,
-            );
-            drop(cfg);
-            drop(schema_reg);
-            result
-        };
+        let extraction = prose::extract_with_fallback(
+            text,
+            canonical,
+            None,
+            Some(&state.schemas),
+            &state.latex_extras(),
+        );
 
         let ranges = match extraction {
             Ok(r) => r,
@@ -338,23 +306,7 @@ impl Backend {
         for (range, mut diags) in ranges.iter().zip(batch) {
             range.adopt_diagnostics(text, &mut diags);
 
-            {
-                let ignore = self.ignore_store.lock().await;
-                let dict = self.dictionary.lock().await;
-                let morphology = self.morphology.lock().await;
-                let names = self.name_filter.lock().await;
-                let mut ctx = SuppressionContext::new()
-                    .with_ignore(&ignore)
-                    .with_dictionary(&dict)
-                    .with_directives(&directives);
-                if let Some(analyzer) = morphology.as_ref() {
-                    ctx = ctx.with_morphology(analyzer);
-                }
-                if let Some(filter) = names.as_ref() {
-                    ctx = ctx.with_names(filter);
-                }
-                retain_visible(&mut diags, text, &ctx);
-            }
+            retain_visible(&mut diags, text, &state.suppression(&directives));
 
             all_diagnostics.extend(diags.iter().map(|d| to_lsp_diagnostic(text, d)));
         }
@@ -528,8 +480,11 @@ impl LanguageServer for Backend {
                     && let Some(word) = word_val.as_str()
                 {
                     debug!(word, "Adding to dictionary");
-                    let mut dict = self.dictionary.lock().await;
-                    if let Err(e) = dict.add_word(word) {
+                    let added = self
+                        .state
+                        .update(|next| Arc::make_mut(&mut next.dictionary).add_word(word))
+                        .await;
+                    if let Err(e) = added {
                         warn!(word, "Failed to add word: {e}");
                     }
                 }
@@ -555,7 +510,9 @@ impl LanguageServer for Backend {
                         .and_then(serde_json::Value::as_u64)
                         .map_or(0, |v| v as usize);
                     let fp = DiagnosticFingerprint::new(message, context, start, end);
-                    self.ignore_store.lock().await.ignore(&fp);
+                    self.state
+                        .update(|next| Arc::make_mut(&mut next.ignores).ignore(&fp))
+                        .await;
                 }
             }
             _ => {}
@@ -565,6 +522,34 @@ impl LanguageServer for Backend {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+/// The dictionary `config` describes for the workspace at `root`, or `None`
+/// (logged) when the workspace's own word list cannot be read.
+///
+/// Shared by workspace init and `didChangeConfiguration` so a toggled set
+/// takes effect without an editor restart, and so the two paths cannot drift.
+fn load_dictionary(root: &Path, config: &Config) -> Option<Dictionary> {
+    match Dictionary::load(root) {
+        Ok(mut dict) => {
+            if config.dictionaries.bundled {
+                dict.load_bundled_except(&config.dictionaries.disabled);
+            }
+            for p in &config.dictionaries.paths {
+                if let Err(e) = dict.load_wordlist_file(Path::new(p), root) {
+                    warn!(path = p, "Could not load wordlist: {e}");
+                }
+            }
+            if config.morphology.inflections {
+                dict.derive_inflections();
+            }
+            Some(dict)
+        }
+        Err(e) => {
+            warn!("Could not load dictionary: {e}");
+            None
+        }
+    }
+}
 
 /// Convert an internal Diagnostic to an LSP Diagnostic.
 fn to_lsp_diagnostic(text: &str, d: &checker::Diagnostic) -> Diagnostic {
