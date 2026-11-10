@@ -10,6 +10,7 @@ use crate::morphology::inflection;
 ///
 /// Internally, user-added words and bundled words are kept in separate sets.
 /// Only user words are persisted to `dictionary.txt`.
+#[derive(Clone)]
 pub struct Dictionary {
     user_words: HashSet<String>,
     bundled_words: HashSet<String>,

@@ -1,4 +1,5 @@
 import * as cp from 'child_process';
+import * as readline from 'readline';
 import { languagecheck } from '../proto/checker';
 import type { TraceLogger } from '../shared/trace';
 import type { Logger } from '../shared/logger';
@@ -6,6 +7,8 @@ import type { Logger } from '../shared/logger';
 const REQUEST_TIMEOUT_MS = 120_000;
 const MAX_RESTART_ATTEMPTS = 3;
 const RESTART_DELAY_MS = 1000;
+/** How many of the core's last stderr lines a crash report quotes. */
+const STDERR_TAIL_LINES = 5;
 /**
  * The longest response the client will wait for. A megabyte of prose comes
  * back as a few megabytes, so a length past this is not a response: it is
@@ -38,6 +41,8 @@ export class LanguageClient {
      *  REQUEST_TIMEOUT_MS against a process that can never answer. */
     private failureReason: string | null = null;
     private onFailureCallbacks: Array<(reason: string) => void> = [];
+    /** The core's last stderr lines, for the cause of a crash. */
+    private stderrTail: string[] = [];
 
     constructor(private binaryPath: string) {}
 
@@ -82,8 +87,20 @@ export class LanguageClient {
         this.detach(this.process);
 
         this.process = cp.spawn(this.binaryPath, [], {
-            stdio: ['pipe', 'pipe', 'inherit']
+            stdio: ['pipe', 'pipe', 'pipe']
         });
+        this.stderrTail = [];
+
+        // Into the output channel, not the extension host's own stderr: there
+        // nobody reads it, and VS Code keeps no copy. A panic message or an
+        // engine's warning is otherwise lost exactly when it is needed.
+        if (this.process.stderr) {
+            readline.createInterface({ input: this.process.stderr }).on('line', (line: string) => {
+                this.log?.core(line);
+                this.stderrTail.push(line);
+                if (this.stderrTail.length > STDERR_TAIL_LINES) this.stderrTail.shift();
+            });
+        }
 
         this.process.stdout?.on('data', (data: Buffer) => {
             this.handleData(data);
@@ -108,7 +125,8 @@ export class LanguageClient {
             this.trace?.logEvent(`Process exited with code ${code}`);
             if (!this.stopped) {
                 this.rejectAllPending('Process exited unexpectedly');
-                this.attemptRestart(`process exited with code ${code}`);
+                const lastWords = this.stderrTail.at(-1);
+                this.attemptRestart(`process exited with code ${code}${lastWords ? `: ${lastWords}` : ''}`);
             }
         });
     }
@@ -120,6 +138,7 @@ export class LanguageClient {
         proc.removeAllListeners();
         proc.stdout?.removeAllListeners();
         proc.stdin?.removeAllListeners();
+        proc.stderr?.removeAllListeners();
     }
 
     private attemptRestart(cause: string) {

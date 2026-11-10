@@ -106,28 +106,21 @@ rules:
       - pattern: Config::load(...).unwrap_or(Config::default())
       - pattern: Config::load(...).ok()
 
-  - id: server-lock-order
+  - id: workspace-state-behind-one-snapshot
     languages: [rust]
     severity: ERROR
     message: >-
-      The server's mutexes are taken in one order (LOCK ORDER at the top of
-      language-check-server.rs): config before schema_registry, dictionary before ignore_store.
-      Requests run in concurrent tasks; two that take a pair in opposite orders deadlock, and
-      every later request waits behind them. Two checks did exactly that (the fingerprint against
-      the suppression pass), and the server answered nothing again. Matched the 4 inverted
-      sites on b8a105e^.
+      The config, dictionary, ignore store, morphology, name filter and schema registry live in
+      one `workspace_state::WorkspaceState`, read with `SharedState::snapshot()` and changed with
+      `SharedState::update` or `writer()`/`publish`. Do not give one of them its own `Mutex` or
+      `RwLock` again. When they had one each (18 matches before the change: 12 in
+      `language-check-server.rs`, 6 in `lsp.rs`), two checks took the schema registry and the
+      config in opposite orders and deadlocked the server, and the background indexer took the
+      ignore store before the dictionary while the checks took them the other way round.
     paths:
-      include:
-        - "**/rust-core/src/bin/language-check-server.rs"
-    pattern-either:
-      - pattern: |
-          let $A = ignore_store_arc.lock().await;
-          ...
-          let $B = dictionary_arc.lock().await;
-      - pattern: |
-          let $A = schema_registry_arc.lock().await;
-          ...
-          let $B = config_arc.lock().await;
+      exclude:
+        - "**/rust-core/src/workspace_state.rs"
+    pattern-regex: '\b(?:Mutex|RwLock)<\s*(?:Option<\s*)?(?:Config|Dictionary|IgnoreStore|AffixAnalyzer|NameFilter|SchemaRegistry)\b'
 
   # DELIBERATELY ABSENT: a rule banning `.unwrap()` outside tests.
   #

@@ -14,10 +14,10 @@
   <a href="https://crates.io/crates/lang-check"><img alt="crates.io" src="https://img.shields.io/crates/v/lang-check" /></a>
 </p>
 
-A fast, extensible grammar and style checker for Markdown, HTML, LaTeX, Typst, and more. Ships as a VS Code / VSCodium extension and Neovim plugin, backed by a Rust core binary with LSP and Protobuf server modes.
+A fast, extensible grammar and style checker for Markdown, HTML, LaTeX, Typst, and more. Ships as a VS Code / VSCodium extension and Neovim plugin, backed by a Rust core binary with LSP and Protobuf server modes. 
 
 > [!NOTE]
-> Language Check is in **early development**. Core checking works and is usable day-to-day, but expect rough edges — if you hit a bug, please [open an issue](https://github.com/KaiErikNiermann/LangCheck/issues) and it will be addressed promptly. The configuration format may evolve between minor versions; backwards compatibility is a goal but not yet guaranteed.
+> Language Check is in **early development**. Core checking works and is usable day-to-day, but expect rough edges; if you hit a bug, please [open an issue](https://github.com/KaiErikNiermann/LangCheck/issues) and it will be addressed promptly. The configuration format may evolve between minor versions; backwards compatibility is a goal but not yet guaranteed.
 
 <table>
 <tr>
@@ -31,6 +31,8 @@ A fast, extensible grammar and style checker for Markdown, HTML, LaTeX, Typst, a
 </table>
 
 ## Features
+
+The tldr is that this project does not itself do any checking at all, the bulk of what this project does is parse out what is checkable prose and what isn't for various markup formats and then provide a nice interface for any checker to show any kind of diagnostic it wants with a focus obviously on linguistic errors.
 
 - **Multi-engine checking** — local Harper engine for instant feedback, optional LanguageTool for deep grammar analysis, optional [Vale](https://vale.sh/) for style linting with its rich plugin ecosystem, optional Hunspell for spelling in the languages the others do not read, external binaries, and WASM plugins via Extism
 - **Tree-sitter parsing** — extracts prose from Markdown, HTML, LaTeX, Typst, and more while skipping code blocks, math, and markup

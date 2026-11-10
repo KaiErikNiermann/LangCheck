@@ -22,7 +22,8 @@ use insights::ProseInsights;
 use lang_check::morphology::AffixAnalyzer;
 use lang_check::names::NameFilter;
 use lang_check::sls::SchemaRegistry;
-use lang_check::suppression::{InlineDirectives, SuppressionContext, retain_visible};
+use lang_check::suppression::{InlineDirectives, retain_visible};
+use lang_check::workspace_state::SharedState;
 use lang_check::{checker, config, dictionary, hashing, insights, orchestrator, prose, workspace};
 use orchestrator::Orchestrator;
 use prost::Message;
@@ -37,17 +38,12 @@ use tokio::task::JoinSet;
 use tracing::{debug, error, info, warn};
 use workspace::{IndexOwner, IndexUnavailable, WorkspaceIndex};
 
-// LOCK ORDER. Requests are handled in concurrent tasks, so any two that hold
-// more than one of the shared mutexes at once must take them in one order,
-// or a pair that meets in the middle deadlocks and every later request
-// waits behind it (two checks did: the fingerprint took the dictionary then
-// the ignores, the suppression pass the ignores then the dictionary). Take
-// them in this order, skipping the ones not needed:
-//
-//   workspace_index, config, workspace_root, dictionary, ignore_store,
-//   morphology, name_filter, schema_registry, last_extraction
-//
-// The orchestrator is only ever held alone (it is held across the engines).
+// Requests are handled in concurrent tasks. What they read about the
+// workspace -- config, dictionary, ignores, morphology, names, schemas, root
+// -- is one snapshot (`lang_check::workspace_state`), so there is no lock
+// order to keep among those. The three mutexes left are each held alone:
+// the workspace index, the extraction memo, and the orchestrator (held
+// across the engines). Do not take one while holding another.
 
 /// Shared handles a background indexing task needs.
 ///
@@ -56,13 +52,8 @@ use workspace::{IndexOwner, IndexUnavailable, WorkspaceIndex};
 #[derive(Clone)]
 struct IndexingContext {
     orchestrator: Arc<Mutex<Orchestrator>>,
-    ignore_store: Arc<Mutex<IgnoreStore>>,
-    dictionary: Arc<Mutex<Dictionary>>,
-    morphology: Arc<Mutex<Option<AffixAnalyzer>>>,
-    name_filter: Arc<Mutex<Option<NameFilter>>>,
-    schema_registry: Arc<Mutex<SchemaRegistry>>,
+    state: Arc<SharedState>,
     workspace_index: Arc<Mutex<Option<WorkspaceIndex>>>,
-    config: Arc<Mutex<Config>>,
 }
 
 /// Files read and checked at once by background indexing.
@@ -83,17 +74,15 @@ async fn process_file_for_indexing(
 ) -> Result<()> {
     let IndexingContext {
         orchestrator,
-        ignore_store: ignore_store_arc,
-        dictionary: dictionary_arc,
-        morphology: morphology_arc,
-        name_filter: name_filter_arc,
-        schema_registry: schema_registry_arc,
+        state,
         workspace_index: workspace_index_arc,
-        config: config_arc,
     } = ctx;
     if !file_path.is_file() {
         return Ok(());
     }
+    // One state for the whole file: its extraction, filters and fingerprint
+    // all describe the same config.
+    let state = state.snapshot();
 
     let text = fs::read_to_string(&file_path).await?;
 
@@ -105,22 +94,13 @@ async fn process_file_for_indexing(
         return Ok(());
     }
 
-    let ranges = {
-        // Lock order: see LOCK ORDER at the top of this file.
-        let cfg = config_arc.lock().await;
-        let schema_registry = schema_registry_arc.lock().await;
-        let latex_extras = prose::latex::LatexExtras {
-            skip_envs: &cfg.languages.latex.skip_environments,
-            skip_commands: &cfg.languages.latex.skip_commands,
-        };
-        prose::extract_with_fallback(
-            &text,
-            &lang_id,
-            Some(file_path.as_path()),
-            Some(&schema_registry),
-            &latex_extras,
-        )?
-    };
+    let ranges = prose::extract_with_fallback(
+        &text,
+        &lang_id,
+        Some(file_path.as_path()),
+        Some(&state.schemas),
+        &state.latex_extras(),
+    )?;
     let mut all_diagnostics = Vec::new();
 
     // Uses a dedicated indexing orchestrator — no contention with foreground
@@ -139,31 +119,9 @@ async fn process_file_for_indexing(
         Vec::new()
     });
     let directives = InlineDirectives::parse(&text);
-    // Read once and released at once, so it never joins the locks taken below.
-    let identifiers = config_arc.lock().await.identifiers.enabled;
     for (range, mut diagnostics) in ranges.iter().zip(batch) {
         range.adopt_diagnostics(&text, &mut diagnostics);
-        // Lock order: see LOCK ORDER at the top of this file.
-        let dictionary_lock = dictionary_arc.lock().await;
-        let ignore_store_lock = ignore_store_arc.lock().await;
-        let morphology_lock = morphology_arc.lock().await;
-        let name_filter_lock = name_filter_arc.lock().await;
-        let mut ctx = SuppressionContext::new()
-            .with_ignore(&ignore_store_lock)
-            .with_dictionary(&dictionary_lock)
-            .with_directives(&directives)
-            .with_identifiers(identifiers);
-        if let Some(analyzer) = morphology_lock.as_ref() {
-            ctx = ctx.with_morphology(analyzer);
-        }
-        if let Some(filter) = name_filter_lock.as_ref() {
-            ctx = ctx.with_names(filter);
-        }
-        retain_visible(&mut diagnostics, &text, &ctx);
-        drop(name_filter_lock);
-        drop(morphology_lock);
-        drop(dictionary_lock);
-        drop(ignore_store_lock);
+        retain_visible(&mut diagnostics, &text, &state.suppression(&directives));
         all_diagnostics.extend(diagnostics);
 
         tokio::task::yield_now().await;
@@ -173,20 +131,7 @@ async fn process_file_for_indexing(
         && let Some(file_path_str) = file_path.to_str()
     {
         let insights = ProseInsights::analyze_ranges(&text, &ranges);
-        let fingerprint = {
-            let cfg = config_arc.lock().await;
-            let dict = dictionary_arc.lock().await;
-            let ignores = ignore_store_arc.lock().await;
-            workspace::check_fingerprint(
-                &text,
-                &cfg,
-                &dict,
-                &ignores,
-                name_filter_arc.lock().await.is_some(),
-                schema_registry_arc.lock().await.fingerprint(),
-            )
-        };
-        idx.store_check(file_path_str, fingerprint, &all_diagnostics)
+        idx.store_check(file_path_str, state.fingerprint(&text), &all_diagnostics)
             .unwrap_or_else(|e| {
                 warn!(file = file_path_str, "Error updating diagnostics: {e}");
             });
@@ -230,30 +175,21 @@ async fn main() -> Result<()> {
 
     let orchestrator_arc: Arc<Mutex<Orchestrator>> =
         Arc::new(Mutex::new(Orchestrator::new(Config::default())));
-    let config_arc: Arc<Mutex<Config>> = Arc::new(Mutex::new(Config::default()));
-    let ignore_store_arc: Arc<Mutex<IgnoreStore>> = Arc::new(Mutex::new(IgnoreStore::new()));
-    let dictionary_arc: Arc<Mutex<Dictionary>> = Arc::new(Mutex::new(Dictionary::new()));
-    let morphology_arc: Arc<Mutex<Option<AffixAnalyzer>>> = Arc::new(Mutex::new(None));
-    let name_filter_arc: Arc<Mutex<Option<NameFilter>>> = Arc::new(Mutex::new(None));
-    let schema_registry_arc: Arc<Mutex<SchemaRegistry>> =
-        Arc::new(Mutex::new(SchemaRegistry::new()));
+    // The config, dictionary, ignores, morphology, names and schemas, as one
+    // value: a request reads a snapshot without waiting, and a writer
+    // publishes the next one whole (see `lang_check::workspace_state`). The
+    // orchestrator and the index keep a mutex each and are never held
+    // together with anything else.
+    let state = Arc::new(SharedState::default());
     let workspace_index_arc: Arc<Mutex<Option<WorkspaceIndex>>> = Arc::new(Mutex::new(None));
     let last_extraction_arc: Arc<Mutex<prose::memo::LastExtraction>> =
         Arc::new(Mutex::new(prose::memo::LastExtraction::default()));
-    // Kept because `exclude` patterns are written relative to it, and a check
-    // request carries an absolute path.
-    let workspace_root_arc: Arc<Mutex<Option<PathBuf>>> = Arc::new(Mutex::new(None));
     let indexing_notify = Arc::new(Notify::new());
 
     // Background indexing task — uses its own orchestrator to avoid mutex
     // contention with the foreground request handler.
     let indexing_handle = {
-        let config_arc = config_arc.clone();
-        let ignore_store_arc = ignore_store_arc.clone();
-        let dictionary_arc = dictionary_arc.clone();
-        let morphology_arc = morphology_arc.clone();
-        let name_filter_arc = name_filter_arc.clone();
-        let schema_registry_arc = schema_registry_arc.clone();
+        let state = state.clone();
         let workspace_index_arc = workspace_index_arc.clone();
         let indexing_notify = indexing_notify.clone();
         // Read the foreground config to build the indexing orchestrator
@@ -299,7 +235,7 @@ async fn main() -> Result<()> {
                     // A file two patterns match is indexed once.
                     let mut seen = HashSet::new();
                     let mut file_patterns = lang_check::languages::all_file_patterns(&config);
-                    file_patterns.extend(schema_registry_arc.lock().await.fallback_file_patterns());
+                    file_patterns.extend(state.snapshot().schemas.fallback_file_patterns());
 
                     for (pattern_suffix, lang) in &file_patterns {
                         let full_pattern = format!("{}/{}", root.to_string_lossy(), pattern_suffix);
@@ -313,13 +249,8 @@ async fn main() -> Result<()> {
 
                                 let task_ctx = IndexingContext {
                                     orchestrator: indexing_orchestrator.clone(),
-                                    ignore_store: ignore_store_arc.clone(),
-                                    dictionary: dictionary_arc.clone(),
-                                    morphology: morphology_arc.clone(),
-                                    name_filter: name_filter_arc.clone(),
-                                    schema_registry: schema_registry_arc.clone(),
+                                    state: state.clone(),
                                     workspace_index: workspace_index_arc.clone(),
-                                    config: config_arc.clone(),
                                 };
                                 let lang_id = lang.clone();
 
@@ -446,14 +377,8 @@ async fn main() -> Result<()> {
 
         // Clone Arcs for the spawned task
         let orchestrator_arc = orchestrator_arc.clone();
-        let config_arc = config_arc.clone();
-        let ignore_store_arc = ignore_store_arc.clone();
-        let dictionary_arc = dictionary_arc.clone();
-        let morphology_arc = morphology_arc.clone();
-        let name_filter_arc = name_filter_arc.clone();
-        let schema_registry_arc = schema_registry_arc.clone();
+        let state = state.clone();
         let workspace_index_arc = workspace_index_arc.clone();
-        let workspace_root_arc = workspace_root_arc.clone();
         let last_extraction_arc = last_extraction_arc.clone();
         let indexing_notify = indexing_notify.clone();
         let stdout_arc_clone = stdout_arc.clone();
@@ -466,8 +391,16 @@ async fn main() -> Result<()> {
             let handler_start = std::time::Instant::now();
             let response_payload = match request.payload {
                 Some(checker::request::Payload::Initialize(req)) => {
+                    // Held to the end of the arm, index included. Initializes
+                    // queue here; the config is read from disk after the
+                    // wait, so a queued one applies the newest file.
+                    let writing = state.writer().await;
+                    // Built off to the side and published whole below: until
+                    // then every check reads the previous state, all of it.
+                    // A part that fails to load keeps its previous value.
+                    let mut next = (*writing.current()).clone();
                     let root_path = std::path::PathBuf::from(&req.workspace_root);
-                    *workspace_root_arc.lock().await = Some(root_path.clone());
+                    next.root = Some(root_path.clone());
 
                     let config = Config::load_or_warn(&root_path);
                     info!(
@@ -478,8 +411,6 @@ async fn main() -> Result<()> {
                         proselint = config.engines.proselint.enabled,
                         "Initialize: engines configured"
                     );
-                    orchestrator_arc.lock().await.update_config(config.clone());
-                    *config_arc.lock().await = config.clone();
 
                     // The VS Code globals combine with the workspace config rather than
                     // overriding it. `bundled` defaults to true on both sides, so we
@@ -536,7 +467,7 @@ async fn main() -> Result<()> {
                             if config.morphology.inflections {
                                 loaded_dict.derive_inflections();
                             }
-                            *dictionary_arc.lock().await = loaded_dict;
+                            next.dictionary = Arc::new(loaded_dict);
                         }
                         Err(e) => {
                             warn!("Could not load dictionary: {e}");
@@ -544,28 +475,27 @@ async fn main() -> Result<()> {
                     }
                     // The VS Code global acts as a fallback when the workspace config
                     // doesn't set it, mirroring workspace.index_on_open.
-                    *morphology_arc.lock().await = config
+                    next.morphology = config
                         .morphology
                         .enabled
-                        .then(|| AffixAnalyzer::new(&config.engines.spell_language));
+                        .then(|| Arc::new(AffixAnalyzer::new(&config.engines.spell_language)));
 
                     let names_enabled = config.names.enabled || req.detect_names.unwrap_or(false);
-                    *name_filter_arc.lock().await = names_enabled.then(|| {
+                    next.names = names_enabled.then(|| {
                         info!(
                             aggressiveness = ?config.names.aggressiveness,
                             language = config.engines.spell_language,
                             "Name detection enabled"
                         );
-                        NameFilter::new(config.names.aggressiveness, &config.engines.spell_language)
+                        Arc::new(NameFilter::new(
+                            config.names.aggressiveness,
+                            &config.engines.spell_language,
+                        ))
                     });
 
                     match IgnoreStore::load(&root_path) {
-                        Ok(loaded_store) => {
-                            *ignore_store_arc.lock().await = loaded_store;
-                        }
-                        Err(e) => {
-                            warn!("Could not load ignore store: {e}");
-                        }
+                        Ok(loaded_store) => next.ignores = Arc::new(loaded_store),
+                        Err(e) => warn!("Could not load ignore store: {e}"),
                     }
 
                     // Each part below is optional to checking, so a part that
@@ -574,15 +504,30 @@ async fn main() -> Result<()> {
                     // outright -- skipping the index with it -- and the editor
                     // never read the error.
                     let mut warnings = Vec::new();
-                    match SchemaRegistry::from_workspace(&root_path) {
+                    next.schemas = match SchemaRegistry::from_workspace(&root_path) {
                         Ok(schema_registry) => {
                             info!(count = schema_registry.len(), "Loaded SLS schemas");
-                            *schema_registry_arc.lock().await = schema_registry;
+                            Arc::new(schema_registry)
                         }
-                        Err(e) => warnings.push(format!(
-                            "The SLS schemas could not be loaded, so none are in use: {e}"
-                        )),
-                    }
+                        Err(e) => {
+                            warnings.push(format!(
+                                "The SLS schemas could not be loaded, so none are in use: {e}"
+                            ));
+                            Arc::new(SchemaRegistry::new())
+                        }
+                    };
+
+                    // The engines keep their own copy of the config, behind
+                    // their own lock, because they hold mutable engine state
+                    // and cannot be part of a snapshot. They change right
+                    // before the state is published. A check that took its
+                    // snapshot just before may still reach the engines just
+                    // after, and run the new engines over ranges extracted
+                    // under the old config; the editor re-checks after a
+                    // config change, and that check sees both new.
+                    orchestrator_arc.lock().await.update_config(config.clone());
+                    next.config = Arc::new(config.clone());
+                    writing.publish(next);
 
                     let db_path = req
                         .db_path
@@ -635,6 +580,9 @@ async fn main() -> Result<()> {
                     }))
                 }
                 Some(checker::request::Payload::CheckProse(req)) => 'check: {
+                    // One state for the whole check: selection, extraction,
+                    // fingerprint and filters all describe the same config.
+                    let state = state.snapshot();
                     let canonical_lang =
                         lang_check::languages::resolve_language_id(&req.language_id);
                     let file_path = req.file_path.as_deref().map(Path::new);
@@ -650,16 +598,12 @@ async fn main() -> Result<()> {
                         .document_path
                         .as_deref()
                         .and_then(lang_check::selection::document_path);
-                    let skipped = {
-                        let cfg = config_arc.lock().await;
-                        let root = workspace_root_arc.lock().await;
-                        root.as_ref().is_some_and(|root| {
-                            file_path
-                                .map(Path::to_path_buf)
-                                .or_else(|| document_path.as_ref().map(|d| root.join(d)))
-                                .is_some_and(|path| !cfg.checks(&path, root))
-                        })
-                    };
+                    let skipped = state.root.as_ref().is_some_and(|root| {
+                        file_path
+                            .map(Path::to_path_buf)
+                            .or_else(|| document_path.as_ref().map(|d| root.join(d)))
+                            .is_some_and(|path| !state.config.checks(&path, root))
+                    });
                     if skipped {
                         debug!(id = request_id, file = ?file_path, document = ?document_path, "CheckProse: not selected by config");
                         break 'check Some(response::Payload::CheckProse(CheckResponse::default()));
@@ -672,45 +616,34 @@ async fn main() -> Result<()> {
                         text_len = req.text.len(),
                         "CheckProse: starting extraction"
                     );
-                    let (extraction, spell_language, max_range_bytes) = {
-                        // Lock order: see LOCK ORDER at the top of this file.
-                        let cfg = config_arc.lock().await;
-                        let schema_registry = schema_registry_arc.lock().await;
-                        let latex_extras = prose::latex::LatexExtras {
-                            skip_envs: &cfg.languages.latex.skip_environments,
-                            skip_commands: &cfg.languages.latex.skip_commands,
-                        };
-                        // A progressive check's windows, a reopened file and
-                        // a re-check after a site's own checker answers all
-                        // send text extracted a moment ago.
-                        let inputs = prose::memo::ExtractionInputs {
-                            language: canonical_lang.to_owned(),
-                            path: file_path.map(Path::to_path_buf),
-                            max_range_bytes: cfg.performance.max_range_bytes,
-                            skip_environments: cfg.languages.latex.skip_environments.clone(),
-                            skip_commands: cfg.languages.latex.skip_commands.clone(),
-                            schemas: schema_registry.fingerprint(),
-                        };
-                        let extraction = last_extraction_arc.lock().await.get_or_extract(
-                            &req.text,
-                            inputs,
-                            || {
+                    let spell_language = &state.config.engines.spell_language;
+                    let max_range_bytes = state.config.performance.max_range_bytes;
+                    // A progressive check's windows, a reopened file and a
+                    // re-check after a site's own checker answers all send
+                    // text extracted a moment ago. The memo's lock is held
+                    // alone, around the extraction only.
+                    let inputs = prose::memo::ExtractionInputs {
+                        language: canonical_lang.to_owned(),
+                        path: file_path.map(Path::to_path_buf),
+                        max_range_bytes,
+                        skip_environments: state.config.languages.latex.skip_environments.clone(),
+                        skip_commands: state.config.languages.latex.skip_commands.clone(),
+                        schemas: state.schemas.fingerprint(),
+                    };
+                    let extraction =
+                        last_extraction_arc
+                            .lock()
+                            .await
+                            .get_or_extract(&req.text, inputs, || {
                                 prose::extract_with_range_limit(
                                     &req.text,
                                     canonical_lang,
                                     file_path,
-                                    Some(&schema_registry),
-                                    &latex_extras,
-                                    cfg.performance.max_range_bytes,
+                                    Some(&state.schemas),
+                                    &state.latex_extras(),
+                                    max_range_bytes,
                                 )
-                            },
-                        );
-                        (
-                            extraction,
-                            cfg.engines.spell_language.clone(),
-                            cfg.performance.max_range_bytes,
-                        )
-                    };
+                            });
 
                     match extraction {
                         Ok(prose::Extraction { ranges, syntax }) => {
@@ -724,7 +657,7 @@ async fn main() -> Result<()> {
                             // Built before the check so the inspector reports the
                             // language each range was actually sent in, not the
                             // document default it might have fallen back to.
-                            let units = prose::range_units(&ranges, &req.text, &spell_language);
+                            let units = prose::range_units(&ranges, &req.text, spell_language);
                             let mut extraction_info = ExtractionInfo {
                                 prose_ranges: ranges
                                     .iter()
@@ -759,19 +692,7 @@ async fn main() -> Result<()> {
 
                             // What this check depends on, computed once and used
                             // both to look the answer up and to store it.
-                            let fingerprint = {
-                                let cfg = config_arc.lock().await;
-                                let dict = dictionary_arc.lock().await;
-                                let ignores = ignore_store_arc.lock().await;
-                                workspace::check_fingerprint(
-                                    &req.text,
-                                    &cfg,
-                                    &dict,
-                                    &ignores,
-                                    name_filter_arc.lock().await.is_some(),
-                                    schema_registry_arc.lock().await.fingerprint(),
-                                )
-                            };
+                            let fingerprint = state.fingerprint(&req.text);
 
                             // The extraction above still ran (or came from the
                             // last one), and has to: the inspector reports it,
@@ -920,7 +841,7 @@ async fn main() -> Result<()> {
                                     &req.text,
                                     &checked,
                                     &all_diagnostics,
-                                    &*config_arc.lock().await,
+                                    &state.config,
                                 );
                                 debug!(
                                     id = request_id,
@@ -940,23 +861,7 @@ async fn main() -> Result<()> {
                             // check and not to a reused one.
                             {
                                 let directives = InlineDirectives::parse(&req.text);
-                                let identifiers = config_arc.lock().await.identifiers.enabled;
-                                // Lock order: see LOCK ORDER at the top of this file.
-                                let dict = dictionary_arc.lock().await;
-                                let ignore_store = ignore_store_arc.lock().await;
-                                let morphology = morphology_arc.lock().await;
-                                let name_filter = name_filter_arc.lock().await;
-                                let mut ctx = SuppressionContext::new()
-                                    .with_ignore(&ignore_store)
-                                    .with_dictionary(&dict)
-                                    .with_directives(&directives)
-                                    .with_identifiers(identifiers);
-                                if let Some(analyzer) = morphology.as_ref() {
-                                    ctx = ctx.with_morphology(analyzer);
-                                }
-                                if let Some(filter) = name_filter.as_ref() {
-                                    ctx = ctx.with_names(filter);
-                                }
+                                let ctx = state.suppression(&directives);
                                 detected_names.extend(
                                     retain_visible(&mut all_diagnostics, &req.text, &ctx)
                                         .into_iter()
@@ -987,17 +892,16 @@ async fn main() -> Result<()> {
                     }
                 }
                 Some(checker::request::Payload::GetMetadata(_)) => {
-                    let cfg = config_arc.lock().await;
-                    let schema_extensions = schema_registry_arc.lock().await.fallback_extensions();
+                    let state = state.snapshot();
                     Some(response::Payload::GetMetadata(MetadataResponse {
-                        schema_extensions,
+                        schema_extensions: state.schemas.fallback_extensions(),
                         name: "Rust Core".to_string(),
                         version: "0.1.0".to_string(),
                         supported_languages: lang_check::languages::SUPPORTED_LANGUAGE_IDS
                             .iter()
                             .map(|s| (*s).to_string())
                             .collect(),
-                        spell_language: cfg.engines.spell_language.clone(),
+                        spell_language: state.config.engines.spell_language.clone(),
                     }))
                 }
                 Some(checker::request::Payload::ProbeConfig(req)) => {
@@ -1005,9 +909,9 @@ async fn main() -> Result<()> {
                     // asks about text that may never have been saved, which
                     // is the point: the answer has to arrive while the URL is
                     // still being typed, not after the mistake is committed.
-                    let root = workspace_root_arc
-                        .lock()
-                        .await
+                    let root = state
+                        .snapshot()
+                        .root
                         .clone()
                         .unwrap_or_else(|| PathBuf::from("."));
                     let root = req
@@ -1075,9 +979,9 @@ async fn main() -> Result<()> {
                     }
                 }
                 Some(checker::request::Payload::ListConfigFiles(listing)) => {
-                    let root = workspace_root_arc
-                        .lock()
-                        .await
+                    let root = state
+                        .snapshot()
+                        .root
                         .clone()
                         .unwrap_or_else(|| PathBuf::from("."));
                     // A glob walk over the workspace: off the runtime, so a
@@ -1105,7 +1009,6 @@ async fn main() -> Result<()> {
                 }
                 Some(checker::request::Payload::Ignore(req)) => {
                     debug!(id = request_id, "Ignore: adding fingerprint");
-                    let mut ignore_store = ignore_store_arc.lock().await;
                     let fingerprint = if req.text.is_empty() {
                         DiagnosticFingerprint::new(&req.message, &req.context, 0, req.context.len())
                     } else {
@@ -1116,7 +1019,9 @@ async fn main() -> Result<()> {
                             req.end_byte as usize,
                         )
                     };
-                    ignore_store.ignore(&fingerprint);
+                    state
+                        .update(|next| Arc::make_mut(&mut next.ignores).ignore(&fingerprint))
+                        .await;
 
                     Some(response::Payload::Ok(checker::OkResponse {}))
                 }
@@ -1130,22 +1035,29 @@ async fn main() -> Result<()> {
                             for_page: true,
                         }))
                     };
-                    // Lock order: see LOCK ORDER at the top of this file.
-                    let (add_to, inflect) = {
-                        let cfg = config_arc.lock().await;
-                        (cfg.dictionaries.add_to.clone(), cfg.morphology.inflections)
-                    };
-                    let root = workspace_root_arc.lock().await.clone();
-                    let mut dict = dictionary_arc.lock().await;
+                    // One writer for the whole request: the branch is chosen
+                    // from the state the word then goes into, and no other
+                    // writer can replace that state in between. A refusal
+                    // publishes nothing; an addition copies the dictionary
+                    // alone and publishes it, kept even when writing it out
+                    // fails, as it always was.
+                    let writing = state.writer().await;
+                    let current = writing.current();
+                    let add_to = current.config.dictionaries.add_to.clone();
+                    let inflect = current.config.morphology.inflections;
+                    let root = current.root.clone();
+                    let mut next = (*current).clone();
                     if let Some(path) = add_to.path() {
                         let Some(root) = root.as_deref() else {
                             break 'add refuse("No workspace yet to add the word to.");
                         };
-                        break 'add match dict.add_to_wordlist(
+                        let added = Arc::make_mut(&mut next.dictionary).add_to_wordlist(
                             std::path::Path::new(path),
                             root,
                             &req.word,
-                        ) {
+                        );
+                        writing.publish(next);
+                        break 'add match added {
                             Ok(()) => {
                                 info!(id = request_id, word = %req.word, wordlist = path, "Word added to wordlist");
                                 Some(response::Payload::Ok(checker::OkResponse {}))
@@ -1167,7 +1079,7 @@ async fn main() -> Result<()> {
                         // Only the page can write to the site; the core applies
                         // the word now and the page's next copy of the site's
                         // dictionary settles it.
-                        if !dict.uses_site() {
+                        if !current.dictionary.uses_site() {
                             break 'add refuse(
                                 "Words are added to the site's dictionary (dictionaries.add_to: site), which this workspace leaves out (dictionaries.site: ignore). Set dictionaries.site to merge or only.",
                             );
@@ -1180,7 +1092,8 @@ async fn main() -> Result<()> {
                                 "There is no site dictionary to add to here (dictionaries.add_to: site): that works in the browser extension, on Overleaf and Typst.",
                             );
                         };
-                        dict.add_site_word(&req.word, inflect);
+                        Arc::make_mut(&mut next.dictionary).add_site_word(&req.word, inflect);
+                        writing.publish(next);
                         info!(id = request_id, word = %req.word, site = site.source, "Word applied; the page writes it to the site");
                         break 'add Some(response::Payload::SiteWrite(
                             checker::SiteWriteResponse {
@@ -1189,12 +1102,14 @@ async fn main() -> Result<()> {
                             },
                         ));
                     }
-                    if !dict.uses_own() {
+                    if !current.dictionary.uses_own() {
                         break 'add refuse(
                             "This workspace uses the site's dictionary only (dictionaries.site: only). Set dictionaries.add_to to site to add words there.",
                         );
                     }
-                    match dict.add_word(&req.word) {
+                    let added = Arc::make_mut(&mut next.dictionary).add_word(&req.word);
+                    writing.publish(next);
+                    match added {
                         Ok(()) => {
                             info!(id = request_id, word = %req.word, "Word added to dictionary");
                             Some(response::Payload::Ok(checker::OkResponse {}))
@@ -1209,9 +1124,9 @@ async fn main() -> Result<()> {
                     }
                 }
                 Some(checker::request::Payload::ReadConfig(_)) => {
-                    let root = workspace_root_arc
-                        .lock()
-                        .await
+                    let root = state
+                        .snapshot()
+                        .root
                         .clone()
                         .unwrap_or_else(|| PathBuf::from("."));
                     match Config::read_text(&root) {
@@ -1232,9 +1147,9 @@ async fn main() -> Result<()> {
                     }
                 }
                 Some(checker::request::Payload::WriteConfig(req)) => {
-                    let root = workspace_root_arc
-                        .lock()
-                        .await
+                    let root = state
+                        .snapshot()
+                        .root
                         .clone()
                         .unwrap_or_else(|| PathBuf::from("."));
                     match Config::write_text(&root, &req.text) {
@@ -1252,12 +1167,16 @@ async fn main() -> Result<()> {
                     }
                 }
                 Some(checker::request::Payload::SiteDictionary(req)) => 'site: {
-                    // Lock order: see LOCK ORDER at the top of this file.
-                    let inflect = config_arc.lock().await.morphology.inflections;
+                    // A writer: the site's words replace the previous ones in
+                    // a copy of the dictionary, published whole, so a check
+                    // never sees half of one site list and half of the next.
+                    let writing = state.writer().await;
+                    let current = writing.current();
+                    let inflect = current.config.morphology.inflections;
                     // Kept in the workspace, so not before there is one: the
                     // fallback other requests use (the working directory) is
                     // the web host's root, shared by every workspace.
-                    let Some(root) = workspace_root_arc.lock().await.clone() else {
+                    let Some(root) = current.root.clone() else {
                         break 'site Some(response::Payload::Error(ErrorResponse {
                             message: "No workspace yet: send Initialize first".to_string(),
                             for_page: false,
@@ -1278,10 +1197,10 @@ async fn main() -> Result<()> {
                             // (it then sends the list again on its next read),
                             // or a restart would quietly drop the words.
                             let kept = site.store(&root);
-                            dictionary_arc
-                                .lock()
-                                .await
+                            let mut next = (*current).clone();
+                            Arc::make_mut(&mut next.dictionary)
                                 .set_site_words(&site.words, inflect);
+                            writing.publish(next);
                             info!(
                                 id = request_id,
                                 source = site.source,
