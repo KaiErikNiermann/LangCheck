@@ -36,6 +36,7 @@ export class Reloader {
     async reinitializeAndRecheck(): Promise<void> {
         this.deps.log.info('Reinitializing and rechecking');
         await this.deps.core.initialize();
+        this.deps.checker.invalidate();
         this.deps.store.clear();
         // The inspector reports which language each range was checked in. Under
         // a new config that answer may have changed, and showing the old one is
