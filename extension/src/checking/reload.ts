@@ -30,10 +30,36 @@ export interface ReloadDeps {
  * state derived from the config.
  */
 export class Reloader {
+    /** The reload in progress, if any. */
+    private running: Promise<void> | null = null;
+    /** The one reload queued behind it, shared by everyone who asked meanwhile. */
+    private queued: Promise<void> | null = null;
+
     constructor(private readonly deps: ReloadDeps) {}
 
-    /** Re-initialize the server, clear stale diagnostics, and recheck open documents. */
-    async reinitializeAndRecheck(): Promise<void> {
+    /**
+     * Re-initialize the server, clear stale diagnostics, and recheck open documents.
+     *
+     * One at a time. Two config writes in quick succession used to start two
+     * reloads at once, each clearing the store and re-checking around the
+     * other. A request that arrives during a reload queues exactly one more,
+     * which starts after it and so reads the newest config; any further
+     * requests join that queued one, since it already answers them.
+     */
+    reinitializeAndRecheck(): Promise<void> {
+        if (!this.running) {
+            this.running = this.reload().finally(() => { this.running = null; });
+            return this.running;
+        }
+        // Whether the running reload succeeded or not, the queued one runs.
+        this.queued ??= this.running.catch(() => undefined).then(() => {
+            this.queued = null;
+            return this.reinitializeAndRecheck();
+        });
+        return this.queued;
+    }
+
+    private async reload(): Promise<void> {
         this.deps.log.info('Reinitializing and rechecking');
         await this.deps.core.initialize();
         this.deps.checker.invalidate();
