@@ -3,6 +3,8 @@ import { LanguageClient } from '../core/client';
 import { languagecheck } from '../proto/checker';
 import * as cp from 'child_process';
 import { EventEmitter } from 'events';
+import { PassThrough } from 'stream';
+import type { Logger } from '../shared/logger';
 
 vi.mock('child_process');
 
@@ -71,8 +73,46 @@ describe('LanguageClient', () => {
         it('should spawn the binary with pipe stdio', () => {
             client.start();
             expect(cp.spawn).toHaveBeenCalledWith('mock-binary', [], {
-                stdio: ['pipe', 'pipe', 'inherit'],
+                stdio: ['pipe', 'pipe', 'pipe'],
             });
+        });
+
+        it("passes the core's stderr to the output channel, line by line", async () => {
+            const stderr = new PassThrough();
+            Object.assign(mock.mockProcess, { stderr });
+            const lines: string[] = [];
+            client.setLogger({ core: (line: string) => lines.push(line) } as unknown as Logger);
+            client.start();
+
+            stderr.write('WARN first\nDEBUG sec');
+            stderr.write('ond\n');
+            await new Promise(resolve => setImmediate(resolve));
+
+            expect(lines).toEqual(['WARN first', 'DEBUG second']);
+        });
+
+        it("names the core's last stderr line when it exits unexpectedly", async () => {
+            const stderr = new PassThrough();
+            Object.assign(mock.mockProcess, { stderr });
+            client.setLogger({ core: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined } as unknown as Logger);
+            vi.useFakeTimers({ toFake: ['setTimeout'] });
+            try {
+                const reasons: string[] = [];
+                client.onFailure(reason => reasons.push(reason));
+                client.start();
+                // Each restart gets the same mock; each one panics and exits.
+                for (let i = 0; i <= 3; i++) {
+                    stderr.write(`thread 'main' panicked at src/x.rs:${i}:1\n`);
+                    await new Promise(resolve => setImmediate(resolve));
+                    mock.mockProcess.emit('exit', 101);
+                    vi.advanceTimersByTime(1001);
+                }
+                expect(reasons).toEqual([
+                    "language-check core failed after 3 restart attempts: process exited with code 101: thread 'main' panicked at src/x.rs:3:1",
+                ]);
+            } finally {
+                vi.useRealTimers();
+            }
         });
 
         it('should not be running after stop', () => {

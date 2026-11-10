@@ -41,6 +41,16 @@ export class Logger {
         this.log('error', msg, fields);
     }
 
+    /**
+     * A line the core wrote to stderr, passed through as it is.
+     *
+     * Not filtered by level: the core already applied its own (`RUST_LOG`,
+     * `warn` by default in a release build), so whatever arrives was asked for.
+     */
+    core(line: string): void {
+        this.channel.appendLine(`[core] ${line}`);
+    }
+
     show(): void {
         this.channel.show(true);
     }
