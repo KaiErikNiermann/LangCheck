@@ -228,13 +228,19 @@ async fn main() -> Result<()> {
     // the other's, and every request needing either then waited behind them:
     // the core stopped answering with no error and no busy thread. The
     // orchestrator and the index are never held together with another of
-    // these.
+    // these. The Initialize lock is taken first and by Initialize alone.
     let schema_registry_arc: Arc<Mutex<SchemaRegistry>> =
         Arc::new(Mutex::new(SchemaRegistry::new()));
     let workspace_index_arc: Arc<Mutex<Option<WorkspaceIndex>>> = Arc::new(Mutex::new(None));
     // Kept because `exclude` patterns are written relative to it, and a check
     // request carries an absolute path.
     let workspace_root_arc: Arc<Mutex<Option<PathBuf>>> = Arc::new(Mutex::new(None));
+    // Initialize swaps the config, dictionaries and index one at a time, with
+    // awaits in between. Two at once interleave: the core ends up with parts
+    // of each config, and the second one finds the index still open in the
+    // first and reports this very process as another server. An editor sends
+    // two whenever the config file is written twice in quick succession.
+    let initialize_lock = Arc::new(Mutex::new(()));
     let indexing_notify = Arc::new(Notify::new());
 
     // Background indexing task — uses its own orchestrator to avoid mutex
@@ -442,6 +448,7 @@ async fn main() -> Result<()> {
         let schema_registry_arc = schema_registry_arc.clone();
         let workspace_index_arc = workspace_index_arc.clone();
         let workspace_root_arc = workspace_root_arc.clone();
+        let initialize_lock = initialize_lock.clone();
         let indexing_notify = indexing_notify.clone();
         let stdout_arc_clone = stdout_arc.clone();
         let stdout_for_panic = stdout_arc.clone();
@@ -453,6 +460,9 @@ async fn main() -> Result<()> {
             let handler_start = std::time::Instant::now();
             let response_payload = match request.payload {
                 Some(checker::request::Payload::Initialize(req)) => {
+                    // Held to the end of the arm: the config is read from disk
+                    // below, so a queued Initialize sees the newest file.
+                    let _initializing = initialize_lock.lock().await;
                     let root_path = std::path::PathBuf::from(&req.workspace_root);
                     *workspace_root_arc.lock().await = Some(root_path.clone());
 
