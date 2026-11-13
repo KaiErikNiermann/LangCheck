@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -105,5 +106,16 @@ func TestFindWordyPhrases_Severity(t *testing.T) {
 	}
 	if diags[0].Severity != SeverityInformation {
 		t.Errorf("expected severity %d, got %d", SeverityInformation, diags[0].Severity)
+	}
+}
+
+// Clean prose is answered with `[]`. A nil slice would encode as `null`.
+func TestFindWordyPhrases_NoMatchEncodesAsEmptyList(t *testing.T) {
+	out, err := json.Marshal(FindWordyPhrases("We met to talk."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != "[]" {
+		t.Errorf("expected [], got %s", out)
 	}
 }

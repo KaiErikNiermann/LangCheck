@@ -83,7 +83,7 @@ func isWordBoundary(s string, i int) bool {
 // FindWordyPhrases scans text for wordy phrases and returns diagnostics.
 func FindWordyPhrases(text string) []Diagnostic {
 	lower := strings.ToLower(text)
-	var diagnostics []Diagnostic
+	diagnostics := []Diagnostic{}
 
 	for _, phrase := range Phrases {
 		start := 0
