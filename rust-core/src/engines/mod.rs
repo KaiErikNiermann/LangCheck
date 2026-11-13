@@ -788,57 +788,47 @@ fn decode_plugin_output(
     prefix: &str,
     plugin: &str,
 ) -> serde_json::Result<Vec<Diagnostic>> {
-    let raw: Vec<PluginDiagnostic> = serde_json::from_str(output)?;
+    // `null` is how Go encodes an empty slice, so it means no diagnostics.
+    let raw: Option<Vec<PluginDiagnostic>> = serde_json::from_str(output)?;
     Ok(raw
+        .unwrap_or_default()
         .into_iter()
         .map(|d| d.into_host(prefix, plugin))
         .collect())
 }
 
-/// One diagnostic as a plugin writes it.
+/// One diagnostic as a plugin writes it. An optional field may be omitted or
+/// `null`; both take the default.
 #[derive(Deserialize)]
 struct PluginDiagnostic {
     start_byte: u32,
     end_byte: u32,
     message: String,
-    #[serde(default)]
-    suggestions: Vec<String>,
-    #[serde(default)]
-    rule_id: String,
-    #[serde(default = "default_severity_value")]
-    severity: i32,
-    #[serde(default)]
-    confidence: f32,
+    suggestions: Option<Vec<String>>,
+    rule_id: Option<String>,
+    severity: Option<i32>,
+    confidence: Option<f32>,
 }
 
 impl PluginDiagnostic {
     fn into_host(self, prefix: &str, plugin: &str) -> Diagnostic {
-        let rule_id = if self.rule_id.is_empty() {
-            format!("{prefix}.{plugin}")
-        } else {
-            format!("{prefix}.{plugin}.{}", self.rule_id)
+        let rule_id = match self.rule_id.as_deref() {
+            None | Some("") => format!("{prefix}.{plugin}"),
+            Some(rule) => format!("{prefix}.{plugin}.{rule}"),
         };
         Diagnostic {
             start_byte: self.start_byte,
             end_byte: self.end_byte,
             message: self.message,
-            suggestions: self.suggestions,
+            suggestions: self.suggestions.unwrap_or_default(),
             rule_id,
-            severity: self.severity,
+            severity: self.severity.unwrap_or(Severity::Warning as i32),
             unified_id: String::new(),
-            confidence: if self.confidence > 0.0 {
-                self.confidence
-            } else {
-                0.7
-            },
+            confidence: self.confidence.filter(|c| *c > 0.0).unwrap_or(0.7),
             language: String::new(),
             pack_installable: false,
         }
     }
-}
-
-const fn default_severity_value() -> i32 {
-    Severity::Warning as i32
 }
 
 #[async_trait::async_trait]
@@ -1157,6 +1147,53 @@ mod tests {
     fn wasm_engine_invalid_bytes_returns_error() {
         let result = WasmEngine::from_bytes("bad-plugin".to_string(), b"not a wasm file");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn plugin_output_null_is_no_diagnostics() {
+        assert_eq!(decode_plugin_output("null", "wasm", "p").unwrap(), []);
+        assert_eq!(decode_plugin_output("[]", "wasm", "p").unwrap(), []);
+    }
+
+    #[test]
+    fn plugin_output_null_fields_read_as_omitted() {
+        let omitted = r#"[{"start_byte":0,"end_byte":3,"message":"m"}]"#;
+        let null = r#"[{"start_byte":0,"end_byte":3,"message":"m",
+            "suggestions":null,"rule_id":null,"severity":null,"confidence":null}]"#;
+        let a = decode_plugin_output(omitted, "external", "p").unwrap();
+        let b = decode_plugin_output(null, "external", "p").unwrap();
+        assert_eq!(a, b);
+        let d = &a[0];
+        assert_eq!(d.rule_id, "external.p");
+        assert_eq!(d.suggestions, [] as [String; 0]);
+        assert_eq!(d.severity, Severity::Warning as i32);
+        assert!(
+            (d.confidence - 0.7).abs() < f32::EPSILON,
+            "{}",
+            d.confidence
+        );
+    }
+
+    #[test]
+    fn plugin_output_fields_are_kept() {
+        let full = r#"[{"start_byte":2,"end_byte":5,"message":"m","suggestions":["x"],
+            "rule_id":"r","severity":3,"confidence":0.9}]"#;
+        let d = &decode_plugin_output(full, "wasm", "p").unwrap()[0];
+        assert_eq!((d.start_byte, d.end_byte), (2, 5));
+        assert_eq!(d.rule_id, "wasm.p.r");
+        assert_eq!(d.suggestions, ["x"]);
+        assert_eq!(d.severity, Severity::Error as i32);
+        assert!(
+            (d.confidence - 0.9).abs() < f32::EPSILON,
+            "{}",
+            d.confidence
+        );
+    }
+
+    #[test]
+    fn plugin_output_missing_required_field_is_an_error() {
+        assert!(decode_plugin_output(r#"[{"start_byte":0,"message":"m"}]"#, "wasm", "p").is_err());
+        assert!(decode_plugin_output("not json", "wasm", "p").is_err());
     }
 
     /// The Go reference plugin, as committed. Read at run time rather than
