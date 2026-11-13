@@ -948,21 +948,20 @@ impl Engine for WasmEngine {
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
         let input = PluginRequest::to_json(text, language_id)?;
 
-        let output = match self.plugin.call::<&str, &str>("check", &input) {
-            Ok(result) => result.to_string(),
-            Err(e) => {
-                warn!(plugin = %self.name, "WASM plugin call failed: {e}");
-                return Ok(vec![]);
-            }
-        };
+        // Failures are errors, not empty answers: an empty answer is cached
+        // and reads as clean prose. The orchestrator logs and reports them.
+        let output = self
+            .plugin
+            .call::<&str, &str>("check", &input)
+            .map_err(|e| anyhow::anyhow!("{} failed: {e}", self.name))?
+            .to_string();
 
-        match decode_plugin_output(&output, "wasm", &self.name) {
-            Ok(diagnostics) => Ok(diagnostics),
-            Err(e) => {
-                warn!(plugin = %self.name, "Failed to parse WASM plugin output: {e}");
-                Ok(vec![])
-            }
-        }
+        decode_plugin_output(&output, "wasm", &self.name).map_err(|e| {
+            anyhow::anyhow!(
+                "{} wrote output that is not a diagnostics list: {e}",
+                self.name
+            )
+        })
     }
 }
 
@@ -1194,6 +1193,21 @@ mod tests {
     fn plugin_output_missing_required_field_is_an_error() {
         assert!(decode_plugin_output(r#"[{"start_byte":0,"message":"m"}]"#, "wasm", "p").is_err());
         assert!(decode_plugin_output("not json", "wasm", "p").is_err());
+    }
+
+    /// A plugin whose `check` export fails: Extism reads a non-zero return
+    /// as an error.
+    const FAILING_PLUGIN_WAT: &str = r#"(module
+        (func (export "check") (result i32) (i32.const 1)))"#;
+
+    #[tokio::test]
+    async fn wasm_plugin_failure_is_an_error() {
+        let mut engine =
+            WasmEngine::from_bytes("failing".to_string(), FAILING_PLUGIN_WAT.as_bytes()).unwrap();
+        // An error, not an empty answer: an empty answer is cached and reads
+        // as clean prose.
+        let err = engine.check("text", "en-US").await.unwrap_err();
+        assert!(err.to_string().contains("failing"), "{err}");
     }
 
     /// The Go reference plugin, as committed. Read at run time rather than
