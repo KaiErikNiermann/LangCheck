@@ -766,16 +766,38 @@ impl ExternalEngine {
     }
 }
 
-/// JSON request sent to the external process on stdin.
+/// The JSON a checker plugin receives: on stdin for an external process, as
+/// the `check` input for a Wasm plugin. `language_id` is the natural language
+/// as a BCP-47 tag (`en-US`), not the markup format.
 #[derive(serde::Serialize)]
-struct ExternalRequest<'a> {
+struct PluginRequest<'a> {
     text: &'a str,
     language_id: &'a str,
 }
 
-/// JSON diagnostic returned by the external process on stdout.
+impl PluginRequest<'_> {
+    fn to_json(text: &str, language_id: &str) -> Result<String> {
+        Ok(serde_json::to_string(&PluginRequest { text, language_id })?)
+    }
+}
+
+/// Decode a plugin's answer into host diagnostics, namespacing each rule as
+/// `<prefix>.<plugin>[.<rule_id>]`.
+fn decode_plugin_output(
+    output: &str,
+    prefix: &str,
+    plugin: &str,
+) -> serde_json::Result<Vec<Diagnostic>> {
+    let raw: Vec<PluginDiagnostic> = serde_json::from_str(output)?;
+    Ok(raw
+        .into_iter()
+        .map(|d| d.into_host(prefix, plugin))
+        .collect())
+}
+
+/// One diagnostic as a plugin writes it.
 #[derive(Deserialize)]
-struct ExternalDiagnostic {
+struct PluginDiagnostic {
     start_byte: u32,
     end_byte: u32,
     message: String,
@@ -787,6 +809,32 @@ struct ExternalDiagnostic {
     severity: i32,
     #[serde(default)]
     confidence: f32,
+}
+
+impl PluginDiagnostic {
+    fn into_host(self, prefix: &str, plugin: &str) -> Diagnostic {
+        let rule_id = if self.rule_id.is_empty() {
+            format!("{prefix}.{plugin}")
+        } else {
+            format!("{prefix}.{plugin}.{}", self.rule_id)
+        };
+        Diagnostic {
+            start_byte: self.start_byte,
+            end_byte: self.end_byte,
+            message: self.message,
+            suggestions: self.suggestions,
+            rule_id,
+            severity: self.severity,
+            unified_id: String::new(),
+            confidence: if self.confidence > 0.0 {
+                self.confidence
+            } else {
+                0.7
+            },
+            language: String::new(),
+            pack_installable: false,
+        }
+    }
 }
 
 const fn default_severity_value() -> i32 {
@@ -810,8 +858,7 @@ impl Engine for ExternalEngine {
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
         use tokio::process::Command;
 
-        let request = ExternalRequest { text, language_id };
-        let input = serde_json::to_string(&request)?;
+        let input = PluginRequest::to_json(text, language_id)?;
 
         let mut cmd = Command::new(&self.command);
         cmd.args(&self.args);
@@ -826,42 +873,12 @@ impl Engine for ExternalEngine {
                 subprocess::first_line(&output.stderr)
             );
         }
-        let ext_diagnostics: Vec<ExternalDiagnostic> = serde_json::from_str(&output.stdout)
-            .map_err(|e| {
-                anyhow::anyhow!(
-                    "{} wrote output that is not a diagnostics list: {e}",
-                    self.name
-                )
-            })?;
-
-        let diagnostics = ext_diagnostics
-            .into_iter()
-            .map(|ed| {
-                let rule_id = if ed.rule_id.is_empty() {
-                    format!("external.{}", self.name)
-                } else {
-                    format!("external.{}.{}", self.name, ed.rule_id)
-                };
-                Diagnostic {
-                    start_byte: ed.start_byte,
-                    end_byte: ed.end_byte,
-                    message: ed.message,
-                    suggestions: ed.suggestions,
-                    rule_id,
-                    severity: ed.severity,
-                    unified_id: String::new(),
-                    confidence: if ed.confidence > 0.0 {
-                        ed.confidence
-                    } else {
-                        0.7
-                    },
-                    language: String::new(),
-                    pack_installable: false,
-                }
-            })
-            .collect();
-
-        Ok(diagnostics)
+        decode_plugin_output(&output.stdout, "external", &self.name).map_err(|e| {
+            anyhow::anyhow!(
+                "{} wrote output that is not a diagnostics list: {e}",
+                self.name
+            )
+        })
     }
 }
 
@@ -869,7 +886,7 @@ impl Engine for ExternalEngine {
 ///
 /// The plugin must export a `check` function that accepts a JSON string
 /// `{"text": "...", "language_id": "..."}` and returns a JSON array of
-/// diagnostics matching the `ExternalDiagnostic` schema.
+/// diagnostics matching the `PluginDiagnostic` schema.
 pub struct WasmEngine {
     name: String,
     plugin: Plugin,
@@ -939,11 +956,7 @@ impl Engine for WasmEngine {
     }
 
     async fn check(&mut self, text: &str, language_id: &str) -> Result<Vec<Diagnostic>> {
-        let request = serde_json::json!({
-            "text": text,
-            "language_id": language_id,
-        });
-        let input = request.to_string();
+        let input = PluginRequest::to_json(text, language_id)?;
 
         let output = match self.plugin.call::<&str, &str>("check", &input) {
             Ok(result) => result.to_string(),
@@ -953,42 +966,13 @@ impl Engine for WasmEngine {
             }
         };
 
-        let ext_diagnostics: Vec<ExternalDiagnostic> = match serde_json::from_str(&output) {
-            Ok(d) => d,
+        match decode_plugin_output(&output, "wasm", &self.name) {
+            Ok(diagnostics) => Ok(diagnostics),
             Err(e) => {
                 warn!(plugin = %self.name, "Failed to parse WASM plugin output: {e}");
-                return Ok(vec![]);
+                Ok(vec![])
             }
-        };
-
-        let diagnostics = ext_diagnostics
-            .into_iter()
-            .map(|ed| {
-                let rule_id = if ed.rule_id.is_empty() {
-                    format!("wasm.{}", self.name)
-                } else {
-                    format!("wasm.{}.{}", self.name, ed.rule_id)
-                };
-                Diagnostic {
-                    start_byte: ed.start_byte,
-                    end_byte: ed.end_byte,
-                    message: ed.message,
-                    suggestions: ed.suggestions,
-                    rule_id,
-                    severity: ed.severity,
-                    unified_id: String::new(),
-                    confidence: if ed.confidence > 0.0 {
-                        ed.confidence
-                    } else {
-                        0.7
-                    },
-                    language: String::new(),
-                    pack_installable: false,
-                }
-            })
-            .collect();
-
-        Ok(diagnostics)
+        }
     }
 }
 
@@ -1173,6 +1157,38 @@ mod tests {
     fn wasm_engine_invalid_bytes_returns_error() {
         let result = WasmEngine::from_bytes("bad-plugin".to_string(), b"not a wasm file");
         assert!(result.is_err());
+    }
+
+    /// The Go reference plugin, as committed. Read at run time rather than
+    /// with `include_bytes!` so the crate still packages without it.
+    fn reference_plugin() -> WasmEngine {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../plugins/wordiness-check/wordiness-check.wasm");
+        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        WasmEngine::from_bytes("wordiness".to_string(), &bytes).unwrap()
+    }
+
+    #[tokio::test]
+    async fn wasm_reference_plugin_finds_a_wordy_phrase() -> Result<()> {
+        let mut engine = reference_plugin();
+        let diagnostics = engine.check("We met in order to talk.", "en-US").await?;
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        let d = &diagnostics[0];
+        assert_eq!((d.start_byte, d.end_byte), (7, 18));
+        assert_eq!(d.rule_id, "wasm.wordiness.wordiness");
+        assert_eq!(d.suggestions, ["to"]);
+        assert_eq!(d.severity, Severity::Information as i32);
+        Ok(())
+    }
+
+    /// Go encodes an empty result as `null`, which is how the reference
+    /// plugin answers clean prose. That is an answer, not a failure.
+    #[tokio::test]
+    async fn wasm_reference_plugin_answers_clean_prose_with_nothing() -> Result<()> {
+        let mut engine = reference_plugin();
+        let diagnostics = engine.check("We met to talk.", "en-US").await?;
+        assert_eq!(diagnostics, []);
+        Ok(())
     }
 
     #[test]
