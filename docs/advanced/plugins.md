@@ -27,7 +27,7 @@ A JSON string passed as the function argument:
 ```json
 {
   "text": "The document text to check.",
-  "language_id": "markdown"
+  "language_id": "en-US"
 }
 ```
 
@@ -49,7 +49,7 @@ A JSON string returned as the function result — an array of diagnostics:
 ]
 ```
 
-The diagnostic schema is identical to [external providers](providers.md).
+`language_id` is the natural language as a BCP-47 tag, not the markup format. The request and the diagnostic schema are identical to [external providers](providers.md).
 
 ## Plugin Discovery
 
@@ -112,7 +112,7 @@ pub fn check(input: String) -> FnResult<String> {
 ## Error Handling
 
 - Invalid WASM modules are logged and skipped during initialization.
-- Runtime errors during `check()` calls return empty diagnostics.
+- A `check()` call that fails, or returns something other than a JSON array of diagnostics, is an error. The host logs it and counts it against the plugin's health, and the passage is marked unchecked if no other engine reported anything for it.
 - WASM plugins are skipped in High Performance Mode.
 
 ## Rule ID Namespacing

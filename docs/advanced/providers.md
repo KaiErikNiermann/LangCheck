@@ -79,16 +79,26 @@ The provider must return a JSON array of diagnostics on stdout:
 | `message`    | `string`   | Yes      | Human-readable description               |
 | `suggestions`| `string[]` | No       | Replacement suggestions (default: `[]`)  |
 | `rule_id`    | `string`   | No       | Rule identifier (default: provider name) |
-| `severity`   | `number`   | No       | 1=Error, 2=Warning, 3=Info, 4=Hint       |
+| `severity`   | `number`   | No       | 1=Info, 2=Warning, 3=Error, 4=Hint (default: 2) |
 | `confidence` | `number`   | No       | 0.0–1.0 confidence score (default: 0.7)  |
+
+An optional field that is left out or set to `null` takes the default. An
+output of `null` instead of an array means no diagnostics.
 
 Rule IDs are automatically prefixed with `external.<provider-name>.` for namespacing.
 
 ## Error Handling
 
-- If the binary is not found, the provider is silently skipped.
-- If the binary exits non-zero, the error is logged and no diagnostics are returned.
-- If the output is not valid JSON, the error is logged and no diagnostics are returned.
+A provider that fails is reported as failed, not as having found nothing. Each of these is an error:
+
+- The binary cannot be started (not found, not executable).
+- The binary exits non-zero. The first line of its `stderr` goes into the error.
+- The binary is killed after 30 seconds, or once it writes more than 16 MiB to `stdout`.
+- Its output is not a JSON array of diagnostics.
+
+The error is logged and counted against the provider's health. If no other
+engine reported anything for the passage, it shows a notice that it went
+unchecked rather than looking clean.
 
 ## High Performance Mode
 

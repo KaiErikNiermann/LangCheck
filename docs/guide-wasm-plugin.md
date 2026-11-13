@@ -15,9 +15,11 @@ Your `check` function receives a JSON string:
 ```json
 {
   "text": "The document text to check.",
-  "language_id": "markdown"
+  "language_id": "en-US"
 }
 ```
+
+`language_id` is the natural language being checked, as a BCP-47 tag (`en-US`, `de-DE`, `fr`), not the markup format. `text` is one extracted prose range, and byte offsets are relative to it.
 
 ### Output
 
@@ -44,8 +46,10 @@ Return a JSON string — an array of diagnostics:
 | `message` | string | yes | Human-readable description of the issue |
 | `suggestions` | string[] | no | Replacement suggestions (first is preferred) |
 | `rule_id` | string | no | Rule identifier (namespaced as `wasm.<plugin>.<rule_id>`) |
-| `severity` | integer | no | 1 = Information, 2 = Warning (default), 3 = Error |
+| `severity` | integer | no | 1 = Information, 2 = Warning (default), 3 = Error, 4 = Hint |
 | `confidence` | float | no | 0.0–1.0, defaults to 0.7 if omitted |
+
+An optional field that is left out or set to `null` takes the default. An output of `null` instead of an array means no diagnostics, so a nil Go slice is accepted, but `[]` is the documented answer.
 
 Diagnostics from plugins are treated identically to built-in engine results — `suggestions` automatically appear in the SpeedFix panel, inlay hints, inline ghost text completions, and code actions. The first suggestion in the array is used as the preferred quick-fix. An empty string `""` suggestion means "remove the matched text", and suggestions prefixed with `Insert "..."` insert text at the diagnostic end position rather than replacing.
 
@@ -235,7 +239,7 @@ The filename (minus `.wasm`) becomes the plugin name.
 ## Debugging
 
 - **Extism errors**: The host logs plugin errors at `warn` level. Enable tracing in VS Code or use `--trace` on the CLI.
-- **JSON parse failures**: If your output isn't valid JSON, the host silently returns empty diagnostics. Test your JSON serialization in unit tests.
+- **Failures**: If `check` returns non-zero (`pdk.SetError`) or its output is not a JSON array of diagnostics, the host logs the error and reports the plugin as failed. The passage is marked unchecked if no other engine reported anything for it. Test your JSON serialization in unit tests.
 - **Byte offsets**: Offsets must be valid UTF-8 byte positions in the input text. Off-by-one errors here cause garbled diagnostic ranges.
 - **Empty output**: Return `[]` (empty JSON array), not an empty string, when there are no issues.
 
