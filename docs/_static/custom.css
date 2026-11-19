@@ -157,9 +157,9 @@ body {
   --color-admonition-title--seealso: #4493f8;
   --color-admonition-title: #ab7df8;
 
-  /* Match surrounding body text size (Furo defaults to 0.8125rem) */
-  --admonition-font-size: 1rem;
-  --admonition-title-font-size: 1rem;
+  /* A step below body text (Furo defaults to 0.8125rem) */
+  --admonition-font-size: 0.9375rem;
+  --admonition-title-font-size: 0.9375rem;
 }
 
 /* One rule drives every type: each type only sets --lc-admonition-accent. */
@@ -177,7 +177,7 @@ body {
     transparent
   );
   margin: 1em 0;
-  padding: 0.3em 1em 0.6em;
+  padding: 0.6em 1em 0.6em;
   color: inherit;
   box-shadow: none;
   font-size: var(--admonition-font-size);
