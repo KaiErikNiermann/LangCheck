@@ -22,6 +22,12 @@ Language Check catches grammar, spelling, and style issues in Markdown, HTML, La
 Language Check is in active early development. Core checking is stable and usable, but you may encounter bugs — please [report them](https://github.com/KaiErikNiermann/LangCheck/issues) and they will be fixed promptly. The configuration format may change between minor versions; backwards compatibility is a goal but not yet guaranteed.
 :::
 
+:::{admonition} Browser extension (beta)
+:class: note
+
+Language Check also has a browser extension that checks prose in Overleaf, Typst, Notion and Gmail with the same core running on your machine. It is in beta and installs as a development build for now. See the [Web (beta)](web/overview.md) section.
+:::
+
 ---
 
 ```{toctree}
@@ -38,6 +44,21 @@ guide/configuration
 guide/languages
 guide/localization
 guide/motivation
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Web (beta)
+
+web/overview
+web/installation
+web/usage
+web/sites
+web/settings
+web/privacy
+web/troubleshooting
+web/architecture
+web/development
 ```
 
 ```{toctree}

@@ -83,3 +83,7 @@ Each release includes `.sha256` checksum files:
 ```bash
 sha256sum -c language-check-server-x86_64-unknown-linux-gnu.sha256
 ```
+
+## Browser extension (beta)
+
+A browser extension that checks Overleaf, Typst, Notion and Gmail is in beta. It has no store listing yet and is built from the repository. It needs `language-check-native-host`, which `cargo build --release` in `rust-core` builds next to `language-check-server`. See [installing the browser extension](../web/installation.md).

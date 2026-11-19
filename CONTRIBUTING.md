@@ -147,6 +147,10 @@ suppression is a hole, a reasoned one is a decision.
 
 The extension spawns the core binary as a child process. They communicate via length-prefixed Protobuf messages on stdin/stdout. The core runs checking engines, normalizes rule IDs, applies severity overrides, deduplicates results, and returns diagnostics.
 
+## Browser extension
+
+The browser extension in `web/` (Overleaf, Typst, Notion and Gmail) reuses the VS Code client's checking code behind a `vscode` shim and reaches the core through the `language-check-native-host` binary in `rust-core/`. Build and check it from `web/` with `pnpm run build` and `pnpm run check`, or build it and register the host with `just install-local-web`. `just check` does not run the web package's checks. How the pieces fit, how to add a site and how the tests are laid out are in [docs/web/architecture.md](docs/web/architecture.md) and [docs/web/development.md](docs/web/development.md), and `web/README.md` is the short version.
+
 ## Adding a New Engine
 
 1. Implement the `Engine` trait in `rust-core/src/engines/mod.rs`
