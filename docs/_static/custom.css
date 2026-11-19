@@ -198,7 +198,7 @@ body {
 .admonition > p.admonition-title {
   padding: var(--lc-admonition-title-pad) 0.5rem var(--lc-admonition-title-pad)
     2rem;
-  margin: 0 0 0.2em 0;
+  margin: 0.2em 0 0.2em 0;
   font-size: var(--admonition-title-font-size);
   line-height: var(--lc-admonition-title-line);
   font-weight: 600;
