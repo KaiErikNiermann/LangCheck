@@ -47,13 +47,20 @@ ignore = [
     "RUSTSEC-2026-0098",
     "RUSTSEC-2026-0099",
     "RUSTSEC-2026-0104",
-    # zip 8.x extract() symlink/permission vulns — transitive via harper-core
-    # 3.0.0 (latest), which only reads archives with by_index() and never calls
-    # extract(). Drop once harper moves to zip >= 9.
+    # zip 8.x vulns — transitive via harper-core 3.x (3.2.0 and master still
+    # require zip ^8.6). Harper only reads its Weirpack archives with
+    # by_index(), never extract(), ZipStreamReader or a decrypting read, and
+    # LangCheck never loads a Weirpack. zip is built with deflate only, so the
+    # aes-crypto (0545) and legacy-zip (0547) code is not compiled in.
+    # Drop once harper moves to zip >= 9.
     "RUSTSEC-2026-0367",
     "RUSTSEC-2026-0368",
     "RUSTSEC-2026-0369",
     "RUSTSEC-2026-0429",
+    "RUSTSEC-2026-0545",
+    "RUSTSEC-2026-0546",
+    "RUSTSEC-2026-0547",
+    "RUSTSEC-2026-0548",
     # unsafe-libyaml unmaintained — via our serde_yaml (deprecated, no fixed
     # release); needs a migration to a maintained YAML crate.
     "RUSTSEC-2024-0449",
