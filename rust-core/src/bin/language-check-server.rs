@@ -1305,9 +1305,7 @@ fn list_config_files(root: &Path, documents: Option<&[String]>) -> ListConfigFil
             .replace('\\', "/")
     };
     ListConfigFilesResponse {
-        config_path: Config::file_in(root)
-            .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or_default(),
+        config_path: Config::file_in(root).map_or_default(|p| p.to_string_lossy().into_owned()),
         selected: selection.selected.iter().map(|p| relative(p)).collect(),
         skipped: selection
             .rejected

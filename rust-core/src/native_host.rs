@@ -509,7 +509,7 @@ async fn relay_answers(
     workspace: std::sync::Arc<std::sync::Mutex<Option<PathBuf>>>,
 ) -> Result<()> {
     while let Some(mut response) = read_server_frame(&mut server_out).await? {
-        let dir = workspace.lock().map(|dir| dir.clone()).unwrap_or_default();
+        let dir = workspace.lock().map_or_default(|dir| dir.clone());
         scrub(&mut response, dir.as_deref());
         if outbox.send(response).await.is_err() {
             break;
@@ -666,8 +666,7 @@ pub fn manifest_problem(manifest: &serde_json::Value, browser: Browser) -> Optio
         manifest
             .get(key)
             .and_then(serde_json::Value::as_array)
-            .map(|list| list.iter().filter_map(serde_json::Value::as_str).collect())
-            .unwrap_or_default()
+            .map_or_default(|list| list.iter().filter_map(serde_json::Value::as_str).collect())
     };
     match browser {
         Browser::Firefox if !allowed("allowed_extensions").contains(&FIREFOX_EXTENSION_ID) => {

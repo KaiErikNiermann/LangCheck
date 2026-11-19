@@ -980,8 +980,7 @@ pub fn discover_wasm_plugins(plugin_dir: &std::path::Path) -> Vec<(String, PathB
             if path.extension().is_some_and(|e| e == "wasm") {
                 let name = path
                     .file_stem()
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or_default();
+                    .map_or_default(|s| s.to_string_lossy().to_string());
                 Some((name, path))
             } else {
                 None

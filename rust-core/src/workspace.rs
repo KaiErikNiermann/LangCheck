@@ -120,9 +120,7 @@ impl IndexOwner {
         Self {
             pid: std::process::id(),
             version: env!("CARGO_PKG_VERSION").to_string(),
-            executable: std::env::current_exe()
-                .map(|p| p.display().to_string())
-                .unwrap_or_default(),
+            executable: std::env::current_exe().map_or_default(|p| p.display().to_string()),
         }
     }
 

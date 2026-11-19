@@ -135,7 +135,7 @@ impl Engine for ProselintEngine {
                 ProselintFileResult::Ok { diagnostics: diags } => {
                     for d in diags {
                         let (start_byte, end_byte) = char_span_to_byte_range(text, d.span);
-                        let suggestions = d.replacements.map(|r| vec![r]).unwrap_or_default();
+                        let suggestions = d.replacements.map_or_default(|r| vec![r]);
 
                         diagnostics.push(Diagnostic {
                             start_byte,
