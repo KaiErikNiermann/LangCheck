@@ -11,7 +11,7 @@ Three pieces have to be in place.
 - The native messaging host, `language-check-native-host`, registered with your browser.
 - The core, `language-check-server`, which the host starts. It has to sit in the same directory as the host.
 
-Both programs are built from `rust-core/`, so one `cargo build --release` produces them. The prerequisites are those of [CONTRIBUTING.md](https://github.com/KaiErikNiermann/LangCheck/blob/main/CONTRIBUTING.md): a Rust toolchain, pnpm and the Protobuf compiler. The extension's `package.json` also takes `ninja-keys` from a local checkout, see [development](development.md#building).
+Both programs are built from `rust-core/`, so one `cargo build --release` produces them. The prerequisites are those of [CONTRIBUTING.md](https://github.com/KaiErikNiermann/LangCheck/blob/main/CONTRIBUTING.md): a Rust toolchain, pnpm and the Protobuf compiler.
 
 ## With the Justfile
 

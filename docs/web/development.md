@@ -20,7 +20,7 @@ cd web && pnpm install && pnpm run build   # the same, by hand
 
 The package's `prepare` step generates the client's protobuf bindings, so the client's dependencies have to be installed first. `just build-web` depends on `install-ts` for that reason.
 
-The `ninja-keys` dependency in `web/package.json` is `file:../../../web-tooling/ninja-keys`, a local checkout of [ninja-keys](https://github.com/KaiErikNiermann/ninja-keys) three directory levels above `web/`. A clean clone needs that checkout at that path before `pnpm install` succeeds.
+The command palette is `@appulsauce/ninja-keys` from npm, a fork of ninja-keys ([source](https://github.com/KaiErikNiermann/ninja-keys)).
 
 `web/manifest.json` holds what is fixed. The build adds the `content_scripts`, the `web_accessible_resources` matches and the description from the [site catalog](#adding-a-site), so the manifest never lists a site by hand. The manifest has both `background.service_worker` and `background.scripts`, for Chrome and Firefox. Its permissions are `nativeMessaging` and `storage`.
 

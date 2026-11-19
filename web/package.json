@@ -48,8 +48,8 @@
     "ws": "^8.22.0"
   },
   "dependencies": {
+    "@appulsauce/ninja-keys": "^1.3.0",
     "hotkeys-js": "^3.13.15",
-    "ninja-keys": "file:../../../web-tooling/ninja-keys",
     "path-browserify": "^1.0.1",
     "webextension-polyfill": "^0.12.0"
   }

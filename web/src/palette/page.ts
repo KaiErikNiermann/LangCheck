@@ -6,7 +6,7 @@
 // The content script hands over a MessagePort and the commands to list; the
 // page answers with { type: 'run', id } or { type: 'close' }. Which command
 // to run is checked again on the other side; this page holds no authority.
-import 'ninja-keys';
+import '@appulsauce/ninja-keys';
 import browser from 'webextension-polyfill';
 import { PALETTE_INIT_TYPE, type ContentToPalette, type PaletteToContent } from './protocol';
 import { holdKeys, MAX_TYPED_CHARS, parseBinding } from './typing';
@@ -124,7 +124,7 @@ function show(port: MessagePort, entries: typeof PALETTE): void {
         const search = (message.submit === true ? message.text : message.text + hold.typed()).slice(0, MAX_TYPED_CHARS);
         hold.release();
         if (search !== '') ninja.open({ search });
-        if (submit) void ninja.updateComplete.then(() => { ninja.submit(); });
+        if (submit) void ninja.updateComplete.then(() => ninja.submit());
     });
     port.start();
     document.addEventListener(
