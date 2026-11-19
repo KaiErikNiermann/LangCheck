@@ -19,6 +19,10 @@ This is the model pyright and mypy use (one config per run), not the nearest-con
 
 The editor says so when you open a config that is not in effect: a nested one, or one shadowed by a higher-precedence name at the root. It shows a single information note naming the file that is read, and none of the gutter status marks the config in effect gets.
 
+**Language Check: Edit Config** opens the config in effect, which is the first of `.languagecheck.yaml`, `.languagecheck.yml` and `.languagecheck.json` at the root of the first workspace folder. If there is none, it creates `.languagecheck.yaml` with Harper on and a pointer to this guide, and opens that. The editor then marks what each key reaches, and saving reloads the checks like any other edit of the file.
+
+The [browser extension](../web/overview.md) reads a config of its own for each project, account or workspace it checks, edited with the same command in its palette. It does not read the config of a VS Code project.
+
 ## Engines
 
 Control which checking engines are active:
@@ -112,6 +116,22 @@ exclude:
   - "*.min.js"
 ```
 
+## Include and file types
+
+`include` and `file_types` narrow what is checked. `exclude` then removes from that selection.
+
+```yaml
+include:
+  - "docs/**"                   # only these paths (empty: every file)
+file_types: [md, tex]           # only these extensions (empty: every type the grammars recognise)
+exclude:
+  - "docs/_build/**"
+```
+
+`include` is a list of workspace-relative globs. `file_types` takes extensions without the leading dot, matched case-insensitively, and a leading dot is accepted and ignored. The built-in `exclude` list stays in force, and the patterns you write are added to it.
+
+In the browser extension a site's documents have no files on disk. Each check carries the document's place in its project instead, such as `chapters/intro.tex` on Overleaf, and these three keys match that path as they match a file in VS Code. See [the sites](../web/sites.md).
+
 ## Auto-Fix Rules
 
 Define custom find-and-replace rules applied automatically:
@@ -136,6 +156,18 @@ performance:
   debounce_ms: 300              # LSP debounce delay
   max_file_size: 1048576        # Skip files larger than 1MB (0 = unlimited)
 ```
+
+## Long documents
+
+Three VS Code settings, not keys of the config file, control how a long document is checked. They also appear on the browser extension's options page.
+
+| Setting | Default | Meaning |
+|---------|---------|---------|
+| `languageCheck.check.progressive` | `false` | Make a document's first check a window at a time, the window with the cursor or the top of the view first, and show findings as each window lands. Later checks are whole, because the core keeps what it found. |
+| `languageCheck.check.windowBytes` | `16384` | The size of one window, in bytes of text, from 1024 to 1048576. |
+| `languageCheck.check.maxBytes` | `0` | Check only the first this many bytes of a document, `0` for all of it. Prose that starts past the limit is not checked. |
+
+An edit stops the windows, and the document's next check starts over in windows. The [benchmarks](../reference/benchmarks.md) show what a progressive check costs.
 
 ## Dictionaries
 

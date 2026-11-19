@@ -24,6 +24,8 @@ Other editors running `yaml-language-server` can load the schema with a modeline
 |---------------|-----------------------------|-----------------------|-------------------------------|
 | `engines`     | [`EngineConfig`](#engines)  | See below             | Checker engine configuration  |
 | `rules`       | `map<string, RuleConfig>`   | `{}`                  | Per-rule severity overrides   |
+| `include`     | `string[]`                  | `[]`                  | Glob patterns to check (empty: every file) |
+| `file_types`  | `string[]`                  | `[]`                  | Extensions to check, no leading dot (empty: every type) |
 | `exclude`     | `string[]`                  | `["node_modules/**", ".git/**"]` | Glob patterns to skip |
 | `auto_fix`    | [`AutoFixRule[]`](#auto-fix)| `[]`                  | Custom find/replace rules     |
 | `performance` | [`PerformanceConfig`](#performance)| See below     | Performance tuning            |
@@ -202,7 +204,7 @@ In the browser extension, the site you write on keeps a dictionary of its own: T
 |----------|----------------|
 | `merge`  | The site's and LangCheck's own (`dictionary.txt`) |
 | `ignore` | LangCheck's own only |
-| `only`   | The site's instead of LangCheck's `dictionary.txt`; "Add to dictionary" is then refused, since LangCheck does not write to the site's dictionary |
+| `only`   | The site's instead of LangCheck's `dictionary.txt`; "Add to dictionary" with the default `add_to` is then refused, since the word would change nothing (use `add_to: site` or a wordlist path) |
 
 Bundled wordlists and `paths` apply in every case. The words are kept in `.languagecheck/site-dictionary.txt` in the workspace, and the config page shows on the `dictionaries` line (or its own status line) whether they arrived, how many there are, and how many entries were left out for not being single words.
 
