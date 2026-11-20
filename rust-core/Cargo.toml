@@ -82,6 +82,7 @@ divan = "0.1"
 rand = { version = "0.9", features = ["small_rng"] }
 jsonschema = "0.61.2"
 proptest = "1.11.0"
+cpu-time = "1.0.0"
 
 [[bench]]
 name = "benchmarks"

@@ -18,8 +18,8 @@
 //! and `MALFORMED_FUZZ_DUMP=<path>` writes that case's document out.
 //!
 //! `MALFORMED_FUZZ_ITERATIONS` sets the cases per language (default 200, a
-//! few seconds). A case slower than `MALFORMED_FUZZ_SLOW_MS` (default 5000)
-//! fails too. Run a long pass under memguard, since a pathological case
+//! few seconds). A case that takes more than `MALFORMED_FUZZ_SLOW_MS`
+//! (default 5000) of its thread's CPU time fails too. Run a long pass under memguard, since a pathological case
 //! can take a lot of memory:
 //!
 //! ```sh
@@ -30,6 +30,7 @@
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
+use cpu_time::ThreadTime;
 use lang_check::engines::{Engine, HarperEngine};
 use lang_check::prose::{ProseRange, extract_with_range_limit, latex::LatexExtras};
 use rand::rngs::SmallRng;
@@ -377,7 +378,10 @@ fn slow_ms() -> u128 {
 fn fuzz_extraction(lang: &str) {
     let extras = LatexExtras::default();
     for seed in seeds(lang) {
-        let started = std::time::Instant::now();
+        // This thread's CPU time, not wall time: the other tests in this
+        // binary run in parallel, and on a busy CI runner the wall time of a
+        // 1.2 s case reached 5 s while waiting for a core.
+        let started = ThreadTime::now();
         std::fs::write(
             last_case_file(lang),
             format!("lang={lang} MALFORMED_FUZZ_SEED={seed}\n"),
@@ -402,7 +406,8 @@ fn fuzz_extraction(lang: &str) {
         let took = started.elapsed().as_millis();
         assert!(
             took <= slow_ms(),
-            "{lang} seed {seed}: {took}ms for a {}-byte document (MALFORMED_FUZZ_SLOW_MS={})",
+            "{lang} seed {seed}: {took}ms of CPU time for a {}-byte document \
+             (MALFORMED_FUZZ_SLOW_MS={})",
             text.len(),
             slow_ms()
         );
