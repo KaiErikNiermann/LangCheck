@@ -31,6 +31,26 @@ language makes the checker believe the passage was checked, which suppresses
 the report saying nothing could read it — so a provider that only speaks
 English silently hides the fact that a Hebrew paragraph went unchecked.
 
+(workspace-trust)=
+### Workspace trust
+
+`engines.external` runs programs and `engines.wasm_plugins` loads WASM
+modules, and a cloned repository's `.languagecheck.yaml` is written by whoever
+wrote the repository. So the editors honour these two keys only in a workspace
+you trust:
+
+- **VS Code**: the extension does not run at all in Restricted Mode, and runs
+  them once you trust the workspace.
+- **LSP mode** (`language-check-server --lsp`, used by Neovim and other LSP
+  clients): the server ignores both keys, and shows a warning naming them,
+  unless the client passes `initializationOptions.trustWorkspace = true`. The
+  Neovim plugin asks through Neovim's own trust prompt
+  (`:help vim.secure.read()`) when the config names either key; set
+  `trust_workspace = true` or `false` to decide without asking.
+- **Browser extension**: a browser workspace's config may never hold them.
+- **CLI**: `language-check check` runs them, since you started it in that
+  directory yourself.
+
 ## Protocol
 
 ### Request (stdin)

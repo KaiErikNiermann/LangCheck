@@ -16,6 +16,9 @@ engines:
       path: /opt/plugins/style.wasm
 ```
 
+Editors load plugins only from a workspace you trust; see
+{ref}`Workspace trust <workspace-trust>`.
+
 ## Plugin Interface
 
 Plugins must export a `check` function with the following contract:

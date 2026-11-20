@@ -1041,6 +1041,26 @@ impl Config {
         }
     }
 
+    /// Remove the keys that run or load code, returning the names of those
+    /// that held anything.
+    ///
+    /// `engines.external` runs programs and `engines.wasm_plugins` loads
+    /// modules. A workspace file is written by whoever wrote the repository,
+    /// so an editor that opens a cloned repository must not run them until the
+    /// user has said the workspace is trusted.
+    pub fn drop_code(&mut self) -> Vec<&'static str> {
+        let mut dropped = Vec::new();
+        if !self.engines.external.is_empty() {
+            dropped.push("engines.external");
+            self.engines.external.clear();
+        }
+        if !self.engines.wasm_plugins.is_empty() {
+            dropped.push("engines.wasm_plugins");
+            self.engines.wasm_plugins.clear();
+        }
+        dropped
+    }
+
     /// What a config for a browser extension's workspace may not hold, as
     /// messages naming the key; empty when it may be used. Such a workspace
     /// is a directory of the native host's, and its config is written from a

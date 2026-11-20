@@ -17,8 +17,8 @@ use tower_lsp::lsp_types::{
     CodeActionProviderCapability, CodeActionResponse, Command, Diagnostic, DiagnosticSeverity,
     DidChangeConfigurationParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DidSaveTextDocumentParams, ExecuteCommandOptions,
-    ExecuteCommandParams, InitializeParams, InitializeResult, InitializedParams, NumberOrString,
-    Position, Range, ServerCapabilities, ServerInfo, TextDocumentSyncCapability,
+    ExecuteCommandParams, InitializeParams, InitializeResult, InitializedParams, MessageType,
+    NumberOrString, Position, Range, ServerCapabilities, ServerInfo, TextDocumentSyncCapability,
     TextDocumentSyncKind, TextEdit, Url, WorkspaceEdit,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
@@ -105,6 +105,42 @@ pub struct Backend {
     /// as one value (see [`crate::workspace_state`]).
     state: SharedState,
     documents: DocumentStore,
+    /// A warning held from `initialize` until `initialized`, when the client
+    /// is ready to show it.
+    pending_warning: Mutex<Option<String>>,
+}
+
+/// Whether the client said the workspace is trusted, through
+/// `initializationOptions.trustWorkspace`. Anything else, including no
+/// options at all, means it is not.
+fn trusts_workspace(options: Option<&serde_json::Value>) -> bool {
+    options
+        .and_then(|o| o.get("trustWorkspace"))
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+}
+
+/// The workspace's config, with the keys that run or load code dropped
+/// unless the workspace is trusted, and a warning naming what was dropped.
+///
+/// An LSP client such as Neovim starts the server for any file it opens,
+/// cloned repositories included, and has no workspace-trust gate of its own
+/// in front of the server, so the gate is here.
+fn workspace_config(root: &Path, trusted: bool) -> (Config, Option<String>) {
+    let mut config = Config::load_or_warn(root);
+    if trusted {
+        return (config, None);
+    }
+    let dropped = config.drop_code();
+    let warning = (!dropped.is_empty()).then(|| {
+        format!(
+            "lang-check ignored {} in the config of {}: it runs code, and this workspace is \
+             not trusted. Pass initializationOptions.trustWorkspace = true for it to allow it.",
+            dropped.join(" and "),
+            root.display()
+        )
+    });
+    (config, warning)
 }
 
 impl Backend {
@@ -114,17 +150,22 @@ impl Backend {
             orchestrator: Arc::new(Mutex::new(Orchestrator::new(Config::default()))),
             state: SharedState::default(),
             documents: DashMap::new(),
+            pending_warning: Mutex::new(None),
         }
     }
 
     /// Initialise all state from the workspace root (config, dictionary, …).
-    async fn init_workspace(&self, root: &Path) {
+    async fn init_workspace(&self, root: &Path, trusted: bool) {
         // Built off to the side and published whole: a document diagnosed
         // meanwhile sees the previous state, all of it. A part that fails to
         // load keeps its previous value.
         let writing = self.state.writer().await;
         let mut next = (*writing.current()).clone();
-        let config = Config::load_or_warn(root);
+        let (config, warning) = workspace_config(root, trusted);
+        if let Some(warning) = warning {
+            warn!("{warning}");
+            *self.pending_warning.lock().await = Some(warning);
+        }
         info!(
             harper = config.engines.harper.enabled,
             languagetool = config.engines.languagetool.enabled,
@@ -322,10 +363,11 @@ impl Backend {
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
+        let trusted = trusts_workspace(params.initialization_options.as_ref());
         if let Some(root_uri) = params.root_uri
             && let Ok(path) = root_uri.to_file_path()
         {
-            self.init_workspace(&path).await;
+            self.init_workspace(&path, trusted).await;
         }
 
         Ok(InitializeResult {
@@ -352,6 +394,12 @@ impl LanguageServer for Backend {
 
     async fn initialized(&self, _: InitializedParams) {
         info!("LSP client initialized");
+        let warning = self.pending_warning.lock().await.take();
+        if let Some(warning) = warning {
+            self.client
+                .show_message(MessageType::WARNING, warning)
+                .await;
+        }
     }
 
     async fn shutdown(&self) -> Result<()> {
@@ -661,6 +709,58 @@ mod tests {
     use tower_lsp::lsp_types::{
         TextDocumentContentChangeEvent, TextDocumentItem, VersionedTextDocumentIdentifier,
     };
+
+    const CODE_CONFIG: &str = "engines:\n  external:\n    - name: x\n      command: /bin/sh\n      extensions: [md]\n  wasm_plugins:\n    - name: p\n      path: p.wasm\n";
+
+    #[test]
+    fn only_an_explicit_true_trusts_the_workspace() {
+        assert!(trusts_workspace(Some(
+            &serde_json::json!({"trustWorkspace": true})
+        )));
+        assert!(!trusts_workspace(Some(
+            &serde_json::json!({"trustWorkspace": false})
+        )));
+        assert!(!trusts_workspace(Some(
+            &serde_json::json!({"trustWorkspace": "yes"})
+        )));
+        assert!(!trusts_workspace(Some(&serde_json::json!({}))));
+        assert!(!trusts_workspace(None));
+    }
+
+    #[test]
+    fn an_untrusted_workspace_config_runs_no_code() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".languagecheck.yaml"), CODE_CONFIG).unwrap();
+        let (config, warning) = workspace_config(dir.path(), false);
+        assert_eq!(config.engines.external.len(), 0);
+        assert_eq!(config.engines.wasm_plugins.len(), 0);
+        let warning = warning.unwrap();
+        assert!(
+            warning.contains("engines.external and engines.wasm_plugins"),
+            "{warning}"
+        );
+    }
+
+    #[test]
+    fn a_trusted_workspace_config_keeps_its_engines() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".languagecheck.yaml"), CODE_CONFIG).unwrap();
+        let (config, warning) = workspace_config(dir.path(), true);
+        assert_eq!(config.engines.external.len(), 1);
+        assert_eq!(config.engines.wasm_plugins.len(), 1);
+        assert_eq!(warning, None);
+    }
+
+    #[test]
+    fn a_workspace_without_code_gets_no_warning() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".languagecheck.yaml"),
+            "engines:\n  harper:\n    enabled: true\n",
+        )
+        .unwrap();
+        assert_eq!(workspace_config(dir.path(), false).1, None);
+    }
 
     fn pos(line: u32, character: u32) -> Position {
         Position { line, character }
