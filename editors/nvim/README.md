@@ -75,6 +75,10 @@ require("lang_check").setup({
 
 See `:help lang-check` for the full configuration reference.
 
+### Workspace trust
+
+A workspace's `.languagecheck.yaml` can name programs to run (`engines.external`) and WASM plugins to load (`engines.wasm_plugins`). The server ignores both unless the plugin says the workspace is trusted. By default the plugin asks through Neovim's trust prompt (`:help vim.secure.read()`) when a config names either key, and remembers the answer until the file changes. Set `trust_workspace = true` to always allow them or `false` to never allow them.
+
 ## Commands
 
 | Command              | Description                          |

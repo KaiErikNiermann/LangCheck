@@ -79,6 +79,8 @@ Configure via `vim.g.lang_check` or by passing options to `setup()`:
                       "restructuredtext", "org", "bibtex", "sweave" },
       },
       autostart = true,
+      -- "ask" (default), true or false; see |lang-check-trust|.
+      trust_workspace = "ask",
       settings = {
         langCheck = {
           engines = {
@@ -102,6 +104,15 @@ Configure via `vim.g.lang_check` or by passing options to `setup()`:
                                                     *g:lang_check*
 `vim.g.lang_check` is merged with defaults. Set it before `setup()` or
 the `FileType` autocmd fires.
+
+                                                    *lang-check-trust*
+A workspace's `.languagecheck.yaml` can name programs to run
+(`engines.external`) and WASM plugins to load (`engines.wasm_plugins`). The
+server ignores both unless it is told the workspace is trusted, through
+`initializationOptions.trustWorkspace`. With `trust_workspace = "ask"` the
+plugin asks through |vim.secure.read()| when the config names either key,
+and the answer is remembered until the file changes. `true` always allows
+them, `false` never does.
 
 ==============================================================================
 5. COMMANDS                                         *lang-check-commands*

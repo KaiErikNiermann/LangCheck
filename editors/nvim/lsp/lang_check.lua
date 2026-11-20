@@ -18,4 +18,13 @@ return {
   settings = {
     langCheck = {},
   },
+  -- The server ignores code-running keys in a workspace config unless told
+  -- the workspace is trusted; see lua/lang_check/trust.lua.
+  before_init = function(params, config)
+    params.initializationOptions = vim.tbl_extend(
+      "force",
+      params.initializationOptions or {},
+      require("lang_check.trust").init_options(config.root_dir)
+    )
+  end,
 }

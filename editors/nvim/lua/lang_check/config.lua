@@ -12,9 +12,11 @@ local M = {}
 --- @field server? LangCheckServerConfig
 --- @field autostart? boolean Start LSP automatically on matching filetypes
 --- @field settings? LangCheckSettings LSP settings forwarded to the server
+--- @field trust_workspace? boolean|"ask" Let a workspace config run code (engines.external, engines.wasm_plugins)
 
 --- @type LangCheckConfig
 M.defaults = {
+  trust_workspace = "ask",
   server = {
     cmd = { "language-check-server", "--lsp" },
     filetypes = {

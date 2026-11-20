@@ -37,11 +37,13 @@ function M.start()
     group = vim.api.nvim_create_augroup("LangCheckLsp", { clear = true }),
     pattern = cfg.server.filetypes,
     callback = function(ev)
+      local root = vim.fs.root(ev.buf, { ".languagecheck.yaml", ".git" })
       vim.lsp.start({
         name = "lang-check",
         cmd = cmd,
-        root_dir = vim.fs.root(ev.buf, { ".languagecheck.yaml", ".git" }),
+        root_dir = root,
         settings = cfg.settings or {},
+        init_options = require("lang_check.trust").init_options(root),
       }, { bufnr = ev.buf })
     end,
   })
