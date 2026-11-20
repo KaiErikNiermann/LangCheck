@@ -44,7 +44,10 @@ html_css_files = ["custom.css"]
 
 # The palette is an ES module: it imports the vendored ninja-keys bundle and
 # reads the action index that the command_palette extension writes.
-html_js_files = [("command-palette.js", {"type": "module"})]
+html_js_files = [
+    ("command-palette.js", {"type": "module"}),
+    ("sidebar-shadow.js", {"defer": "defer"}),
+]
 
 # Sidebar: insert language picker after brand, before search
 html_sidebars = {
@@ -65,12 +68,11 @@ language = "en"
 locale_dirs = ["locale/"]
 gettext_compact = False
 
+# Languages shown in the sidebar picker. Add a language here once its
+# translation is deployed (and to `supported_languages` below); until then the
+# picker's "Add more" pill points contributors at the localization guide.
 languages = [
     ("en", "English"),
-    ("fr", "Français"),
-    ("es", "Español"),
-    ("ja", "日本語"),
-    ("de", "Deutsch"),
 ]
 
 # Languages with enough translations to deploy (add codes as translations land)

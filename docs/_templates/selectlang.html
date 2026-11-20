@@ -11,12 +11,11 @@
         <li class="supported">
             <a href="/{{ lang_code }}/">{{ lang_name }}</a>
         </li>
-        {% else %}
-        <li class="unsupported">
-            <a href="{{ pathto('guide/localization') }}"
-               title="Help translate to {{ lang_name }}!">{{ lang_name }}</a>
-        </li>
         {% endif %}
         {% endfor %}
+        <li class="add-more">
+            <a href="{{ pathto('guide/localization') }}"
+               title="Help translate the documentation">+ Add more</a>
+        </li>
     </ul>
 </div>

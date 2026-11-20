@@ -1,19 +1,18 @@
-/* ── Font: Inter via Google Fonts ────────────────────────────── */
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
+/* ── Fonts: Inter and Fira Code via Google Fonts ────────────────────────────── */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500;600;700&display=swap");
 
 body {
   --font-stack:
-    "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
+    Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
     Arial, sans-serif;
   --font-stack--headings: var(--font-stack);
-  --font-stack--monospace: "JetBrains Mono", monospace;
+  --font-stack--monospace: "Fira Code", monospace;
 }
 
 /* Language switcher styles */
 .lang-switcher {
   padding: 10px 15px;
   background: rgba(128, 128, 128, 0.1);
-  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
   font-size: 0.9em;
 }
 
@@ -42,11 +41,23 @@ body {
   border-bottom: 2px solid var(--color-brand-primary, currentColor);
 }
 
-.lang-switcher ul.languages li.unsupported a {
-  opacity: 0.45;
-  text-decoration: underline dashed;
-  text-underline-offset: 3px;
-  cursor: help;
+/* The "Add more" entry is a call to action, not a language, so it is a pill
+   in the mono face rather than an underlined link. */
+.lang-switcher ul.languages li.add-more a {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--color-background-border);
+  border-radius: var(--lc-sidebar-radius);
+  color: var(--color-foreground-muted);
+  font-family: var(--font-stack--monospace);
+  font-size: 0.75rem;
+  text-decoration: none;
+}
+
+.lang-switcher ul.languages li.add-more a:hover,
+.lang-switcher ul.languages li.add-more a:focus-visible {
+  background: var(--color-background-hover);
+  color: var(--color-foreground-primary);
 }
 
 /* ── Typography & spacing ────────────────────────────────────── */
@@ -238,6 +249,69 @@ dl dd {
   text-transform: uppercase;
   opacity: 0.7;
   margin-top: 1.5em;
+}
+
+/* Sidebar surface and links: same background as the page, gray link text,
+   and a rounded rectangle on hover. The variables are rebound on the drawer
+   so they win in light, dark and auto modes alike. */
+.sidebar-drawer {
+  --lc-sidebar-radius: 6px;
+  --color-sidebar-background: var(--color-background-primary);
+  --color-sidebar-link-text: var(--color-foreground-secondary);
+  --color-sidebar-link-text--top-level: var(--color-foreground-secondary);
+  --color-sidebar-item-background--hover: var(--color-background-hover);
+  --color-sidebar-item-background--current: transparent;
+
+  /* Furo's hover/focus fill is the page color, which makes the search bar
+     vanish into the page. Lift it a little from its resting fill instead. */
+  --color-sidebar-search-background--focus: color-mix(
+    in srgb,
+    var(--color-sidebar-search-background),
+    var(--color-foreground-primary) 6%
+  );
+
+  /* No divider between the nav and the content. */
+  border-inline-end: none;
+}
+
+/* Soft shadow under the search bar while the nav links scroll beneath it. The
+   z-index lifts the bar above the scroll area that follows it. */
+.sidebar-search-container {
+  border-radius: var(--lc-sidebar-radius);
+  z-index: 1;
+}
+
+/* sidebar-shadow.js sets data-scrolled once nav content sits under the bar. */
+.sidebar-drawer[data-scrolled] .sidebar-search-container {
+  box-shadow: 0 4px 8px -2px color-mix(in srgb, black 35%, transparent);
+
+  /* Clip everything but the strip below the bar, so the shadow does not
+     bleed out of its sides or top. */
+  clip-path: inset(0 0 -1rem);
+}
+
+/* Furo draws a line above and below the input; the rounded container
+   replaces it. */
+.sidebar-search {
+  border-block: none;
+  border-radius: var(--lc-sidebar-radius);
+}
+
+.lang-switcher {
+  border-radius: var(--lc-sidebar-radius);
+}
+
+.sidebar-tree .reference {
+  border-radius: var(--lc-sidebar-radius);
+}
+
+.sidebar-tree .reference:hover {
+  color: var(--color-foreground-primary);
+}
+
+.sidebar-tree .current > .reference {
+  color: var(--color-foreground-primary);
+  font-weight: 500;
 }
 
 /* ── Sidebar brand (name + release/marketplace row) ──────────── */
@@ -474,7 +548,7 @@ ninja-keys {
   );
   --ninja-backdrop-filter: blur(2px);
   --ninja-modal-shadow: 0 16px 70px
-    color-mix(in srgb, var(--color-foreground-primary) 28%, transparent);
+    color-mix(in srgb, black 28%, transparent);
 }
 
 body {
@@ -482,11 +556,13 @@ body {
   --lc-image-preview-border: var(--color-background-border);
   --lc-image-preview-radius: 8px;
   --lc-image-preview-shadow: 0 16px 70px
-    color-mix(in srgb, var(--color-foreground-primary) 28%, transparent);
-  --lc-image-preview-close-arm: 52%;
-  --lc-image-preview-close-stroke: 2px;
-  --lc-image-preview-close-angle: 45deg;
-  --lc-image-preview-close-negative-angle: -45deg;
+    color-mix(in srgb, black 28%, transparent);
+  --lc-image-preview-close-size: 2rem;
+  --lc-image-preview-close-inset: 0.75rem;
+  --lc-image-preview-close-icon-size: 1.25rem;
+  --lc-image-preview-close-radius: 6px;
+  /* Lucide "x" (ISC license), used as a mask so it takes the text color. */
+  --lc-image-preview-close-icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>');
 }
 
 .lc-image-preview {
@@ -516,42 +592,35 @@ body {
 
 .lc-image-preview-close {
   position: absolute;
-  inset-block-start: var(--lc-kbd-pad-block);
-  inset-inline-end: var(--lc-kbd-pad-block);
+  inset-block-start: var(--lc-image-preview-close-inset);
+  inset-inline-end: var(--lc-image-preview-close-inset);
   display: grid;
   place-items: center;
   box-sizing: border-box;
-  inline-size: var(--lc-kbd-min-size);
-  block-size: var(--lc-kbd-min-size);
+  inline-size: var(--lc-image-preview-close-size);
+  block-size: var(--lc-image-preview-close-size);
   border: 0;
-  background: transparent;
+  border-radius: var(--lc-image-preview-close-radius);
+  background: color-mix(in srgb, var(--color-background-primary) 80%, transparent);
   color: var(--color-foreground-primary);
   cursor: pointer;
   appearance: none;
-  font: inherit;
-  line-height: 1;
   padding: 0;
-  text-align: center;
 }
 
-.lc-image-preview-close::before,
-.lc-image-preview-close::after {
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: 50%;
-  inline-size: var(--lc-image-preview-close-arm);
-  block-size: var(--lc-image-preview-close-stroke);
-  background: currentcolor;
-  content: "";
-  pointer-events: none;
+.lc-image-preview-close:hover,
+.lc-image-preview-close:focus-visible {
+  background: var(--color-background-hover);
 }
 
 .lc-image-preview-close::before {
-  transform: translate(-50%, -50%) rotate(var(--lc-image-preview-close-angle));
-}
-
-.lc-image-preview-close::after {
-  transform: translate(-50%, -50%) rotate(var(--lc-image-preview-close-negative-angle));
+  inline-size: var(--lc-image-preview-close-icon-size);
+  block-size: var(--lc-image-preview-close-icon-size);
+  background: currentcolor;
+  content: "";
+  mask: var(--lc-image-preview-close-icon) center / contain no-repeat;
+  -webkit-mask: var(--lc-image-preview-close-icon) center / contain no-repeat;
+  pointer-events: none;
 }
 
 #language-check .sd-card-text img {
