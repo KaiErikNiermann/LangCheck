@@ -8,6 +8,9 @@ yanked = "warn"
 # An ignore that no longer matches the lock file is an error, so entries
 # cannot outlive the dependency they were written for.
 unused-ignored-advisory = "deny"
+# cargo-deny 0.22 changed the default to "workspace", which hides
+# unmaintained crates pulled in transitively. Keep reporting them.
+unmaintained = "all"
 ignore = [
     # bincode unmaintained — transitive via burn-core (harper dep), no upgrade path
     "RUSTSEC-2025-0141",
