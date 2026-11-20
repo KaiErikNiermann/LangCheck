@@ -5,48 +5,14 @@ all-features = true
 [advisories]
 version = 2
 yanked = "warn"
+# An ignore that no longer matches the lock file is an error, so entries
+# cannot outlive the dependency they were written for.
+unused-ignored-advisory = "deny"
 ignore = [
     # bincode unmaintained — transitive via burn-core (harper dep), no upgrade path
     "RUSTSEC-2025-0141",
-    # fxhash unmaintained — transitive via wasmtime (extism dep), no upgrade path
-    "RUSTSEC-2025-0057",
     # paste unmaintained — transitive via harper-core + burn-ndarray, no upgrade path
     "RUSTSEC-2024-0436",
-    # wasmtime vulns — transitive via extism, awaiting upstream wasmtime bump
-    "RUSTSEC-2026-0006",
-    "RUSTSEC-2026-0020",
-    "RUSTSEC-2026-0021",
-    "RUSTSEC-2026-0085",
-    "RUSTSEC-2026-0086",
-    "RUSTSEC-2026-0087",
-    "RUSTSEC-2026-0088",
-    "RUSTSEC-2026-0089",
-    "RUSTSEC-2026-0091",
-    "RUSTSEC-2026-0092",
-    "RUSTSEC-2026-0093",
-    "RUSTSEC-2026-0094",
-    "RUSTSEC-2026-0095",
-    "RUSTSEC-2026-0096",
-    "RUSTSEC-2026-0114",
-    "RUSTSEC-2026-0222",
-    "RUSTSEC-2026-0269",
-    # Component-model only (dynamic record lifting, async-lifted callbacks);
-    # extism runs core modules. extism 1.30 still pins wasmtime ^43.
-    "RUSTSEC-2026-0316",
-    "RUSTSEC-2026-0327",
-    # im-rc and its bitmaps/sized-chunks deps unmaintained — transitive via
-    # extism -> wasmtime -> wasm-compose, no upgrade path
-    "RUSTSEC-2026-0247",
-    "RUSTSEC-2026-0250",
-    "RUSTSEC-2026-0251",
-    # aws-lc-rs / webpki cert-validation vulns — transitive via reqwest -> rustls,
-    # awaiting upstream patched releases
-    "RUSTSEC-2026-0044",
-    "RUSTSEC-2026-0048",
-    "RUSTSEC-2026-0049",
-    "RUSTSEC-2026-0098",
-    "RUSTSEC-2026-0099",
-    "RUSTSEC-2026-0104",
     # zip 8.x vulns — transitive via harper-core 3.x (3.2.0 and master still
     # require zip ^8.6). Harper only reads its Weirpack archives with
     # by_index(), never extract(), ZipStreamReader or a decrypting read, and
