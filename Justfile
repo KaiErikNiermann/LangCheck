@@ -84,8 +84,19 @@ lint-ts-fix: install-ts
 check-l10n:
     ./scripts/check-l10n-keys.sh
 
+# The threshold that fails it is in each package's .jscpd.json.
+#
+# Copy-paste check over the extension and the browser extension
+lint-dup-ts: install-ts
+    cd extension && pnpm run lint:dup
+    cd web && pnpm install --frozen-lockfile && pnpm run lint:dup
+
+# Type check, lint and unit-test the browser extension
+check-web: install-ts
+    cd web && pnpm install --frozen-lockfile && pnpm run typecheck && pnpm run lint && pnpm run test
+
 # Run all TypeScript checks
-check-ts: typecheck-ts lint-ts build-ts check-l10n
+check-ts: typecheck-ts lint-ts lint-dup-ts build-ts check-l10n check-web
 
 # --- Docs ---
 
