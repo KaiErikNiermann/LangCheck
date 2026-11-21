@@ -16,7 +16,7 @@ export function proseMetrics(proseText: string): ProseMetrics {
     const charCount = proseText.replace(/[^a-zA-Z0-9'’\-–—]/g, '').length;
     // Sentence detection: split on sentence-ending punctuation followed by
     // whitespace or end-of-string, collapsing runs like "..." or "?!"
-    const sentenceCount = (proseText.match(/[.!?]+(?:\s|["')”](?:\s|$)|$)/g) ?? []).length
+    const sentenceCount = (proseText.match(/(?<![.!?])[.!?]+(?:\s|["')”](?:\s|$)|$)/g) ?? []).length
         || (wordCount > 0 ? 1 : 0);
 
     let readingLevel = 0;

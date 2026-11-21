@@ -102,7 +102,7 @@ suite('deactivating a rule', () => {
         const written = Buffer.from(
             await vscode.workspace.fs.readFile(configUri),
         ).toString('utf8');
-        assert.match(written, /harper\.Capitalization:\s*\n\s*severity:\s*"off"/);
+        assert.match(written, /harper\.Capitalization:[ \t]*\n\s*severity:\s*"off"/);
     });
 
     test('silencing a rule by hand in the config also skips the re-check', async function () {

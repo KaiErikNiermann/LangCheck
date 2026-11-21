@@ -25,6 +25,11 @@ describe('byteToCharConverter', () => {
 });
 
 describe('proseMetrics', () => {
+    it('counts a run of sentence punctuation once, and a long unterminated run in one pass', () => {
+        expect(proseMetrics('Really?!?! Yes...').sentenceCount).toBe(2);
+        expect(proseMetrics(`${'!'.repeat(200_000)}x`).sentenceCount).toBe(1);
+    });
+
     it('measures words, sentences and characters', () => {
         expect(proseMetrics('The cat sat. It was happy!')).toMatchObject({
             wordCount: 6,
