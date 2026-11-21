@@ -1,11 +1,16 @@
 /**
  * The local LanguageTool server the repository's docker-compose.yml runs.
  */
-import { execSync } from 'child_process';
+import { execFile } from 'child_process';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
+import { promisify } from 'util';
 import * as vscode from 'vscode';
+
+// Async, so a slow Docker never blocks the extension host's event loop
+// (execSync did, for up to 30 s per call, freezing every check).
+const run = promisify(execFile);
 
 /** Check if a docker-compose.yml exists in the workspace root. */
 export function hasDockerCompose(): boolean {
@@ -15,8 +20,9 @@ export function hasDockerCompose(): boolean {
 }
 
 async function pollLTReady(timeoutMs: number): Promise<boolean> {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
+    // Monotonic: a wall-clock step must not stretch or cut the budget.
+    const start = performance.now();
+    while (performance.now() - start < timeoutMs) {
         const ok = await new Promise<boolean>(resolve => {
             const req = http.get('http://localhost:8010/v2/languages', { timeout: 2000 }, (res) => {
                 resolve(res.statusCode === 200);
@@ -57,12 +63,12 @@ export async function restartLanguageToolDocker(recheck: (document: vscode.TextD
             for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
                 progress.report({ message: `Attempt ${attempt}/${MAX_ATTEMPTS}: stopping…` });
                 try {
-                    execSync('docker compose down', { cwd: rootPath, timeout: 30_000, stdio: 'pipe' });
+                    await run('docker', ['compose', 'down'], { cwd: rootPath, timeout: 30_000 });
                 } catch { /* ignore stop errors */ }
 
                 progress.report({ message: `Attempt ${attempt}/${MAX_ATTEMPTS}: starting…` });
                 try {
-                    execSync('docker compose up -d', { cwd: rootPath, timeout: 30_000, stdio: 'pipe' });
+                    await run('docker', ['compose', 'up', '-d'], { cwd: rootPath, timeout: 30_000 });
                 } catch (e) {
                     if (attempt === MAX_ATTEMPTS) {
                         vscode.window.showErrorMessage(`Failed to start LanguageTool Docker: ${e}`);
