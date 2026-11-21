@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as https from 'https';
+import type * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -161,6 +162,7 @@ export async function downloadBinary(
 
     // Make executable on Unix
     if (os.platform() !== 'win32') {
+        // eslint-disable-next-line sonarjs/file-permissions -- the downloaded core binary must be executable by its owner; 0o755 is the standard mode for an installed executable
         fs.chmodSync(destPath, 0o755);
     }
 
@@ -275,6 +277,47 @@ export interface DownloadOptions {
     onRetry?: (attempt: number, reason: string) => void;
 }
 
+/** What `pipeResponse` needs from the attempt that owns the response. */
+interface PipeHooks {
+    readonly onProgress: ((pct: number) => void) | undefined;
+    readonly fail: (reason: string) => void;
+    readonly isSettled: () => boolean;
+    /** Marks the attempt settled and resolves it. */
+    readonly succeed: () => void;
+}
+
+/** Streams one response body into `file`, failing the attempt if it is cut short. */
+function pipeResponse(res: http.IncomingMessage, file: fs.WriteStream, hooks: PipeHooks): void {
+    const total = parseInt(res.headers['content-length'] ?? '0', 10);
+    let downloaded = 0;
+
+    res.on('data', (chunk: Buffer) => {
+        downloaded += chunk.length;
+        if (total > 0 && hooks.onProgress) {
+            hooks.onProgress(Math.round((downloaded / total) * 100));
+        }
+    });
+    // A response cut off mid-stream still ends the pipe, so
+    // without this the write stream reaches `finish` and the
+    // partial file looks like a complete one.
+    res.on('aborted', () => hooks.fail('the connection closed before the download finished'));
+    res.on('error', (err) => hooks.fail(`the download failed: ${err.message}`));
+
+    res.pipe(file);
+    file.on('finish', () => {
+        if (hooks.isSettled()) return;
+        // The size the server promised against the size that
+        // arrived. This is what makes a truncated download an
+        // error rather than a successful one.
+        if (total > 0 && downloaded !== total) {
+            hooks.fail(`the download stopped early: got ${downloaded} bytes of ${total}`);
+            return;
+        }
+        file.close();
+        hooks.succeed();
+    });
+}
+
 /**
  * Download `url` to `destPath`, or throw saying why.
  *
@@ -318,6 +361,12 @@ export function downloadFile(
             fs.unlink(destPath, () => reject(new Error(reason)));
         };
 
+        const isSettled = () => settled;
+        const succeed = () => {
+            settled = true;
+            resolve();
+        };
+
         file.on('error', (err) => fail(`could not write ${destPath}: ${err.message}`));
 
         const doGet = (getUrl: string, redirectsLeft: number) => {
@@ -340,37 +389,7 @@ export function downloadFile(
                         return;
                     }
 
-                    const total = parseInt(res.headers['content-length'] ?? '0', 10);
-                    let downloaded = 0;
-
-                    res.on('data', (chunk: Buffer) => {
-                        downloaded += chunk.length;
-                        if (total > 0 && onProgress) {
-                            onProgress(Math.round((downloaded / total) * 100));
-                        }
-                    });
-                    // A response cut off mid-stream still ends the pipe, so
-                    // without this the write stream reaches `finish` and the
-                    // partial file looks like a complete one.
-                    res.on('aborted', () => fail('the connection closed before the download finished'));
-                    res.on('error', (err) => fail(`the download failed: ${err.message}`));
-
-                    res.pipe(file);
-                    file.on('finish', () => {
-                        if (settled) return;
-                        // The size the server promised against the size that
-                        // arrived. This is what makes a truncated download an
-                        // error rather than a successful one.
-                        if (total > 0 && downloaded !== total) {
-                            fail(
-                                `the download stopped early: got ${downloaded} bytes of ${total}`,
-                            );
-                            return;
-                        }
-                        settled = true;
-                        file.close();
-                        resolve();
-                    });
+                    pipeResponse(res, file, { onProgress, fail, isSettled, succeed });
                 },
             );
 

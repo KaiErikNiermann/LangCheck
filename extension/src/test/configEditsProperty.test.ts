@@ -125,7 +125,7 @@ describe('config edits', () => {
             const edited = read(addLatexListEntry(write(value, how), list, name));
             const before = value.languages?.latex?.[list] ?? [];
             const after = edited.languages?.latex?.[list] ?? [];
-            expect([...after].sort()).toEqual([...before, name].sort());
+            expect([...after].sort((a, b) => Number(a > b) - Number(a < b))).toEqual([...before, name].sort((a, b) => Number(a > b) - Number(a < b)));
             expect(edited).toEqual(withPath(value, ['languages', 'latex', list], after));
         }), RUNS);
     });

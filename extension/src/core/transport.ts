@@ -11,7 +11,7 @@ import type { languagecheck } from '../proto/checker';
 export interface CoreTransport {
     readonly isRunning: boolean;
     readonly lastFailure: string | null;
-    sendRequest(request: languagecheck.IRequest): Promise<languagecheck.Response>;
+    sendRequest(request: languagecheck.Request.$Properties): Promise<languagecheck.Response>;
 }
 
 /** Where the transport is found: it is replaced when the core restarts. */

@@ -44,7 +44,7 @@ function describeArg(arg: unknown): string {
 }
 
 function record(name: string, args: readonly unknown[]): void {
-    __calls.push(`${name}(${args.slice(0, 2).map(describeArg).join(', ')})`);
+    __calls.push(`${name}(${args.slice(0, 2).map(arg => describeArg(arg)).join(', ')})`);
 }
 
 /** An object that takes any property write and records its `on*` subscriptions. */
@@ -69,6 +69,7 @@ function stub(label: string): Record<string, unknown> {
 
 function namespace<T extends object>(name: string, known: T): T {
     return new Proxy(known, {
+        // eslint-disable-next-line sonarjs/function-return-type -- a mock: `on*` members return a disposable and every other member a stub, by design
         get(target, prop, receiver) {
             if (prop in target || typeof prop === 'symbol') return Reflect.get(target, prop, receiver);
             return (...args: unknown[]) => {

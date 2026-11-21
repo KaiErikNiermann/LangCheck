@@ -94,7 +94,7 @@ describe('downloadFile', () => {
     function fakeGet(plan: {
         contentLength?: number;
         chunks: string[];
-        then?: 'end' | 'abort' | 'silence';
+        after?: 'end' | 'abort' | 'silence';
         statusCode?: number;
     }) {
         return ((_url: string, _opts: unknown, cb: (res: unknown) => void) => {
@@ -115,10 +115,10 @@ describe('downloadFile', () => {
                         res.emit('data', Buffer.from(chunk));
                         dest.write(chunk);
                     }
-                    if (plan.then === 'abort') {
+                    if (plan.after === 'abort') {
                         dest.end();
                         res.emit('aborted');
-                    } else if (plan.then !== 'silence') {
+                    } else if (plan.after !== 'silence') {
                         dest.end();
                     }
                 });
@@ -129,7 +129,7 @@ describe('downloadFile', () => {
                 destroy: () => void;
             };
             request.setTimeout = (ms, onTimeout) => {
-                if (plan.then === 'silence') setTimeout(onTimeout, ms);
+                if (plan.after === 'silence') setTimeout(onTimeout, ms);
             };
             request.destroy = () => { /* nothing to tear down */ };
             setImmediate(() => cb(res));
@@ -184,7 +184,7 @@ describe('downloadFile', () => {
         const dest = path.join(dir, 'archive');
         await expect(
             downloadFile('https://example.org/a', dest, undefined, {
-                get: fakeGet({ contentLength: 99, chunks: ['abc'], then: 'abort' }),
+                get: fakeGet({ contentLength: 99, chunks: ['abc'], after: 'abort' }),
                 attempts: 1,
             }),
         ).rejects.toThrow(/closed before the download finished|stopped early/);
@@ -194,7 +194,7 @@ describe('downloadFile', () => {
         const dest = path.join(dir, 'archive');
         await expect(
             downloadFile('https://example.org/a', dest, undefined, {
-                get: fakeGet({ contentLength: 99, chunks: ['abc'], then: 'silence' }),
+                get: fakeGet({ contentLength: 99, chunks: ['abc'], after: 'silence' }),
                 attempts: 1,
                 timeoutMs: 30,
             }),

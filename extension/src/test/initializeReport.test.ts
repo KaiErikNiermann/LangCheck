@@ -13,7 +13,7 @@ import type { StatusBars } from '../ui/statusBars';
 import { ExtensionMode, Uri, __workspace, window } from './__mocks__/vscode';
 
 /** What the mocked core answers Initialize with; each test sets it. */
-const answer = vi.hoisted(() => ({ current: {} as languagecheck.IResponse }));
+const answer = vi.hoisted(() => ({ current: {} as languagecheck.Response.$Properties }));
 
 vi.mock('../core/client', () => ({
     LanguageClient: class {
@@ -24,7 +24,7 @@ vi.mock('../core/client', () => ({
         onFailure(): void {}
         start(): void {}
         stop(): void {}
-        async sendRequest(request: languagecheck.IRequest): Promise<languagecheck.IResponse> {
+        async sendRequest(request: languagecheck.Request.$Properties): Promise<languagecheck.Response.$Properties> {
             return request.initialize ? answer.current : { getMetadata: {} };
         }
     },

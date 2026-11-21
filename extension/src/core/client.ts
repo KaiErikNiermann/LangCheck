@@ -194,7 +194,7 @@ export class LanguageClient {
     }
 
     private rejectAllPending(reason: string) {
-        for (const [_id, pending] of this.pendingRequests) {
+        for (const pending of this.pendingRequests.values()) {
             clearTimeout(pending.timer);
             pending.reject(new Error(reason));
         }
@@ -292,7 +292,7 @@ export class LanguageClient {
         this.process?.kill();
     }
 
-    public sendRequest(requestData: languagecheck.IRequest): Promise<languagecheck.Response> {
+    public sendRequest(requestData: languagecheck.Request.$Properties): Promise<languagecheck.Response> {
         return new Promise((resolve, reject) => {
             if (this.failureReason !== null) {
                 return reject(new Error(this.failureReason));

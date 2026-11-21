@@ -55,6 +55,7 @@ type Registered = Exclude<CommandId, typeof COMMANDS.configStatus>;
 // Every command but configStatus is in the order above: leaving one out makes
 // this a compile error that names it.
 const everyCommandIsOrdered: [Exclude<Registered, (typeof REGISTRATION_ORDER)[number]>] extends [never] ? true : never = true;
+// eslint-disable-next-line sonarjs/void-use -- `void` marks the compile-time-only constant above as used
 void everyCommandIsOrdered;
 
 export function registerCommands(subscriptions: vscode.Disposable[], app: App): void {

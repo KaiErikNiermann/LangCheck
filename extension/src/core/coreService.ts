@@ -185,7 +185,7 @@ export class CoreService {
      * gets the whole of it, with both servers' process ids and paths; the
      * notification says what happened and opens the log.
      */
-    private reportInitializeAnswer(response: languagecheck.IResponse): void {
+    private reportInitializeAnswer(response: languagecheck.Response.$Properties): void {
         if (response.error) {
             const message = response.error.message ?? '';
             this.log.error('Initialize failed', { message });

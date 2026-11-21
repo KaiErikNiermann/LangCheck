@@ -115,7 +115,7 @@ export class Recorder {
         ]);
         const widths = header.map((_, i) => Math.max(...[header, ...body].map(cells => (cells[i] ?? '').length)));
         const line = (cells: readonly string[]) => cells.map((cell, i) => cell.padEnd(widths[i] ?? 0)).join('  ');
-        return [`bench: ${this.suite}  (results appended to ${this.file})`, line(header), ...body.map(line)].join('\n');
+        return [`bench: ${this.suite}  (results appended to ${this.file})`, line(header), ...body.map(cells => line(cells))].join('\n');
     }
 }
 

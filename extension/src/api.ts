@@ -75,8 +75,6 @@ export function createAPI(
     version: string,
 ): LanguageCheckAPI {
     const ignoreRanges = new Map<UriKey, IgnoreRange[]>();
-    const languageQueries = new Map<string, string>();
-    const externalProviders = new Map<string, ExternalProviderRegistration>();
 
     return {
         async checkDocument(uri: vscode.Uri): Promise<LanguageCheckDiagnostic[]> {
@@ -93,15 +91,13 @@ export function createAPI(
             ignoreRanges.delete(uriKey(uri));
         },
 
-        registerLanguageQuery(languageId: string, query: string): void {
-            languageQueries.set(languageId, query);
-        },
+        // Accepted but not consumed: no code reads a registered query or
+        // provider yet (they were stored in write-only maps), so the call is
+        // kept for API compatibility and does nothing.
+        registerLanguageQuery(_languageId: string, _query: string): void {},
 
-        registerExternalProvider(provider: ExternalProviderRegistration): vscode.Disposable {
-            externalProviders.set(provider.name, provider);
-            return new vscode.Disposable(() => {
-                externalProviders.delete(provider.name);
-            });
+        registerExternalProvider(_provider: ExternalProviderRegistration): vscode.Disposable {
+            return new vscode.Disposable(() => {});
         },
 
         get isRunning(): boolean {

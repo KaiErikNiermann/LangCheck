@@ -103,7 +103,7 @@ type ProbeFn = (
     text: string,
     filePath: string,
     format: string,
-) => Promise<languagecheck.IProbeConfigResponse | null>;
+) => Promise<languagecheck.ProbeConfigResponse.$Properties | null>;
 
 export class ConfigStatusView implements vscode.Disposable {
     private readonly decorations: Record<Exclude<ConfigStatus, 'skipped'>, vscode.TextEditorDecorationType>;
@@ -229,7 +229,7 @@ export class ConfigStatusView implements vscode.Disposable {
         this.inFlight.set(uri, generation);
 
         const format = document.uri.path.endsWith('.json') ? 'json' : 'yaml';
-        let response: languagecheck.IProbeConfigResponse | null = null;
+        let response: languagecheck.ProbeConfigResponse.$Properties | null = null;
         try {
             response = await this.probe(text, document.uri.fsPath, format);
         } catch (error) {
@@ -263,8 +263,8 @@ export class ConfigStatusView implements vscode.Disposable {
     private apply(
         document: vscode.TextDocument,
         parsed: ReturnType<typeof parseConfigKeys>,
-        probes: readonly languagecheck.IConfigProbe[],
-        issues: readonly languagecheck.IConfigIssue[],
+        probes: readonly languagecheck.ConfigProbe.$Properties[],
+        issues: readonly languagecheck.ConfigIssue.$Properties[],
         parseError: string,
         fallback: ConfigStatus,
     ): void {

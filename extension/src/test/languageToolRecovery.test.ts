@@ -12,20 +12,20 @@ function health(status: InspectorEngineHealth['status']): InspectorEngineHealth 
     return { name: 'languagetool', status, consecutiveFailures: status === 'ok' ? 0 : 3, lastError: '', lastSuccessEpochMs: 0 };
 }
 
-function probeAnswer(status: languagecheck.ProbeStatus): languagecheck.IProbeConfigResponse {
+function probeAnswer(status: languagecheck.ProbeStatus): languagecheck.ProbeConfigResponse.$Properties {
     return { probes: [{ key: 'engines.languagetool.url', engine: 'languagetool', status }] };
 }
 
 describe('LanguageToolRecovery', () => {
     let results: CheckResults;
-    let probe: ReturnType<typeof vi.fn<() => Promise<languagecheck.IProbeConfigResponse | null>>>;
+    let probe: ReturnType<typeof vi.fn<() => Promise<languagecheck.ProbeConfigResponse.$Properties | null>>>;
     let recheck: ReturnType<typeof vi.fn<() => void>>;
     let recovery: LanguageToolRecovery;
 
     beforeEach(() => {
         vi.useFakeTimers();
         results = new CheckResults();
-        probe = vi.fn<() => Promise<languagecheck.IProbeConfigResponse | null>>();
+        probe = vi.fn<() => Promise<languagecheck.ProbeConfigResponse.$Properties | null>>();
         recheck = vi.fn<() => void>();
         recovery = new LanguageToolRecovery({ log, results, probe, recheck });
     });

@@ -50,10 +50,10 @@ const CORE_SETTINGS = ([
     'names.enabled',
     'workspace.indexOnOpen',
     'workspace.dbPath',
-] as const).map(settingId);
+] as const).map(key => settingId(key));
 
 /** Settings that decide which binary runs, so the process has to be replaced. */
-const CORE_PROCESS_SETTINGS = (['core.binaryPath', 'core.channel'] as const).map(settingId);
+const CORE_PROCESS_SETTINGS = (['core.binaryPath', 'core.channel'] as const).map(key => settingId(key));
 
 /**
  * Where SLS schemas live, watched for the same reason as the wordlists.

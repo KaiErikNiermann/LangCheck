@@ -69,7 +69,7 @@ suite('progressive checks and maxBytes', () => {
             throw new Error(`${String(error)}; found ${spelled(uri)} of ${ourDiagnostics(uri).length}: ${ourDiagnostics(uri).slice(0, 3).map(d => d.message).join(' | ')}`);
         });
         // The next check is whole, and finds the same.
-        const outcome = await vscode.commands.executeCommand<{ diagnostics: number }>('language-check.checkDocument');
+        const outcome = await vscode.commands.executeCommand<{ diagnostics: number } | undefined>('language-check.checkDocument');
         assert.ok(outcome !== undefined);
         assert.strictEqual(spelled(uri), misspellings.length);
     });

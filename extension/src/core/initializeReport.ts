@@ -13,7 +13,7 @@ export interface ServerIdentity {
     readonly executable: string;
 }
 
-export function identityOf(wire: languagecheck.IServerIdentity | null | undefined): ServerIdentity | undefined {
+export function identityOf(wire: languagecheck.ServerIdentity.$Properties | null | undefined): ServerIdentity | undefined {
     if (!wire) return undefined;
     return { pid: Number(wire.pid ?? 0), version: wire.version ?? '', executable: wire.executable ?? '' };
 }

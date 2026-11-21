@@ -108,8 +108,8 @@ suite('characterization: diagnostic actions', () => {
         const expected = [...manifest.contributes.commands.map(c => c.command), ...INTERNAL_COMMANDS];
         const missing = expected.filter(id => !registered.has(id));
         assert.deepStrictEqual(missing, [], `not registered: ${missing.join(', ')}`);
-        const ours = [...registered].filter(id => id.startsWith('language-check.')).sort();
-        assert.deepStrictEqual(ours, [...new Set(expected)].sort(), 'an unexpected command is registered');
+        const ours = [...registered].filter(id => id.startsWith('language-check.')).sort((a, b) => Number(a > b) - Number(a < b));
+        assert.deepStrictEqual(ours, [...new Set(expected)].sort((a, b) => Number(a > b) - Number(a < b)), 'an unexpected command is registered');
     });
 
     test('the quick fixes offered for a misspelling, in order', async function () {

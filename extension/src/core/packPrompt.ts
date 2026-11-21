@@ -84,7 +84,7 @@ export type LanguageTag = string & { readonly [languageTag]: true };
  * `ca-ES-valencia` — never on a stray word that reached the field.
  */
 export function isLanguageTag(value: string): value is LanguageTag {
-    return /^[a-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$/i.test(value);
+    return /^[a-z]{2,3}(-[a-z0-9]{2,8}){0,2}$/i.test(value);
 }
 
 /** Tags are compared case-insensitively and without their separator. */

@@ -104,7 +104,7 @@ export function parseDiagId(id: string): { readonly generation: number; readonly
  * wrong.
  */
 export function insertedText(suggestion: string): string | null {
-    const insertMatch = suggestion.match(/^Insert\s+[""\u201C](.+)[""\u201D]$/);
+    const insertMatch = suggestion.match(/^Insert\s+["\u201C](.+)["\u201D]$/);
     return insertMatch && insertMatch[1] ? insertMatch[1] : null;
 }
 

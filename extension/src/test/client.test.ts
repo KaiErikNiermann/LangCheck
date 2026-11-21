@@ -23,7 +23,7 @@ function createMockProcess() {
     return { mockProcess, mockStdout, mockStdin };
 }
 
-function encodeResponse(response: languagecheck.IResponse): Buffer {
+function encodeResponse(response: languagecheck.Response.$Properties): Buffer {
     const data = languagecheck.Response.encode(
         languagecheck.Response.create(response)
     ).finish();
@@ -138,7 +138,7 @@ describe('LanguageClient', () => {
 
             expect(mock.mockStdin.write).toHaveBeenCalledTimes(2); // length prefix + data
             const lengthBuf = mock.mockStdin.write.mock.calls[0]![0] as Buffer;
-            expect(lengthBuf.length).toBe(4);
+            expect(lengthBuf).toHaveLength(4);
             const msgBuf = mock.mockStdin.write.mock.calls[1]![0] as Uint8Array;
             const decoded = languagecheck.Request.decode(msgBuf);
             expect(toNum(decoded.id)).toBe(1);

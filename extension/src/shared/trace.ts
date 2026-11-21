@@ -32,7 +32,7 @@ export class TraceLogger {
     }
 
     /** Log an outgoing request. */
-    public logRequest(request: languagecheck.IRequest): void {
+    public logRequest(request: languagecheck.Request.$Properties): void {
         if (!this.enabled) return;
         this.messageCount++;
 
@@ -49,7 +49,7 @@ export class TraceLogger {
     }
 
     /** Log an incoming response. */
-    public logResponse(response: languagecheck.IResponse, durationMs: number): void {
+    public logResponse(response: languagecheck.Response.$Properties, durationMs: number): void {
         if (!this.enabled) return;
         this.messageCount++;
 
@@ -93,7 +93,7 @@ export class TraceLogger {
         this.channel.appendLine(`[${timestamp}] ${msg}`);
     }
 
-    private getRequestType(req: languagecheck.IRequest): string {
+    private getRequestType(req: languagecheck.Request.$Properties): string {
         if (req.checkProse) return 'checkProse';
         if (req.initialize) return 'initialize';
         if (req.ignore) return 'ignore';
@@ -102,7 +102,7 @@ export class TraceLogger {
         return 'unknown';
     }
 
-    private getResponseType(res: languagecheck.IResponse): string {
+    private getResponseType(res: languagecheck.Response.$Properties): string {
         if (res.error) return 'error';
         if (res.checkProse) return 'checkProse';
         if (res.getMetadata) return 'getMetadata';
@@ -110,7 +110,7 @@ export class TraceLogger {
         return 'unknown';
     }
 
-    private summarizeRequest(req: languagecheck.IRequest): string {
+    private summarizeRequest(req: languagecheck.Request.$Properties): string {
         if (req.checkProse) {
             const text = req.checkProse.text ?? '';
             const preview = text.length > 80 ? text.slice(0, 80) + '...' : text;
@@ -128,7 +128,7 @@ export class TraceLogger {
         return '';
     }
 
-    private summarizeResponse(res: languagecheck.IResponse): string {
+    private summarizeResponse(res: languagecheck.Response.$Properties): string {
         if (res.error) {
             return `error: ${res.error.message ?? 'unknown'}`;
         }

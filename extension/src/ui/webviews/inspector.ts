@@ -49,7 +49,7 @@ export interface InspectorEnvironment {
 
 /** What the core says the config selects, with what the host knows of where its files are. */
 export interface ConfigListing {
-    readonly listing: languagecheck.IListConfigFilesResponse;
+    readonly listing: languagecheck.ListConfigFilesResponse.$Properties;
     /** Where the files come from, when not from a folder on disk (a site's project). */
     readonly note?: string;
     /** The workspace has no files at all (Gmail); `note` says so. */

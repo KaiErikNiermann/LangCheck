@@ -39,7 +39,7 @@ import { InspectorPanel } from './ui/webviews/inspector';
 import { SpeedFixPanel, speedFixActions } from './ui/webviews/speedFix';
 
 /** What deactivate() has to stop: set once activation has built it. */
-let deactivateHooks: { core: CoreService; triggers: CheckTriggers } | undefined;
+const deactivateHooks: { current?: { core: CoreService; triggers: CheckTriggers } } = {};
 
 export async function activate(context: vscode.ExtensionContext) {
     const isDev = context.extensionMode === vscode.ExtensionMode.Development;
@@ -108,7 +108,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const actions: DiagnosticActions = new DiagnosticActions({ core, checker, log, inspectorLog, store, fixTarget, speedFix });
     const packs = new Packs({ context, core, configState, log, inspectorLog, reload: () => reloader.reinitializeAndRecheck() });
     const triggers = new CheckTriggers({ core, store, results, checker, configState, inspector });
-    deactivateHooks = { core, triggers };
+    deactivateHooks.current = { core, triggers };
 
     const configStatusView = new ConfigStatusView(
         context.extensionUri,
@@ -194,7 +194,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
     // Clean up debounce timers
-    deactivateHooks?.triggers.debouncer.cancelAll();
+    deactivateHooks.current?.triggers.debouncer.cancelAll();
 
-    deactivateHooks?.core.stop();
+    deactivateHooks.current?.core.stop();
 }

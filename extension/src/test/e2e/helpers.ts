@@ -39,7 +39,10 @@ export async function eventually<T>(
     let last: T | undefined;
     for (;;) {
         last = await read();
-        if (last !== undefined && last !== null && last !== false) return last;
+        // Read as `unknown`: `T` may itself be null or false, which is what the
+        // caller's callback signals "not yet" with.
+        const seen: unknown = last;
+        if (seen !== undefined && seen !== null && seen !== false) return last as T;
         if (Date.now() > deadline) {
             throw new Error(`timed out after ${timeoutMs}ms waiting for ${what}`);
         }

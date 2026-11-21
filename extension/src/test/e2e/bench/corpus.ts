@@ -75,7 +75,8 @@ export function markdown(seed: number, bytes: number): string {
     const next = rng(seed);
     const parts: string[] = [`# Document ${seed}`];
     let size = 0;
-    for (let i = 0; size < bytes; i++) {
+    let i = 0;
+    while (size < bytes) {
         let part: string;
         if (i % 12 === 11) part = `## Section ${i}`;
         else if (i % 7 === 6) part = Array.from({ length: 4 }, () => `- ${sentence(next, 'en', 6)}`).join('\n');
@@ -83,6 +84,7 @@ export function markdown(seed: number, bytes: number): string {
         else part = `${paragraph(next, 'en')} See [the guide](https://example.com/${i}) and \`inline_${i}\`.`;
         parts.push(part);
         size += part.length + 2;
+        i++;
     }
     return `${parts.join('\n\n')}\n`;
 }
@@ -92,15 +94,20 @@ export function latex(seed: number, bytes: number): string {
     const next = rng(seed);
     const parts: string[] = ['\\documentclass{article}', '\\begin{document}', `\\title{Document ${seed}}`];
     let size = 0;
-    for (let i = 0; size < bytes; i++) {
+    let i = 0;
+    while (size < bytes) {
         let part: string;
         if (i % 12 === 11) part = `\\section{Section ${i}}\\label{sec:${i}}`;
+        // eslint-disable-next-line unicorn/no-incorrect-template-string-interpolation -- literal LaTeX braces, not a placeholder: the generated text must stay byte-identical
         else if (i % 7 === 6) part = `\\begin{itemize}\n${Array.from({ length: 4 }, () => `  \\item ${sentence(next, 'en', 6)}`).join('\n')}\n\\end{itemize}`;
+        // eslint-disable-next-line unicorn/no-incorrect-template-string-interpolation -- literal LaTeX braces, not a placeholder: the generated text must stay byte-identical
         else if (i % 9 === 8) part = `\\begin{equation}\n  E_{${i}} = \\sum_{k=0}^{n} \\frac{x^k}{k!}\n\\end{equation}`;
         else part = `${paragraph(next, 'en')} See \\cite{ref${i}} and \\emph{${sentence(next, 'en', 3)}} in Section~\\ref{sec:${i}}.`;
         parts.push(part);
         size += part.length + 2;
+        i++;
     }
+    // eslint-disable-next-line unicorn/no-incorrect-template-string-interpolation -- literal LaTeX braces, not a placeholder: the generated text must stay byte-identical
     return `${parts.join('\n\n')}\n\n\\end{document}\n`;
 }
 
@@ -109,7 +116,8 @@ export function typst(seed: number, bytes: number): string {
     const next = rng(seed);
     const parts: string[] = ['#set text(lang: "en")', `= Document ${seed}`];
     let size = 0;
-    for (let i = 0; size < bytes; i++) {
+    let i = 0;
+    while (size < bytes) {
         let part: string;
         if (i % 12 === 11) part = `== Section ${i} <sec-${i}>`;
         else if (i % 7 === 6) part = Array.from({ length: 4 }, () => `- ${sentence(next, 'en', 6)}`).join('\n');
@@ -118,6 +126,7 @@ export function typst(seed: number, bytes: number): string {
         else part = `${paragraph(next, 'en')} See #link("https://example.com/${i}")[the guide] and #emph[${sentence(next, 'en', 3)}] with \`raw_${i}\`.`;
         parts.push(part);
         size += part.length + 2;
+        i++;
     }
     return `${parts.join('\n\n')}\n`;
 }
@@ -181,7 +190,9 @@ export function malformedLatex(seed: number): string {
         `\\section{Broken ${seed}`,
         prose(),
         `${'\\textbf{\\emph{'.repeat(250)}${prose()}`,
+        // eslint-disable-next-line unicorn/no-incorrect-template-string-interpolation -- literal LaTeX braces, not a placeholder: the generated text must stay byte-identical
         Array.from({ length: 200 }, () => `\\begin{itemize}\\item ${sentence(next, 'en', 5)}`).join('\n'),
+        // eslint-disable-next-line unicorn/no-incorrect-template-string-interpolation -- literal LaTeX braces, not a placeholder: the generated text must stay byte-identical
         `$ ${prose()} \\frac{a}{`,
         `\\verb|${sentence(next, 'en', 4)}`,
         prose(),
@@ -214,12 +225,14 @@ export function mixedLanguages(seed: number, bytes: number): string {
     const langs: readonly Lang[] = ['en', 'de', 'fr', 'es'];
     const parts: string[] = [`# Mixed ${seed}`];
     let size = 0;
-    for (let i = 0; size < bytes; i++) {
+    let i = 0;
+    while (size < bytes) {
         const lang = langs[i % langs.length] as Lang;
         const marker = i % 2 === 0 ? `<!-- lang: ${lang} -->\n` : '';
         const part = `${marker}${paragraph(next, lang, 4)}`;
         parts.push(part);
         size += part.length + 2;
+        i++;
     }
     return `${parts.join('\n\n')}\n`;
 }

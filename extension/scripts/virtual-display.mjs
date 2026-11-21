@@ -41,6 +41,7 @@ function run(file, argv, env) {
 if (headed) {
     run(command, args, process.env);
 } else {
+    // eslint-disable-next-line sonarjs/no-os-command-from-path -- probing PATH for the user's own xvfb-run is the intended lookup
     if (spawnSync('xvfb-run', ['--help'], { stdio: 'ignore' }).error) {
         console.error(
             'xvfb-run was not found, so the e2e windows would open on your desktop.\n'

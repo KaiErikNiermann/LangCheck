@@ -34,6 +34,7 @@ function control(document: vscode.TextDocument): vscode.Diagnostic | undefined {
 /** Whether a binary is on PATH, so a missing optional tool skips rather than fails. */
 function onPath(binary: string): boolean {
     try {
+        // eslint-disable-next-line sonarjs/no-os-command-from-path -- the test asks the shell whether the user's own tool is on PATH; the binary name is a fixed argument
         execFileSync('which', [binary], { stdio: 'ignore' });
         return true;
     } catch {

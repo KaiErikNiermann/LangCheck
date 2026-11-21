@@ -49,7 +49,7 @@ function asMapping(value: unknown): Mapping {
  * otherwise read as changed and force a re-check.
  */
 function canonical(value: unknown): string {
-    if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+    if (Array.isArray(value)) return `[${value.map(item => canonical(item)).join(',')}]`;
     if (typeof value === 'object' && value !== null) {
         const entries = Object.entries(value as Mapping)
             .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
@@ -86,8 +86,7 @@ export function classifyConfigChange(before: string, after: string): ConfigChang
     // Everything outside `rules:` has to be identical. A changed engine, a
     // changed dictionary or a changed exclude can all add findings.
     const withoutRules = (config: Mapping): Mapping => {
-        const { rules: _rules, ...rest } = config;
-        return rest;
+        return Object.fromEntries(Object.entries(config).filter(([key]) => key !== 'rules'));
     };
     if (canonical(withoutRules(oldConfig)) !== canonical(withoutRules(newConfig))) {
         return FULL;

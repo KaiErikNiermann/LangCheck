@@ -21,7 +21,7 @@ export interface RecoveryDeps {
     readonly log: Logger;
     readonly results: CheckResults;
     /** The core's probe of the saved config; null when there is no core to ask. */
-    readonly probe: () => Promise<languagecheck.IProbeConfigResponse | null>;
+    readonly probe: () => Promise<languagecheck.ProbeConfigResponse.$Properties | null>;
     readonly recheck: () => void;
 }
 

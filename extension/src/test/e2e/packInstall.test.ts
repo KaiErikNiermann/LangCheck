@@ -72,6 +72,7 @@ function control(document: vscode.TextDocument): boolean {
 /** Whether the catalogue host can be reached, so a no-network run skips. */
 function canReachCatalogue(): boolean {
     try {
+        // eslint-disable-next-line sonarjs/no-os-command-from-path -- curl is the developer's own, resolved from PATH on purpose; argv is fixed
         execFileSync('curl', [
             '--silent', '--head', '--max-time', '8',
             'https://raw.githubusercontent.com',

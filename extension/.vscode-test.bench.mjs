@@ -72,6 +72,7 @@ function workspace(name, shape) {
 
 function commit() {
     try {
+        // eslint-disable-next-line sonarjs/no-os-command-from-path -- git is resolved from PATH on purpose: the developer's own checkout tool, with a fixed argv
         return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: here, encoding: 'utf8' }).trim();
     } catch {
         return '';

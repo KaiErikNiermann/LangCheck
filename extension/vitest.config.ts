@@ -1,12 +1,12 @@
 import { defineConfig } from 'vitest/config';
-import * as path from 'path';
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
     resolve: {
         alias: {
             // `vscode` is injected by the extension host and has no npm package,
             // so anything importing it fails to resolve under vitest.
-            vscode: path.resolve(__dirname, 'src/test/__mocks__/vscode.ts'),
+            vscode: fileURLToPath(new URL('src/test/__mocks__/vscode.ts', import.meta.url)),
         },
     },
     test: {

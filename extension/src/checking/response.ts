@@ -54,7 +54,7 @@ export function positionsIn(text: string): Positions {
 
 /** One core diagnostic as a squiggle, carrying what the quick fixes and hints need. */
 export function toDiagnostic(
-    d: languagecheck.IDiagnostic,
+    d: languagecheck.Diagnostic.$Properties,
     document: Positions,
     byteToChar: ByteToChar,
 ): ExtendedDiagnostic {
@@ -105,8 +105,7 @@ export function exclusionKind(excText: string): string {
     else if (/^\\[a-zA-Z]/.test(trimmed)) kind = 'command';
     else if (trimmed.startsWith('\\')) kind = 'escape';
     else if (trimmed.startsWith('%')) kind = 'comment';
-    else if (/^\[.*\]\(.*\)$/.test(trimmed)) kind = 'link';
-    else if (trimmed.startsWith('[[') && trimmed.endsWith(']]')) kind = 'link';
+    else if (/^\[.*\]\(.*\)$/.test(trimmed) || (trimmed.startsWith('[[') && trimmed.endsWith(']]'))) kind = 'link';
     else if (/^[{}[\]()]+$/.test(trimmed)) kind = 'delimiter';
     else if (trimmed === '') kind = 'whitespace';
     return kind;
@@ -114,7 +113,7 @@ export function exclusionKind(excText: string): string {
 
 /** The core's prose ranges as the Inspector draws them, with exclusions blanked out of `cleanText`. */
 export function toInspectorRanges(
-    protoRanges: readonly languagecheck.IExtractionProseRange[],
+    protoRanges: readonly languagecheck.ExtractionProseRange.$Properties[],
     textContent: string,
     byteToChar: ByteToChar,
 ): InspectorProseRange[] {
@@ -168,7 +167,7 @@ export function toInspectorRanges(
  * rather than a silent behaviour change.
  */
 export function toNameSpans(
-    names: readonly languagecheck.INameSpan[],
+    names: readonly languagecheck.NameSpan.$Properties[],
     textContent: string,
     document: Positions,
     byteToChar: ByteToChar,
