@@ -61,7 +61,7 @@ async function sample(page: Page, dataHome: string, devtoolsPort: number, starte
     const processes = ourProcesses(dataHome);
     const now = await stats(page);
     return {
-        minutes: (Date.now() - startedAt) / 60_000,
+        minutes: (performance.now() - startedAt) / 60_000,
         pageMB: await heapMB(page),
         workerMB: await workerHeapMB(devtoolsPort),
         nodes: dom.nodes,
@@ -170,7 +170,7 @@ test('a page in use for a long time holds no more at the end than once warmed up
         return actions[0]?.run ?? (() => Promise.resolve());
     };
 
-    const startedAt = Date.now();
+    const startedAt = performance.now();
     const samples: Sample[] = [];
     const take = async (): Promise<void> => {
         const taken = await sample(page, dataHome, devtoolsPort, startedAt);
@@ -178,24 +178,24 @@ test('a page in use for a long time holds no more at the end than once warmed up
         appendFileSync(out, `${JSON.stringify(taken)}\n`);
     };
     await take();
-    let sampledAt = Date.now();
-    let panelAt = Date.now();
+    let sampledAt = performance.now();
+    let panelAt = performance.now();
     let steps = 0;
-    while (Date.now() - startedAt < MINUTES * 60_000) {
+    while (performance.now() - startedAt < MINUTES * 60_000) {
         // The page in front, the cursor in the editor: where a user's keys go.
         await page.bringToFront();
         await page.locator('.cm-content').click({ position: { x: 5, y: 5 } });
         await pick()();
         steps++;
-        if (Date.now() - panelAt > PANEL_EVERY_MS) {
+        if (performance.now() - panelAt > PANEL_EVERY_MS) {
             const panel = await openPanel(page, 'Open SpeedFix', 'speedFix');
             await panel.locator('#app *').first().waitFor();
             await panel.close();
-            panelAt = Date.now();
+            panelAt = performance.now();
         }
-        if (Date.now() - sampledAt <= SAMPLE_EVERY_MS) continue;
+        if (performance.now() - sampledAt <= SAMPLE_EVERY_MS) continue;
         await take();
-        sampledAt = Date.now();
+        sampledAt = performance.now();
     }
     // The last sample on the file the first was taken on.
     await open('soak-0', 0);

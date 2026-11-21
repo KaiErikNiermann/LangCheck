@@ -23,10 +23,10 @@ async function openWith(page: Page, text: string): Promise<void> {
 
 test('a long document is checked whole: findings off screen are held, and drawn when scrolled to', async ({ page }) => {
     const { text, misspelt } = longProse(4000, 200);
-    const started = Date.now();
+    const started = performance.now();
     await openWith(page, text);
     await expect.poll(() => findings(page), { timeout: 40_000 }).toBe(misspelt);
-    const firstAnswerMs = Date.now() - started;
+    const firstAnswerMs = performance.now() - started;
     // CodeMirror draws only what is near the viewport: the last line's finding
     // is not in the DOM until scrolled to.
     await page.evaluate(() => {
