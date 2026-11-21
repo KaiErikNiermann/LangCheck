@@ -133,7 +133,9 @@ async function afterBuild(result) {
     // Browsers refuse to load a manifest whose web_accessible_resources match a
     // path other than /* (Chrome then never starts the extension at all).
     for (const resources of manifest.web_accessible_resources) {
-        const bad = resources.matches.filter((pattern) => !pattern.endsWith('/*') || new URL(pattern.replace('*', '')).pathname !== '/');
+        // Drop only the path's trailing `*`: a host wildcard (https://*.example.com/*)
+        // must survive into the URL, or the first `*` removed is the host's.
+        const bad = resources.matches.filter((pattern) => !pattern.endsWith('/*') || new URL(pattern.slice(0, -1)).pathname !== '/');
         if (bad.length > 0) throw new Error(`web_accessible_resources must match whole origins (path /*): ${bad.join(', ')}`);
     }
     await mkdir(outdir, { recursive: true });
