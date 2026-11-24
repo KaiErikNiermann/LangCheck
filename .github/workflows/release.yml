@@ -290,7 +290,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: extension/pnpm-lock.yaml
 
@@ -456,6 +456,12 @@ jobs:
     env:
       OVSX_PAT: ${{ secrets.OVSX_PAT }}
     steps:
+      # vsce 4 and ovsx 1.4 both require Node >= 22; without this the job
+      # runs on whatever Node the runner image ships.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
       - name: Download VSIX artifact
         uses: actions/download-artifact@v8
         with:
